@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
-import { hasBackend, saveProfile, clearLocalProfile, getRemembered } from '../lib/profiles'
+import { hasBackend, saveProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
@@ -34,10 +34,27 @@ export default function Register() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Prefill the name from the Discord identity once signed in (if still empty).
+  // On sign-in, recover any existing registration (keyed by Discord name) from
+  // the backend so the OpenFront id / details come back automatically. Falls
+  // back to the Discord display name for a brand-new member.
   useEffect(() => {
-    if (session && !name) setName(discordDisplayName(session))
-  }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!session) return
+    let alive = true
+    ;(async () => {
+      const existing = await fetchByDiscord(discordDisplayName(session)).catch(() => null)
+      if (!alive) return
+      if (existing) {
+        setName((n) => n || existing.in_game_name)
+        setOpenfrontId((v) => v || existing.openfront_id)
+        if (existing.timezone) setTimezone((t) => t || existing.timezone)
+      } else {
+        setName((n) => n || discordDisplayName(session))
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [session])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()

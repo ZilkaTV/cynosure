@@ -74,6 +74,21 @@ export async function saveProfile(p: Profile): Promise<void> {
   }
 }
 
+/**
+ * Look up an existing registration by Discord username, so a returning member
+ * who signs in gets their OpenFront id / details back even on a new device.
+ */
+export async function fetchByDiscord(discordUsername: string): Promise<Profile | null> {
+  if (!supabase || !discordUsername) return null
+  const { data, error } = await supabase
+    .from('cyn_members')
+    .select('openfront_id, in_game_name, timezone, discord_username')
+    .eq('discord_username', discordUsername)
+    .maybeSingle()
+  if (error) return null
+  return (data as Profile) ?? null
+}
+
 /** The full registered roster (for name/timezone enrichment). */
 export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {

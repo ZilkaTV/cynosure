@@ -45,6 +45,10 @@ export default function MemberProfile() {
     .slice(0, 12)
 
   const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
+  const fmtDuration = (s: number) => {
+    const m = Math.floor(s / 60)
+    return `${m}m ${String(s % 60).padStart(2, '0')}s`
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-10">
@@ -103,12 +107,15 @@ export default function MemberProfile() {
         <SectionHeading center eyebrow="Recent" title="Latest CYN games" />
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[440px] text-sm">
+            <table className="w-full min-w-[620px] text-sm">
               <thead>
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">Date</th>
                   <th className="px-4 py-3 text-left font-semibold">Mode</th>
                   <th className="px-4 py-3 text-left font-semibold">Map</th>
+                  <th className="px-4 py-3 text-right font-semibold">Players</th>
+                  <th className="px-4 py-3 text-right font-semibold">Duration</th>
+                  <th className="px-4 py-3 text-left font-semibold">Game ID</th>
                   <th className="px-4 py-3 text-right font-semibold">Result</th>
                 </tr>
               </thead>
@@ -118,6 +125,9 @@ export default function MemberProfile() {
                     <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                     <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
                     <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
                     <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                       {g.result}
                     </td>

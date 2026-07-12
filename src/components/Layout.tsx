@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import CynLogo from './CynLogo'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
+import { clearLocalProfile } from '../lib/profiles'
+import { supabase } from '../lib/supabase'
 
 const navItems = [
   { to: '/', label: 'Overview', end: true },
@@ -37,30 +39,70 @@ function trackingSince(): string {
   }
 }
 
-export default function Layout({ children }: { children: ReactNode }) {
-  const { profile } = useProfile()
+function AccountMenu() {
+  const { profile, refresh } = useProfile()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  if (!profile) {
+    return (
+      <Link to="/register" className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]">
+        <DiscordIcon />
+        <span className="hidden sm:inline">Register</span>
+      </Link>
+    )
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
+        aria-label="Account menu"
+      >
+        <GearIcon />
+        <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
+          <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            My profile
+          </Link>
+          <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            Settings
+          </Link>
+          <button
+            onClick={async () => {
+              setOpen(false)
+              clearLocalProfile()
+              if (supabase) await supabase.auth.signOut()
+              refresh()
+            }}
+            className="block w-full px-4 py-2.5 text-left text-sm text-signal-red hover:bg-base-800"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-base-700 bg-base-950/60">
-        {/* top-right settings / register - floated so the crest stays centred */}
+        {/* top-right account menu - floated so the crest stays centred */}
         <div className="mx-auto flex max-w-7xl justify-end px-4 pt-3 sm:px-6">
-          {profile ? (
-            <Link
-              to="/register"
-              className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
-              title="Settings - edit your details or sign out"
-              aria-label="Settings"
-            >
-              <GearIcon />
-              <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
-            </Link>
-          ) : (
-            <Link to="/register" className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]">
-              <DiscordIcon />
-              <span className="hidden sm:inline">Register</span>
-            </Link>
-          )}
+          <AccountMenu />
         </div>
 
         {/* centred crest - always links home */}

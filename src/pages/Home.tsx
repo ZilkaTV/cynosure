@@ -84,6 +84,15 @@ export default function Home() {
           <>
             <StatsTable members={data.members} columns={columns} defaultSort="all" />
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
+            {data.oldestGame && (
+              <p className="text-center text-xs text-slate-500">
+                Counting [{CLAN_TAG}] games since{' '}
+                <span className="text-slate-300">
+                  {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>{' '}
+                — older games fall outside OpenFront’s public history window.
+              </p>
+            )}
             <p className="text-center text-xs text-slate-500">
               1v1 Elo comes from OpenFront’s ranked ladder (global top 100 only). Click a name for that
               member’s full profile.

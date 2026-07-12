@@ -158,7 +158,7 @@ async function fetchGamesPaged(publicId: string, filter: string | null, maxPages
  * A player's full game history: the default feed (FFA/Team) merged with the
  * ranked feed (1v1), de-duplicated by gameId. Cached per player.
  */
-export async function fetchPlayerGames(publicId: string, maxPages = 12): Promise<PlayerGame[]> {
+export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise<PlayerGame[]> {
   const key = `${CACHE_NS}:games:${publicId}`
   const cached = cacheGet<PlayerGame[]>(key)
   if (cached) return cached

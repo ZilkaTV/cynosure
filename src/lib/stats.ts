@@ -50,6 +50,8 @@ export interface MemberStats {
 export interface RosterResult {
   members: MemberStats[]
   coopByGame: Record<string, boolean>
+  /** Start date of the OLDEST CYN game currently counted (coverage window). */
+  oldestGame: string | null
   totals: {
     members: number
     ffaWins: number
@@ -250,5 +252,10 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
     topElo: members.reduce<number | null>((mx, m) => (m.elo != null && (mx == null || m.elo > mx) ? m.elo : mx), null),
   }
 
-  return { members, coopByGame, totals }
+  // Oldest CYN game currently counted = the start of the coverage window.
+  const oldestGame = members
+    .flatMap((m) => m.cynGames.map((g) => g.start))
+    .reduce<string | null>((acc, s) => (!acc || new Date(s) < new Date(acc) ? s : acc), null)
+
+  return { members, coopByGame, oldestGame, totals }
 }

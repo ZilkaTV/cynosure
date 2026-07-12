@@ -2,12 +2,41 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
 import CynLogo from './CynLogo'
-import { CLAN_TAG, DISCORD_INVITE } from '../config'
+import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
+
+/** Handy OpenFront community sites, shown to the right of the stats. */
+export function UsefulLinks() {
+  return (
+    <div className="panel overflow-hidden">
+      <div className="border-b border-base-700 px-4 py-3">
+        <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">Useful Links</span>
+      </div>
+      <ul className="divide-y divide-base-700/60">
+        {USEFUL_LINKS.map((l) => (
+          <li key={l.url}>
+            <a
+              href={l.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block px-4 py-2.5 transition-colors hover:bg-base-800/60"
+            >
+              <span className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
+                {l.label}
+                <span className="text-slate-500">↗</span>
+              </span>
+              <span className="text-xs text-slate-500">{l.note}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 /**
- * Stats layout: Discord widget flush-left, content centred in the rest of the
- * width. On mobile it collapses to one column with the widget BELOW the content
- * (content is DOM-first; the widget is placed left only on lg via grid columns).
+ * Stats layout: Discord widget flush-left, content centred, useful-links panel
+ * on the right. On mobile it collapses to one column (content, then widget,
+ * then links).
  */
 export function StatsShell({ children }: { children: ReactNode }) {
   return (
@@ -17,6 +46,9 @@ export function StatsShell({ children }: { children: ReactNode }) {
       </div>
       <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
         <DiscordWidget />
+      </aside>
+      <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
+        <UsefulLinks />
       </aside>
     </div>
   )

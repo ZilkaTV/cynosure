@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-base-950 text-slate-200 font-body antialiased;
+    background-image: radial-gradient(circle at 50% -10%, rgba(139, 92, 246, 0.14), transparent 55%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-base-700 bg-base-900/70 backdrop-blur-sm;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .btn-accent {
+    @apply inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark focus:outline-none focus:ring-2 focus:ring-accent/50;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-base-950 transition-colors hover:bg-gold-light focus:outline-none focus:ring-2 focus:ring-gold/40;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg border border-base-600 bg-base-800/60 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white;
+  }
+  .nav-link {
+    @apply rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white;
+  }
+  .nav-link-active {
+    @apply bg-accent/10 text-accent-light;
+  }
+}

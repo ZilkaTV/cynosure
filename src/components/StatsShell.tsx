@@ -1,0 +1,50 @@
+import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import DiscordWidget from './DiscordWidget'
+import CynLogo from './CynLogo'
+import { CLAN_TAG, DISCORD_INVITE } from '../config'
+
+/** Two-column stats layout: live Discord widget on the left, content on the right. */
+export function StatsShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <aside className="lg:sticky lg:top-40 lg:self-start">
+        <DiscordWidget />
+      </aside>
+      <div className="min-w-0 space-y-8">{children}</div>
+    </div>
+  )
+}
+
+/** Shown instead of stats until the visitor registers. */
+export function RegistrationGate() {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <aside className="lg:sticky lg:top-40 lg:self-start">
+        <DiscordWidget />
+      </aside>
+      <div className="panel bg-grid-fade px-6 py-14 text-center">
+        <CynLogo className="mx-auto h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
+        <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only — one quick step</h1>
+        <p className="mx-auto mt-2 max-w-md text-slate-400">
+          Register with Discord and enter your in-game name, timezone and OpenFront public id to unlock
+          the [{CLAN_TAG}] roster and stats.
+        </p>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">
+          <Link
+            to="/register"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.213.38-.462.893-.634 1.301a18.27 18.27 0 0 0-5.5 0A12.6 12.6 0 0 0 9.115 3a19.74 19.74 0 0 0-4.435 1.371C1.4 9.043.65 13.6.925 18.096a19.9 19.9 0 0 0 6.06 3.06c.49-.665.926-1.372 1.302-2.115a12.9 12.9 0 0 1-2.049-.98c.172-.125.34-.256.503-.392a14.19 14.19 0 0 0 12.516 0c.166.14.334.27.503.392-.65.385-1.336.71-2.052.982.377.742.812 1.45 1.303 2.114a19.83 19.83 0 0 0 6.064-3.06c.323-5.218-.552-9.735-2.758-13.727ZM8.68 15.331c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.815 2.081-1.85 2.081Zm6.646 0c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.806 2.081-1.85 2.081Z" />
+            </svg>
+            Register
+          </Link>
+          <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" className="btn-ghost">
+            Join the Discord
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}

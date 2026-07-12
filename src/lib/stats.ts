@@ -4,9 +4,10 @@
 // under no tag / another tag are never included.
 
 import {
-  fetchGameClanTags,
+  fetchGameDetail,
   fetchPlayerGames,
   fetchRankedMap,
+  type GameDetail,
   type PlayerGame,
   type RankedEntry,
 } from './openfront'
@@ -45,6 +46,8 @@ export interface MemberStats {
   clanGamesTotal: number
   // raw CYN games (for profile page + month archive)
   cynGames: PlayerGame[]
+  // per-game detail (kills + gold) for this member, where fetched (recent games)
+  detailByGame: Record<string, { kills: number; gold: number }>
 }
 
 export interface RosterResult {
@@ -144,6 +147,73 @@ export function oneVoneBucket(games: PlayerGame[], monthKey: string): { wins: nu
   }
 }
 
+// ── richer monthly rows (with kills/gold from game detail where available) ───
+
+function wlRatio(wins: number, losses: number): number {
+  return losses === 0 ? wins : Math.round((wins / losses) * 100) / 100
+}
+
+/** Longest run of consecutive FFA victories in the month (defeats break it). */
+function highestFfaStreak(games: PlayerGame[], monthKey: string): number {
+  const decided = games
+    .filter((g) => isFfa(g) && monthKeyOf(g.start) === monthKey && (isVictory(g) || isDefeat(g)))
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  let best = 0
+  let run = 0
+  for (const g of decided) {
+    if (isVictory(g)) {
+      run++
+      best = Math.max(best, run)
+    } else run = 0
+  }
+  return best
+}
+
+export interface FfaRow {
+  wins: number
+  losses: number
+  points: number
+  winstreak: number
+  wl: number
+  avgKills: number | null // null = no game detail available
+}
+
+export interface TeamRow {
+  wins: number
+  losses: number
+  points: number
+  wl: number
+  kills: number | null
+  avgGold: number | null
+}
+
+export function ffaMonthly(m: MemberStats, monthKey: string): FfaRow {
+  const b = ffaBucket(m.cynGames, monthKey)
+  const inMonth = m.cynGames.filter((g) => isFfa(g) && monthKeyOf(g.start) === monthKey)
+  const detailed = inMonth.filter((g) => m.detailByGame[g.gameId])
+  const totalKills = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].kills, 0)
+  return {
+    ...b,
+    winstreak: highestFfaStreak(m.cynGames, monthKey),
+    wl: wlRatio(b.wins, b.losses),
+    avgKills: detailed.length ? Math.round((totalKills / detailed.length) * 10) / 10 : null,
+  }
+}
+
+export function teamMonthly(m: MemberStats, monthKey: string, coop: Record<string, boolean>): TeamRow {
+  const b = teamBucket(m.cynGames, monthKey, coop)
+  const inMonth = m.cynGames.filter((g) => isTeam(g) && monthKeyOf(g.start) === monthKey)
+  const detailed = inMonth.filter((g) => m.detailByGame[g.gameId])
+  const kills = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].kills, 0)
+  const gold = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].gold, 0)
+  return {
+    ...b,
+    wl: wlRatio(b.wins, b.losses),
+    kills: detailed.length ? kills : null,
+    avgGold: detailed.length ? Math.round(gold / detailed.length) : null,
+  }
+}
+
 /** Every month (newest first) that appears anywhere in the members' CYN games. */
 export function availableMonths(members: MemberStats[]): string[] {
   const set = new Set<string>()
@@ -182,7 +252,9 @@ function eloMonthDelta(publicId: string, currentElo: number | null): number | nu
 
 // ── build roster ─────────────────────────────────────────────────────────────
 
-const MAX_COOP_LOOKUPS = 80
+// Cap on full game-detail fetches per roster build (co-op + kills/gold). Details
+// are cached, so coverage grows over time; kept bounded to respect rate limits.
+const MAX_DETAIL_LOOKUPS = 140
 
 export async function buildRoster(registered: RosterInput[]): Promise<RosterResult> {
   const ranked = await fetchRankedMap()
@@ -196,20 +268,33 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
       }),
   )
 
-  // Resolve team co-op: for each team victory, does the game contain another
-  // CYN player? Cached per game id; capped so a cold load stays bounded.
+  // Which games need a full detail fetch? Team victories (for co-op scoring) +
+  // this month's FFA/Team games (for kills/gold). One detail serves both.
+  const mk = currentMonthKey()
   const teamWinIds = new Set<string>()
+  const wantDetail = new Set<string>()
   for (const { games } of raw) {
-    for (const g of games) if (isTeam(g) && isVictory(g)) teamWinIds.add(g.gameId)
+    for (const g of games) {
+      if (isTeam(g) && isVictory(g)) {
+        teamWinIds.add(g.gameId)
+        wantDetail.add(g.gameId)
+      }
+      if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
+    }
   }
-  const coopByGame: Record<string, boolean> = {}
-  const ids = [...teamWinIds].slice(0, MAX_COOP_LOOKUPS)
+  const detailMap = new Map<string, GameDetail | null>()
   await Promise.all(
-    ids.map(async (gameId) => {
-      const tags = await fetchGameClanTags(gameId)
-      coopByGame[gameId] = tags.filter((t) => t === CLAN_TAG).length >= 2
+    [...wantDetail].slice(0, MAX_DETAIL_LOOKUPS).map(async (id) => {
+      detailMap.set(id, await fetchGameDetail(id))
     }),
   )
+
+  // Co-op = another CYN player in the same team-win game.
+  const coopByGame: Record<string, boolean> = {}
+  for (const id of teamWinIds) {
+    const d = detailMap.get(id)
+    if (d) coopByGame[id] = d.players.filter((p) => p.clanTag === CLAN_TAG).length >= 2
+  }
 
   const members: MemberStats[] = raw.map(({ input, games }) => {
     const r: RankedEntry | undefined = ranked[input.openfront_id]
@@ -221,6 +306,23 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
       (acc, g) => (!acc || new Date(g.start) > new Date(acc) ? g.start : acc),
       null,
     )
+
+    // Pull this member's kills + gold out of each fetched game detail (match by
+    // the exact name they used in that game).
+    const detailByGame: Record<string, { kills: number; gold: number }> = {}
+    for (const g of games) {
+      const d = detailMap.get(g.gameId)
+      if (!d) continue
+      const me =
+        d.players.find((p) => p.username === g.username && p.clanTag === CLAN_TAG) ??
+        d.players.find((p) => p.username === g.username)
+      if (!me?.stats) continue
+      detailByGame[g.gameId] = {
+        kills: me.stats.kills?.length ?? 0,
+        gold: (me.stats.gold ?? []).reduce((s, x) => s + Number(x || 0), 0),
+      }
+    }
+
     return {
       publicId: input.openfront_id,
       name: input.in_game_name?.trim() || r?.username || games[0]?.username || input.openfront_id,
@@ -238,6 +340,7 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
       lastGame,
       clanGamesTotal: games.length,
       cynGames: games,
+      detailByGame,
     }
   })
 

@@ -8,59 +8,54 @@ import { Card, EloDelta, LastUpdated, SectionHeading, Spinner } from '../compone
 import {
   availableMonths,
   currentMonthKey,
-  ffaBucket,
+  ffaMonthly,
   monthLabel,
   oneVoneBucket,
-  teamBucket,
+  teamMonthly,
   type MemberStats,
 } from '../lib/stats'
 
 type Variant = 'ffa' | 'team' | '1v1'
 
-const meta: Record<Variant, { eyebrow: string; title: string; rules: React.ReactNode }> = {
-  ffa: {
-    eyebrow: 'Monthly',
-    title: 'FFA',
-    rules: (
-      <>
-        <li><span className="font-semibold text-white">1 point</span> per win.</li>
-        <li>
-          <span className="font-semibold text-white">Win streak (2+ in a row, no loss between):</span> every
-          win in the streak is worth <span className="font-semibold text-white">2 points</span>.
-        </li>
-      </>
-    ),
-  },
-  team: {
-    eyebrow: 'Monthly',
-    title: 'Team',
-    rules: (
-      <>
-        <li><span className="font-semibold text-white">1 point</span> per win.</li>
-        <li>
-          <span className="font-semibold text-white">2 points</span> for a win played together with another
-          [{CLAN_TAG}]-tagged player.
-        </li>
-      </>
-    ),
-  },
-  '1v1': {
-    eyebrow: 'Monthly',
-    title: '1v1 Ranked',
-    rules: (
-      <>
-        <li>No points here - the <span className="font-semibold text-white">Elo Δ</span> (change this month)
-          is the ranking.</li>
-      </>
-    ),
-  },
+function fmtGold(n: number | null): string {
+  if (n == null) return '—'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return `${Math.round(n)}`
 }
 
-function RulesBox({ variant }: { variant: Variant }) {
+const rules: Record<Variant, React.ReactNode> = {
+  ffa: (
+    <>
+      <li><span className="font-semibold text-white">1 point</span> per win.</li>
+      <li>
+        <span className="font-semibold text-white">Win streak (2+ in a row, no loss between):</span> every win
+        in the streak is worth <span className="font-semibold text-white">2 points</span>.
+      </li>
+    </>
+  ),
+  team: (
+    <>
+      <li><span className="font-semibold text-white">1 point</span> per win.</li>
+      <li>
+        <span className="font-semibold text-white">2 points</span> for a win played with another
+        [{CLAN_TAG}]-tagged player.
+      </li>
+    </>
+  ),
+  '1v1': (
+    <li>No points here - the <span className="font-semibold text-white">Elo Δ</span> (change this month) is the ranking.</li>
+  ),
+}
+
+/** A "title" earned by the monthly leader in one category. */
+function TitleCard({ icon, title, metric, holder }: { icon: string; title: string; metric: string; holder: string | null }) {
   return (
-    <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Scoring</p>
-      <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{meta[variant].rules}</ul>
+    <div className={`rounded-xl border px-4 py-3 text-center ${holder ? 'border-gold/40 bg-gold/10' : 'border-base-700 bg-base-850/40'}`}>
+      <div className="text-xl">{icon}</div>
+      <p className="font-display text-sm font-bold text-gold-light">{title}</p>
+      <p className="text-[11px] uppercase tracking-wide text-slate-500">{metric}</p>
+      <p className="mt-1 truncate text-sm font-medium text-white">{holder ?? '—'}</p>
     </div>
   )
 }
@@ -75,35 +70,22 @@ export default function Monthly({ variant }: { variant: Variant }) {
   if (!profile) return <RegistrationGate />
 
   const coop = data?.coopByGame ?? {}
-
-  // Build + sort rows for the selected month.
-  type Row = { m: MemberStats; wins: number; losses: number; points: number; eloDelta: number | null }
-  const rows: Row[] = (data?.members ?? []).map((m) => {
-    if (variant === 'ffa') {
-      const b = ffaBucket(m.cynGames, month)
-      return { m, ...b, eloDelta: null }
-    }
-    if (variant === 'team') {
-      const b = teamBucket(m.cynGames, month, coop)
-      return { m, ...b, eloDelta: null }
-    }
-    const b = oneVoneBucket(m.cynGames, month)
-    return { m, wins: b.wins, losses: b.losses, points: 0, eloDelta: m.eloMonthDelta }
-  })
-  rows.sort((a, b) =>
-    variant === '1v1'
-      ? (b.eloDelta ?? -9999) - (a.eloDelta ?? -9999) || b.wins - a.wins
-      : b.points - a.points || b.wins - a.wins,
-  )
-
+  const members = data?.members ?? []
   const isCurrent = month === currentMonthKey()
+
+  // Leader of a metric (highest value > 0), for the title cards.
+  const leaderOf = (rows: { m: MemberStats; v: number }[]): string | null => {
+    const best = rows.filter((r) => r.v > 0).sort((a, b) => b.v - a.v)[0]
+    return best ? best.m.name : null
+  }
+
+  const title = variant === 'ffa' ? 'FFA' : variant === 'team' ? 'Team' : '1v1 Ranked'
 
   return (
     <StatsShell>
       <section className="space-y-4">
-        <SectionHeading center eyebrow={`${meta[variant].eyebrow} · ${monthLabel(month)}`} title={meta[variant].title} />
+        <SectionHeading center eyebrow={`Monthly · ${monthLabel(month)}`} title={title} />
 
-        {/* month archive selector */}
         <div className="flex items-center justify-center gap-2 text-sm">
           <label className="text-slate-400">Month</label>
           <select
@@ -121,7 +103,10 @@ export default function Monthly({ variant }: { variant: Variant }) {
           {!isCurrent && <span className="text-xs text-slate-500">archived</span>}
         </div>
 
-        <RulesBox variant={variant} />
+        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Scoring</p>
+          <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules[variant]}</ul>
+        </div>
       </section>
 
       <TagNotice />
@@ -129,61 +114,144 @@ export default function Monthly({ variant }: { variant: Variant }) {
       <section className="space-y-4">
         {loading && <Spinner label="Pulling live data from OpenFront…" />}
         {error && !data && <Card className="text-center text-sm text-signal-red">Couldn’t load stats: {error}</Card>}
-        {data && (
-          <>
+
+        {data && variant === 'ffa' && (() => {
+          const rows = members
+            .map((m) => ({ m, r: ffaMonthly(m, month) }))
+            .sort((a, b) => b.r.points - a.r.points || b.r.wins - a.r.wins)
+          return (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <TitleCard icon="🏹" title="Predator" metric="Avg Kills" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+                <TitleCard icon="⚡" title="Pro Player" metric="Win Streak" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+                <TitleCard icon="⛏️" title="Grinder" metric="Most Points" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+              </div>
+              <div className="panel overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                        <th className="px-3 py-3 text-left font-semibold">#</th>
+                        <th className="px-3 py-3 text-left font-semibold">Name</th>
+                        <th className="px-3 py-3 text-right font-semibold">Wins</th>
+                        <th className="px-3 py-3 text-right font-semibold">Losses</th>
+                        <th className="px-3 py-3 text-right font-semibold">W/L</th>
+                        <th className="px-3 py-3 text-right font-semibold">Streak</th>
+                        <th className="px-3 py-3 text-right font-semibold">Avg Kills</th>
+                        <th className="px-3 py-3 text-right font-semibold">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ m, r }, i) => (
+                        <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                          <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                          <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                          <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '—'}</td>
+                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )
+        })()}
+
+        {data && variant === 'team' && (() => {
+          const rows = members
+            .map((m) => ({ m, r: teamMonthly(m, month, coop) }))
+            .sort((a, b) => b.r.points - a.r.points || b.r.wins - a.r.wins)
+          return (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <TitleCard icon="⚓" title="Marine" metric="Gold Income" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} />
+                <TitleCard icon="💥" title="Destroyer" metric="Kills" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
+                <TitleCard icon="⛏️" title="Team Grinder" metric="Most Points" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+              </div>
+              <div className="panel overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                        <th className="px-3 py-3 text-left font-semibold">#</th>
+                        <th className="px-3 py-3 text-left font-semibold">Name</th>
+                        <th className="px-3 py-3 text-right font-semibold">Wins</th>
+                        <th className="px-3 py-3 text-right font-semibold">Losses</th>
+                        <th className="px-3 py-3 text-right font-semibold">W/L</th>
+                        <th className="px-3 py-3 text-right font-semibold">Kills</th>
+                        <th className="px-3 py-3 text-right font-semibold">Avg Gold</th>
+                        <th className="px-3 py-3 text-right font-semibold">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ m, r }, i) => (
+                        <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                          <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                          <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                          <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '—'}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
+                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )
+        })()}
+
+        {data && variant === '1v1' && (() => {
+          const rows = members
+            .map((m) => ({ m, b: oneVoneBucket(m.cynGames, month) }))
+            .sort((a, b) => (b.m.eloMonthDelta ?? -9999) - (a.m.eloMonthDelta ?? -9999) || b.b.wins - a.b.wins)
+          return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] border-collapse text-sm">
+                <table className="w-full min-w-[520px] text-sm">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">#</th>
                       <th className="px-4 py-3 text-left font-semibold">Name</th>
                       <th className="px-4 py-3 text-right font-semibold">Wins</th>
                       <th className="px-4 py-3 text-right font-semibold">Losses</th>
-                      {variant === '1v1' ? (
-                        <>
-                          <th className="px-4 py-3 text-right font-semibold">Elo Δ</th>
-                          <th className="px-4 py-3 text-right font-semibold">Current Elo</th>
-                        </>
-                      ) : (
-                        <th className="px-4 py-3 text-right font-semibold">Points</th>
-                      )}
+                      <th className="px-4 py-3 text-right font-semibold">Elo Δ</th>
+                      <th className="px-4 py-3 text-right font-semibold">Current Elo</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={r.m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                    {rows.map(({ m, b }, i) => (
+                      <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
-                        <td className="px-4 py-3">
-                          <Link to={`/member/${r.m.publicId}`} className="font-medium text-white hover:text-accent-light">
-                            {r.m.name}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                        {variant === '1v1' ? (
-                          <>
-                            <td className="px-4 py-3 text-right font-display font-bold">
-                              <EloDelta delta={r.eloDelta} />
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-gold-light">
-                              {r.m.elo ?? <span className="text-slate-600">-</span>}
-                            </td>
-                          </>
-                        ) : (
-                          <td className="px-4 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
-                        )}
+                        <td className="px-4 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
+                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
+          )
+        })()}
+
+        {data && (
+          <>
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
-            {variant === '1v1' && (
+            {(variant === 'ffa' || variant === 'team') && (
               <p className="text-center text-xs text-slate-500">
-                OpenFront publishes no elo history, so “Elo Δ” is measured from the first time this site saw
-                each member’s elo in {monthLabel(month)}. Current elo is live (global top 100 only).
+                Kills{variant === 'team' ? ' & gold' : ''} come from each game’s post-game report — available for
+                this month’s games (older games fill in over time). “—” = not fetched yet.
               </p>
             )}
           </>

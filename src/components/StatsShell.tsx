@@ -11,7 +11,7 @@ import { CLAN_TAG, DISCORD_INVITE } from '../config'
  */
 export function StatsShell({ children }: { children: ReactNode }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
+    <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:gap-10">
       <div className="order-1 mx-auto w-full min-w-0 max-w-3xl space-y-10 lg:order-none lg:col-start-2 lg:row-start-1">
         {children}
       </div>
@@ -40,7 +40,7 @@ export function TagNotice() {
 /** Shown instead of stats until the visitor registers. */
 export function RegistrationGate() {
   return (
-    <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
+    <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:gap-10">
       <div className="panel order-1 mx-auto flex w-full max-w-3xl flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center lg:order-none lg:col-start-2 lg:row-start-1">
         <CynLogo className="h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
         <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only - one quick step</h1>

@@ -86,7 +86,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
+      <main className="w-full px-4 py-8 sm:px-8">{children}</main>
 
       <footer className="mt-16 border-t border-base-700 py-8 text-center text-sm text-slate-500">
         <p>

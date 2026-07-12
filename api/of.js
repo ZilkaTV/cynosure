@@ -1,21 +1,21 @@
 // Vercel serverless proxy: /api/of/<anything> → https://api.openfront.io/<anything>
 //
+// The subpath arrives as ?path=<a/b/c> via the rewrite in vercel.json (Vercel's
+// native functions don't reliably match multi-segment [...catch-all] filenames,
+// so we route through a single function instead).
+//
 // Why this exists:
 //  • CORS — the OpenFront API refuses direct browser calls.
-//  • Rate limits — routing every visitor through one origin lets Vercel's CDN
-//    cache responses (s-maxage below), so OpenFront sees ~one request per URL
-//    per cache window instead of one per visitor.
+//  • Rate limits — one shared origin lets Vercel's CDN cache responses
+//    (s-maxage below), so OpenFront sees ~one request per URL per window.
 
 export default async function handler(req, res) {
-  const segments = Array.isArray(req.query.path) ? req.query.path : [req.query.path].filter(Boolean)
-  const upstreamPath = segments.map(encodeURIComponent).join('/')
-
-  // Forward the original query string (minus the internal `path` param).
   const url = new URL(req.url, 'http://x')
+  const path = url.searchParams.get('path') || ''
   url.searchParams.delete('path')
   const qs = url.searchParams.toString()
 
-  const target = `https://api.openfront.io/${upstreamPath}${qs ? `?${qs}` : ''}`
+  const target = `https://api.openfront.io/${path}${qs ? `?${qs}` : ''}`
 
   try {
     const upstream = await fetch(target, { headers: { Accept: 'application/json' } })

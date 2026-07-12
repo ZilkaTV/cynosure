@@ -65,8 +65,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* centred crest — always links home */}
         <Link to="/" className="-mt-6 flex flex-col items-center gap-2 pb-2" aria-label={`${CLAN_NAME} home`}>
-          <CynLogo className="h-24 w-24 drop-shadow-[0_0_18px_rgba(139,92,246,0.45)] sm:h-28 sm:w-28" />
-          <span className="font-display text-2xl font-bold tracking-[0.28em] text-white sm:text-3xl">
+          <CynLogo className="h-28 w-28 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] sm:h-32 sm:w-32" />
+          <span className="font-display text-3xl font-bold tracking-[0.3em] text-white sm:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>
         </Link>
@@ -86,7 +86,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
 
       <footer className="mt-16 border-t border-base-700 py-8 text-center text-sm text-slate-500">
         <p>

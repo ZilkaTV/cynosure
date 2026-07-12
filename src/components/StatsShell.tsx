@@ -4,14 +4,20 @@ import DiscordWidget from './DiscordWidget'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE } from '../config'
 
-/** Centred two-column stats layout: Discord widget left, content right. */
+/**
+ * Stats layout: Discord widget flush-left, content centred in the rest of the
+ * width. On mobile it collapses to one column with the widget BELOW the content
+ * (content is DOM-first; the widget is placed left only on lg via grid columns).
+ */
 export function StatsShell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-6 lg:self-start">
+    <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
+      <div className="order-1 mx-auto w-full min-w-0 max-w-3xl space-y-10 lg:order-none lg:col-start-2 lg:row-start-1">
+        {children}
+      </div>
+      <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
         <DiscordWidget />
       </aside>
-      <div className="min-w-0 space-y-10">{children}</div>
     </div>
   )
 }
@@ -34,11 +40,8 @@ export function TagNotice() {
 /** Shown instead of stats until the visitor registers. */
 export function RegistrationGate() {
   return (
-    <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-6 lg:self-start">
-        <DiscordWidget />
-      </aside>
-      <div className="panel flex flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center">
+    <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
+      <div className="panel order-1 mx-auto flex w-full max-w-3xl flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center lg:order-none lg:col-start-2 lg:row-start-1">
         <CynLogo className="h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
         <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only — one quick step</h1>
         <p className="mx-auto mt-2 max-w-md text-slate-400">
@@ -60,6 +63,9 @@ export function RegistrationGate() {
           </a>
         </div>
       </div>
+      <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
+        <DiscordWidget />
+      </aside>
     </div>
   )
 }

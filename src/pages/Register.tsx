@@ -64,8 +64,10 @@ export default function Register() {
     </Link>
   )
 
-  // ── Discord verification step (only when a Supabase backend is connected) ──
-  if (hasBackend && session === undefined) {
+  // ── Discord verification step — only for NEW sign-ups. Someone who already
+  // has a profile goes straight to the settings form (edit details / sign out),
+  // so the gear never forces a re-login just to change a field. ──
+  if (hasBackend && !profile && session === undefined) {
     return (
       <div className="mx-auto max-w-xl">
         {backHome}
@@ -74,7 +76,7 @@ export default function Register() {
     )
   }
 
-  if (hasBackend && !session) {
+  if (hasBackend && !profile && !session) {
     return (
       <div className="mx-auto max-w-xl">
         {backHome}
@@ -105,7 +107,10 @@ export default function Register() {
   return (
     <div className="mx-auto max-w-xl">
       {backHome}
-      <SectionHeading eyebrow="Members" title={`Join the [${CLAN_TAG}] roster`} />
+      <SectionHeading
+        eyebrow={profile ? 'Settings' : 'Members'}
+        title={profile ? `Your [${CLAN_TAG}] profile` : `Join the [${CLAN_TAG}] roster`}
+      />
 
       {session && (
         <p className="mb-4 text-sm text-signal-green">✓ Signed in as {discordDisplayName(session)}</p>

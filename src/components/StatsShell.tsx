@@ -4,14 +4,29 @@ import DiscordWidget from './DiscordWidget'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE } from '../config'
 
-/** Two-column stats layout: live Discord widget on the left, content on the right. */
+/** Centred two-column stats layout: Discord widget left, content right. */
 export function StatsShell({ children }: { children: ReactNode }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-      <aside className="lg:sticky lg:top-40 lg:self-start">
+    <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="lg:sticky lg:top-6 lg:self-start">
         <DiscordWidget />
       </aside>
-      <div className="min-w-0 space-y-8">{children}</div>
+      <div className="min-w-0 space-y-10">{children}</div>
+    </div>
+  )
+}
+
+/** Prominent, unmissable notice that only CYN-tagged games are counted. */
+export function TagNotice() {
+  return (
+    <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
+      <p className="font-display text-base font-bold uppercase tracking-wide text-gold-light sm:text-lg">
+        Only games played with the [{CLAN_TAG}] tag are counted
+      </p>
+      <p className="mt-1 text-sm text-slate-300">
+        Every game is checked individually — wins played under no tag or a different tag are{' '}
+        <span className="font-semibold text-white">not</span> included.
+      </p>
     </div>
   )
 }
@@ -19,12 +34,12 @@ export function StatsShell({ children }: { children: ReactNode }) {
 /** Shown instead of stats until the visitor registers. */
 export function RegistrationGate() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-      <aside className="lg:sticky lg:top-40 lg:self-start">
+    <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="lg:sticky lg:top-6 lg:self-start">
         <DiscordWidget />
       </aside>
-      <div className="panel bg-grid-fade px-6 py-14 text-center">
-        <CynLogo className="mx-auto h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
+      <div className="panel flex flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center">
+        <CynLogo className="h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
         <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only — one quick step</h1>
         <p className="mx-auto mt-2 max-w-md text-slate-400">
           Register with Discord and enter your in-game name, timezone and OpenFront public id to unlock

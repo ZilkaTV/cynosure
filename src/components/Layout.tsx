@@ -24,47 +24,55 @@ const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+function trackingSince(): string {
+  try {
+    let d = localStorage.getItem('cyn:trackedSince')
+    if (!d) {
+      d = new Date().toISOString()
+      localStorage.setItem('cyn:trackedSince', d)
+    }
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return '—'
+  }
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { profile } = useProfile()
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-50 border-b border-base-700 bg-base-950/85 backdrop-blur-md">
-        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 sm:px-6">
-          {/* left spacer keeps the crest optically centred */}
-          <div className="hidden sm:block" />
-
-          {/* centred crest — always links home */}
-          <Link to="/" className="mx-auto flex flex-col items-center gap-1" aria-label={`${CLAN_NAME} home`}>
-            <CynLogo className="h-14 w-14 drop-shadow-[0_0_12px_rgba(139,92,246,0.35)]" />
-            <span className="font-display text-lg font-bold tracking-[0.25em] text-white">
-              [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
-            </span>
-          </Link>
-
-          {/* top-right: register-with-Discord */}
-          <div className="flex items-center justify-end gap-2">
-            {profile ? (
-              <Link
-                to="/register"
-                className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
-                title="Settings — edit your details or sign out"
-                aria-label="Settings"
-              >
-                <GearIcon />
-                <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
-              </Link>
-            ) : (
-              <Link to="/register" className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]">
-                <DiscordIcon />
-                <span className="hidden sm:inline">Register</span>
-              </Link>
-            )}
-          </div>
+      <header className="border-b border-base-700 bg-base-950/60">
+        {/* top-right settings / register — floated so the crest stays centred */}
+        <div className="mx-auto flex max-w-7xl justify-end px-4 pt-3 sm:px-6">
+          {profile ? (
+            <Link
+              to="/register"
+              className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
+              title="Settings — edit your details or sign out"
+              aria-label="Settings"
+            >
+              <GearIcon />
+              <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
+            </Link>
+          ) : (
+            <Link to="/register" className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]">
+              <DiscordIcon />
+              <span className="hidden sm:inline">Register</span>
+            </Link>
+          )}
         </div>
 
-        {/* sub navigation */}
-        <nav className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
+        {/* centred crest — always links home */}
+        <Link to="/" className="-mt-6 flex flex-col items-center gap-2 pb-2" aria-label={`${CLAN_NAME} home`}>
+          <CynLogo className="h-24 w-24 drop-shadow-[0_0_18px_rgba(139,92,246,0.45)] sm:h-28 sm:w-28" />
+          <span className="font-display text-2xl font-bold tracking-[0.28em] text-white sm:text-3xl">
+            [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
+          </span>
+        </Link>
+
+        {/* sub navigation — centred */}
+        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-1 overflow-x-auto px-4 pb-3 pt-1 sm:px-6">
           {navItems.map((n) => (
             <NavLink
               key={n.to}
@@ -90,6 +98,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <p className="mt-1 text-xs text-slate-600">
           Stats pulled live from the OpenFront public API. Only games played with the [{CLAN_TAG}] tag are counted.
         </p>
+        <p className="mt-1 text-xs text-slate-600">Tracking data since {trackingSince()}.</p>
       </footer>
     </div>
   )

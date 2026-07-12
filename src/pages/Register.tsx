@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
-import { hasBackend, saveProfile, clearLocalProfile } from '../lib/profiles'
+import { hasBackend, saveProfile, clearLocalProfile, getRemembered } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
@@ -27,9 +27,10 @@ export default function Register() {
   const { profile, refresh } = useProfile()
   const session = useSession()
 
-  const [name, setName] = useState(profile?.in_game_name ?? '')
-  const [timezone, setTimezone] = useState(profile?.timezone ?? guessTz())
-  const [openfrontId, setOpenfrontId] = useState(profile?.openfront_id ?? '')
+  const remembered = getRemembered()
+  const [name, setName] = useState(profile?.in_game_name ?? remembered.in_game_name ?? '')
+  const [timezone, setTimezone] = useState(profile?.timezone ?? remembered.timezone ?? guessTz())
+  const [openfrontId, setOpenfrontId] = useState(profile?.openfront_id ?? remembered.openfront_id ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

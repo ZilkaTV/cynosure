@@ -4,11 +4,24 @@ export function SectionHeading({
   eyebrow,
   title,
   action,
+  center = false,
 }: {
   eyebrow?: string
   title: string
   action?: ReactNode
+  center?: boolean
 }) {
+  if (center) {
+    return (
+      <div className="mb-6 text-center">
+        {eyebrow && (
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{eyebrow}</p>
+        )}
+        <h2 className="font-display text-2xl font-bold text-white md:text-3xl">{title}</h2>
+        {action && <div className="mt-3 flex justify-center">{action}</div>}
+      </div>
+    )
+  }
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -75,6 +88,45 @@ export function EloDelta({ delta }: { delta: number | null }) {
       {up ? '+' : ''}
       {delta}
     </span>
+  )
+}
+
+/** "5 minutes ago" style relative time. */
+export function relativeTime(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
+  const d = Math.floor(h / 24)
+  return `${d} day${d === 1 ? '' : 's'} ago`
+}
+
+export function LastUpdated({
+  ts,
+  onRefresh,
+  refreshing,
+}: {
+  ts: number | null
+  onRefresh: () => void
+  refreshing: boolean
+}) {
+  return (
+    <div className="flex items-center justify-center gap-3 text-xs text-slate-500">
+      <span>{ts ? `Updated ${relativeTime(ts)}` : 'Loading live data…'}</span>
+      <button
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-2 py-1 font-medium text-slate-300 transition-colors hover:border-accent hover:text-white disabled:opacity-50"
+      >
+        <svg className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23 4v6h-6M1 20v-6h6" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+        {refreshing ? 'Refreshing…' : 'Refresh'}
+      </button>
+    </div>
   )
 }
 

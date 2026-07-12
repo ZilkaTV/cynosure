@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import Home from './pages/Home'
 import Monthly from './pages/Monthly'
 import Register from './pages/Register'
+import MemberProfile from './pages/MemberProfile'
 
 function NotFound() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
         <Route path="/monthly/team" element={<Monthly variant="team" />} />
         <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
+        <Route path="/member/:id" element={<MemberProfile />} />
         <Route path="/register" element={<Register />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

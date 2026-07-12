@@ -1,34 +1,26 @@
+import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
-import { RegistrationGate, StatsShell } from '../components/StatsShell'
+import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
-import { ActivityDot, Card, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, LastUpdated, SectionHeading, StatCard, Spinner } from '../components/ui'
 
 const columns: Column[] = [
   {
     key: 'name',
     label: 'Name',
     render: (m) => (
-      <div className="flex items-center gap-2.5">
-        <ActivityDot games={m.gamesLast30d} />
-        <div className="min-w-0">
-          <span className="font-medium text-white">{m.name}</span>
-          {m.timezone && <span className="ml-2 text-xs text-slate-500">{m.timezone}</span>}
-        </div>
-      </div>
+      <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
+        {m.name}
+        {m.timezone && <span className="ml-2 text-xs font-normal text-slate-500">{m.timezone}</span>}
+      </Link>
     ),
     sortValue: (m) => m.name.toLowerCase(),
   },
-  { key: 'ffa', label: 'FFA Wins', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
-  { key: 'team', label: 'Team Wins', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
-  {
-    key: 'ranked',
-    label: '1v1 Ranked Wins',
-    align: 'right',
-    render: (m) => m.rankedWins,
-    sortValue: (m) => m.rankedWins,
-  },
+  { key: 'ffa', label: 'FFA', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
+  { key: 'team', label: 'Team', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
+  { key: 'ranked', label: '1v1', align: 'right', render: (m) => m.rankedWins, sortValue: (m) => m.rankedWins },
   {
     key: 'elo',
     label: '1v1 Elo',
@@ -37,27 +29,29 @@ const columns: Column[] = [
       m.elo == null ? (
         <span className="text-slate-600">—</span>
       ) : (
-        <span className="inline-flex items-baseline gap-1.5">
-          <span className="font-display font-bold text-gold-light">{m.elo}</span>
-          {m.peakElo != null && m.peakElo > m.elo && (
-            <span className="text-[10px] text-slate-500">peak {m.peakElo}</span>
-          )}
-        </span>
+        <span className="font-display font-bold tabular-nums text-gold-light">{m.elo}</span>
       ),
     sortValue: (m) => m.elo ?? -1,
+  },
+  {
+    key: 'peak',
+    label: 'Peak',
+    align: 'right',
+    render: (m) => (m.peakElo == null ? <span className="text-slate-600">—</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
+    sortValue: (m) => m.peakElo ?? -1,
   },
   {
     key: 'all',
     label: 'All Wins',
     align: 'right',
-    render: (m) => <span className="font-semibold text-accent-light">{m.allWins}</span>,
+    render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
     sortValue: (m) => m.allWins,
   },
 ]
 
 export default function Home() {
   const { profile } = useProfile()
-  const { data, clan, loading, error } = useRoster(!!profile)
+  const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
 
   if (!profile) return <RegistrationGate />
 
@@ -66,41 +60,33 @@ export default function Home() {
   return (
     <StatsShell>
       <section>
-        <SectionHeading
-          eyebrow={`[${CLAN_TAG}] Cynosure`}
-          title="Clan Overview"
-        />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Members tracked" value={totals ? totals.members : '…'} accent="plain" />
-          <StatCard label="Active (30d)" value={totals ? totals.activeLast30d : '…'} accent="purple" />
+        <SectionHeading center eyebrow={`[${CLAN_TAG}] Cynosure`} title="Clan Overview" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard label="Members" value={totals ? totals.members : '…'} accent="plain" />
           <StatCard label="Top 1v1 Elo" value={totals?.topElo ?? '…'} accent="gold" />
-          <StatCard label="1v1 Ranked Wins" value={totals ? totals.rankedWins : '…'} accent="purple" />
+          <StatCard label="1v1 Wins" value={totals ? totals.rankedWins : '…'} accent="purple" />
           <StatCard label="Team Wins" value={totals ? totals.teamWins : '…'} accent="purple" />
-          <StatCard label="Total CYN Wins" value={totals ? totals.allWins : '…'} accent="gold" />
+          <StatCard label="All Wins" value={totals ? totals.allWins : '…'} accent="gold" />
         </div>
-        {clan && (
-          <p className="mt-3 text-xs text-slate-500">
-            OpenFront clan ledger (public team games): {clan.wins}W / {clan.losses}L across {clan.games} games ·
-            weighted W/L ratio {clan.weightedWLRatio}
-          </p>
-        )}
       </section>
 
-      <section>
-        <SectionHeading eyebrow="Roster" title="Member Stats" />
+      <TagNotice />
+
+      <section className="space-y-4">
+        <SectionHeading center eyebrow="Roster" title="Member Stats" />
         {loading && <Spinner label="Pulling live data from OpenFront…" />}
-        {error && (
-          <Card className="text-sm text-signal-red">
-            Couldn’t load stats: {error}. The OpenFront API rate-limits hard — try again in a minute.
+        {error && !data && (
+          <Card className="text-center text-sm text-signal-red">
+            Couldn’t load stats: {error}. The OpenFront API rate-limits hard — try Refresh in a minute.
           </Card>
         )}
         {data && (
           <>
-            <StatsTable members={data.members} columns={columns} defaultSort="elo" />
-            <p className="mt-3 text-xs text-slate-500">
-              Only games played with the [{CLAN_TAG}] tag count. Elo &amp; ranked wins come from the OpenFront
-              ranked ladder; FFA/Team/All wins from each member’s game history. Green dot = 10+ games in the
-              last 30 days.
+            <StatsTable members={data.members} columns={columns} defaultSort="all" />
+            <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
+            <p className="text-center text-xs text-slate-500">
+              1v1 Elo comes from OpenFront’s ranked ladder (global top 100 only). Click a name for that
+              member’s full profile.
             </p>
           </>
         )}

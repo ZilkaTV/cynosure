@@ -1,17 +1,14 @@
 // ── OpenFront public API client ─────────────────────────────────────────────
-// All data on this site comes straight from OpenFront's public API. There is
-// no server in between: we fetch in the browser and cache results in
-// localStorage (OpenFront rate-limits are strict and elo only updates hourly,
-// so a 1-hour cache is both kind to the API and accurate).
+// All data comes straight from OpenFront's public API, fetched in the browser
+// through a same-origin proxy (see vite.config.ts / api/of.js) and cached in
+// localStorage. The proxy also shares one CDN cache across visitors, which
+// keeps us under OpenFront's strict rate limits.
 
-import { CACHE_TTL_MS, CLAN_TAG, LEADERBOARD_SCAN_PAGES } from '../config'
+import { CACHE_TTL_MS, LEADERBOARD_SCAN_PAGES } from '../config'
 
-// Same-origin proxy path (see vite.config.ts for dev, api/of/ for prod). This
-// avoids CORS — the OpenFront API doesn't allow direct browser calls — and lets
-// the server share one cache across visitors, which keeps us under rate limits.
 const API_BASE = '/api/of'
 
-// ── Types (mirroring the documented API shapes) ─────────────────────────────
+// ── Types ───────────────────────────────────────────────────────────────────
 
 export interface RankedEntry {
   rank: number
@@ -27,7 +24,7 @@ export interface RankedEntry {
 
 export interface PlayerGame {
   gameId: string
-  start: string // ISO timestamp
+  start: string
   durationSeconds: number
   map: string
   mode: 'Free For All' | 'Team' | string
@@ -40,21 +37,10 @@ export interface PlayerGame {
   clanTag: string | null
 }
 
-export interface ClanLeaderboardEntry {
-  clanTag: string
-  games: number
-  wins: number
-  losses: number
-  playerSessions: number
-  weightedWins: number
-  weightedLosses: number
-  weightedWLRatio: number
-}
+// ── Cache ─────────────────────────────────────────────────────────────────
 
-// ── localStorage cache ──────────────────────────────────────────────────────
-
-// Bump when the cache shape or fetch logic changes so stale entries are ignored.
-const CACHE_NS = 'of:v2'
+const CACHE_NS = 'of:v3'
+const LAST_FETCH_KEY = `${CACHE_NS}:lastFetch`
 
 interface CacheEnvelope<T> {
   ts: number
@@ -77,14 +63,32 @@ function cacheSet<T>(key: string, data: T) {
   try {
     localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data } satisfies CacheEnvelope<T>))
   } catch {
-    /* quota / private mode — ignore, we just re-fetch next time */
+    /* quota / private mode */
+  }
+}
+
+function markFetched() {
+  try {
+    localStorage.setItem(LAST_FETCH_KEY, String(Date.now()))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Timestamp (ms) of the most recent successful network fetch, if any. */
+export function getLastUpdated(): number | null {
+  try {
+    const v = localStorage.getItem(LAST_FETCH_KEY)
+    return v ? Number(v) : null
+  } catch {
+    return null
   }
 }
 
 export function clearOpenFrontCache() {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith('of:'))
+      .filter((k) => k.startsWith(CACHE_NS))
       .forEach((k) => localStorage.removeItem(k))
   } catch {
     /* ignore */
@@ -95,24 +99,21 @@ async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
   if (res.status === 429) throw new Error('rate-limited')
   if (!res.ok) throw new Error(`OpenFront API ${res.status}`)
-  return res.json()
+  const json = await res.json()
+  markFetched()
+  return json
 }
 
-// ── Ranked 1v1 leaderboard (this is where elo lives) ────────────────────────
+// ── Ranked leaderboard (the only source of elo — top 100 players) ───────────
 
 async function fetchRankedPage(page: number): Promise<RankedEntry[]> {
-  const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as
-    | { '1v1'?: RankedEntry[]; message?: string }
-    | undefined
+  const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as { '1v1'?: RankedEntry[] }
   return json?.['1v1'] ?? []
 }
 
-/**
- * Scan the top of the ranked ladder and return every player carrying the CYN
- * tag, keyed by public id. Cached for CACHE_TTL_MS.
- */
-export async function fetchCynRanked(): Promise<Record<string, RankedEntry>> {
-  const key = `${CACHE_NS}:ranked:${CLAN_TAG}`
+/** Map of public_id → ranked entry for everyone on the ladder (top 100). */
+export async function fetchRankedMap(): Promise<Record<string, RankedEntry>> {
+  const key = `${CACHE_NS}:rankedmap`
   const cached = cacheGet<Record<string, RankedEntry>>(key)
   if (cached) return cached
 
@@ -122,12 +123,10 @@ export async function fetchCynRanked(): Promise<Record<string, RankedEntry>> {
     try {
       entries = await fetchRankedPage(page)
     } catch {
-      break // rate-limited or error — keep whatever we have
+      break
     }
     if (entries.length === 0) break
-    for (const e of entries) {
-      if (e.clanTag === CLAN_TAG) byId[e.public_id] = e
-    }
+    for (const e of entries) byId[e.public_id] = e
   }
   cacheSet(key, byId)
   return byId
@@ -135,19 +134,12 @@ export async function fetchCynRanked(): Promise<Record<string, RankedEntry>> {
 
 // ── Per-player game history ─────────────────────────────────────────────────
 
-/**
- * Fetch a player's public game history (paginated via nextCursor), capped so a
- * single visitor never hammers the API. Cached per player.
- */
-export async function fetchPlayerGames(publicId: string, maxPages = 12): Promise<PlayerGame[]> {
-  const key = `${CACHE_NS}:games:${publicId}`
-  const cached = cacheGet<PlayerGame[]>(key)
-  if (cached) return cached
-
+async function fetchGamesPaged(publicId: string, filter: string | null, maxPages: number): Promise<PlayerGame[]> {
   const all: PlayerGame[] = []
   let cursor: string | null = null
   for (let page = 0; page < maxPages; page++) {
     const url = new URL(`${API_BASE}/public/player/${encodeURIComponent(publicId)}/games`, window.location.origin)
+    if (filter) url.searchParams.set('filter', filter)
     if (cursor) url.searchParams.set('cursor', cursor)
     let json: { results?: PlayerGame[]; nextCursor?: string | null }
     try {
@@ -159,26 +151,45 @@ export async function fetchPlayerGames(publicId: string, maxPages = 12): Promise
     cursor = json.nextCursor ?? null
     if (!cursor) break
   }
-  cacheSet(key, all)
   return all
 }
 
-// ── Clan aggregate (lifetime team-game W/L, decayed) ────────────────────────
+/**
+ * A player's full game history: the default feed (FFA/Team) merged with the
+ * ranked feed (1v1), de-duplicated by gameId. Cached per player.
+ */
+export async function fetchPlayerGames(publicId: string, maxPages = 12): Promise<PlayerGame[]> {
+  const key = `${CACHE_NS}:games:${publicId}`
+  const cached = cacheGet<PlayerGame[]>(key)
+  if (cached) return cached
 
-export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry | null> {
-  const key = `${CACHE_NS}:clanlb:${CLAN_TAG}`
-  const cached = cacheGet<ClanLeaderboardEntry | null>(key)
-  if (cached !== null) return cached
+  const [main, ranked] = await Promise.all([
+    fetchGamesPaged(publicId, null, maxPages),
+    fetchGamesPaged(publicId, 'ranked', Math.ceil(maxPages / 2)),
+  ])
+  const byGame = new Map<string, PlayerGame>()
+  for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
+  const merged = [...byGame.values()]
+  cacheSet(key, merged)
+  return merged
+}
 
-  let entry: ClanLeaderboardEntry | null = null
+// ── Game detail (players + their clan tags, for team co-op detection) ───────
+
+export async function fetchGameClanTags(gameId: string): Promise<string[]> {
+  const key = `${CACHE_NS}:game:${gameId}`
+  const cached = cacheGet<string[]>(key)
+  if (cached) return cached
+
+  let tags: string[] = []
   try {
-    const json = (await getJson(`${API_BASE}/public/clans/leaderboard`)) as {
-      clans?: ClanLeaderboardEntry[]
+    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`)) as {
+      info?: { players?: Array<{ clanTag?: string | null }> }
     }
-    entry = json.clans?.find((c) => c.clanTag === CLAN_TAG) ?? null
+    tags = (json.info?.players ?? []).map((p) => p.clanTag ?? '').filter(Boolean)
   } catch {
-    entry = null
+    tags = []
   }
-  cacheSet(key, entry)
-  return entry
+  cacheSet(key, tags)
+  return tags
 }

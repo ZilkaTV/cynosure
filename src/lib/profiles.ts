@@ -18,6 +18,23 @@ export interface Profile {
 }
 
 const LOCAL_KEY = 'cyn:profile'
+const REMEMBER_KEY = 'cyn:remember' // survives logout so the id/name are pre-filled next time
+export const PROFILE_EVENT = 'cyn:profile-change'
+
+/** Remembered details that persist across sign-out (so you don't re-enter your id). */
+export function getRemembered(): Partial<Profile> {
+  try {
+    return JSON.parse(localStorage.getItem(REMEMBER_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+// Fired whenever the profile changes so every useProfile() in the SAME tab
+// re-reads it (the native 'storage' event only fires in OTHER tabs).
+function notifyProfileChange() {
+  window.dispatchEvent(new Event(PROFILE_EVENT))
+}
 
 export function getLocalProfile(): Profile | null {
   try {
@@ -30,10 +47,14 @@ export function getLocalProfile(): Profile | null {
 
 export function saveLocalProfile(p: Profile) {
   localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
+  // Remember id + name so a later sign-in can pre-fill them.
+  localStorage.setItem(REMEMBER_KEY, JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone }))
+  notifyProfileChange()
 }
 
 export function clearLocalProfile() {
   localStorage.removeItem(LOCAL_KEY)
+  notifyProfileChange()
 }
 
 /** Persist a registration. Uses Supabase when available, else localStorage. */

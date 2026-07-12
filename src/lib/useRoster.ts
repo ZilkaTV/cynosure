@@ -1,49 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchRegistered } from './profiles'
 import { buildRoster, type RosterResult } from './stats'
-import { fetchClanLeaderboardEntry, type ClanLeaderboardEntry } from './openfront'
+import { clearOpenFrontCache, getLastUpdated } from './openfront'
 
 export interface RosterState {
   data: RosterResult | null
-  clan: ClanLeaderboardEntry | null
   loading: boolean
+  refreshing: boolean
   error: string | null
+  lastUpdated: number | null
+  refresh: () => void
 }
 
-/** Loads the full CYN roster + clan aggregate once, with basic status. */
+/** Loads the CYN roster (registered members only) with status + manual refresh. */
 export function useRoster(enabled = true): RosterState {
-  const [state, setState] = useState<RosterState>({
-    data: null,
-    clan: null,
-    loading: enabled,
-    error: null,
-  })
+  const [data, setData] = useState<RosterResult | null>(null)
+  const [loading, setLoading] = useState(enabled)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<number | null>(getLastUpdated())
+
+  const load = useCallback(async () => {
+    try {
+      const registered = await fetchRegistered().catch(() => [])
+      const result = await buildRoster(registered)
+      setData(result)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load stats')
+    } finally {
+      setLastUpdated(getLastUpdated())
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!enabled) return
-    let alive = true
-    ;(async () => {
-      try {
-        const registered = await fetchRegistered().catch(() => [])
-        const [data, clan] = await Promise.all([
-          buildRoster(registered),
-          fetchClanLeaderboardEntry().catch(() => null),
-        ])
-        if (alive) setState({ data, clan, loading: false, error: null })
-      } catch (e) {
-        if (alive)
-          setState({
-            data: null,
-            clan: null,
-            loading: false,
-            error: e instanceof Error ? e.message : 'Failed to load stats',
-          })
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [enabled])
+    setLoading(true)
+    load()
+  }, [enabled, load])
 
-  return state
+  const refresh = useCallback(() => {
+    setRefreshing(true)
+    clearOpenFrontCache()
+    load()
+  }, [load])
+
+  return { data, loading, refreshing, error, lastUpdated, refresh }
 }

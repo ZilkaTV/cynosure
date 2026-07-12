@@ -30,7 +30,7 @@ export function TagNotice() {
         Only games played with the [{CLAN_TAG}] tag are counted
       </p>
       <p className="mt-1 text-sm text-slate-300">
-        Every game is checked individually — wins played under no tag or a different tag are{' '}
+        Every game is checked individually - wins played under no tag or a different tag are{' '}
         <span className="font-semibold text-white">not</span> included.
       </p>
     </div>
@@ -43,7 +43,7 @@ export function RegistrationGate() {
     <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
       <div className="panel order-1 mx-auto flex w-full max-w-3xl flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center lg:order-none lg:col-start-2 lg:row-start-1">
         <CynLogo className="h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
-        <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only — one quick step</h1>
+        <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only - one quick step</h1>
         <p className="mx-auto mt-2 max-w-md text-slate-400">
           Register with Discord and enter your in-game name, timezone and OpenFront public id to unlock
           the [{CLAN_TAG}] roster and stats.

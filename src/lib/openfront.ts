@@ -104,7 +104,7 @@ async function getJson(url: string): Promise<unknown> {
   return json
 }
 
-// ── Ranked leaderboard (the only source of elo — top 100 players) ───────────
+// ── Ranked leaderboard (the only source of elo - top 100 players) ───────────
 
 async function fetchRankedPage(page: number): Promise<RankedEntry[]> {
   const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as { '1v1'?: RankedEntry[] }

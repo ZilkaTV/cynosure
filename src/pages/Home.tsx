@@ -27,7 +27,7 @@ const columns: Column[] = [
     align: 'right',
     render: (m) =>
       m.elo == null ? (
-        <span className="text-slate-600">—</span>
+        <span className="text-slate-600">-</span>
       ) : (
         <span className="font-display font-bold tabular-nums text-gold-light">{m.elo}</span>
       ),
@@ -37,7 +37,7 @@ const columns: Column[] = [
     key: 'peak',
     label: 'Peak',
     align: 'right',
-    render: (m) => (m.peakElo == null ? <span className="text-slate-600">—</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
+    render: (m) => (m.peakElo == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
     sortValue: (m) => m.peakElo ?? -1,
   },
   {
@@ -77,7 +77,7 @@ export default function Home() {
         {loading && <Spinner label="Pulling live data from OpenFront…" />}
         {error && !data && (
           <Card className="text-center text-sm text-signal-red">
-            Couldn’t load stats: {error}. The OpenFront API rate-limits hard — try Refresh in a minute.
+            Couldn’t load stats: {error}. The OpenFront API rate-limits hard - try Refresh in a minute.
           </Card>
         )}
         {data && (

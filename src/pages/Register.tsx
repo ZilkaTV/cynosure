@@ -82,7 +82,7 @@ export default function Register() {
     </Link>
   )
 
-  // ── Discord verification step — only for NEW sign-ups. Someone who already
+  // ── Discord verification step - only for NEW sign-ups. Someone who already
   // has a profile goes straight to the settings form (edit details / sign out),
   // so the gear never forces a re-login just to change a field. ──
   if (hasBackend && !profile && session === undefined) {
@@ -190,7 +190,7 @@ export default function Register() {
             </div>
           </div>
           <p className="-mt-2 text-xs text-slate-500">
-            Find your public id in OpenFront under your profile — it’s the code in your player URL.
+            Find your public id in OpenFront under your profile - it’s the code in your player URL.
           </p>
 
           {error && <p className="text-sm text-signal-red">{error}</p>}

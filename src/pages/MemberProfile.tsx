@@ -62,7 +62,7 @@ export default function MemberProfile() {
       <section>
         <SectionHeading center eyebrow="Lifetime" title="Career (CYN tag only)" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="1v1 Elo" value={m.elo ?? '—'} accent="gold" sub={m.peakElo ? `peak ${m.peakElo}` : undefined} />
+          <StatCard label="1v1 Elo" value={m.elo ?? '-'} accent="gold" sub={m.peakElo ? `peak ${m.peakElo}` : undefined} />
           <StatCard label="FFA Wins" value={m.ffaWins} accent="purple" />
           <StatCard label="Team Wins" value={m.teamWins} accent="purple" />
           <StatCard label="1v1 Wins" value={m.rankedWins} accent="purple" />
@@ -71,7 +71,7 @@ export default function MemberProfile() {
         </div>
         {m.elo == null && (
           <p className="mt-2 text-center text-xs text-slate-500">
-            No live elo — this member isn’t in OpenFront’s global top 100 ranked ladder.
+            No live elo - this member isn’t in OpenFront’s global top 100 ranked ladder.
           </p>
         )}
       </section>

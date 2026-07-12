@@ -30,7 +30,7 @@ export const EXTRA_MEMBER_IDS: string[] = []
 /**
  * How many ranked-leaderboard pages (50 players each) to scan when discovering
  * CYN members. All current CYN 1v1 players sit inside the top ~100, so 3 pages
- * is plenty. Kept low on purpose — the OpenFront API rate-limits are strict.
+ * is plenty. Kept low on purpose - the OpenFront API rate-limits are strict.
  */
 export const LEADERBOARD_SCAN_PAGES = 3
 

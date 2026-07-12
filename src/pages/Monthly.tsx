@@ -49,7 +49,7 @@ const meta: Record<Variant, { eyebrow: string; title: string; rules: React.React
     title: '1v1 Ranked',
     rules: (
       <>
-        <li>No points here — the <span className="font-semibold text-white">Elo Δ</span> (change this month)
+        <li>No points here - the <span className="font-semibold text-white">Elo Δ</span> (change this month)
           is the ranking.</li>
       </>
     ),
@@ -167,7 +167,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                               <EloDelta delta={r.eloDelta} />
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums text-gold-light">
-                              {r.m.elo ?? <span className="text-slate-600">—</span>}
+                              {r.m.elo ?? <span className="text-slate-600">-</span>}
                             </td>
                           </>
                         ) : (

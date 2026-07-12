@@ -80,7 +80,7 @@ export function ActivityDot({ games }: { games: number }) {
 
 /** A +/- elo delta, coloured. */
 export function EloDelta({ delta }: { delta: number | null }) {
-  if (delta == null) return <span className="text-slate-600">—</span>
+  if (delta == null) return <span className="text-slate-600">-</span>
   if (delta === 0) return <span className="text-slate-500">±0</span>
   const up = delta > 0
   return (

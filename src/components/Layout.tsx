@@ -33,7 +33,7 @@ function trackingSince(): string {
     }
     return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   } catch {
-    return '—'
+    return '-'
   }
 }
 
@@ -43,13 +43,13 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-base-700 bg-base-950/60">
-        {/* top-right settings / register — floated so the crest stays centred */}
+        {/* top-right settings / register - floated so the crest stays centred */}
         <div className="mx-auto flex max-w-7xl justify-end px-4 pt-3 sm:px-6">
           {profile ? (
             <Link
               to="/register"
               className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
-              title="Settings — edit your details or sign out"
+              title="Settings - edit your details or sign out"
               aria-label="Settings"
             >
               <GearIcon />
@@ -63,7 +63,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        {/* centred crest — always links home */}
+        {/* centred crest - always links home */}
         <Link to="/" className="-mt-6 flex flex-col items-center gap-2 pb-2" aria-label={`${CLAN_NAME} home`}>
           <CynLogo className="h-28 w-28 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] sm:h-32 sm:w-32" />
           <span className="font-display text-3xl font-bold tracking-[0.3em] text-white sm:text-4xl">
@@ -71,7 +71,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </span>
         </Link>
 
-        {/* sub navigation — centred */}
+        {/* sub navigation - centred */}
         <nav className="mx-auto flex max-w-7xl items-center justify-center gap-1 overflow-x-auto px-4 pb-3 pt-1 sm:px-6">
           {navItems.map((n) => (
             <NavLink

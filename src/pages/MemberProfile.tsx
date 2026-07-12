@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
+import GameDetailModal from '../components/GameDetailModal'
 import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   currentMonthKey,
@@ -19,6 +21,7 @@ export default function MemberProfile() {
   const { id } = useParams()
   const { profile } = useProfile()
   const { data, loading } = useRoster(!!profile)
+  const [openGame, setOpenGame] = useState<string | null>(null)
 
   if (!profile) return <RegistrationGate />
   if (loading) return <Spinner label="Loading member…" />
@@ -121,7 +124,12 @@ export default function MemberProfile() {
               </thead>
               <tbody>
                 {recent.map((g) => (
-                  <tr key={g.gameId} className="border-b border-base-700/50 last:border-0">
+                  <tr
+                    key={g.gameId}
+                    onClick={() => setOpenGame(g.gameId)}
+                    className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                    title="Click for the full post-game report"
+                  >
                     <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                     <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
                     <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
@@ -137,7 +145,10 @@ export default function MemberProfile() {
             </table>
           </div>
         </div>
+        <p className="mt-2 text-center text-xs text-slate-500">Click a game for the full post-game report.</p>
       </section>
+
+      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
     </div>
   )
 }

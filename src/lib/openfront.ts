@@ -176,6 +176,68 @@ export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise
 
 // ── Game detail (players + their clan tags, for team co-op detection) ───────
 
+export interface GamePlayerStat {
+  clientID: string
+  username: string
+  clanTag: string | null
+  stats?: {
+    attacks?: string[]
+    gold?: string[]
+    kills?: { victim: string; tick: string }[]
+    killedAt?: string | null
+    finalTiles?: string | null
+    conquests?: string[]
+  }
+}
+
+export interface GameDetail {
+  gameId: string
+  map: string
+  durationSeconds: number
+  numTurns: number
+  winnerClientId: string | null
+  start: number
+  players: GamePlayerStat[]
+}
+
+/** Full post-game report for one game (players + per-player stats). Cached. */
+export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
+  const key = `${CACHE_NS}:detail:${gameId}`
+  const cached = cacheGet<GameDetail | null>(key)
+  if (cached !== null) return cached
+
+  let detail: GameDetail | null = null
+  try {
+    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`)) as {
+      info?: {
+        gameID?: string
+        duration?: number
+        num_turns?: number
+        start?: number
+        winner?: [string, string] | null
+        config?: { gameMap?: string }
+        players?: GamePlayerStat[]
+      }
+    }
+    const info = json.info
+    if (info) {
+      detail = {
+        gameId: info.gameID ?? gameId,
+        map: info.config?.gameMap ?? '?',
+        durationSeconds: info.duration ?? 0,
+        numTurns: info.num_turns ?? 0,
+        winnerClientId: Array.isArray(info.winner) ? info.winner[1] ?? null : null,
+        start: info.start ?? 0,
+        players: info.players ?? [],
+      }
+    }
+  } catch {
+    detail = null
+  }
+  cacheSet(key, detail)
+  return detail
+}
+
 export async function fetchGameClanTags(gameId: string): Promise<string[]> {
   const key = `${CACHE_NS}:game:${gameId}`
   const cached = cacheGet<string[]>(key)

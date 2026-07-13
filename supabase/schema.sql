@@ -37,12 +37,18 @@ create policy "anyone can update cyn_members"
 
 -- Speedrun best times (Solo · Australia · No Nations). One row per member;
 -- the site verifies each submission against OpenFront before upserting.
+-- `attempts` counts every valid submission (not just the ones that beat the
+-- current best), so the site can show "N runs submitted".
 create table if not exists public.cyn_speedruns (
   openfront_id text primary key,
   game_id text not null,
   seconds integer not null,
+  attempts integer not null default 1,
   submitted_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if this table already existed without it.
+alter table public.cyn_speedruns add column if not exists attempts integer not null default 1;
 
 alter table public.cyn_speedruns enable row level security;
 
@@ -164,3 +170,42 @@ create policy "public can view event screenshots"
 create policy "anyone can upload event screenshots"
   on storage.objects for insert to public
   with check (bucket_id = 'event-screenshots');
+
+-- ============================================================
+-- Quests: daily quests earn XP toward a 1-99 level (see src/lib/levels.ts
+-- for the curve + named tiers). A quest can only be claimed once per member
+-- per calendar day (UTC) - the (openfront_id, quest_id, date) primary key
+-- enforces that even if the site is used from two tabs at once.
+-- ============================================================
+
+create table if not exists public.cyn_xp (
+  openfront_id text primary key,
+  xp integer not null default 0
+);
+
+alter table public.cyn_xp enable row level security;
+
+create policy "public can read cyn_xp"
+  on public.cyn_xp for select to public using (true);
+
+create policy "anyone can upsert cyn_xp"
+  on public.cyn_xp for insert to public with check (true);
+
+create policy "anyone can update cyn_xp"
+  on public.cyn_xp for update to public using (true) with check (true);
+
+create table if not exists public.cyn_quest_claims (
+  openfront_id text not null,
+  quest_id text not null,
+  claim_date date not null,
+  claimed_at timestamptz not null default now(),
+  primary key (openfront_id, quest_id, claim_date)
+);
+
+alter table public.cyn_quest_claims enable row level security;
+
+create policy "public can read cyn_quest_claims"
+  on public.cyn_quest_claims for select to public using (true);
+
+create policy "anyone can insert cyn_quest_claims"
+  on public.cyn_quest_claims for insert to public with check (true);

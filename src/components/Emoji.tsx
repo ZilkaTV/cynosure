@@ -1,0 +1,59 @@
+// ── Emoji ────────────────────────────────────────────────────────────────────
+// Renders real, colourful emoji as images via Twemoji (the same open-source
+// emoji set Twitter/Discord use), so every badge/icon looks identical and
+// colourful on every device - instead of relying on the browser's own emoji
+// font, which is what rendered inconsistently ("WhatsApp-style" on some
+// systems, invisible on others) before.
+
+function toCodepoints(char: string): string {
+  return Array.from(char)
+    .map((c) => c.codePointAt(0)!.toString(16))
+    .join('-')
+}
+
+export function Emoji({ char, className = 'h-4 w-4', label }: { char: string; className?: string; label?: string }) {
+  const cp = toCodepoints(char)
+  return (
+    <img
+      src={`https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/${cp}.svg`}
+      alt={label ?? char}
+      title={label}
+      className={`inline-block select-none align-middle ${className}`}
+      draggable={false}
+    />
+  )
+}
+
+// Named shortcuts for the emoji used across the site, so call sites read
+// clearly (e.g. <BadgeEmoji.trophy />) instead of passing raw unicode around.
+export const EMOJI = {
+  trophy: '🏆',
+  medal: '🎖️',
+  crown: '👑',
+  flame: '🔥',
+  bell: '🔔',
+  bow: '🏹',
+  bolt: '⚡',
+  pickaxe: '⛏️',
+  anchor: '⚓',
+  blast: '💥',
+  wrench: '🛠️',
+  flag: '🏁',
+  gold: '🥇',
+  silver: '🥈',
+  bronze: '🥉',
+  sword: '⚔️',
+  shield: '🛡️',
+  coin: '🪙',
+  skull: '💀',
+  map: '🗺️',
+  star: '⭐',
+  ship: '⛵',
+} as const
+
+/** Rank medal for #1/#2/#3 leaderboard rows (gold/silver/bronze emoji), plain number after. */
+export function RankMedal({ rank, className = 'h-4 w-4' }: { rank: number; className?: string }) {
+  if (rank > 3) return <span className="tabular-nums text-slate-500">#{rank}</span>
+  const char = rank === 1 ? EMOJI.gold : rank === 2 ? EMOJI.silver : EMOJI.bronze
+  return <Emoji char={char} className={className} label={`#${rank}`} />
+}

@@ -2,18 +2,19 @@ import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
+import type { Deltas } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
-import { Card, LastUpdated, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, LastUpdated, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import type { MemberStats } from '../lib/stats'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[]): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
   return [
     {
       key: 'name',
@@ -38,9 +39,42 @@ function makeColumns(all: MemberStats[]): Column[] {
       render: (m) => <BadgeStrip badges={computeBadges(m, all)} />,
       sortValue: (m) => computeBadges(m, all).filter((b) => b.earned).length,
     },
-    { key: 'ffa', label: 'FFA', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
-    { key: 'team', label: 'Team', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
-    { key: 'ranked', label: '1v1', align: 'right', render: (m) => m.rankedWins, sortValue: (m) => m.rankedWins },
+    {
+      key: 'ffa',
+      label: 'FFA',
+      align: 'right',
+      render: (m) => (
+        <>
+          {m.ffaWins}
+          <RefreshDelta value={deltas[m.publicId]?.ffaWins} />
+        </>
+      ),
+      sortValue: (m) => m.ffaWins,
+    },
+    {
+      key: 'team',
+      label: 'Team',
+      align: 'right',
+      render: (m) => (
+        <>
+          {m.teamWins}
+          <RefreshDelta value={deltas[m.publicId]?.teamWins} />
+        </>
+      ),
+      sortValue: (m) => m.teamWins,
+    },
+    {
+      key: 'ranked',
+      label: '1v1',
+      align: 'right',
+      render: (m) => (
+        <>
+          {m.rankedWins}
+          <RefreshDelta value={deltas[m.publicId]?.rankedWins} />
+        </>
+      ),
+      sortValue: (m) => m.rankedWins,
+    },
     {
       key: 'elo',
       label: '1v1 Elo',
@@ -49,7 +83,10 @@ function makeColumns(all: MemberStats[]): Column[] {
         m.elo == null ? (
           <span className="text-slate-600">-</span>
         ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">{m.elo}</span>
+          <span className="font-display font-bold tabular-nums text-gold-light">
+            {m.elo}
+            <RefreshDelta value={deltas[m.publicId]?.elo} />
+          </span>
         ),
       sortValue: (m) => m.elo ?? -1,
     },
@@ -76,14 +113,27 @@ function makeColumns(all: MemberStats[]): Column[] {
       key: 'bumps',
       label: 'Bumps',
       align: 'right',
-      render: (m) => (m.bumpCount > 0 ? <span className="tabular-nums text-slate-300">{m.bumpCount}</span> : <span className="text-slate-600">-</span>),
+      render: (m) =>
+        m.bumpCount > 0 ? (
+          <span className="tabular-nums text-slate-300">
+            {m.bumpCount}
+            <RefreshDelta value={deltas[m.publicId]?.bumpCount} />
+          </span>
+        ) : (
+          <span className="text-slate-600">-</span>
+        ),
       sortValue: (m) => m.bumpCount,
     },
     {
       key: 'all',
       label: 'All Wins',
       align: 'right',
-      render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
+      render: (m) => (
+        <span className="font-display font-bold text-accent-light">
+          {m.allWins}
+          <RefreshDelta value={deltas[m.publicId]?.allWins} />
+        </span>
+      ),
       sortValue: (m) => m.allWins,
     },
   ]
@@ -91,12 +141,12 @@ function makeColumns(all: MemberStats[]): Column[] {
 
 export default function Home() {
   const { profile } = useProfile()
-  const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
+  const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
 
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
-  const columns = makeColumns(data?.members ?? [])
+  const columns = makeColumns(data?.members ?? [], deltas)
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   return (
@@ -113,12 +163,6 @@ export default function Home() {
       </section>
 
       <TagNotice />
-
-      {me && (
-        <section className="mx-auto max-w-xs">
-          <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
-        </section>
-      )}
 
       <section className="space-y-4">
         <SectionHeading center eyebrow="Roster" title="Member Stats" />
@@ -148,6 +192,12 @@ export default function Home() {
           </>
         )}
       </section>
+
+      {me && (
+        <section className="mx-auto max-w-xs">
+          <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
+        </section>
+      )}
     </StatsShell>
   )
 }

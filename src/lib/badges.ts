@@ -7,6 +7,7 @@
 // Most Wins is a "limited" badge (held by the current roster leader).
 
 import { currentMonthKey, ffaMonthly, teamMonthly, type MemberStats } from './stats'
+import { levelFromXp, titleForLevel } from './levels'
 
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 
@@ -22,13 +23,15 @@ export type IconKey =
   | 'anchor'
   | 'blast'
   | 'wrench'
+  | 'flag'
 
 export interface Badge {
   id: string
   name: string
-  kind: 'star' | 'ship' | 'icon'
+  kind: 'star' | 'ship' | 'icon' | 'level'
   icon?: IconKey
   tier?: BadgeTier
+  level?: number
   earned: boolean
   desc: string
   group: 'rank' | 'milestone' | 'monthly'
@@ -79,6 +82,15 @@ function leader(members: MemberStats[], value: (m: MemberStats) => number): stri
   return best?.id ?? null
 }
 
+/** Member holding the single fastest (lowest) speedrun time clan-wide, if any. */
+function fastestSpeedrunner(members: MemberStats[]): string | null {
+  let best: { id: string; v: number } | null = null
+  for (const m of members) {
+    if (m.speedrunSeconds != null && (!best || m.speedrunSeconds < best.v)) best = { id: m.publicId, v: m.speedrunSeconds }
+  }
+  return best?.id ?? null
+}
+
 export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const mk = currentMonthKey()
   const ffa = (x: MemberStats) => ffaMonthly(x, mk)
@@ -91,6 +103,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const marineLeader = leader(all, (x) => team(x).avgGold ?? 0)
   const destroyerLeader = leader(all, (x) => team(x).kills ?? 0)
   const teamGrinderLeader = leader(all, (x) => team(x).points)
+  const fastestLeader = fastestSpeedrunner(all)
 
   const starTier = tierFromRank(m.rank1v1)
   const shipTier = tierFromRank(m.ffaRank)
@@ -99,11 +112,16 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const starLabel = starTier ? `Top ${tierLimit(starTier)} 1v1 Leaderboard` : 'Reach top 100 1v1 Leaderboard'
   const shipLabel = shipTier ? `Top ${tierLimit(shipTier)} FFA Leaderboard` : 'Reach top 100 FFA Leaderboard'
 
+  const level = levelFromXp(m.xp)
+  const levelTitle = titleForLevel(level)
+
   return [
     // ── rank (tiered) ──
+    { id: 'level', name: levelTitle, kind: 'level', level, earned: true, group: 'rank', desc: `Level ${level} (${m.xp} XP)` },
     { id: 'star', name: '1v1 Ladder', kind: 'star', tier: starTier ?? undefined, earned: !!starTier, group: 'rank', desc: starLabel },
     { id: 'ship', name: 'FFA Ladder', kind: 'ship', tier: shipTier ?? undefined, earned: !!shipTier, group: 'rank', desc: shipLabel },
     { id: 'mostWins', name: 'Most Wins', kind: 'icon', icon: 'trophy', earned: mostWinsLeader === m.publicId, group: 'rank', desc: 'Most total wins in the clan' },
+    { id: 'fastest', name: 'Speedrunner', kind: 'icon', icon: 'flag', earned: fastestLeader === m.publicId, group: 'rank', desc: 'Fastest speedrun time in the clan' },
     // ── milestones (permanent) ──
     { id: 'good', name: 'Good Player', kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: '100 wins' },
     { id: 'god', name: 'God Player', kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: '1000 wins' },

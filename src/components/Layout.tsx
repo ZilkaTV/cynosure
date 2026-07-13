@@ -13,6 +13,7 @@ const navItems = [
   { to: '/monthly/1v1', label: 'Monthly 1v1', shortLabel: '1v1' },
   { to: '/speedrun', label: 'Speedrun', shortLabel: 'Speedrun' },
   { to: '/events', label: 'Events', shortLabel: 'Events' },
+  { to: '/quests', label: 'Quests', shortLabel: 'Quests' },
 ]
 
 const DiscordIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (

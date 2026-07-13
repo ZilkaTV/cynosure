@@ -1,62 +1,52 @@
 import type { Badge, BadgeTier, IconKey } from '../lib/badges'
-import {
-  TrophyIcon,
-  MedalIcon,
-  CrownIcon,
-  FlameIcon,
-  BellIcon,
-  BowIcon,
-  BoltIcon,
-  PickaxeIcon,
-  AnchorIcon,
-  BlastIcon,
-  WrenchIcon,
-} from './Icons'
+import { Emoji, EMOJI } from './Emoji'
 
-const TIER_COLOR: Record<BadgeTier, string> = {
-  bronze: '#cd7f32',
-  silver: '#c0c0c0',
-  gold: '#f2c14e',
-  diamond: '#7fe3f0',
+const TIER_RING: Record<BadgeTier, string> = {
+  bronze: 'ring-2 ring-[#cd7f32]/70',
+  silver: 'ring-2 ring-[#c0c0c0]/70',
+  gold: 'ring-2 ring-[#f2c14e]/70',
+  diamond: 'ring-2 ring-[#7fe3f0]/70',
 }
 
-const ICONS: Record<IconKey, (props: { className?: string }) => React.JSX.Element> = {
-  trophy: TrophyIcon,
-  medal: MedalIcon,
-  crown: CrownIcon,
-  flame: FlameIcon,
-  bell: BellIcon,
-  bow: BowIcon,
-  bolt: BoltIcon,
-  pickaxe: PickaxeIcon,
-  anchor: AnchorIcon,
-  blast: BlastIcon,
-  wrench: WrenchIcon,
+const TIER_EMOJI: Record<BadgeTier, string> = {
+  bronze: EMOJI.bronze,
+  silver: EMOJI.silver,
+  gold: EMOJI.gold,
+  diamond: '💎',
 }
 
-function StarIcon({ color, className = 'h-5 w-5' }: { color: string; className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill={color} stroke="rgba(0,0,0,0.3)" strokeWidth="0.5">
-      <path d="m12 2 2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 7.1-1.01z" />
-    </svg>
-  )
+const ICON_EMOJI: Record<IconKey, string> = {
+  trophy: EMOJI.trophy,
+  medal: EMOJI.medal,
+  crown: EMOJI.crown,
+  flame: EMOJI.flame,
+  bell: EMOJI.bell,
+  bow: EMOJI.bow,
+  bolt: EMOJI.bolt,
+  pickaxe: EMOJI.pickaxe,
+  anchor: EMOJI.anchor,
+  blast: EMOJI.blast,
+  wrench: EMOJI.wrench,
+  flag: EMOJI.flag,
 }
 
-function ShipIcon({ color, className = 'h-5 w-5' }: { color: string; className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill={color} stroke="rgba(0,0,0,0.3)" strokeWidth="0.4">
-      <path d="M12 2 13 3v5h4l-1.5 3H13v3.2l6-1.8-2.2 5.1A5 5 0 0 1 12.2 22H12a7 7 0 0 1-4.8-2.2L4 14l6 1.8V11H8.5L7 8h4V3z" />
-    </svg>
-  )
+/** Picks which emoji represents a badge (tiered star/ship badges swap by tier). */
+function emojiFor(badge: Badge): string {
+  if (badge.kind === 'star') return badge.tier ? TIER_EMOJI[badge.tier] : EMOJI.star
+  if (badge.kind === 'ship') return EMOJI.ship
+  return badge.icon ? ICON_EMOJI[badge.icon] : '❔'
 }
 
-export function BadgeIcon({ badge, className }: { badge: Badge; className?: string }) {
-  const color = badge.tier ? TIER_COLOR[badge.tier] : '#8a84a3'
-  if (badge.kind === 'star') return <StarIcon color={badge.earned ? color : '#3a3550'} className={className} />
-  if (badge.kind === 'ship') return <ShipIcon color={badge.earned ? color : '#3a3550'} className={className} />
-  const Icon = badge.icon ? ICONS[badge.icon] : null
-  if (!Icon) return null
-  return <Icon className={className} />
+/** Renders a badge's visual: the level number for the level badge, an emoji otherwise. */
+function BadgeVisual({ badge, className }: { badge: Badge; className?: string }) {
+  if (badge.kind === 'level') {
+    return (
+      <span className={`flex items-center justify-center font-display font-bold text-gold-light ${className}`}>
+        {badge.level}
+      </span>
+    )
+  }
+  return <Emoji char={emojiFor(badge)} label={badge.name} className={className} />
 }
 
 /** Compact earned-only badges (for the roster / overview). */
@@ -69,9 +59,9 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
         <span
           key={b.id}
           title={`${b.name} - ${b.desc}`}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 text-gold-light"
+          className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
         >
-          <BadgeIcon badge={b} className="h-3.5 w-3.5" />
+          <BadgeVisual badge={b} className="h-4 w-4 text-xs" />
         </span>
       ))}
     </span>
@@ -101,8 +91,8 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                     b.earned ? 'border-gold/30 bg-gold/5' : 'border-base-700 bg-base-850/40 opacity-55'
                   }`}
                 >
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.earned ? 'text-gold-light' : 'text-slate-500'}`}>
-                    <BadgeIcon badge={b} className="h-5 w-5" />
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.tier && b.earned ? TIER_RING[b.tier] : ''}`}>
+                    <BadgeVisual badge={b} className="h-5 w-5 text-sm" />
                   </span>
                   <div className="min-w-0">
                     <p className={`truncate text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>

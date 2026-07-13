@@ -5,7 +5,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, EloDelta, LastUpdated, SectionHeading, Spinner } from '../components/ui'
-import { BowIcon, BoltIcon, PickaxeIcon, AnchorIcon, BlastIcon, WrenchIcon } from '../components/Icons'
+import { Emoji, EMOJI } from '../components/Emoji'
 import {
   availableMonths,
   currentMonthKey,
@@ -53,13 +53,13 @@ interface Leader {
 
 /** A "title" earned by the monthly leader in one category, showing their number. */
 function TitleCard({
-  Icon,
+  emoji,
   title,
   metric,
   leader,
   fmt,
 }: {
-  Icon: (props: { className?: string }) => React.JSX.Element
+  emoji: string
   title: string
   metric: string
   leader: Leader | null
@@ -68,7 +68,7 @@ function TitleCard({
   const format = fmt ?? ((n: number) => String(n))
   return (
     <div className={`rounded-xl border px-4 py-3 text-center ${leader ? 'border-gold/40 bg-gold/10' : 'border-base-700 bg-base-850/40'}`}>
-      <Icon className={`mx-auto h-5 w-5 ${leader ? 'text-gold-light' : 'text-slate-500'}`} />
+      <Emoji char={emoji} className={`mx-auto h-6 w-6 ${leader ? '' : 'opacity-40 grayscale'}`} />
       <p className="mt-1 font-display text-sm font-bold text-gold-light">{title}</p>
       <p className="text-[11px] uppercase tracking-wide text-slate-500">{metric}</p>
       <p className="mt-1 truncate text-sm font-medium text-white">{leader ? leader.name : '-'}</p>
@@ -141,9 +141,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard Icon={BowIcon} title="Predator" metric="Avg Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
-                <TitleCard Icon={BoltIcon} title="Pro Player" metric="Win Streak" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
-                <TitleCard Icon={PickaxeIcon} title="Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard emoji={EMOJI.bow} title="Predator" metric="Avg Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+                <TitleCard emoji={EMOJI.bolt} title="Pro Player" metric="Win Streak" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+                <TitleCard emoji={EMOJI.pickaxe} title="Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
@@ -188,9 +188,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard Icon={AnchorIcon} title="Marine" metric="Gold/min" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
-                <TitleCard Icon={BlastIcon} title="Destroyer" metric="Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
-                <TitleCard Icon={WrenchIcon} title="Team Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard emoji={EMOJI.anchor} title="Marine" metric="Gold/min" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
+                <TitleCard emoji={EMOJI.blast} title="Destroyer" metric="Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
+                <TitleCard emoji={EMOJI.wrench} title="Team Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">

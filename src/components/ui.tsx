@@ -93,6 +93,17 @@ export function EloDelta({ delta }: { delta: number | null }) {
   )
 }
 
+/** Small green/red "+N" shown next to a stat right after a manual refresh. */
+export function RefreshDelta({ value }: { value: number | undefined }) {
+  if (!value) return null
+  return (
+    <span className={`ml-1 text-xs font-bold ${value > 0 ? 'text-signal-green' : 'text-signal-red'}`}>
+      {value > 0 ? '+' : ''}
+      {value}
+    </span>
+  )
+}
+
 /** "5 minutes ago" style relative time. */
 export function relativeTime(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)

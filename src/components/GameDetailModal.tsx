@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
-import { TrophyIcon, SwordIcon, ShieldIcon, CoinIcon, SkullIcon, MapIcon } from './Icons'
+import { Emoji, EMOJI } from './Emoji'
 
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
@@ -123,7 +123,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-2.5 py-1 text-xs font-semibold text-accent-light hover:border-accent hover:text-white"
               >
-                <MapIcon /> Watch Replay
+                <Emoji char={EMOJI.map} className="h-3.5 w-3.5" /> Watch Replay
               </a>
             </div>
 
@@ -133,12 +133,12 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-3 py-2.5 text-left font-semibold">#</th>
                     <th className="px-3 py-2.5 text-left font-semibold">Player</th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Out/min"><SwordIcon /></ThIcon></th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="In/min"><ShieldIcon /></ThIcon></th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Gold/min"><CoinIcon /></ThIcon></th>
+                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Out/min"><Emoji char={EMOJI.sword} className="h-3.5 w-3.5" /></ThIcon></th>
+                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="In/min"><Emoji char={EMOJI.shield} className="h-3.5 w-3.5" /></ThIcon></th>
+                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Gold/min"><Emoji char={EMOJI.coin} className="h-3.5 w-3.5" /></ThIcon></th>
                     <th className="px-3 py-2.5 text-right font-semibold">Kills</th>
                     <th className="px-3 py-2.5 text-right font-semibold">End Tiles</th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Death"><SkullIcon /></ThIcon></th>
+                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Death"><Emoji char={EMOJI.skull} className="h-3.5 w-3.5" /></ThIcon></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -151,7 +151,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                           <span className={isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}>
                             {r.p.clanTag && <span className="text-slate-500">[{r.p.clanTag}] </span>}
                             {r.p.username}
-                            {r.isWinner && <TrophyIcon className="ml-1 inline h-3.5 w-3.5 text-gold-light" />}
+                            {r.isWinner && <Emoji char={EMOJI.trophy} label="Winner" className="ml-1 h-3.5 w-3.5" />}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.out / durMin)}</td>

@@ -4,7 +4,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, SectionHeading, Spinner } from '../components/ui'
-import { FlagIcon, RankMedal } from '../components/Icons'
+import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
 import { fmtTime, submitSpeedrun, SPEEDRUN_RULE, type SubmitResult } from '../lib/speedruns'
 
 export default function Speedrun() {
@@ -40,13 +40,12 @@ export default function Speedrun() {
         <SectionHeading center eyebrow="Challenge" title="Speedrun" />
         <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
           <p className="flex items-center justify-center gap-2 font-display text-lg font-bold uppercase tracking-wide text-gold-light">
-            <FlagIcon className="h-5 w-5" /> {SPEEDRUN_RULE}
+            <Emoji char={EMOJI.flag} className="h-5 w-5" /> {SPEEDRUN_RULE}
           </p>
           <p className="mt-1 text-sm text-slate-300">
             Play a solo game on <span className="font-semibold text-white">Australia</span> with{' '}
-            <span className="font-semibold text-white">nations disabled</span> and{' '}
-            <span className="font-semibold text-white">no bots</span>, then submit the game link. Fastest
-            completion wins.
+            <span className="font-semibold text-white">nations disabled</span> (bots are fine, normally
+            400), then submit the game link. Fastest completion wins.
           </p>
         </div>
       </section>
@@ -113,6 +112,7 @@ export default function Speedrun() {
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">#</th>
                   <th className="px-4 py-3 text-left font-semibold">Name</th>
+                  <th className="px-4 py-3 text-right font-semibold">Attempts</th>
                   <th className="px-4 py-3 text-right font-semibold">Best Time</th>
                 </tr>
               </thead>
@@ -125,6 +125,7 @@ export default function Speedrun() {
                     <td className="px-4 py-3">
                       <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link>
                     </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-400">{m.speedrunAttempts}</td>
                     <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">
                       {fmtTime(m.speedrunSeconds ?? 0)}
                     </td>

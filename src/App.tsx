@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import MemberProfile from './pages/MemberProfile'
 import Speedrun from './pages/Speedrun'
 import Events from './pages/Events'
+import Quests from './pages/Quests'
 
 function NotFound() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/member/:id" element={<MemberProfile />} />
         <Route path="/speedrun" element={<Speedrun />} />
         <Route path="/events" element={<Events />} />
+        <Route path="/quests" element={<Quests />} />
         <Route path="/register" element={<Register />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

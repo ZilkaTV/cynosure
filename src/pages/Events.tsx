@@ -3,7 +3,7 @@ import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner } from '../components/ui'
-import { RankMedal } from '../components/Icons'
+import { RankMedal } from '../components/Emoji'
 import { EVENTS, type ClanEvent } from '../data/events'
 import {
   fetchEventTeams,

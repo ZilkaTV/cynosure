@@ -88,7 +88,7 @@ export default function Home() {
           <StatCard label="Top 1v1 Elo" value={totals?.topElo ?? '…'} accent="gold" />
           <StatCard label="1v1 Wins" value={totals ? totals.rankedWins : '…'} accent="purple" />
           <StatCard label="Team Wins" value={totals ? totals.teamWins : '…'} accent="purple" />
-          <StatCard label="All Wins" value={totals ? totals.allWins : '…'} accent="gold" />
+          <StatCard className="col-span-2 sm:col-span-1" label="All Wins" value={totals ? totals.allWins : '…'} accent="gold" />
         </div>
       </section>
 
@@ -112,7 +112,7 @@ export default function Home() {
                 <span className="text-slate-300">
                   {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>{' '}
-                — older games fall outside OpenFront’s public history window.
+                - older games fall outside OpenFront’s public history window.
               </p>
             )}
             <p className="text-center text-xs text-slate-500">

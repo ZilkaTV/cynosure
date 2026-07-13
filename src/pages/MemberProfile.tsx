@@ -46,6 +46,7 @@ export default function MemberProfile() {
   const one = oneVoneBucket(m.cynGames, mk)
 
   const recent = [...m.cynGames]
+    .filter((g) => g.type !== 'Private')
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 12)
 

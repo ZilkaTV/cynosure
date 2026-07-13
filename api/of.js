@@ -5,8 +5,8 @@
 // so we route through a single function instead).
 //
 // Why this exists:
-//  • CORS — the OpenFront API refuses direct browser calls.
-//  • Rate limits — one shared origin lets Vercel's CDN cache responses
+//  • CORS - the OpenFront API refuses direct browser calls.
+//  • Rate limits - one shared origin lets Vercel's CDN cache responses
 //    (s-maxage below), so OpenFront sees ~one request per URL per window.
 
 export default async function handler(req, res) {

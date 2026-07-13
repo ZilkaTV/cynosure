@@ -7,11 +7,12 @@ import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 
 const navItems = [
-  { to: '/', label: 'Overview', end: true },
-  { to: '/monthly/ffa', label: 'Monthly FFA' },
-  { to: '/monthly/team', label: 'Monthly Team' },
-  { to: '/monthly/1v1', label: 'Monthly 1v1' },
-  { to: '/speedrun', label: 'Speedrun' },
+  { to: '/', label: 'Overview', shortLabel: 'Overview', end: true },
+  { to: '/monthly/ffa', label: 'Monthly FFA', shortLabel: 'FFA' },
+  { to: '/monthly/team', label: 'Monthly Team', shortLabel: 'Team' },
+  { to: '/monthly/1v1', label: 'Monthly 1v1', shortLabel: '1v1' },
+  { to: '/speedrun', label: 'Speedrun', shortLabel: 'Speedrun' },
+  { to: '/events', label: 'Events', shortLabel: 'Events' },
 ]
 
 const DiscordIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -107,23 +108,26 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="-mt-6 flex flex-col items-center gap-2 pb-2" aria-label={`${CLAN_NAME} home`}>
-          <CynLogo className="h-28 w-28 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] sm:h-32 sm:w-32" />
-          <span className="font-display text-3xl font-bold tracking-[0.3em] text-white sm:text-4xl">
+        <Link to="/" className="-mt-4 flex flex-col items-center gap-2 px-4 pb-2 sm:-mt-6" aria-label={`${CLAN_NAME} home`}>
+          <CynLogo className="h-20 w-20 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 lg:h-32 lg:w-32" />
+          <span className="text-center font-display text-xl font-bold tracking-[0.1em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>
         </Link>
 
         {/* sub navigation - centred */}
-        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-1 overflow-x-auto px-4 pb-3 pt-1 sm:px-6">
+        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:gap-1 sm:px-6">
           {navItems.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.end}
-              className={({ isActive }) => `nav-link whitespace-nowrap ${isActive ? 'nav-link-active' : ''}`}
+              className={({ isActive }) =>
+                `nav-link whitespace-nowrap !px-2 !py-1.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''}`
+              }
             >
-              {n.label}
+              <span className="sm:hidden">{n.shortLabel}</span>
+              <span className="hidden sm:inline">{n.label}</span>
             </NavLink>
           ))}
         </nav>

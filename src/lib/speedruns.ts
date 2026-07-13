@@ -1,7 +1,7 @@
 // ── Speedrun mode ────────────────────────────────────────────────────────────
 // Category: SOLO game · Map Australia · No Nations. A member pastes a game link;
-// the site pulls the game from OpenFront, checks every condition, and — if valid
-// and faster than their current best — records the time.
+// the site pulls the game from OpenFront, checks every condition, and - if valid
+// and faster than their current best - records the time.
 
 import { fetchGameDetail, type GameDetail } from './openfront'
 import { supabase } from './supabase'
@@ -31,7 +31,7 @@ export function verifySpeedrun(d: GameDetail): { ok: boolean; reason?: string; s
   if (d.gameType !== 'Singleplayer') return { ok: false, reason: `Must be a solo (singleplayer) game (this was ${d.gameType}).`, seconds: 0 }
   if (d.nations !== 'disabled') return { ok: false, reason: 'Nations must be disabled ("No Nations").', seconds: 0 }
   if (d.bots !== 0) return { ok: false, reason: `No bots allowed (this game had ${d.bots}).`, seconds: 0 }
-  if (!d.winnerClientId) return { ok: false, reason: 'The game has no recorded winner — it wasn’t completed.', seconds: 0 }
+  if (!d.winnerClientId) return { ok: false, reason: 'The game has no recorded winner - it wasn’t completed.', seconds: 0 }
   if (!d.durationSeconds) return { ok: false, reason: 'No duration recorded for this game.', seconds: 0 }
   return { ok: true, seconds: d.durationSeconds }
 }
@@ -45,11 +45,17 @@ export async function fetchSpeedruns(): Promise<Record<string, SpeedrunEntry>> {
   return map
 }
 
+export function replayToolUrl(gameId: string): string {
+  return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
+}
+
 export interface SubmitResult {
   ok: boolean
   message: string
   seconds?: number
   best?: boolean
+  /** Set when the game couldn't be auto-verified (old version) - link to check it manually. */
+  replayUrl?: string
 }
 
 export async function submitSpeedrun(openfrontId: string, gameLink: string): Promise<SubmitResult> {
@@ -60,8 +66,8 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string): Pro
   if (!detail) {
     return {
       ok: false,
-      message:
-        'Couldn’t find this game on OpenFront. It may be from an older game version — those aren’t auto-verifiable yet (the frozenpenguin replay tool can still open them).',
+      message: 'Old version - please use the replay tool link below with the game id to verify manually.',
+      replayUrl: replayToolUrl(gameId),
     }
   }
 

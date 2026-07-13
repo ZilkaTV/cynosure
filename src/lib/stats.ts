@@ -50,8 +50,8 @@ export interface MemberStats {
   clanGamesTotal: number
   // raw CYN games (for profile page + month archive)
   cynGames: PlayerGame[]
-  // per-game detail (kills + gold) for this member, where fetched (recent games)
-  detailByGame: Record<string, { kills: number; gold: number }>
+  // per-game detail (kills + gold/min) for this member, where fetched (recent games)
+  detailByGame: Record<string, { kills: number; goldPerMin: number }>
 }
 
 export interface RosterResult {
@@ -209,12 +209,12 @@ export function teamMonthly(m: MemberStats, monthKey: string, coop: Record<strin
   const inMonth = m.cynGames.filter((g) => isTeam(g) && monthKeyOf(g.start) === monthKey)
   const detailed = inMonth.filter((g) => m.detailByGame[g.gameId])
   const kills = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].kills, 0)
-  const gold = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].gold, 0)
+  const goldPerMinSum = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].goldPerMin, 0)
   return {
     ...b,
     wl: wlRatio(b.wins, b.losses),
     kills: detailed.length ? kills : null,
-    avgGold: detailed.length ? Math.round(gold / detailed.length) : null,
+    avgGold: detailed.length ? Math.round(goldPerMinSum / detailed.length) : null,
   }
 }
 
@@ -314,9 +314,9 @@ export async function buildRoster(
       null,
     )
 
-    // Pull this member's kills + gold out of each fetched game detail (match by
-    // the exact name they used in that game).
-    const detailByGame: Record<string, { kills: number; gold: number }> = {}
+    // Pull this member's kills + gold/min out of each fetched game detail
+    // (match by the exact name they used in that game).
+    const detailByGame: Record<string, { kills: number; goldPerMin: number }> = {}
     for (const g of games) {
       const d = detailMap.get(g.gameId)
       if (!d) continue
@@ -324,9 +324,11 @@ export async function buildRoster(
         d.players.find((p) => p.username === g.username && p.clanTag === CLAN_TAG) ??
         d.players.find((p) => p.username === g.username)
       if (!me?.stats) continue
+      const goldTotal = (me.stats.gold ?? []).reduce((s, x) => s + Number(x || 0), 0)
+      const minutes = d.durationSeconds > 0 ? d.durationSeconds / 60 : 1
       detailByGame[g.gameId] = {
         kills: me.stats.kills?.length ?? 0,
-        gold: (me.stats.gold ?? []).reduce((s, x) => s + Number(x || 0), 0),
+        goldPerMin: goldTotal / minutes,
       }
     }
 

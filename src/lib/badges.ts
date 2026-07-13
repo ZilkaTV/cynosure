@@ -1,9 +1,9 @@
 // ── Badges ───────────────────────────────────────────────────────────────────
 // Three groups:
-//  • rank      — 1v1 star & FFA ship, tiered by global ladder position (upgrade
+//  • rank      - 1v1 star & FFA ship, tiered by global ladder position (upgrade
 //                badges: only the best tier shows). Lost if you drop out.
-//  • milestone — permanent once earned (Good/God Player, Loyal Player).
-//  • monthly   — this month's category leaders; lost next month if overtaken.
+//  • milestone - permanent once earned (Good/God Player, Loyal Player).
+//  • monthly   - this month's category leaders; lost next month if overtaken.
 // Most Wins is a "limited" badge (held by the current roster leader).
 
 import { currentMonthKey, ffaMonthly, teamMonthly, type MemberStats } from './stats'
@@ -31,6 +31,11 @@ function tierFromRank(rank: number | null): BadgeTier | null {
   if (rank <= 50) return 'silver'
   if (rank <= 100) return 'bronze'
   return null
+}
+
+/** Tier -> the top-N cutoff, for short badge labels like "Top 50". */
+function tierLimit(tier: BadgeTier): number {
+  return { diamond: 3, gold: 10, silver: 50, bronze: 100 }[tier]
 }
 
 /** Consecutive days (ending on the latest win-day) with at least one CYN win. */
@@ -78,57 +83,24 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const shipTier = tierFromRank(m.ffaRank)
   const streak = loyalStreak(m)
 
+  const starLabel = starTier ? `Top ${tierLimit(starTier)} 1v1 Leaderboard` : 'Reach top 100 1v1 Leaderboard'
+  const shipLabel = shipTier ? `Top ${tierLimit(shipTier)} FFA Leaderboard` : 'Reach top 100 FFA Leaderboard'
+
   return [
     // ── rank (tiered) ──
-    {
-      id: 'star',
-      name: '1v1 Ladder',
-      kind: 'star',
-      tier: starTier ?? undefined,
-      earned: !!starTier,
-      group: 'rank',
-      desc: starTier
-        ? `Global 1v1 rank #${m.rank1v1} — ${starTier} star (top 3 = diamond, 10 = gold, 50 = silver, 100 = brown).`
-        : 'Reach the global 1v1 ranked top 100 (brown → silver → gold → diamond star).',
-    },
-    {
-      id: 'ship',
-      name: 'FFA Ladder',
-      kind: 'ship',
-      tier: shipTier ?? undefined,
-      earned: !!shipTier,
-      group: 'rank',
-      desc: shipTier
-        ? `Global FFA rank #${m.ffaRank} — ${shipTier} ship (top 3 = diamond, 10 = gold, 50 = silver, 100 = bronze).`
-        : 'Reach the global FFA (trackerfront) top 100 (bronze → silver → gold → diamond ship).',
-    },
-    {
-      id: 'mostWins',
-      name: 'Most Wins',
-      kind: 'emoji',
-      icon: '🏆',
-      earned: mostWinsLeader === m.publicId,
-      group: 'rank',
-      desc: 'Held by the [CYN] member with the most total wins. Lost when someone overtakes you.',
-    },
+    { id: 'star', name: '1v1 Ladder', kind: 'star', tier: starTier ?? undefined, earned: !!starTier, group: 'rank', desc: starLabel },
+    { id: 'ship', name: 'FFA Ladder', kind: 'ship', tier: shipTier ?? undefined, earned: !!shipTier, group: 'rank', desc: shipLabel },
+    { id: 'mostWins', name: 'Most Wins', kind: 'emoji', icon: '🏆', earned: mostWinsLeader === m.publicId, group: 'rank', desc: 'Most total wins in the clan' },
     // ── milestones (permanent) ──
-    { id: 'good', name: 'Good Player', kind: 'emoji', icon: '🎖️', earned: m.allWins >= 100, group: 'milestone', desc: 'Win 100 games with the [CYN] tag.' },
-    { id: 'god', name: 'God Player', kind: 'emoji', icon: '👑', earned: m.allWins >= 1000, group: 'milestone', desc: 'Win 1000 games with the [CYN] tag.' },
-    {
-      id: 'loyal',
-      name: 'Loyal Player',
-      kind: 'emoji',
-      icon: '🔥',
-      earned: streak >= LOYAL_THRESHOLD,
-      group: 'milestone',
-      desc: `Win [CYN] games on ${LOYAL_THRESHOLD}+ consecutive days. Current streak: ${streak} day${streak === 1 ? '' : 's'}.`,
-    },
+    { id: 'good', name: 'Good Player', kind: 'emoji', icon: '🎖️', earned: m.allWins >= 100, group: 'milestone', desc: '100 wins' },
+    { id: 'god', name: 'God Player', kind: 'emoji', icon: '👑', earned: m.allWins >= 1000, group: 'milestone', desc: '1000 wins' },
+    { id: 'loyal', name: 'Loyal Player', kind: 'emoji', icon: '🔥', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: `${LOYAL_THRESHOLD}+ day win streak (current: ${streak})` },
     // ── monthly (losable) ──
-    { id: 'predator', name: 'Predator', kind: 'emoji', icon: '🏹', earned: predatorLeader === m.publicId, group: 'monthly', desc: 'This month’s highest FFA average kills.' },
-    { id: 'pro', name: 'Pro Player', kind: 'emoji', icon: '⚡', earned: proLeader === m.publicId, group: 'monthly', desc: 'This month’s highest FFA win streak.' },
-    { id: 'grinder', name: 'Grinder', kind: 'emoji', icon: '⛏️', earned: grinderLeader === m.publicId, group: 'monthly', desc: 'This month’s most FFA points.' },
-    { id: 'marine', name: 'Marine', kind: 'emoji', icon: '⚓', earned: marineLeader === m.publicId, group: 'monthly', desc: 'This month’s highest Team gold income.' },
-    { id: 'destroyer', name: 'Destroyer', kind: 'emoji', icon: '💥', earned: destroyerLeader === m.publicId, group: 'monthly', desc: 'This month’s most Team kills.' },
-    { id: 'teamGrinder', name: 'Team Grinder', kind: 'emoji', icon: '🛠️', earned: teamGrinderLeader === m.publicId, group: 'monthly', desc: 'This month’s most Team points.' },
+    { id: 'predator', name: 'Predator', kind: 'emoji', icon: '🏹', earned: predatorLeader === m.publicId, group: 'monthly', desc: 'Highest FFA avg kills this month' },
+    { id: 'pro', name: 'Pro Player', kind: 'emoji', icon: '⚡', earned: proLeader === m.publicId, group: 'monthly', desc: 'Highest FFA win streak this month' },
+    { id: 'grinder', name: 'Grinder', kind: 'emoji', icon: '⛏️', earned: grinderLeader === m.publicId, group: 'monthly', desc: 'Most FFA points this month' },
+    { id: 'marine', name: 'Marine', kind: 'emoji', icon: '⚓', earned: marineLeader === m.publicId, group: 'monthly', desc: 'Highest Team gold/min this month' },
+    { id: 'destroyer', name: 'Destroyer', kind: 'emoji', icon: '💥', earned: destroyerLeader === m.publicId, group: 'monthly', desc: 'Most Team kills this month' },
+    { id: 'teamGrinder', name: 'Team Grinder', kind: 'emoji', icon: '🛠️', earned: teamGrinderLeader === m.publicId, group: 'monthly', desc: 'Most Team points this month' },
   ]
 }

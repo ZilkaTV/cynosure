@@ -44,16 +44,18 @@ export function StatCard({
   value,
   sub,
   accent = 'purple',
+  className = '',
 }: {
   label: string
   value: ReactNode
   sub?: string
   accent?: 'purple' | 'gold' | 'plain'
+  className?: string
 }) {
   const valueCls =
     accent === 'gold' ? 'text-gold-light' : accent === 'purple' ? 'text-accent-light' : 'text-white'
   return (
-    <div className="panel px-5 py-4">
+    <div className={`panel px-5 py-4 text-center sm:text-left ${className}`}>
       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{label}</p>
       <p className={`font-display text-2xl font-bold ${valueCls}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}

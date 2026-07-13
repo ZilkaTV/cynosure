@@ -145,7 +145,7 @@ export async function fetchFfaLeaderboard(): Promise<Record<string, number>> {
     const json = (await getJson('/api/tf/api/public/leaderboard')) as Array<{ position: number; display_name: string }>
     for (const e of json ?? []) if (e.display_name) byName[e.display_name] = e.position
   } catch {
-    /* leave empty — ship badges just stay unearned */
+    /* leave empty - ship badges just stay unearned */
   }
   cacheSet(key, byName)
   return byName

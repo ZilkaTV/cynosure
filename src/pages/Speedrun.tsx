@@ -63,20 +63,36 @@ export default function Speedrun() {
             </button>
           </form>
           {result && (
-            <p className={`mt-3 text-sm ${result.ok ? 'text-signal-green' : 'text-signal-red'}`}>
-              {result.ok ? '✓ ' : '✗ '}
-              {result.message}
-            </p>
+            <div className={`mt-3 text-sm ${result.ok ? 'text-signal-green' : 'text-signal-red'}`}>
+              <p>
+                {result.ok ? '✓ ' : '✗ '}
+                {result.message}
+              </p>
+              {result.replayUrl && (
+                <a href={result.replayUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-accent-light underline hover:text-accent">
+                  Open in replay tool ↗
+                </a>
+              )}
+            </div>
           )}
           <p className="mt-3 text-xs text-slate-500">
             The site pulls the game from OpenFront and checks every rule automatically. Only your own
-            fastest valid run is kept. Old-version games can’t be auto-verified yet — see the{' '}
-            <a href="https://openfront-tools.frozenpenguin.media" target="_blank" rel="noreferrer" className="text-accent-light hover:text-accent">
-              replay tool
-            </a>
-            .
+            fastest valid run is kept. Old-version games can't be auto-verified - use the replay tool link
+            above with the game id to check them manually.
           </p>
         </Card>
+      </section>
+
+      <section>
+        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">A note on fairness</p>
+          <p className="text-xs text-slate-400">
+            Solo games run in your own browser, so a player could change the in-game replay speed while
+            playing to shorten the recorded time. OpenFront's public data doesn't expose anything that would
+            reveal this, so it can't be auto-detected. Staff can review a run's replay for anything that looks
+            off, and any confirmed abuse gets a run removed.
+          </p>
+        </div>
       </section>
 
       <TagNotice />
@@ -85,7 +101,7 @@ export default function Speedrun() {
         <SectionHeading center eyebrow="Leaderboard" title="Best Times" />
         {loading && <Spinner label="Loading times…" />}
         {data && board.length === 0 && (
-          <p className="panel px-5 py-8 text-center text-sm text-slate-500">No verified runs yet — be the first!</p>
+          <p className="panel px-5 py-8 text-center text-sm text-slate-500">No verified runs yet - be the first!</p>
         )}
         {board.length > 0 && (
           <div className="panel overflow-hidden">

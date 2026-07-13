@@ -5,6 +5,7 @@ import Monthly from './pages/Monthly'
 import Register from './pages/Register'
 import MemberProfile from './pages/MemberProfile'
 import Speedrun from './pages/Speedrun'
+import Events from './pages/Events'
 
 function NotFound() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
         <Route path="/member/:id" element={<MemberProfile />} />
         <Route path="/speedrun" element={<Speedrun />} />
+        <Route path="/events" element={<Events />} />
         <Route path="/register" element={<Register />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

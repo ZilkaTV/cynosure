@@ -18,13 +18,13 @@ import {
 type Variant = 'ffa' | 'team' | '1v1'
 
 function fmtGold(n: number | null): string {
-  if (n == null) return '—'
+  if (n == null) return '-'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
   return `${Math.round(n)}`
 }
 
-const rules: Record<Variant, React.ReactNode> = {
+const rules: Partial<Record<Variant, React.ReactNode>> = {
   ffa: (
     <>
       <li><span className="font-semibold text-white">1 point</span> per win.</li>
@@ -43,19 +43,23 @@ const rules: Record<Variant, React.ReactNode> = {
       </li>
     </>
   ),
-  '1v1': (
-    <li>No points here - the <span className="font-semibold text-white">Elo Δ</span> (change this month) is the ranking.</li>
-  ),
 }
 
-/** A "title" earned by the monthly leader in one category. */
-function TitleCard({ icon, title, metric, holder }: { icon: string; title: string; metric: string; holder: string | null }) {
+interface Leader {
+  name: string
+  value: number
+}
+
+/** A "title" earned by the monthly leader in one category, showing their number. */
+function TitleCard({ icon, title, metric, leader, fmt }: { icon: string; title: string; metric: string; leader: Leader | null; fmt?: (n: number) => string }) {
+  const format = fmt ?? ((n: number) => String(n))
   return (
-    <div className={`rounded-xl border px-4 py-3 text-center ${holder ? 'border-gold/40 bg-gold/10' : 'border-base-700 bg-base-850/40'}`}>
+    <div className={`rounded-xl border px-4 py-3 text-center ${leader ? 'border-gold/40 bg-gold/10' : 'border-base-700 bg-base-850/40'}`}>
       <div className="text-xl">{icon}</div>
       <p className="font-display text-sm font-bold text-gold-light">{title}</p>
       <p className="text-[11px] uppercase tracking-wide text-slate-500">{metric}</p>
-      <p className="mt-1 truncate text-sm font-medium text-white">{holder ?? '—'}</p>
+      <p className="mt-1 truncate text-sm font-medium text-white">{leader ? leader.name : '-'}</p>
+      {leader && <p className="text-xs font-semibold text-accent-light">{format(leader.value)}</p>}
     </div>
   )
 }
@@ -74,9 +78,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const isCurrent = month === currentMonthKey()
 
   // Leader of a metric (highest value > 0), for the title cards.
-  const leaderOf = (rows: { m: MemberStats; v: number }[]): string | null => {
+  const leaderOf = (rows: { m: MemberStats; v: number }[]): Leader | null => {
     const best = rows.filter((r) => r.v > 0).sort((a, b) => b.v - a.v)[0]
-    return best ? best.m.name : null
+    return best ? { name: best.m.name, value: best.v } : null
   }
 
   const title = variant === 'ffa' ? 'FFA' : variant === 'team' ? 'Team' : '1v1 Ranked'
@@ -103,10 +107,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
           {!isCurrent && <span className="text-xs text-slate-500">archived</span>}
         </div>
 
-        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Scoring</p>
-          <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules[variant]}</ul>
-        </div>
+        {rules[variant] && (
+          <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Scoring</p>
+            <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules[variant]}</ul>
+          </div>
+        )}
       </section>
 
       <TagNotice />
@@ -122,9 +128,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard icon="🏹" title="Predator" metric="Avg Kills" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
-                <TitleCard icon="⚡" title="Pro Player" metric="Win Streak" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
-                <TitleCard icon="⛏️" title="Grinder" metric="Most Points" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard icon="🏹" title="Predator" metric="Avg Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+                <TitleCard icon="⚡" title="Pro Player" metric="Win Streak" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+                <TitleCard icon="⛏️" title="Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
@@ -150,7 +156,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '—'}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '-'}</td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
                         </tr>
                       ))}
@@ -169,9 +175,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard icon="⚓" title="Marine" metric="Gold Income" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} />
-                <TitleCard icon="💥" title="Destroyer" metric="Kills" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
-                <TitleCard icon="⛏️" title="Team Grinder" metric="Most Points" holder={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard icon="⚓" title="Marine" metric="Gold/min" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
+                <TitleCard icon="💥" title="Destroyer" metric="Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
+                <TitleCard icon="⛏️" title="Team Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
@@ -184,7 +190,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <th className="px-3 py-3 text-right font-semibold">Losses</th>
                         <th className="px-3 py-3 text-right font-semibold">W/L</th>
                         <th className="px-3 py-3 text-right font-semibold">Kills</th>
-                        <th className="px-3 py-3 text-right font-semibold">Avg Gold</th>
+                        <th className="px-3 py-3 text-right font-semibold">Gold/min</th>
                         <th className="px-3 py-3 text-right font-semibold">Points</th>
                       </tr>
                     </thead>
@@ -196,7 +202,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '—'}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
                         </tr>
@@ -235,7 +241,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">—</span>}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">-</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -250,8 +256,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
             {(variant === 'ffa' || variant === 'team') && (
               <p className="text-center text-xs text-slate-500">
-                Kills{variant === 'team' ? ' & gold' : ''} come from each game’s post-game report — available for
-                this month’s games (older games fill in over time). “—” = not fetched yet.
+                Kills{variant === 'team' ? ' & gold' : ''} come from each game’s post-game report - available for
+                this month’s games (older games fill in over time). “-” = not fetched yet.
               </p>
             )}
           </>

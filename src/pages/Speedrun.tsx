@@ -4,6 +4,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, SectionHeading, Spinner } from '../components/ui'
+import { FlagIcon, RankMedal } from '../components/Icons'
 import { fmtTime, submitSpeedrun, SPEEDRUN_RULE, type SubmitResult } from '../lib/speedruns'
 
 export default function Speedrun() {
@@ -38,7 +39,9 @@ export default function Speedrun() {
       <section className="space-y-4">
         <SectionHeading center eyebrow="Challenge" title="Speedrun" />
         <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
-          <p className="font-display text-lg font-bold uppercase tracking-wide text-gold-light">🏁 {SPEEDRUN_RULE}</p>
+          <p className="flex items-center justify-center gap-2 font-display text-lg font-bold uppercase tracking-wide text-gold-light">
+            <FlagIcon className="h-5 w-5" /> {SPEEDRUN_RULE}
+          </p>
           <p className="mt-1 text-sm text-slate-300">
             Play a solo game on <span className="font-semibold text-white">Australia</span> with{' '}
             <span className="font-semibold text-white">nations disabled</span> and{' '}
@@ -116,8 +119,8 @@ export default function Speedrun() {
               <tbody>
                 {board.map((m, i) => (
                   <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
-                    <td className="px-4 py-3 font-display font-bold text-slate-500">
-                      {i === 0 ? '🏆' : i + 1}
+                    <td className="px-4 py-3 font-display font-bold">
+                      <RankMedal rank={i + 1} />
                     </td>
                     <td className="px-4 py-3">
                       <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link>

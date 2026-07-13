@@ -74,3 +74,93 @@ create policy "anyone can upsert cyn_bumps"
 
 create policy "anyone can update cyn_bumps"
   on public.cyn_bumps for update to public using (true) with check (true);
+
+-- ============================================================
+-- Events: whitelisted admins, per-event teams, and website-based
+-- submissions (game link + win-screen screenshot) that an admin
+-- accepts or denies. Accepted submissions add to the team's total.
+-- ============================================================
+
+create table if not exists public.cyn_event_admins (
+  discord_username text primary key
+);
+
+alter table public.cyn_event_admins enable row level security;
+
+create policy "public can read cyn_event_admins"
+  on public.cyn_event_admins for select to public using (true);
+
+-- Seed the initial admins (edit/add rows here as needed).
+insert into public.cyn_event_admins (discord_username) values
+  ('zjlka'),
+  ('Kaizeron')
+on conflict (discord_username) do nothing;
+
+create table if not exists public.cyn_event_teams (
+  id uuid primary key default gen_random_uuid(),
+  event_id text not null,
+  name text not null,
+  starting_points integer not null default 0,
+  unique (event_id, name)
+);
+
+alter table public.cyn_event_teams enable row level security;
+
+create policy "public can read cyn_event_teams"
+  on public.cyn_event_teams for select to public using (true);
+
+create policy "anyone can insert cyn_event_teams"
+  on public.cyn_event_teams for insert to public with check (true);
+
+-- Seed the CYN Trio Challenge teams with their points collected before this
+-- website-based system existed (see the Discord leaderboard post).
+insert into public.cyn_event_teams (event_id, name, starting_points) values
+  ('trio-challenge-2026', 'Team CYN', 59),
+  ('trio-challenge-2026', 'Team GAS', 11),
+  ('trio-challenge-2026', 'Team GER', 8),
+  ('trio-challenge-2026', 'Team BUM', 2)
+on conflict (event_id, name) do nothing;
+
+create table if not exists public.cyn_event_submissions (
+  id uuid primary key default gen_random_uuid(),
+  event_id text not null,
+  team_id uuid not null references public.cyn_event_teams(id) on delete cascade,
+  submitted_by text not null, -- openfront_id
+  game_link text not null,
+  screenshot_url text not null,
+  category text not null check (category in ('public', 'scrim_3v3', 'scrim_4plus', 'tournament')),
+  points integer not null check (
+    (category = 'public' and points = 1) or
+    (category = 'scrim_3v3' and points = 2) or
+    (category = 'scrim_4plus' and points = 5) or
+    (category = 'tournament' and points = 10)
+  ),
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'denied')),
+  reviewed_by text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
+alter table public.cyn_event_submissions enable row level security;
+
+create policy "public can read cyn_event_submissions"
+  on public.cyn_event_submissions for select to public using (true);
+
+create policy "anyone can insert cyn_event_submissions"
+  on public.cyn_event_submissions for insert to public with check (true);
+
+create policy "anyone can update cyn_event_submissions"
+  on public.cyn_event_submissions for update to public using (true) with check (true);
+
+-- Storage bucket for win-screen screenshots.
+insert into storage.buckets (id, name, public)
+values ('event-screenshots', 'event-screenshots', true)
+on conflict (id) do nothing;
+
+create policy "public can view event screenshots"
+  on storage.objects for select to public
+  using (bucket_id = 'event-screenshots');
+
+create policy "anyone can upload event screenshots"
+  on storage.objects for insert to public
+  with check (bucket_id = 'event-screenshots');

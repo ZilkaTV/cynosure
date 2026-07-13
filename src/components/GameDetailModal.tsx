@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
+import { TrophyIcon, SwordIcon, ShieldIcon, CoinIcon, SkullIcon, MapIcon } from './Icons'
 
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
@@ -21,35 +22,6 @@ function num(v: string | undefined): number {
 function replayUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
-
-const SwordIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m14.5 17.5 3-3M3 21l6-6M14.5 6.5 20 1l3 3-5.5 5.5M14.5 6.5l3 3M14.5 6.5 9 12l3 3 5.5-5.5" />
-  </svg>
-)
-const ShieldIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-  </svg>
-)
-const CoinIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M12 7v10M9.5 9.5h3.2a1.8 1.8 0 1 1 0 3.6H9.8a1.8 1.8 0 1 0 0 3.6h3.7" />
-  </svg>
-)
-const SkullIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.1 4 2 5v3h2v-2h1.5v2h3v-2H15v2h2v-3c.9-1 2-2.6 2-5a7 7 0 0 0-7-7Z" />
-    <circle cx="9.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" />
-    <circle cx="14.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" />
-  </svg>
-)
-const MapIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 20 3 18V4l6 2m0 14 6-2m-6 2V6m6 12 6 2V6l-6-2m0 16V4m0 2-6-2" />
-  </svg>
-)
 
 function ThIcon({ children, label }: { children: React.ReactNode; label: string }) {
   return (
@@ -179,7 +151,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                           <span className={isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}>
                             {r.p.clanTag && <span className="text-slate-500">[{r.p.clanTag}] </span>}
                             {r.p.username}
-                            {r.isWinner && <span title="Winner"> 👑</span>}
+                            {r.isWinner && <TrophyIcon className="ml-1 inline h-3.5 w-3.5 text-gold-light" />}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.out / durMin)}</td>

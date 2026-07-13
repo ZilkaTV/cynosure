@@ -56,5 +56,5 @@ export async function recordBump(openfrontId: string): Promise<BumpResult> {
   )
   if (error) return { ok: false, message: `Couldn't save: ${error.message}` }
 
-  return { ok: true, message: 'Thanks for bumping! 🔔' }
+  return { ok: true, message: 'Thanks for bumping!' }
 }

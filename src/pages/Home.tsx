@@ -7,24 +7,36 @@ import { fmtTime } from '../lib/speedruns'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
+import { BumpCard } from '../components/BumpButton'
 import { Card, LastUpdated, SectionHeading, StatCard, Spinner } from '../components/ui'
 import type { MemberStats } from '../lib/stats'
 
+// Column order is deliberate: All Wins always stays last, no matter what other
+// columns get added later.
 function makeColumns(all: MemberStats[]): Column[] {
   return [
     {
       key: 'name',
       label: 'Name',
       render: (m) => (
-        <div className="flex items-center gap-2">
-          <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
-            {m.name}
-            {m.timezone && <span className="ml-2 text-xs font-normal text-slate-500">{m.timezone}</span>}
-          </Link>
-          <BadgeStrip badges={computeBadges(m, all)} />
-        </div>
+        <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
+          {m.name}
+        </Link>
       ),
       sortValue: (m) => m.name.toLowerCase(),
+    },
+    {
+      key: 'region',
+      label: 'Region',
+      render: (m) => m.timezone ?? <span className="text-slate-600">-</span>,
+      sortValue: (m) => m.timezone ?? '',
+    },
+    {
+      key: 'badges',
+      label: 'Badges',
+      align: 'center',
+      render: (m) => <BadgeStrip badges={computeBadges(m, all)} />,
+      sortValue: (m) => computeBadges(m, all).filter((b) => b.earned).length,
     },
     { key: 'ffa', label: 'FFA', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
     { key: 'team', label: 'Team', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
@@ -49,13 +61,6 @@ function makeColumns(all: MemberStats[]): Column[] {
       sortValue: (m) => m.peakElo ?? -1,
     },
     {
-      key: 'all',
-      label: 'All Wins',
-      align: 'right',
-      render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
-      sortValue: (m) => m.allWins,
-    },
-    {
       key: 'speedrun',
       label: 'Speedrun',
       align: 'right',
@@ -74,6 +79,13 @@ function makeColumns(all: MemberStats[]): Column[] {
       render: (m) => (m.bumpCount > 0 ? <span className="tabular-nums text-slate-300">{m.bumpCount}</span> : <span className="text-slate-600">-</span>),
       sortValue: (m) => m.bumpCount,
     },
+    {
+      key: 'all',
+      label: 'All Wins',
+      align: 'right',
+      render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
+      sortValue: (m) => m.allWins,
+    },
   ]
 }
 
@@ -85,6 +97,7 @@ export default function Home() {
 
   const totals = data?.totals
   const columns = makeColumns(data?.members ?? [])
+  const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   return (
     <StatsShell>
@@ -100,6 +113,12 @@ export default function Home() {
       </section>
 
       <TagNotice />
+
+      {me && (
+        <section className="mx-auto max-w-xs">
+          <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
+        </section>
+      )}
 
       <section className="space-y-4">
         <SectionHeading center eyebrow="Roster" title="Member Stats" />

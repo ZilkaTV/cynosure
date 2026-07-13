@@ -17,6 +17,9 @@ export const DISCORD_INVITE = 'https://discord.gg/whSUb9WwrC'
  */
 export const DISCORD_GUILD_ID = '1367283444823883776'
 
+/** The Discord bump post (on the listing server, not our own) members bump from. */
+export const BUMP_POST_URL = 'https://discord.com/channels/1284581928254701718/1368987809750323354'
+
 /**
  * Members who do NOT appear on the 1v1 ranked leaderboard (e.g. team/FFA-only
  * players) won't be auto-discovered. Add their OpenFront public ids here so

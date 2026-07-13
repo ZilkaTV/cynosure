@@ -6,7 +6,7 @@ import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
-import { BUMP_COOLDOWN_MS, recordBump } from '../lib/bumps'
+import { BumpCard } from '../components/BumpButton'
 import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   currentMonthKey,
@@ -25,8 +25,6 @@ export default function MemberProfile() {
   const { profile } = useProfile()
   const { data, loading, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
-  const [bumpBusy, setBumpBusy] = useState(false)
-  const [bumpMsg, setBumpMsg] = useState<string | null>(null)
 
   if (!profile) return <RegistrationGate />
   if (loading) return <Spinner label="Loading member…" />
@@ -70,26 +68,12 @@ export default function MemberProfile() {
           {m.timezone && <span>{m.timezone}</span>}
           {m.discord && <span> · Discord: {m.discord}</span>}
         </p>
-        <p className="mt-1 text-sm text-slate-500">🔔 {m.bumpCount} Discord bump{m.bumpCount === 1 ? '' : 's'}</p>
-
-        {profile?.openfront_id === m.publicId && (
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <button
-              disabled={bumpBusy || (m.lastBumpAt != null && Date.now() - new Date(m.lastBumpAt).getTime() < BUMP_COOLDOWN_MS)}
-              onClick={async () => {
-                setBumpBusy(true)
-                const r = await recordBump(m.publicId)
-                setBumpMsg(r.message)
-                setBumpBusy(false)
-                if (r.ok) refresh()
-              }}
-              className="btn-ghost !px-4 !py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              🔔 I just bumped
-            </button>
-            {bumpMsg && <p className="text-xs text-slate-400">{bumpMsg}</p>}
-            <p className="text-xs text-slate-600">Self-reported - resets every 2 hours, matching Disboard's cooldown.</p>
+        {profile?.openfront_id === m.publicId ? (
+          <div className="mx-auto mt-4 max-w-xs">
+            <BumpCard openfrontId={m.publicId} bumpCount={m.bumpCount} lastBumpAt={m.lastBumpAt} onDone={refresh} />
           </div>
+        ) : (
+          <p className="mt-2 text-sm text-slate-500">{m.bumpCount} Discord bumps</p>
         )}
       </div>
 

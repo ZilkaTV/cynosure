@@ -1,10 +1,37 @@
-import type { Badge, BadgeTier } from '../lib/badges'
+import type { Badge, BadgeTier, IconKey } from '../lib/badges'
+import {
+  TrophyIcon,
+  MedalIcon,
+  CrownIcon,
+  FlameIcon,
+  BellIcon,
+  BowIcon,
+  BoltIcon,
+  PickaxeIcon,
+  AnchorIcon,
+  BlastIcon,
+  WrenchIcon,
+} from './Icons'
 
 const TIER_COLOR: Record<BadgeTier, string> = {
   bronze: '#cd7f32',
   silver: '#c0c0c0',
   gold: '#f2c14e',
   diamond: '#7fe3f0',
+}
+
+const ICONS: Record<IconKey, (props: { className?: string }) => React.JSX.Element> = {
+  trophy: TrophyIcon,
+  medal: MedalIcon,
+  crown: CrownIcon,
+  flame: FlameIcon,
+  bell: BellIcon,
+  bow: BowIcon,
+  bolt: BoltIcon,
+  pickaxe: PickaxeIcon,
+  anchor: AnchorIcon,
+  blast: BlastIcon,
+  wrench: WrenchIcon,
 }
 
 function StarIcon({ color, className = 'h-5 w-5' }: { color: string; className?: string }) {
@@ -24,25 +51,27 @@ function ShipIcon({ color, className = 'h-5 w-5' }: { color: string; className?:
 }
 
 export function BadgeIcon({ badge, className }: { badge: Badge; className?: string }) {
-  const color = badge.tier ? TIER_COLOR[badge.tier] : '#5b5570'
+  const color = badge.tier ? TIER_COLOR[badge.tier] : '#8a84a3'
   if (badge.kind === 'star') return <StarIcon color={badge.earned ? color : '#3a3550'} className={className} />
   if (badge.kind === 'ship') return <ShipIcon color={badge.earned ? color : '#3a3550'} className={className} />
-  return <span className={className}>{badge.icon}</span>
+  const Icon = badge.icon ? ICONS[badge.icon] : null
+  if (!Icon) return null
+  return <Icon className={className} />
 }
 
 /** Compact earned-only badges (for the roster / overview). */
 export function BadgeStrip({ badges }: { badges: Badge[] }) {
   const earned = badges.filter((b) => b.earned)
-  if (earned.length === 0) return null
+  if (earned.length === 0) return <span className="text-slate-700">-</span>
   return (
-    <span className="inline-flex items-center gap-1 align-middle">
+    <span className="inline-flex flex-wrap items-center justify-center gap-1">
       {earned.map((b) => (
         <span
           key={b.id}
           title={`${b.name} - ${b.desc}`}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 text-sm"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 text-gold-light"
         >
-          <BadgeIcon badge={b} className="h-4 w-4" />
+          <BadgeIcon badge={b} className="h-3.5 w-3.5" />
         </span>
       ))}
     </span>
@@ -72,8 +101,8 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                     b.earned ? 'border-gold/30 bg-gold/5' : 'border-base-700 bg-base-850/40 opacity-55'
                   }`}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 text-lg">
-                    <BadgeIcon badge={b} className="h-6 w-6" />
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.earned ? 'text-gold-light' : 'text-slate-500'}`}>
+                    <BadgeIcon badge={b} className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
                     <p className={`truncate text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>

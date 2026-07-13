@@ -40,8 +40,8 @@ export function UsefulLinks() {
  */
 export function StatsShell({ children }: { children: ReactNode }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:gap-10">
-      <div className="order-1 mx-auto w-full min-w-0 max-w-3xl space-y-10 lg:order-none lg:col-start-2 lg:row-start-1">
+    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_260px] lg:gap-8 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
+      <div className="order-1 mx-auto w-full min-w-0 max-w-6xl space-y-10 lg:order-none lg:col-start-2 lg:row-start-1">
         {children}
       </div>
       <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">

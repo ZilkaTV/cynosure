@@ -14,10 +14,31 @@ export interface SpeedrunEntry {
   seconds: number
 }
 
-/** Extract a game id from a raw id or any OpenFront link. */
+// Segments that show up in game links but are never the game id itself (the
+// replay tool's own URLs look like /w1/game/<id>?live - "live" used to get
+// picked up as the id because it's the last URL segment).
+const NON_ID_SEGMENTS = new Set(['live', 'replay', 'game', 'w', 'watch'])
+
+/** Extract a game id from a raw id or any OpenFront / replay-tool link. */
 export function parseGameId(input: string): string {
-  const parts = input.trim().split(/[/#=?&\s]+/).filter(Boolean)
-  return parts.length ? parts[parts.length - 1] : input.trim()
+  const trimmed = input.trim()
+
+  // Prefer an explicit /game/<id> path segment (used by openfront.io and the
+  // frozenpenguin replay tool alike).
+  const pathMatch = trimmed.match(/\/game\/([A-Za-z0-9]+)/)
+  if (pathMatch) return pathMatch[1]
+
+  // Prefer an explicit id=/gameid= query param.
+  const queryMatch = trimmed.match(/[?&](?:id|gameid)=([A-Za-z0-9]+)/i)
+  if (queryMatch) return queryMatch[1]
+
+  // Fall back to the last path-like segment that isn't a known non-id word
+  // (live, w0/w1/..., etc).
+  const parts = trimmed
+    .split(/[/#=?&\s]+/)
+    .filter(Boolean)
+    .filter((p) => !NON_ID_SEGMENTS.has(p.toLowerCase()) && !/^w\d+$/i.test(p))
+  return parts.length ? parts[parts.length - 1] : trimmed
 }
 
 export function fmtTime(s: number): string {
@@ -93,5 +114,5 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string): Pro
   )
   if (error) return { ok: false, message: `Verified, but saving failed: ${error.message}` }
 
-  return { ok: true, message: `New best time: ${fmtTime(v.seconds)}! 🏁`, seconds: v.seconds, best: true }
+  return { ok: true, message: `New best time: ${fmtTime(v.seconds)}!`, seconds: v.seconds, best: true }
 }

@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>OpenFront Tools - Watch all Replays & Play Classic Versions</title>
+    <meta
+      name="description"
+      content="Watch replays of old OpenFront games or play old versions in singleplayer. Enter a game ID or pick a release to get started."
+    />
+    <link rel="canonical" href="https://openfront-tools.frozenpenguin.media/" />
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+      }
+      .page-header {
+        font-size: 2rem;
+        color: #f8fafc;
+        margin-bottom: 2rem;
+        text-align: center;
+      }
+      .boxes {
+        display: flex;
+        gap: 1.5rem;
+        max-width: 900px;
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .box {
+        flex: 1;
+        min-width: 340px;
+        max-width: 420px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 1.5rem;
+      }
+      .box h2 {
+        font-size: 1.2rem;
+        color: #f8fafc;
+        margin-bottom: 0.4rem;
+      }
+      .box .desc {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 1.25rem;
+      }
+      .row {
+        display: flex;
+        gap: 0.5rem;
+      }
+      input,
+      select {
+        flex: 1;
+        padding: 0.65rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #f8fafc;
+        font-size: 0.95rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      input:focus,
+      select:focus {
+        border-color: #3b82f6;
+      }
+      input::placeholder {
+        color: #64748b;
+      }
+      select {
+        cursor: pointer;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        padding-right: 2.25rem;
+      }
+      select option {
+        background: #1e293b;
+      }
+      button {
+        padding: 0.65rem 1.25rem;
+        border-radius: 8px;
+        border: none;
+        background: #3b82f6;
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        white-space: nowrap;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+      }
+      .status-box {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #0f172a;
+        border: 1px solid #334155;
+        display: none;
+      }
+      .status-box.visible {
+        display: block;
+      }
+      .status-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        min-width: 18px;
+        margin-top: 2px;
+        border: 3px solid #334155;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .status-text {
+        font-size: 0.9rem;
+      }
+      .error-box {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        background: #451a22;
+        border: 1px solid #7f1d1d;
+        color: #fca5a5;
+        display: none;
+        font-size: 0.85rem;
+      }
+      .error-box.visible {
+        display: block;
+      }
+      .info-text {
+        margin-top: 1.5rem;
+        color: #64748b;
+        font-size: 0.82rem;
+        text-align: center;
+        max-width: 900px;
+      }
+      .footer {
+        margin-top: auto;
+        padding-top: 2rem;
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        max-width: 900px;
+        gap: 1rem;
+      }
+      .footer a {
+        color: #475569;
+        font-size: 0.72rem;
+        text-decoration: none;
+      }
+      .footer a:hover {
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="page-header">OpenFront Tools</h1>
+
+    <div class="boxes">
+      <!-- Replay box -->
+      <div class="box">
+        <h2>Watch replays of old versions</h2>
+        <p class="desc">Enter a game ID or URL to watch the replay</p>
+        <form id="replayForm" class="row">
+          <input
+            type="text"
+            id="gameId"
+            placeholder="e.g. qjYYVJv3"
+            required
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="submit" id="replayBtn">Watch</button>
+        </form>
+        <div class="status-box" id="replayStatus">
+          <div class="status-row">
+            <div class="spinner" id="replaySpinner"></div>
+            <span class="status-text" id="replayStatusText">Starting...</span>
+          </div>
+        </div>
+        <div class="error-box" id="replayError"></div>
+      </div>
+
+      <!-- Singleplayer box -->
+      <div class="box">
+        <h2>Play old versions in singleplayer</h2>
+        <p class="desc">Pick a release to play</p>
+        <form id="spForm" class="row">
+          <select id="tagSelect">
+            <option value="" disabled selected>Loading versions...</option>
+          </select>
+          <button type="submit" id="spBtn" disabled>Play</button>
+        </form>
+        <div class="status-box" id="spStatus">
+          <div class="status-row">
+            <div class="spinner" id="spSpinner"></div>
+            <span class="status-text" id="spStatusText">Building...</span>
+          </div>
+        </div>
+        <div class="error-box" id="spError"></div>
+      </div>
+    </div>
+
+    <p class="info-text">
+      If you run into any problems, contact <strong>FloPinguin</strong> on
+      Discord.
+    </p>
+
+    <div class="footer">
+      <a href="https://frozenpenguin.media/impressum" target="_blank"
+        >Imprint</a
+      >
+      <a href="https://frozenpenguin.media/datenschutz" target="_blank"
+        >Data Protection</a
+      >
+    </div>
+
+    <script>
+      // ---- Replay box ----
+      const replayForm = document.getElementById("replayForm");
+      const gameIdInput = document.getElementById("gameId");
+      const replayBtn = document.getElementById("replayBtn");
+      const replayStatus = document.getElementById("replayStatus");
+      const replayStatusText = document.getElementById("replayStatusText");
+      const replaySpinner = document.getElementById("replaySpinner");
+      const replayError = document.getElementById("replayError");
+
+      let replayPoll = null;
+
+      function gameUrl(urlMode, gameId) {
+        if (urlMode === "hash") return `/replay#join=${gameId}`;
+        if (urlMode === "join") return `/join/${gameId}`;
+        return `/w6/game/${gameId}`; // path default
+      }
+
+      function showReplayStatus(text) {
+        replayStatus.classList.add("visible");
+        replayError.classList.remove("visible");
+        replayStatusText.textContent = text;
+        replaySpinner.style.display = "block";
+      }
+      function showReplayError(text) {
+        replayError.classList.add("visible");
+        replayStatus.classList.remove("visible");
+        replayError.textContent = text;
+        replayBtn.disabled = false;
+        spBtn.disabled = false;
+      }
+      function stopReplayPoll() {
+        if (replayPoll) {
+          clearInterval(replayPoll);
+          replayPoll = null;
+        }
+      }
+
+      replayForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        stopReplayPoll();
+        const rawInput = gameIdInput.value.trim();
+        if (!rawInput) return;
+
+        let gameId = rawInput;
+        // Match /game/ID, /join/ID, or #join=ID from full URLs
+        const urlMatch =
+          rawInput.match(/\/(?:game|join)\/([^/?#]+)/) ||
+          rawInput.match(/[#&]join=([^&]+)/);
+        if (urlMatch) gameId = urlMatch[1];
+
+        replayBtn.disabled = true;
+        spBtn.disabled = true;
+        showReplayStatus("Fetching game info...");
+
+        try {
+          const res = await fetch("/api/replay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ game_id: gameId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showReplayError(data.error || "Request failed");
+            return;
+          }
+
+          const { replay_id, status, commit, url_mode } = data;
+
+          showReplayStatus("Preparing, this can take a while...");
+
+          if (status === "ready") {
+            redirectToReplay(replay_id, gameUrl(url_mode, gameId), gameId);
+            return;
+          }
+
+          let elapsed = 0;
+          let fetchErrors = 0;
+          replayPoll = setInterval(async () => {
+            elapsed += 2;
+            try {
+              const r = await fetch(`/api/status/${replay_id}`);
+              const d = await r.json();
+              fetchErrors = 0;
+              if (d.status === "ready") {
+                stopReplayPoll();
+                redirectToReplay(
+                  replay_id,
+                  gameUrl(d.url_mode, gameId),
+                  gameId,
+                );
+              } else if (d.status === "failed") {
+                stopReplayPoll();
+                showReplayError(
+                  `Preparation failed: ${d.message || "unknown error"}`,
+                );
+              } else if (d.status === "queued") {
+                showReplayStatus(
+                  "Waiting in queue - another version is being prepared right now",
+                );
+              } else {
+                showReplayStatus(
+                  `Preparing, this can take a while... (${elapsed}s)`,
+                );
+              }
+            } catch {
+              fetchErrors++;
+              if (fetchErrors >= 5) {
+                stopReplayPoll();
+                showReplayError("Lost connection to the server");
+              }
+            }
+            if (elapsed > 300) {
+              stopReplayPoll();
+              showReplayError("Timed out after 5 minutes");
+            }
+          }, 2000);
+        } catch (err) {
+          showReplayError(`Error: ${err.message}`);
+        }
+      });
+
+      function redirectToReplay(replayId, url, gameId) {
+        document.cookie = `active_build=${replayId}; path=/; SameSite=Lax`;
+        showReplayStatus("Replay ready! Redirecting...");
+        replaySpinner.style.display = "none";
+        sessionStorage.removeItem("inLobby");
+        window.location.href = url;
+      }
+
+      // ---- Singleplayer box ----
+      const spForm = document.getElementById("spForm");
+      const tagSelect = document.getElementById("tagSelect");
+      const spBtn = document.getElementById("spBtn");
+      const spStatus = document.getElementById("spStatus");
+      const spStatusText = document.getElementById("spStatusText");
+      const spSpinner = document.getElementById("spSpinner");
+      const spError = document.getElementById("spError");
+
+      let spPoll = null;
+
+      function showSpStatus(text) {
+        spStatus.classList.add("visible");
+        spError.classList.remove("visible");
+        spStatusText.textContent = text;
+        spSpinner.style.display = "block";
+      }
+      function showSpError(text) {
+        spError.classList.add("visible");
+        spStatus.classList.remove("visible");
+        spError.textContent = text;
+        spBtn.disabled = false;
+        replayBtn.disabled = false;
+      }
+      function stopSpPoll() {
+        if (spPoll) {
+          clearInterval(spPoll);
+          spPoll = null;
+        }
+      }
+
+      async function loadTags() {
+        try {
+          const res = await fetch("/api/tags");
+          const data = await res.json();
+          tagSelect.innerHTML = "";
+          if (!data.tags || data.tags.length === 0) {
+            tagSelect.innerHTML =
+              '<option value="" disabled selected>No versions found</option>';
+            return;
+          }
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.disabled = true;
+          placeholder.selected = true;
+          placeholder.textContent = "Select a version...";
+          tagSelect.appendChild(placeholder);
+          for (const tag of data.tags) {
+            const opt = document.createElement("option");
+            opt.value = tag;
+            opt.textContent = tag;
+            tagSelect.appendChild(opt);
+          }
+          const lastTag = localStorage.getItem("lastTag");
+          if (lastTag) {
+            const match = tagSelect.querySelector(
+              `option[value="${CSS.escape(lastTag)}"]`,
+            );
+            if (match) {
+              match.selected = true;
+            }
+          }
+          spBtn.disabled = false;
+        } catch {
+          tagSelect.innerHTML =
+            '<option value="" disabled selected>Failed to load</option>';
+        }
+      }
+
+      const tagsPromise = loadTags();
+
+      spForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        stopSpPoll();
+        const tag = tagSelect.value;
+        if (!tag) return;
+
+        spBtn.disabled = true;
+        replayBtn.disabled = true;
+        localStorage.setItem("lastTag", tag);
+        showSpStatus("Preparing, this can take a while...");
+
+        try {
+          const res = await fetch("/api/singleplayer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tag }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showSpError(data.error || "Request failed");
+            return;
+          }
+
+          const { build_id, commit, status } = data;
+
+          showSpStatus("Preparing, this can take a while...");
+
+          if (status === "ready") {
+            redirectToSingleplayer(build_id);
+            return;
+          }
+
+          let elapsed = 0;
+          let fetchErrors = 0;
+          spPoll = setInterval(async () => {
+            elapsed += 2;
+            try {
+              const r = await fetch(`/api/status/${build_id}`);
+              const d = await r.json();
+              fetchErrors = 0;
+              if (d.status === "ready") {
+                stopSpPoll();
+                redirectToSingleplayer(build_id);
+              } else if (d.status === "failed") {
+                stopSpPoll();
+                showSpError(
+                  `Preparation failed: ${d.message || "unknown error"}`,
+                );
+              } else if (d.status === "queued") {
+                showSpStatus(
+                  "Waiting in queue - another version is being prepared right now",
+                );
+              } else {
+                showSpStatus(
+                  `Preparing, this can take a while... (${elapsed}s)`,
+                );
+              }
+            } catch {
+              fetchErrors++;
+              if (fetchErrors >= 5) {
+                stopSpPoll();
+                showSpError("Lost connection to the server.");
+              }
+            }
+            if (elapsed > 300) {
+              stopSpPoll();
+              showSpError("Timed out after 5 minutes.");
+            }
+          }, 2000);
+        } catch (err) {
+          showSpError(`Error: ${err.message}`);
+        }
+      });
+
+      function redirectToSingleplayer(buildId) {
+        document.cookie = `active_build=${buildId}; path=/; SameSite=Lax`;
+        showSpStatus("Ready! Redirecting...");
+        spSpinner.style.display = "none";
+        window.location.href = "/singleplayer";
+      }
+
+      // ---- Query Parameter sync ----
+      function setQueryParam(key, value) {
+        const url = new URL(window.location.href);
+        url.search = "";
+        if (value) url.searchParams.set(key, value);
+        history.replaceState(null, "", url);
+      }
+
+      gameIdInput.addEventListener("input", () => {
+        setQueryParam("gameid", gameIdInput.value.trim());
+      });
+      tagSelect.addEventListener("change", () => {
+        setQueryParam("version", tagSelect.value);
+      });
+
+      // ---- Query Parameters ----
+      (async () => {
+        // Don't auto-submit when user navigated back — params are still in URL
+        // but the user intentionally left the game page.
+        const navType = performance.getEntriesByType?.("navigation")?.[0]?.type;
+        if (navType !== "navigate") return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const idParam = urlParams.get("id") || urlParams.get("gameid");
+        let versionParam = urlParams.get("version") || urlParams.get("v");
+
+        if (idParam) {
+          gameIdInput.value = idParam;
+        }
+
+        if (versionParam) {
+          await tagsPromise;
+          let match = tagSelect.querySelector(
+            `option[value="${CSS.escape(versionParam)}"]`,
+          );
+
+          if (!match) {
+            // Try adding/removing 'v' prefix
+            const alt = versionParam.startsWith("v")
+              ? versionParam.substring(1)
+              : "v" + versionParam;
+            const altMatch = tagSelect.querySelector(
+              `option[value="${CSS.escape(alt)}"]`,
+            );
+            if (altMatch) {
+              versionParam = alt;
+              match = altMatch;
+            }
+          }
+
+          if (match) {
+            tagSelect.value = versionParam;
+          }
+        }
+
+        if (idParam) {
+          if (typeof replayForm.requestSubmit === "function") {
+            replayForm.requestSubmit();
+          } else {
+            replayForm.dispatchEvent(
+              new Event("submit", { cancelable: true, bubbles: true }),
+            );
+          }
+        } else if (versionParam) {
+          // If version is present but no ID, submit the SP form
+          if (tagSelect.value === versionParam) {
+            if (typeof spForm.requestSubmit === "function") {
+              spForm.requestSubmit();
+            } else {
+              spForm.dispatchEvent(
+                new Event("submit", { cancelable: true, bubbles: true }),
+              );
+            }
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

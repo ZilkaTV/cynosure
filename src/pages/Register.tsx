@@ -109,7 +109,7 @@ export default function Register() {
             onClick={() =>
               supabase?.auth.signInWithOAuth({
                 provider: 'discord',
-                options: { redirectTo: `${window.location.origin}/register` },
+                options: { redirectTo: `${window.location.origin}/register`, scopes: 'identify' },
               })
             }
             className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"

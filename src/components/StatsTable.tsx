@@ -4,10 +4,12 @@ import type { MemberStats } from '../lib/stats'
 export interface Column {
   key: string
   label: string
-  align?: 'left' | 'right'
+  align?: 'left' | 'right' | 'center'
   render: (m: MemberStats, rank: number) => ReactNode
   sortValue?: (m: MemberStats) => number | string
 }
+
+const ALIGN_CLASS = { left: 'text-left', right: 'text-right', center: 'text-center' } as const
 
 export function StatsTable({
   members,
@@ -50,14 +52,14 @@ export function StatsTable({
   return (
     <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <table className="w-full min-w-[860px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-base-700 text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-4 py-3 font-semibold">#</th>
+              <th className="px-3 py-2.5 font-semibold">#</th>
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  className={`px-4 py-3 font-semibold ${c.align === 'right' ? 'text-right' : 'text-left'}`}
+                  className={`px-3 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']}`}
                 >
                   {c.sortValue ? (
                     <button
@@ -77,9 +79,9 @@ export function StatsTable({
           <tbody>
             {sorted.map((m, i) => (
               <tr key={m.publicId} className="border-b border-base-700/50 transition-colors last:border-0 hover:bg-base-800/40">
-                <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                <td className="px-3 py-2.5 font-display font-bold text-slate-500">{i + 1}</td>
                 {columns.map((c) => (
-                  <td key={c.key} className={`px-4 py-3 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
+                  <td key={c.key} className={`px-3 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']}`}>
                     {c.render(m, i + 1)}
                   </td>
                 ))}

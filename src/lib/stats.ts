@@ -44,6 +44,8 @@ export interface MemberStats {
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
+  bumpCount: number // self-reported Discord bumps (2h cooldown enforced)
+  lastBumpAt: string | null
   // activity
   gamesLast30d: number
   lastGame: string | null
@@ -263,6 +265,7 @@ const MAX_DETAIL_LOOKUPS = 140
 export async function buildRoster(
   registered: RosterInput[],
   speedruns: Record<string, { seconds: number }> = {},
+  bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
 ): Promise<RosterResult> {
   const [ranked, ffaLb] = await Promise.all([fetchRankedMap(), fetchFfaLeaderboard()])
 
@@ -352,6 +355,8 @@ export async function buildRoster(
         (games[0]?.username ? ffaLb[games[0].username] : undefined) ??
         null,
       speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
+      bumpCount: bumps[input.openfront_id]?.bump_count ?? 0,
+      lastBumpAt: bumps[input.openfront_id]?.last_bump_at ?? null,
       gamesLast30d: games.filter((g) => within30d(g.start)).length,
       lastGame,
       clanGamesTotal: games.length,

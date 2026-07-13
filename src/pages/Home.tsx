@@ -67,6 +67,13 @@ function makeColumns(all: MemberStats[]): Column[] {
         ),
       sortValue: (m) => m.speedrunSeconds ?? Number.MAX_SAFE_INTEGER,
     },
+    {
+      key: 'bumps',
+      label: 'Bumps',
+      align: 'right',
+      render: (m) => (m.bumpCount > 0 ? <span className="tabular-nums text-slate-300">{m.bumpCount}</span> : <span className="text-slate-600">-</span>),
+      sortValue: (m) => m.bumpCount,
+    },
   ]
 }
 

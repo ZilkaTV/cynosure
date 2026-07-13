@@ -95,6 +95,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
     { id: 'good', name: 'Good Player', kind: 'emoji', icon: '🎖️', earned: m.allWins >= 100, group: 'milestone', desc: '100 wins' },
     { id: 'god', name: 'God Player', kind: 'emoji', icon: '👑', earned: m.allWins >= 1000, group: 'milestone', desc: '1000 wins' },
     { id: 'loyal', name: 'Loyal Player', kind: 'emoji', icon: '🔥', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: `${LOYAL_THRESHOLD}+ day win streak (current: ${streak})` },
+    { id: 'pusher', name: 'Pusher', kind: 'emoji', icon: '🔔', earned: m.bumpCount >= 100, group: 'milestone', desc: `100 Discord bumps (current: ${m.bumpCount})` },
     // ── monthly (losable) ──
     { id: 'predator', name: 'Predator', kind: 'emoji', icon: '🏹', earned: predatorLeader === m.publicId, group: 'monthly', desc: 'Highest FFA avg kills this month' },
     { id: 'pro', name: 'Pro Player', kind: 'emoji', icon: '⚡', earned: proLeader === m.publicId, group: 'monthly', desc: 'Highest FFA win streak this month' },

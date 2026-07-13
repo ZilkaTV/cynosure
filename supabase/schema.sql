@@ -54,3 +54,23 @@ create policy "anyone can upsert cyn_speedruns"
 
 create policy "anyone can update cyn_speedruns"
   on public.cyn_speedruns for update to public using (true) with check (true);
+
+-- Self-reported Discord bumps. There's no bot access to the bump channel (it's
+-- not our server), so members log their own bumps with a 2h cooldown enforced
+-- client-side + by checking last_bump_at before accepting a new one.
+create table if not exists public.cyn_bumps (
+  openfront_id text primary key,
+  bump_count integer not null default 0,
+  last_bump_at timestamptz
+);
+
+alter table public.cyn_bumps enable row level security;
+
+create policy "public can read cyn_bumps"
+  on public.cyn_bumps for select to public using (true);
+
+create policy "anyone can upsert cyn_bumps"
+  on public.cyn_bumps for insert to public with check (true);
+
+create policy "anyone can update cyn_bumps"
+  on public.cyn_bumps for update to public using (true) with check (true);

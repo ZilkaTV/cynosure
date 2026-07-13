@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchRegistered } from './profiles'
 import { fetchSpeedruns } from './speedruns'
+import { fetchBumps } from './bumps'
 import { buildRoster, type RosterResult } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
 
@@ -23,11 +24,12 @@ export function useRoster(enabled = true): RosterState {
 
   const load = useCallback(async () => {
     try {
-      const [registered, speedruns] = await Promise.all([
+      const [registered, speedruns, bumps] = await Promise.all([
         fetchRegistered().catch(() => []),
         fetchSpeedruns().catch(() => ({})),
+        fetchBumps().catch(() => ({})),
       ])
-      const result = await buildRoster(registered, speedruns)
+      const result = await buildRoster(registered, speedruns, bumps)
       setData(result)
       setError(null)
     } catch (e) {

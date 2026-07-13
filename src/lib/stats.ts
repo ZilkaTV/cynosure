@@ -4,6 +4,7 @@
 // under no tag / another tag are never included.
 
 import {
+  fetchFfaLeaderboard,
   fetchGameDetail,
   fetchPlayerGames,
   fetchRankedMap,
@@ -40,6 +41,8 @@ export interface MemberStats {
   peakElo: number | null
   eloInTop100: boolean
   eloMonthDelta: number | null
+  rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
+  ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   // activity
   gamesLast30d: number
   lastGame: string | null
@@ -257,7 +260,7 @@ function eloMonthDelta(publicId: string, currentElo: number | null): number | nu
 const MAX_DETAIL_LOOKUPS = 140
 
 export async function buildRoster(registered: RosterInput[]): Promise<RosterResult> {
-  const ranked = await fetchRankedMap()
+  const [ranked, ffaLb] = await Promise.all([fetchRankedMap(), fetchFfaLeaderboard()])
 
   const raw = await Promise.all(
     registered
@@ -336,6 +339,12 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
       peakElo: r?.peakElo ?? null,
       eloInTop100: !!r,
       eloMonthDelta: eloMonthDelta(input.openfront_id, elo),
+      rank1v1: r?.rank ?? null,
+      ffaRank:
+        ffaLb[input.in_game_name?.trim() ?? ''] ??
+        (r?.username ? ffaLb[r.username] : undefined) ??
+        (games[0]?.username ? ffaLb[games[0].username] : undefined) ??
+        null,
       gamesLast30d: games.filter((g) => within30d(g.start)).length,
       lastGame,
       clanGamesTotal: games.length,

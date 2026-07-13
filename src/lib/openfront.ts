@@ -132,6 +132,25 @@ export async function fetchRankedMap(): Promise<Record<string, RankedEntry>> {
   return byId
 }
 
+// ── trackerfront FFA leaderboard (for FFA ship badges) ──────────────────────
+
+/** Map of display_name → FFA leaderboard position (global top 100). Cached. */
+export async function fetchFfaLeaderboard(): Promise<Record<string, number>> {
+  const key = `${CACHE_NS}:ffalb`
+  const cached = cacheGet<Record<string, number>>(key)
+  if (cached) return cached
+
+  const byName: Record<string, number> = {}
+  try {
+    const json = (await getJson('/api/tf/api/public/leaderboard')) as Array<{ position: number; display_name: string }>
+    for (const e of json ?? []) if (e.display_name) byName[e.display_name] = e.position
+  } catch {
+    /* leave empty — ship badges just stay unearned */
+  }
+  cacheSet(key, byName)
+  return byName
+}
+
 // ── Per-player game history ─────────────────────────────────────────────────
 
 async function fetchGamesPaged(publicId: string, filter: string | null, maxPages: number): Promise<PlayerGame[]> {

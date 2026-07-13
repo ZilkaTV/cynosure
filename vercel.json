@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/of/:path*", "destination": "/api/of?path=:path*" },
+    { "source": "/api/tf/:path*", "destination": "/api/tf?path=:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

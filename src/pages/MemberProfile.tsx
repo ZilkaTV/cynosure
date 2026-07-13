@@ -4,6 +4,8 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
+import { BadgeBoard } from '../components/Badges'
+import { computeBadges } from '../lib/badges'
 import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   currentMonthKey,
@@ -81,6 +83,11 @@ export default function MemberProfile() {
             No live elo - this member isn’t in OpenFront’s global top 100 ranked ladder.
           </p>
         )}
+      </section>
+
+      <section>
+        <SectionHeading center eyebrow="Achievements" title="Badges" />
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [])} />
       </section>
 
       <section>

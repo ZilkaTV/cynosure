@@ -13,6 +13,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/of/, ''),
       },
+      // trackerfront FFA leaderboard (no CORS) — used for the FFA ship badges.
+      '/api/tf': {
+        target: 'https://trackerfront.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/tf/, ''),
+      },
     },
   },
 })

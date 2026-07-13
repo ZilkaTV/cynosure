@@ -2,52 +2,60 @@ import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
+import { computeBadges } from '../lib/badges'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
+import { BadgeStrip } from '../components/Badges'
 import { Card, LastUpdated, SectionHeading, StatCard, Spinner } from '../components/ui'
+import type { MemberStats } from '../lib/stats'
 
-const columns: Column[] = [
-  {
-    key: 'name',
-    label: 'Name',
-    render: (m) => (
-      <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
-        {m.name}
-        {m.timezone && <span className="ml-2 text-xs font-normal text-slate-500">{m.timezone}</span>}
-      </Link>
-    ),
-    sortValue: (m) => m.name.toLowerCase(),
-  },
-  { key: 'ffa', label: 'FFA', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
-  { key: 'team', label: 'Team', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
-  { key: 'ranked', label: '1v1', align: 'right', render: (m) => m.rankedWins, sortValue: (m) => m.rankedWins },
-  {
-    key: 'elo',
-    label: '1v1 Elo',
-    align: 'right',
-    render: (m) =>
-      m.elo == null ? (
-        <span className="text-slate-600">-</span>
-      ) : (
-        <span className="font-display font-bold tabular-nums text-gold-light">{m.elo}</span>
+function makeColumns(all: MemberStats[]): Column[] {
+  return [
+    {
+      key: 'name',
+      label: 'Name',
+      render: (m) => (
+        <div className="flex items-center gap-2">
+          <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
+            {m.name}
+            {m.timezone && <span className="ml-2 text-xs font-normal text-slate-500">{m.timezone}</span>}
+          </Link>
+          <BadgeStrip badges={computeBadges(m, all)} />
+        </div>
       ),
-    sortValue: (m) => m.elo ?? -1,
-  },
-  {
-    key: 'peak',
-    label: 'Peak',
-    align: 'right',
-    render: (m) => (m.peakElo == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
-    sortValue: (m) => m.peakElo ?? -1,
-  },
-  {
-    key: 'all',
-    label: 'All Wins',
-    align: 'right',
-    render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
-    sortValue: (m) => m.allWins,
-  },
-]
+      sortValue: (m) => m.name.toLowerCase(),
+    },
+    { key: 'ffa', label: 'FFA', align: 'right', render: (m) => m.ffaWins, sortValue: (m) => m.ffaWins },
+    { key: 'team', label: 'Team', align: 'right', render: (m) => m.teamWins, sortValue: (m) => m.teamWins },
+    { key: 'ranked', label: '1v1', align: 'right', render: (m) => m.rankedWins, sortValue: (m) => m.rankedWins },
+    {
+      key: 'elo',
+      label: '1v1 Elo',
+      align: 'right',
+      render: (m) =>
+        m.elo == null ? (
+          <span className="text-slate-600">-</span>
+        ) : (
+          <span className="font-display font-bold tabular-nums text-gold-light">{m.elo}</span>
+        ),
+      sortValue: (m) => m.elo ?? -1,
+    },
+    {
+      key: 'peak',
+      label: 'Peak',
+      align: 'right',
+      render: (m) => (m.peakElo == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
+      sortValue: (m) => m.peakElo ?? -1,
+    },
+    {
+      key: 'all',
+      label: 'All Wins',
+      align: 'right',
+      render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
+      sortValue: (m) => m.allWins,
+    },
+  ]
+}
 
 export default function Home() {
   const { profile } = useProfile()
@@ -56,6 +64,7 @@ export default function Home() {
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
+  const columns = makeColumns(data?.members ?? [])
 
   return (
     <StatsShell>

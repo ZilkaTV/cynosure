@@ -212,6 +212,9 @@ export interface GamePlayerStat {
 export interface GameDetail {
   gameId: string
   map: string
+  gameType: string // "Public" | "Singleplayer" | "Private"
+  nations: string // "enabled" | "disabled"
+  bots: number
   durationSeconds: number
   numTurns: number
   winnerClientId: string | null
@@ -234,7 +237,7 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
         num_turns?: number
         start?: number
         winner?: [string, string] | null
-        config?: { gameMap?: string }
+        config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number }
         players?: GamePlayerStat[]
       }
     }
@@ -243,6 +246,9 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
       detail = {
         gameId: info.gameID ?? gameId,
         map: info.config?.gameMap ?? '?',
+        gameType: info.config?.gameType ?? '?',
+        nations: info.config?.nations ?? '?',
+        bots: info.config?.bots ?? 0,
         durationSeconds: info.duration ?? 0,
         numTurns: info.num_turns ?? 0,
         winnerClientId: Array.isArray(info.winner) ? info.winner[1] ?? null : null,

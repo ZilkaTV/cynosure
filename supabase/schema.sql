@@ -34,3 +34,23 @@ create policy "anyone can update cyn_members"
   to public
   using (true)
   with check (true);
+
+-- Speedrun best times (Solo · Australia · No Nations). One row per member;
+-- the site verifies each submission against OpenFront before upserting.
+create table if not exists public.cyn_speedruns (
+  openfront_id text primary key,
+  game_id text not null,
+  seconds integer not null,
+  submitted_at timestamptz not null default now()
+);
+
+alter table public.cyn_speedruns enable row level security;
+
+create policy "public can read cyn_speedruns"
+  on public.cyn_speedruns for select to public using (true);
+
+create policy "anyone can upsert cyn_speedruns"
+  on public.cyn_speedruns for insert to public with check (true);
+
+create policy "anyone can update cyn_speedruns"
+  on public.cyn_speedruns for update to public using (true) with check (true);

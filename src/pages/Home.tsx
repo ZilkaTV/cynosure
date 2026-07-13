@@ -3,6 +3,7 @@ import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
+import { fmtTime } from '../lib/speedruns'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
@@ -53,6 +54,18 @@ function makeColumns(all: MemberStats[]): Column[] {
       align: 'right',
       render: (m) => <span className="font-display font-bold text-accent-light">{m.allWins}</span>,
       sortValue: (m) => m.allWins,
+    },
+    {
+      key: 'speedrun',
+      label: 'Speedrun',
+      align: 'right',
+      render: (m) =>
+        m.speedrunSeconds == null ? (
+          <span className="text-slate-600">-</span>
+        ) : (
+          <span className="tabular-nums text-slate-300">{fmtTime(m.speedrunSeconds)}</span>
+        ),
+      sortValue: (m) => m.speedrunSeconds ?? Number.MAX_SAFE_INTEGER,
     },
   ]
 }

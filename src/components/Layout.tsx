@@ -11,6 +11,7 @@ const navItems = [
   { to: '/monthly/ffa', label: 'Monthly FFA' },
   { to: '/monthly/team', label: 'Monthly Team' },
   { to: '/monthly/1v1', label: 'Monthly 1v1' },
+  { to: '/speedrun', label: 'Speedrun' },
 ]
 
 const DiscordIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (

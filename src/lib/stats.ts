@@ -43,6 +43,7 @@ export interface MemberStats {
   eloMonthDelta: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
+  speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   // activity
   gamesLast30d: number
   lastGame: string | null
@@ -259,7 +260,10 @@ function eloMonthDelta(publicId: string, currentElo: number | null): number | nu
 // are cached, so coverage grows over time; kept bounded to respect rate limits.
 const MAX_DETAIL_LOOKUPS = 140
 
-export async function buildRoster(registered: RosterInput[]): Promise<RosterResult> {
+export async function buildRoster(
+  registered: RosterInput[],
+  speedruns: Record<string, { seconds: number }> = {},
+): Promise<RosterResult> {
   const [ranked, ffaLb] = await Promise.all([fetchRankedMap(), fetchFfaLeaderboard()])
 
   const raw = await Promise.all(
@@ -345,6 +349,7 @@ export async function buildRoster(registered: RosterInput[]): Promise<RosterResu
         (r?.username ? ffaLb[r.username] : undefined) ??
         (games[0]?.username ? ffaLb[games[0].username] : undefined) ??
         null,
+      speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
       gamesLast30d: games.filter((g) => within30d(g.start)).length,
       lastGame,
       clanGamesTotal: games.length,

@@ -123,7 +123,7 @@ export default function MemberProfile() {
       </section>
 
       <section>
-        <SectionHeading center eyebrow="Recent" title="Latest CYN games" />
+        <SectionHeading center eyebrow="Recent" title={profile?.openfront_id === m.publicId ? 'Your last games' : 'Latest CYN games'} />
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">

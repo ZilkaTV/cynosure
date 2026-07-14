@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
+import type { GameTileStats } from '../lib/replaySim'
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
-
-// Checkpoint used for the "Tiles @ 3min" column below - see src/lib/replaySim.ts.
-const TILE_CHECKPOINT_SECONDS = 180
 
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
@@ -26,6 +24,39 @@ function replayUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
 
+/** null-safe compare - rows missing a stat always sort to the bottom, whichever direction. */
+function compareNullable(a: number | null, b: number | null, dir: 1 | -1): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  return (a - b) * dir
+}
+
+interface Row {
+  p: GamePlayerStat
+  out: number
+  inc: number
+  gold: number
+  kills: number
+  victims: string[]
+  deathSec: number | null
+  endTiles: number | null
+  maxPercent: number | null
+  isWinner: boolean
+}
+
+type SortKey = 'out' | 'inc' | 'gold' | 'kills' | 'endTiles' | 'maxPercent' | 'deathSec'
+
+const COLUMNS: { key: SortKey; label: string; icon?: string }[] = [
+  { key: 'out', label: 'Out/min', icon: EMOJI.sword },
+  { key: 'inc', label: 'In/min', icon: EMOJI.shield },
+  { key: 'gold', label: 'Gold/min', icon: EMOJI.coin },
+  { key: 'kills', label: 'Kills', icon: EMOJI.skull },
+  { key: 'endTiles', label: 'End Tiles' },
+  { key: 'maxPercent', label: 'Max Tiles' },
+  { key: 'deathSec', label: 'Death', icon: EMOJI.cross },
+]
+
 function ThIcon({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <span className="inline-flex items-center gap-1" title={label}>
@@ -39,10 +70,14 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const [detail, setDetail] = useState<GameDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
 
-  // Tiles @ 3min replays the actual game simulation, so it's computed
-  // separately and doesn't block the rest of the modal - see replaySim.ts.
-  const [tilePercent, setTilePercent] = useState<Record<string, number> | null>(null)
+  // Max Tiles replays the whole game to find each player's peak (and their
+  // real end-of-game tile count), so it's computed separately and doesn't
+  // block the rest of the modal - see replaySim.ts.
+  const [tileStats, setTileStats] = useState<GameTileStats | null>(null)
   const [tileState, setTileState] = useState<'loading' | 'ok' | 'error'>('loading')
+
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<1 | -1>(-1)
 
   useEffect(() => {
     if (!gameId) return
@@ -61,23 +96,32 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   useEffect(() => {
     if (!gameId) return
     setTileState('loading')
-    setTilePercent(null)
-    let cancelled = false
+    setTileStats(null)
+    // Replaying a whole game runs a CPU-heavy tick loop - without actually
+    // aborting it, switching to a different game (or closing the modal)
+    // would leave the old replay running in the background, competing for
+    // CPU with whatever comes next. See getGameTileStats in replaySim.ts.
+    const controller = new AbortController()
     import('../lib/replaySim')
-      .then(({ getTilePercentAt }) => getTilePercentAt(gameId, TILE_CHECKPOINT_SECONDS))
+      .then(({ getGameTileStats }) => getGameTileStats(gameId, controller.signal))
       .then((result) => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
         if (result) {
-          setTilePercent(result)
+          setTileStats(result)
           setTileState('ok')
         } else setTileState('error')
       })
       .catch(() => {
-        if (!cancelled) setTileState('error')
+        if (!controller.signal.aborted) setTileState('error')
       })
     return () => {
-      cancelled = true
+      controller.abort()
     }
+  }, [gameId])
+
+  useEffect(() => {
+    setSortKey(null)
+    setSortDir(-1)
   }, [gameId])
 
   useEffect(() => {
@@ -96,25 +140,43 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const nameOf = (clientID: string) => byId.get(clientID)?.username ?? 'Unknown'
   const winner = detail?.winnerClientId ? byId.get(detail.winnerClientId) : null
 
-  const rows = (detail?.players ?? [])
+  const rows: Row[] = (detail?.players ?? [])
     .map((p) => {
       const st = p.stats ?? {}
       const goldTotal = (st.gold ?? []).reduce((s, g) => s + num(g), 0)
       const kills = st.kills ?? []
       const killedAt = st.killedAt ? num(st.killedAt) : null
+      // The simulation's own final tile count is more complete than the
+      // API's stats.finalTiles (which is missing for a lot of players) -
+      // prefer it once it's loaded, fall back to the API value until then.
+      const simFinal = tileStats?.finalTiles[p.clientID]
+      const endTiles = simFinal != null ? simFinal : st.finalTiles ? num(st.finalTiles) : null
       return {
         p,
-        out: num(st.attacks?.[0]),
-        inc: num(st.attacks?.[1]),
-        gold: goldTotal,
+        out: num(st.attacks?.[0]) / durMin,
+        inc: num(st.attacks?.[1]) / durMin,
+        gold: goldTotal / durMin,
         kills: kills.length,
         victims: kills.map((k) => nameOf(k.victim)),
         deathSec: killedAt != null ? killedAt / tickRate : null,
-        endTiles: st.finalTiles ? num(st.finalTiles) : null,
+        endTiles,
+        maxPercent: tileStats?.maxPercent[p.clientID] ?? null,
         isWinner: detail?.winnerClientId === p.clientID,
       }
     })
-    .sort((a, b) => Number(b.isWinner) - Number(a.isWinner) || b.kills - a.kills || b.gold - a.gold)
+    .sort((a, b) => {
+      if (sortKey) return compareNullable(a[sortKey], b[sortKey], sortDir)
+      return Number(b.isWinner) - Number(a.isWinner) || b.kills - a.kills || b.gold - a.gold
+    })
+
+  function onSortClick(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === -1 ? 1 : -1))
+    } else {
+      setSortKey(key)
+      setSortDir(-1)
+    }
+  }
 
   return (
     <div
@@ -158,18 +220,22 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-base-700">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-3 py-2.5 text-left font-semibold">#</th>
                     <th className="px-3 py-2.5 text-left font-semibold">Player</th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Out/min"><Emoji char={EMOJI.sword} className="h-3.5 w-3.5" /></ThIcon></th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="In/min"><Emoji char={EMOJI.shield} className="h-3.5 w-3.5" /></ThIcon></th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Gold/min"><Emoji char={EMOJI.coin} className="h-3.5 w-3.5" /></ThIcon></th>
-                    <th className="px-3 py-2.5 text-right font-semibold">Kills</th>
-                    <th className="px-3 py-2.5 text-right font-semibold">End Tiles</th>
-                    <th className="px-3 py-2.5 text-right font-semibold">Tiles @ 3min</th>
-                    <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Death"><Emoji char={EMOJI.skull} className="h-3.5 w-3.5" /></ThIcon></th>
+                    {COLUMNS.map((c) => (
+                      <th
+                        key={c.key}
+                        onClick={() => onSortClick(c.key)}
+                        className="cursor-pointer select-none px-3 py-2.5 text-right font-semibold hover:text-white"
+                        title={`Sort by ${c.label}`}
+                      >
+                        {c.icon ? <ThIcon label={c.label}><Emoji char={c.icon} className="h-3.5 w-3.5" /></ThIcon> : c.label}
+                        {sortKey === c.key && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -185,9 +251,9 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                             {r.isWinner && <Emoji char={EMOJI.trophy} label="Winner" className="ml-1 h-3.5 w-3.5" />}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.out / durMin)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.inc / durMin)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gold-light">{fmt(r.gold / durMin)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.out)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.inc)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gold-light">{fmt(r.gold)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {r.kills > 0 ? (
                             <span
@@ -207,11 +273,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                           {tileState === 'loading' && <span className="text-slate-600">Computing…</span>}
                           {tileState === 'error' && <span className="text-slate-600">-</span>}
                           {tileState === 'ok' &&
-                            (tilePercent?.[r.p.clientID] != null ? (
-                              `${tilePercent[r.p.clientID].toFixed(1)}%`
-                            ) : (
-                              <span className="text-slate-600">-</span>
-                            ))}
+                            (r.maxPercent != null ? `${r.maxPercent.toFixed(1)}%` : <span className="text-slate-600">-</span>)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-500">
                           {r.deathSec != null ? fmtDuration(r.deathSec) : '-'}
@@ -223,12 +285,10 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               </table>
             </div>
             <p className="mt-3 text-center text-xs text-slate-500">
-              Hover a Kills number to see who was eliminated. Sword/Shield = attack troops sent/received per
-              minute; Coin = gold earned per minute. End Tiles = tiles owned when the game ended. Tiles @ 3min
-              is the percent of the map owned at the 3 minute mark, from replaying the game - OpenFront's public
-              data only gives final tile counts, not tile ownership at an arbitrary point in time, so this one
-              checkpoint is computed locally and can take a few seconds. It isn't a running max over the whole
-              game, just this one point in time.
+              Click a column header to sort by it. Hover a Kills number to see who was eliminated. Sword/Shield =
+              attack troops sent/received per minute; Coin = gold earned per minute. End Tiles and Max Tiles come
+              from replaying the actual game (OpenFront's public data only gives an incomplete final-tiles number,
+              not a running peak) - this can take up to a minute for longer games.
             </p>
           </div>
         )}

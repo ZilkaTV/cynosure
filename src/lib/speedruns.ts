@@ -6,6 +6,7 @@
 
 import { fetchGameDetail, fetchLastActionSeconds, type GameDetail } from './openfront'
 import { supabase } from './supabase'
+import { CLAN_TAG } from '../config'
 
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 
@@ -49,13 +50,26 @@ export function fmtTime(s: number): string {
   return `${m}:${String(Math.round(s % 60)).padStart(2, '0')}`
 }
 
-/** Check a game meets the speedrun category. */
-export function verifySpeedrun(d: GameDetail): { ok: boolean; reason?: string; seconds: number } {
+/**
+ * Check a game meets the speedrun category. Also requires the winner to be
+ * the submitting member themselves, playing under the [CYN] tag - otherwise
+ * anyone could submit someone else's (or a stranger's) replay as their own.
+ */
+export function verifySpeedrun(d: GameDetail, inGameName: string): { ok: boolean; reason?: string; seconds: number } {
   if (d.map !== 'Australia') return { ok: false, reason: `Map must be Australia (this game was ${d.map}).`, seconds: 0 }
   if (d.gameType !== 'Singleplayer') return { ok: false, reason: `Must be a solo (singleplayer) game (this was ${d.gameType}).`, seconds: 0 }
   if (d.nations !== 'disabled') return { ok: false, reason: 'Nations must be disabled ("No Nations").', seconds: 0 }
   if (!d.winnerClientId) return { ok: false, reason: 'The game has no recorded winner - it wasn’t completed.', seconds: 0 }
   if (!d.durationSeconds) return { ok: false, reason: 'No duration recorded for this game.', seconds: 0 }
+
+  const winner = d.players.find((p) => p.clientID === d.winnerClientId)
+  if (!winner || winner.username.trim().toLowerCase() !== inGameName.trim().toLowerCase()) {
+    return { ok: false, reason: 'The winner of this game doesn’t match your registered in-game name - you can only submit your own runs.', seconds: 0 }
+  }
+  if (winner.clanTag !== CLAN_TAG) {
+    return { ok: false, reason: 'You must be playing with the [CYN] tag for the run to count.', seconds: 0 }
+  }
+
   return { ok: true, seconds: d.durationSeconds }
 }
 
@@ -81,7 +95,7 @@ export interface SubmitResult {
   replayUrl?: string
 }
 
-export async function submitSpeedrun(openfrontId: string, gameLink: string): Promise<SubmitResult> {
+export async function submitSpeedrun(openfrontId: string, gameLink: string, inGameName: string): Promise<SubmitResult> {
   const gameId = parseGameId(gameLink)
   if (!gameId) return { ok: false, message: 'Please paste a game link or id.' }
 
@@ -94,7 +108,7 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string): Pro
     }
   }
 
-  const v = verifySpeedrun(detail)
+  const v = verifySpeedrun(detail, inGameName)
   if (!v.ok) return { ok: false, message: v.reason ?? 'This game does not meet the speedrun rules.' }
 
   // OpenFront's duration measures until the connection closes, not until the

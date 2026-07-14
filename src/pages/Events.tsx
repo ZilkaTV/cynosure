@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
+import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner } from '../components/ui'
 import { RankMedal } from '../components/Emoji'
@@ -81,10 +83,22 @@ function SkinPreview({ url, alt }: { url?: string; alt: string }) {
   )
 }
 
+/** Team roster name - linked to the member's profile if that name matches a registered [CYN] member. */
+function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string }[] }) {
+  const match = roster.find((m) => m.name.toLowerCase() === name.toLowerCase())
+  if (!match) return <span>{name}</span>
+  return (
+    <Link to={`/member/${match.publicId}`} className="text-accent-light hover:text-accent">
+      {name}
+    </Link>
+  )
+}
+
 function EventCard({ event }: { event: ClanEvent }) {
   const { profile } = useProfile()
   const session = useSession()
   const discordName = session ? discordDisplayName(session) : undefined
+  const { data: roster } = useRoster(!!profile)
 
   const [teams, setTeams] = useState<EventTeam[]>([])
   const [submissions, setSubmissions] = useState<EventSubmission[]>([])
@@ -198,15 +212,37 @@ function EventCard({ event }: { event: ClanEvent }) {
           <div className="overflow-hidden rounded-xl border border-base-700">
             <table className="w-full text-sm">
               <tbody>
-                {standings.map((row, i) => (
-                  <tr key={row.team.id} className="border-b border-base-700/50 last:border-0">
-                    <td className="w-12 px-4 py-2.5 text-center">
-                      <RankMedal rank={i + 1} />
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-200">{row.team.name}</td>
-                    <td className="px-4 py-2.5 text-right font-display font-bold text-accent-light">{row.points} pts</td>
-                  </tr>
-                ))}
+                {standings.map((row, i) => {
+                  const rosterNames = (roster?.members ?? []).map((m) => ({ publicId: m.publicId, name: m.name }))
+                  return (
+                    <tr key={row.team.id} className="border-b border-base-700/50 last:border-0">
+                      <td className="w-12 px-4 py-2.5 text-center">
+                        <RankMedal rank={i + 1} />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <p className="text-slate-200">{row.team.name}</p>
+                        {(row.team.captain || row.team.players.length > 0) && (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {row.team.captain && (
+                              <>
+                                <span className="text-slate-400">Captain</span>{' '}
+                                <PlayerTag name={row.team.captain} roster={rosterNames} />
+                                {row.team.players.length > 0 && ' · '}
+                              </>
+                            )}
+                            {row.team.players.map((p, j) => (
+                              <span key={p}>
+                                <PlayerTag name={p} roster={rosterNames} />
+                                {j < row.team.players.length - 1 && ', '}
+                              </span>
+                            ))}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-display font-bold text-accent-light">{row.points} pts</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
-import { SectionHeading, Card, Spinner } from '../components/ui'
-import { QUESTS, fetchClaimsToday, claimQuest, todayKey } from '../lib/quests'
+import { SectionHeading, Card, Spinner, useCountdown } from '../components/ui'
+import { QUESTS, fetchClaimsToday, claimQuest, todayKey, nextResetAt } from '../lib/quests'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 
 export default function Quests() {
@@ -24,6 +24,7 @@ export default function Quests() {
 
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
+  const resetCountdown = useCountdown(nextResetAt())
 
   async function onClaim(questId: string) {
     if (!profile || !me) return
@@ -78,6 +79,8 @@ export default function Quests() {
                   <p className="font-semibold text-white">{q.name}</p>
                   <p className="text-sm text-slate-400">{q.description}</p>
                   {msg[q.id] && <p className="mt-1 text-xs text-slate-500">{msg[q.id]}</p>}
+                  {claimed && <p className="mt-1 text-xs text-slate-500">Resets in {resetCountdown ?? 'a moment'}</p>}
+                  {!claimed && done && <p className="mt-1 text-xs font-semibold text-signal-green">Ready</p>}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-display text-sm font-bold text-gold-light">+{q.xp} XP</span>

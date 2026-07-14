@@ -110,8 +110,8 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const shipTier = tierFromRank(m.ffaRank)
   const streak = loyalStreak(m)
 
-  const starLabel = starTier ? `Top ${tierLimit(starTier)} 1v1 Leaderboard` : 'Reach top 100 1v1 Leaderboard'
-  const shipLabel = shipTier ? `Top ${tierLimit(shipTier)} FFA Leaderboard` : 'Reach top 100 FFA Leaderboard'
+  const starLabel = starTier ? `Top ${tierLimit(starTier)} 1v1 Ranked` : 'Reach the top 100 1v1 Ranked ladder'
+  const shipLabel = shipTier ? `Top ${tierLimit(shipTier)} FFA Ranked` : 'Reach the top 100 FFA Ranked ladder'
 
   const level = levelFromXp(m.xp)
   const levelTitle = titleForLevel(level)
@@ -140,10 +140,10 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
       desc: `Fastest speedrun time in the clan${fastest ? ` - currently ${fmtTime(fastest.v)}` : ''}`,
     },
     // ── milestones (permanent) ──
-    { id: 'good', name: 'Good Player', kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: '100 wins' },
-    { id: 'god', name: 'God Player', kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: '1000 wins' },
-    { id: 'loyal', name: 'Loyal Player', kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: `${LOYAL_THRESHOLD}+ day win streak (current: ${streak})` },
-    { id: 'pusher', name: 'Pusher', kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: `100 Discord bumps (current: ${m.bumpCount})` },
+    { id: 'good', name: 'Good Player', kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: `100 wins earned in CYN (currently ${m.allWins})` },
+    { id: 'god', name: 'God Player', kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: `1000 wins earned in CYN (currently ${m.allWins})` },
+    { id: 'loyal', name: 'Loyal Player', kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: `${LOYAL_THRESHOLD}+ day win streak in a row (currently ${streak})` },
+    { id: 'pusher', name: 'Pusher', kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: `100 Discord bumps (currently ${m.bumpCount})` },
     // ── monthly (losable) ──
     {
       id: 'predator',

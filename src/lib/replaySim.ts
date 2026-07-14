@@ -24,10 +24,21 @@ import type { GameStartInfo, Turn } from '../vendor/openfront-core/src/core/Sche
 
 const API_BASE = '/api/of'
 
-// Same fixed tick rate as fetchLastActionSeconds in openfront.ts (OpenFront's
-// ServerEnv.turnIntervalMs() - always 100ms). Kept as a private copy here
-// rather than importing from openfront.ts, since that module doesn't export it.
-const SERVER_TICKS_PER_SECOND = 10
+// Every Nth tick is sampled for the running max-tiles check - the tick
+// execution itself (game logic) dominates the cost, not the ownership read,
+// so this doesn't meaningfully speed up a replay, but it keeps the O(players)
+// bookkeeping work down on very long games without losing real precision
+// (a player's territory doesn't meaningfully swing within half a second).
+const SAMPLE_EVERY_N_TICKS = 5
+
+// How often the tick loop yields back to the browser (setTimeout 0) so the
+// tab stays responsive during a long replay instead of freezing solid. Kept
+// coarse on purpose: browsers throttle timers hard in a backgrounded tab
+// (observed: 1000ms+ per setTimeout(0) once the tab isn't visible/focused),
+// so yielding too often can turn a 20s replay into several minutes if the
+// visitor switches tabs while it runs. Every 200 ticks is still frequent
+// enough to keep a focused tab responsive without paying that cost badly.
+const YIELD_EVERY_N_TICKS = 200
 
 // Map assets are fetched straight from OpenFront's repo at the same commit
 // the vendored engine is pinned to, so terrain data always matches the code
@@ -37,9 +48,17 @@ const SERVER_TICKS_PER_SECOND = 10
 // the simulation only reproduces a game bit-for-bit when the engine version
 // matches what the real server ran, and this engine changes often enough
 // (458 commits in ~2 months between this pin and today) that a replay
-// against a mismatched version diverges within the first few seconds.
+// against a mismatched version diverges within the first few seconds. The
+// same drift applies to maps: a game played on a newer commit can use a map
+// that didn't exist yet at this pin (or was renamed), in which case the
+// fetch below 404s and getGameTileStats fails closed (returns null) rather
+// than silently replaying with the wrong terrain.
 const VENDORED_COMMIT = 'aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d'
-const AUSTRALIA_BASE = `https://raw.githubusercontent.com/openfrontio/OpenFrontIO/${VENDORED_COMMIT}/resources/maps/australia`
+
+/** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
+function mapSlug(gameMapName: string): string {
+  return gameMapName.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
 
 // ── Raw OpenFront API shapes (looser than openfront.ts's GameDetail - we
 // need config fields GameDetail doesn't parse, like difficulty/gameMode/
@@ -72,6 +91,7 @@ interface RawGameConfig {
 interface RawGameInfo {
   gameID: string
   lobbyCreatedAt: number
+  num_turns: number
   config: RawGameConfig
   players: RawPlayer[]
 }
@@ -186,24 +206,25 @@ async function cachedArrayBuffer(url: string, key: string): Promise<Uint8Array> 
   return new Uint8Array(buf)
 }
 
-async function cachedManifest(): Promise<MapManifest> {
-  const cached = await idbGet<MapManifest>('australia:manifest')
+async function cachedManifest(slug: string, base: string): Promise<MapManifest> {
+  const cached = await idbGet<MapManifest>(`${slug}:manifest`)
   if (cached) return cached
-  const res = await fetch(`${AUSTRALIA_BASE}/manifest.json`)
+  const res = await fetch(`${base}/manifest.json`)
   if (!res.ok) throw new Error(`Failed to fetch manifest.json: ${res.status}`)
   const manifest = (await res.json()) as MapManifest
-  await idbSet('australia:manifest', manifest)
+  await idbSet(`${slug}:manifest`, manifest)
   return manifest
 }
 
-// Cynosure's speedrun mode only ever uses the Australia map (SPEEDRUN_RULE in
-// speedruns.ts), so that's the only map this loader knows how to serve.
-function makeAustraliaMapLoader(): GameMapLoader {
+/** Loads whichever map the game actually used (see mapSlug) - fails (throws/404s) if that map didn't exist yet at VENDORED_COMMIT. */
+function makeMapLoader(gameMapName: string): GameMapLoader {
+  const slug = mapSlug(gameMapName)
+  const base = `https://raw.githubusercontent.com/openfrontio/OpenFrontIO/${VENDORED_COMMIT}/resources/maps/${slug}`
   const mapData: MapData = {
-    mapBin: () => cachedArrayBuffer(`${AUSTRALIA_BASE}/map.bin`, 'australia:map.bin'),
-    map4xBin: () => cachedArrayBuffer(`${AUSTRALIA_BASE}/map4x.bin`, 'australia:map4x.bin'),
-    map16xBin: () => cachedArrayBuffer(`${AUSTRALIA_BASE}/map16x.bin`, 'australia:map16x.bin'),
-    manifest: cachedManifest,
+    mapBin: () => cachedArrayBuffer(`${base}/map.bin`, `${slug}:map.bin`),
+    map4xBin: () => cachedArrayBuffer(`${base}/map4x.bin`, `${slug}:map4x.bin`),
+    map16xBin: () => cachedArrayBuffer(`${base}/map16x.bin`, `${slug}:map16x.bin`),
+    manifest: () => cachedManifest(slug, base),
     webpPath: '',
   }
   return { getMapData: () => mapData }
@@ -211,19 +232,36 @@ function makeAustraliaMapLoader(): GameMapLoader {
 
 // ── Public API ────────────────────────────────────────────────────────────
 
+export interface GameTileStats {
+  /** clientID -> peak tiles owned at any point during the game. */
+  maxTiles: Record<string, number>
+  /** clientID -> peak percent of the map's land tiles owned at any point. */
+  maxPercent: Record<string, number>
+  /** clientID -> tiles owned when the game ended (from the simulated final state). */
+  finalTiles: Record<string, number>
+}
+
 /**
- * Map of clientID -> percent of land tiles owned at `atSeconds` into the
- * game. Returns null if the game couldn't be fetched or replayed. A single
- * call replays the whole game up to that point tick by tick, so it takes a
- * few seconds - callers should show a loading state.
+ * Replays a full game tick by tick to find each player's peak tile count
+ * (a true running max, not a single checkpoint) plus their tile count at
+ * the end - both unavailable from OpenFront's public API, which only
+ * exposes a single final-tiles number per player (and even that is missing
+ * for some players). Returns null if the game couldn't be fetched, replayed,
+ * or `signal` was aborted. This replays the ENTIRE game, so it can take up
+ * to a minute or more for a long match - callers should show a loading
+ * state that says so, and pass an AbortSignal that fires when the result is
+ * no longer wanted (e.g. the caller switched to a different game) - without
+ * it, closing/switching away doesn't actually stop the tick loop, and it
+ * keeps burning CPU in the background competing with whatever replay comes
+ * next.
  */
-export async function getTilePercentAt(gameId: string, atSeconds: number): Promise<Record<string, number> | null> {
+export async function getGameTileStats(gameId: string, signal?: AbortSignal): Promise<GameTileStats | null> {
   try {
     const [raw, rawTurns] = await Promise.all([fetchRawInfo(gameId), fetchRawTurns(gameId)])
-    if (!raw) return null
+    if (!raw || signal?.aborted) return null
 
     const gameStart = buildGameStartInfo(raw)
-    const targetTick = Math.round(atSeconds * SERVER_TICKS_PER_SECOND)
+    const lastTick = raw.num_turns
 
     // OpenFront's API only returns turns that carry intents or a periodic
     // desync-check hash (about 1 in every 20 ticks are present, not every
@@ -234,21 +272,53 @@ export async function getTilePercentAt(gameId: string, atSeconds: number): Promi
     const byTurnNumber = new Map<number, Turn>()
     for (const t of rawTurns) byTurnNumber.set(t.turnNumber, t)
 
-    const runner = await createGameRunner(gameStart, undefined, makeAustraliaMapLoader(), () => {})
-    for (let t = 0; t <= targetTick; t++) {
+    const runner = await createGameRunner(gameStart, undefined, makeMapLoader(raw.config.gameMap), () => {})
+    for (let t = 0; t <= lastTick; t++) {
       runner.addTurn(byTurnNumber.get(t) ?? { turnNumber: t, intents: [] })
-    }
-    while (runner.game.ticks() < targetTick) {
-      if (!runner.executeNextTick()) break
     }
 
     const totalLandTiles = runner.game.map().numLandTiles()
-    const result: Record<string, number> = {}
+    const maxTiles: Record<string, number> = {}
+    const maxPercent: Record<string, number> = {}
+
+    let tick = 0
+    while (runner.executeNextTick()) {
+      tick++
+      // Ticking a long, many-player game is CPU-heavy - yielding periodically
+      // keeps the tab responsive (and the loading state actually animating)
+      // instead of freezing the whole page for the entire replay. It's also
+      // the only place an abort can actually take effect mid-replay.
+      if (tick % YIELD_EVERY_N_TICKS === 0) {
+        await new Promise((r) => setTimeout(r, 0))
+        if (signal?.aborted) return null
+      }
+      if (tick % SAMPLE_EVERY_N_TICKS !== 0) continue
+      for (const player of runner.game.players()) {
+        const clientId = player.clientID()
+        if (!clientId) continue
+        const owned = player.numTilesOwned()
+        if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
+          maxTiles[clientId] = owned
+          maxPercent[clientId] = (owned / totalLandTiles) * 100
+        }
+      }
+    }
+
+    const finalTiles: Record<string, number> = {}
     for (const player of runner.game.players()) {
       const clientId = player.clientID()
-      if (clientId) result[clientId] = (player.numTilesOwned() / totalLandTiles) * 100
+      if (!clientId) continue
+      const owned = player.numTilesOwned()
+      finalTiles[clientId] = owned
+      // The last tick isn't necessarily a sampled one - make sure it's
+      // still reflected in the max.
+      if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
+        maxTiles[clientId] = owned
+        maxPercent[clientId] = (owned / totalLandTiles) * 100
+      }
     }
-    return result
+
+    return { maxTiles, maxPercent, finalTiles }
   } catch (err) {
     console.error('Replay simulation failed', err)
     return null

@@ -56,6 +56,7 @@ export const EMOJI = {
   map: '🗺️',
   star: '⭐',
   ship: '⛵',
+  cross: '✝️',
 } as const
 
 /** Rank medal for #1/#2/#3 leaderboard rows (gold/silver/bronze emoji), plain number after. */

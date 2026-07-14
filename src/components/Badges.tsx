@@ -82,12 +82,11 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
         return (
           <div key={g.key}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{g.label}</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {items.map((b) => (
                 <div
                   key={b.id}
-                  title={b.desc}
-                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
+                  className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
                     b.earned ? 'border-gold/30 bg-gold/5' : 'border-base-700 bg-base-850/40 opacity-55'
                   }`}
                 >
@@ -95,11 +94,11 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                     <BadgeVisual badge={b} className="h-5 w-5 text-sm" />
                   </span>
                   <div className="min-w-0">
-                    <p className={`truncate text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>
                       {b.name}
                       {b.tier && b.earned && <span className="ml-1 text-xs capitalize text-slate-400">{b.tier}</span>}
                     </p>
-                    <p className="truncate text-[11px] text-slate-500">{b.desc}</p>
+                    <p className="text-[11px] text-slate-500">{b.desc}</p>
                   </div>
                 </div>
               ))}

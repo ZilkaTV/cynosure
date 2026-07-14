@@ -5,7 +5,7 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
-import { fmtTime, submitSpeedrun, SPEEDRUN_RULE, type SubmitResult } from '../lib/speedruns'
+import { fmtTime, submitSpeedrun, replayToolUrl, SPEEDRUN_RULE, type SubmitResult } from '../lib/speedruns'
 
 export default function Speedrun() {
   const { profile } = useProfile()
@@ -25,7 +25,7 @@ export default function Speedrun() {
     if (!profile) return
     setBusy(true)
     setResult(null)
-    const r = await submitSpeedrun(profile.openfront_id, link)
+    const r = await submitSpeedrun(profile.openfront_id, link, profile.in_game_name)
     setResult(r)
     setBusy(false)
     if (r.ok && r.best) {
@@ -116,6 +116,7 @@ export default function Speedrun() {
                   <th className="px-4 py-3 text-left font-semibold">Name</th>
                   <th className="px-4 py-3 text-right font-semibold">Attempts</th>
                   <th className="px-4 py-3 text-right font-semibold">Best Time</th>
+                  <th className="px-4 py-3 text-left font-semibold">Game</th>
                 </tr>
               </thead>
               <tbody>
@@ -130,6 +131,21 @@ export default function Speedrun() {
                     <td className="px-4 py-3 text-right tabular-nums text-slate-400">{m.speedrunAttempts}</td>
                     <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">
                       {fmtTime(m.speedrunSeconds ?? 0)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {m.speedrunGameId ? (
+                        <a
+                          href={replayToolUrl(m.speedrunGameId)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-xs text-accent-light underline decoration-dotted hover:text-accent"
+                          title="Watch this run in the replay tool"
+                        >
+                          {m.speedrunGameId}
+                        </a>
+                      ) : (
+                        <span className="text-slate-600">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -107,6 +107,10 @@ create table if not exists public.cyn_event_teams (
   event_id text not null,
   name text not null,
   starting_points integer not null default 0,
+  -- Roster display only (not linked to cyn_members - a name here doesn't
+  -- have to be a registered member; the site links it if a match exists).
+  captain text,
+  players text[] not null default '{}',
   unique (event_id, name)
 );
 
@@ -120,12 +124,14 @@ create policy "anyone can insert cyn_event_teams"
 
 -- Seed the CYN Trio Challenge teams with their points collected before this
 -- website-based system existed (see the Discord leaderboard post).
-insert into public.cyn_event_teams (event_id, name, starting_points) values
-  ('trio-challenge-2026', 'Team CYN', 59),
-  ('trio-challenge-2026', 'Team GAS', 11),
-  ('trio-challenge-2026', 'Team GER', 8),
-  ('trio-challenge-2026', 'Team BUM', 2)
-on conflict (event_id, name) do nothing;
+insert into public.cyn_event_teams (event_id, name, starting_points, captain, players) values
+  ('trio-challenge-2026', 'Team CYN', 59, 'kvxlyn', array['Franquito', 'soothxng']),
+  ('trio-challenge-2026', 'Team GAS', 11, 'Sweeper', array['Grandma Garry', 'Grandpa Perry']),
+  ('trio-challenge-2026', 'Team GER', 8, 'Chuma', array['Calos', 'Propighandi']),
+  ('trio-challenge-2026', 'Team BUM', 2, 'Portatto', array['Imperium Romanum', 'Bembo'])
+on conflict (event_id, name) do update set
+  captain = excluded.captain,
+  players = excluded.players;
 
 create table if not exists public.cyn_event_submissions (
   id uuid primary key default gen_random_uuid(),

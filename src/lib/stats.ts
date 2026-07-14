@@ -45,6 +45,7 @@ export interface MemberStats {
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   speedrunAttempts: number // how many valid runs this member has submitted
+  speedrunGameId: string | null // game id of their best run, for the leaderboard link
   lastSpeedrunAt: string | null
   bumpCount: number // self-reported Discord bumps (2h cooldown enforced)
   lastBumpAt: string | null
@@ -158,8 +159,10 @@ export function oneVoneBucket(games: PlayerGame[], monthKey: string): { wins: nu
 
 // ── richer monthly rows (with kills/gold from game detail where available) ───
 
-function wlRatio(wins: number, losses: number): number {
-  return losses === 0 ? wins : Math.round((wins / losses) * 100) / 100
+/** Win rate as a whole percentage (0-100). No games decided yet -> 0. */
+export function winRate(wins: number, losses: number): number {
+  const decided = wins + losses
+  return decided === 0 ? 0 : Math.round((wins / decided) * 100)
 }
 
 /** Longest run of consecutive FFA victories in the month (defeats break it). */
@@ -183,7 +186,7 @@ export interface FfaRow {
   losses: number
   points: number
   winstreak: number
-  wl: number
+  winRatePct: number
   avgKills: number | null // null = no game detail available
 }
 
@@ -191,7 +194,7 @@ export interface TeamRow {
   wins: number
   losses: number
   points: number
-  wl: number
+  winRatePct: number
   kills: number | null
   avgGold: number | null
 }
@@ -204,7 +207,7 @@ export function ffaMonthly(m: MemberStats, monthKey: string): FfaRow {
   return {
     ...b,
     winstreak: highestFfaStreak(m.cynGames, monthKey),
-    wl: wlRatio(b.wins, b.losses),
+    winRatePct: winRate(b.wins, b.losses),
     avgKills: detailed.length ? Math.round((totalKills / detailed.length) * 10) / 10 : null,
   }
 }
@@ -217,18 +220,22 @@ export function teamMonthly(m: MemberStats, monthKey: string, coop: Record<strin
   const goldPerMinSum = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].goldPerMin, 0)
   return {
     ...b,
-    wl: wlRatio(b.wins, b.losses),
+    winRatePct: winRate(b.wins, b.losses),
     kills: detailed.length ? kills : null,
     avgGold: detailed.length ? Math.round(goldPerMinSum / detailed.length) : null,
   }
 }
 
 /** Every month (newest first) that appears anywhere in the members' CYN games. */
+// The month archive doesn't go back further than this - earlier months aren't
+// tracked/relevant history for the clan.
+const EARLIEST_MONTH_KEY = '2026-06'
+
 export function availableMonths(members: MemberStats[]): string[] {
   const set = new Set<string>()
   for (const m of members) for (const g of m.cynGames) set.add(monthKeyOf(g.start))
   set.add(currentMonthKey())
-  return [...set].sort().reverse()
+  return [...set].filter((mk) => mk >= EARLIEST_MONTH_KEY).sort().reverse()
 }
 
 export function monthLabel(key: string): string {
@@ -267,7 +274,7 @@ const MAX_DETAIL_LOOKUPS = 140
 
 export async function buildRoster(
   registered: RosterInput[],
-  speedruns: Record<string, { seconds: number; attempts: number; submitted_at?: string }> = {},
+  speedruns: Record<string, { seconds: number; attempts: number; game_id?: string; submitted_at?: string }> = {},
   bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
 ): Promise<RosterResult> {
@@ -360,6 +367,7 @@ export async function buildRoster(
         null,
       speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
       speedrunAttempts: speedruns[input.openfront_id]?.attempts ?? 0,
+      speedrunGameId: speedruns[input.openfront_id]?.game_id ?? null,
       lastSpeedrunAt: speedruns[input.openfront_id]?.submitted_at ?? null,
       xp: xpMap[input.openfront_id] ?? 0,
       bumpCount: bumps[input.openfront_id]?.bump_count ?? 0,

@@ -13,6 +13,7 @@ import {
   monthLabel,
   oneVoneBucket,
   teamMonthly,
+  winRate,
   type MemberStats,
 } from '../lib/stats'
 
@@ -154,7 +155,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <th className="px-3 py-3 text-left font-semibold">Name</th>
                         <th className="px-3 py-3 text-right font-semibold">Wins</th>
                         <th className="px-3 py-3 text-right font-semibold">Losses</th>
-                        <th className="px-3 py-3 text-right font-semibold">W/L</th>
+                        <th className="px-3 py-3 text-right font-semibold">WR%</th>
                         <th className="px-3 py-3 text-right font-semibold">Streak</th>
                         <th className="px-3 py-3 text-right font-semibold">Avg Kills</th>
                         <th className="px-3 py-3 text-right font-semibold">Points</th>
@@ -167,7 +168,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '-'}</td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
@@ -201,7 +202,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <th className="px-3 py-3 text-left font-semibold">Name</th>
                         <th className="px-3 py-3 text-right font-semibold">Wins</th>
                         <th className="px-3 py-3 text-right font-semibold">Losses</th>
-                        <th className="px-3 py-3 text-right font-semibold">W/L</th>
+                        <th className="px-3 py-3 text-right font-semibold">WR%</th>
                         <th className="px-3 py-3 text-right font-semibold">Kills</th>
                         <th className="px-3 py-3 text-right font-semibold">Gold/min</th>
                         <th className="px-3 py-3 text-right font-semibold">Points</th>
@@ -214,7 +215,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.wl}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
@@ -235,13 +236,14 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] text-sm">
+                <table className="w-full min-w-[600px] text-sm">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">#</th>
                       <th className="px-4 py-3 text-left font-semibold">Name</th>
                       <th className="px-4 py-3 text-right font-semibold">Wins</th>
                       <th className="px-4 py-3 text-right font-semibold">Losses</th>
+                      <th className="px-4 py-3 text-right font-semibold">WR%</th>
                       <th className="px-4 py-3 text-right font-semibold">Elo Δ</th>
                       <th className="px-4 py-3 text-right font-semibold">Current Elo</th>
                     </tr>
@@ -253,6 +255,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-4 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{winRate(b.wins, b.losses)}%</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">-</span>}</td>
                       </tr>

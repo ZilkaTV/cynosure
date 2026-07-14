@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
@@ -5,13 +6,16 @@ import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
+import { isFfa, isTeam, is1v1 } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
+import GameDetailModal from '../components/GameDetailModal'
 import { Card, LastUpdated, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import type { MemberStats } from '../lib/stats'
+import type { PlayerGame } from '../lib/openfront'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
@@ -140,15 +144,38 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
   ]
 }
 
+function modeLabel(g: PlayerGame): string {
+  return is1v1(g) ? '1v1' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
+}
+
+function fmtDuration(s: number): string {
+  const m = Math.floor(s / 60)
+  return `${m}m ${String(s % 60).padStart(2, '0')}s`
+}
+
 export default function Home() {
   const { profile } = useProfile()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
+  const [openGame, setOpenGame] = useState<string | null>(null)
 
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
   const columns = makeColumns(data?.members ?? [], deltas)
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
+
+  // Same game can show up under multiple members if several CYN players were
+  // in it together - dedupe by gameId so it only appears once.
+  const byGameId = new Map<string, { g: PlayerGame; memberName: string }>()
+  for (const m of data?.members ?? []) {
+    for (const g of m.cynGames) {
+      if (g.type === 'Private' || byGameId.has(g.gameId)) continue
+      byGameId.set(g.gameId, { g, memberName: m.name })
+    }
+  }
+  const recentGames = [...byGameId.values()]
+    .sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
+    .slice(0, 5)
 
   return (
     <StatsShell>
@@ -200,6 +227,49 @@ export default function Home() {
           <QuestCard xp={me.xp} />
         </section>
       )}
+
+      {recentGames.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeading center eyebrow="Activity" title="Latest Games" />
+          <div className="panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead>
+                  <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                    <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Player</th>
+                    <th className="px-4 py-3 text-left font-semibold">Mode</th>
+                    <th className="px-4 py-3 text-left font-semibold">Map</th>
+                    <th className="px-4 py-3 text-right font-semibold">Duration</th>
+                    <th className="px-4 py-3 text-right font-semibold">Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentGames.map(({ g, memberName }) => (
+                    <tr
+                      key={g.gameId}
+                      onClick={() => setOpenGame(g.gameId)}
+                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                      title="Click for the full post-game report"
+                    >
+                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                      <td className="px-4 py-2.5 text-white">{memberName}</td>
+                      <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
+                        {g.result}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
     </StatsShell>
   )
 }

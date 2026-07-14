@@ -26,6 +26,8 @@ export interface EventTeam {
   event_id: string
   name: string
   starting_points: number
+  captain: string | null
+  players: string[]
 }
 
 export interface EventSubmission {

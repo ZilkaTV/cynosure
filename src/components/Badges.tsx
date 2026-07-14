@@ -99,7 +99,7 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                       {b.name}
                       {b.tier && b.earned && <span className="ml-1 text-xs capitalize text-slate-400">{b.tier}</span>}
                     </p>
-                    <p className="truncate text-[11px] text-slate-500">{b.earned ? 'Earned' : 'Locked'}</p>
+                    <p className="truncate text-[11px] text-slate-500">{b.desc}</p>
                   </div>
                 </div>
               ))}

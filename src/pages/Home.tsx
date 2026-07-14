@@ -9,6 +9,7 @@ import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShel
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
+import { QuestCard } from '../components/QuestCard'
 import { Card, LastUpdated, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import type { MemberStats } from '../lib/stats'
 
@@ -194,8 +195,9 @@ export default function Home() {
       </section>
 
       {me && (
-        <section className="mx-auto max-w-xs">
+        <section className="mx-auto grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
           <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
+          <QuestCard xp={me.xp} />
         </section>
       )}
     </StatsShell>

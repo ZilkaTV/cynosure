@@ -14,6 +14,12 @@ export function todayKey(): string {
   return new Date().toISOString().slice(0, 10) // YYYY-MM-DD, UTC
 }
 
+/** Timestamp (ms) of the next daily quest reset (midnight UTC). */
+export function nextResetAt(): number {
+  const d = new Date()
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0)
+}
+
 function isToday(iso: string | null): boolean {
   return !!iso && iso.slice(0, 10) === todayKey()
 }

@@ -1,4 +1,25 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+/** Ticking "1h 23m" / "23m 05s" countdown to a target timestamp, or null once it's passed. */
+export function useCountdown(targetMs: number | null): string | null {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (targetMs == null) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [targetMs])
+
+  if (targetMs == null) return null
+  const remaining = targetMs - now
+  if (remaining <= 0) return null
+  const totalSec = Math.floor(remaining / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
+}
 
 export function SectionHeading({
   eyebrow,

@@ -263,6 +263,15 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
   return detail
 }
 
+// OpenFront's server ticks the simulation on a fixed 100ms interval
+// (ServerEnv.turnIntervalMs() in their source - always 10 turns/second),
+// it's not something to derive per-game. Deriving it from num_turns/duration
+// instead is wrong whenever `duration` includes anything beyond pure
+// ticking, which is exactly what happened on a real submitted run: that game
+// computed to only 8.78 turns/sec that way, turning turn 3771 into 7:09
+// instead of the correct 6:17.
+const SERVER_TICKS_PER_SECOND = 10
+
 /**
  * The `duration` OpenFront reports is how long the connection stayed open,
  * NOT how long it took to win - a player can win, then leave the game/replay
@@ -272,8 +281,8 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
  *
  * This walks the turn log backwards for the last turn with a real action
  * (anything besides "mark_disconnected", which fires continuously even while
- * idle) and converts its turn number to seconds using the game's own tick
- * rate, giving the actual time-to-decide instead of time-to-disconnect.
+ * idle) and converts its turn number to seconds using the server's fixed
+ * tick rate, giving the actual time-to-decide instead of time-to-disconnect.
  */
 export async function fetchLastActionSeconds(gameId: string): Promise<number | null> {
   const key = `${CACHE_NS}:lastaction:${gameId}`
@@ -283,16 +292,13 @@ export async function fetchLastActionSeconds(gameId: string): Promise<number | n
   let seconds: number | null = null
   try {
     const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=true`)) as {
-      info?: { duration?: number; num_turns?: number }
       turns?: { turnNumber: number; intents?: { type: string }[] }[]
     }
-    const info = json.info
     const turns = json.turns ?? []
-    const tickRate = info?.duration && info.num_turns ? info.num_turns / info.duration : 10
     for (let i = turns.length - 1; i >= 0; i--) {
       const real = (turns[i].intents ?? []).some((x) => x.type !== 'mark_disconnected')
       if (real) {
-        seconds = turns[i].turnNumber / tickRate
+        seconds = turns[i].turnNumber / SERVER_TICKS_PER_SECOND
         break
       }
     }

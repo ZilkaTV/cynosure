@@ -8,6 +8,7 @@
 
 import { currentMonthKey, ffaMonthly, teamMonthly, type MemberStats } from './stats'
 import { levelFromXp, titleForLevel } from './levels'
+import { fmtTime } from './speedruns'
 
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 
@@ -72,23 +73,23 @@ export function loyalStreak(m: MemberStats): number {
   return streak
 }
 
-/** Leader (publicId) of a numeric metric among members, if any value > 0. */
-function leader(members: MemberStats[], value: (m: MemberStats) => number): string | null {
+/** Leader (publicId + their value) of a numeric metric among members, if any value > 0. */
+function leader(members: MemberStats[], value: (m: MemberStats) => number): { id: string; v: number } | null {
   let best: { id: string; v: number } | null = null
   for (const m of members) {
     const v = value(m)
     if (v > 0 && (!best || v > best.v)) best = { id: m.publicId, v }
   }
-  return best?.id ?? null
+  return best
 }
 
 /** Member holding the single fastest (lowest) speedrun time clan-wide, if any. */
-function fastestSpeedrunner(members: MemberStats[]): string | null {
+function fastestSpeedrunner(members: MemberStats[]): { id: string; v: number } | null {
   let best: { id: string; v: number } | null = null
   for (const m of members) {
     if (m.speedrunSeconds != null && (!best || m.speedrunSeconds < best.v)) best = { id: m.publicId, v: m.speedrunSeconds }
   }
-  return best?.id ?? null
+  return best
 }
 
 export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
@@ -96,14 +97,14 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
   const ffa = (x: MemberStats) => ffaMonthly(x, mk)
   const team = (x: MemberStats) => teamMonthly(x, mk, {})
 
-  const mostWinsLeader = leader(all, (x) => x.allWins)
-  const predatorLeader = leader(all, (x) => ffa(x).avgKills ?? 0)
-  const proLeader = leader(all, (x) => ffa(x).winstreak)
-  const grinderLeader = leader(all, (x) => ffa(x).points)
-  const marineLeader = leader(all, (x) => team(x).avgGold ?? 0)
-  const destroyerLeader = leader(all, (x) => team(x).kills ?? 0)
-  const teamGrinderLeader = leader(all, (x) => team(x).points)
-  const fastestLeader = fastestSpeedrunner(all)
+  const mostWins = leader(all, (x) => x.allWins)
+  const predator = leader(all, (x) => ffa(x).avgKills ?? 0)
+  const pro = leader(all, (x) => ffa(x).winstreak)
+  const grinder = leader(all, (x) => ffa(x).points)
+  const marine = leader(all, (x) => team(x).avgGold ?? 0)
+  const destroyer = leader(all, (x) => team(x).kills ?? 0)
+  const teamGrinder = leader(all, (x) => team(x).points)
+  const fastest = fastestSpeedrunner(all)
 
   const starTier = tierFromRank(m.rank1v1)
   const shipTier = tierFromRank(m.ffaRank)
@@ -120,19 +121,83 @@ export function computeBadges(m: MemberStats, all: MemberStats[]): Badge[] {
     { id: 'level', name: levelTitle, kind: 'level', level, earned: true, group: 'rank', desc: `Level ${level} (${m.xp} XP)` },
     { id: 'star', name: '1v1 Ladder', kind: 'star', tier: starTier ?? undefined, earned: !!starTier, group: 'rank', desc: starLabel },
     { id: 'ship', name: 'FFA Ladder', kind: 'ship', tier: shipTier ?? undefined, earned: !!shipTier, group: 'rank', desc: shipLabel },
-    { id: 'mostWins', name: 'Most Wins', kind: 'icon', icon: 'trophy', earned: mostWinsLeader === m.publicId, group: 'rank', desc: 'Most total wins in the clan' },
-    { id: 'fastest', name: 'Speedrunner', kind: 'icon', icon: 'flag', earned: fastestLeader === m.publicId, group: 'rank', desc: 'Fastest speedrun time in the clan' },
+    {
+      id: 'mostWins',
+      name: 'Most Wins in CYN',
+      kind: 'icon',
+      icon: 'trophy',
+      earned: mostWins?.id === m.publicId,
+      group: 'rank',
+      desc: `Most total wins in the clan${mostWins ? ` - currently ${mostWins.v}` : ''}`,
+    },
+    {
+      id: 'fastest',
+      name: 'Fastest Speedrun in CYN',
+      kind: 'icon',
+      icon: 'flag',
+      earned: fastest?.id === m.publicId,
+      group: 'rank',
+      desc: `Fastest speedrun time in the clan${fastest ? ` - currently ${fmtTime(fastest.v)}` : ''}`,
+    },
     // ── milestones (permanent) ──
     { id: 'good', name: 'Good Player', kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: '100 wins' },
     { id: 'god', name: 'God Player', kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: '1000 wins' },
     { id: 'loyal', name: 'Loyal Player', kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: `${LOYAL_THRESHOLD}+ day win streak (current: ${streak})` },
     { id: 'pusher', name: 'Pusher', kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: `100 Discord bumps (current: ${m.bumpCount})` },
     // ── monthly (losable) ──
-    { id: 'predator', name: 'Predator', kind: 'icon', icon: 'bow', earned: predatorLeader === m.publicId, group: 'monthly', desc: 'Highest FFA avg kills this month' },
-    { id: 'pro', name: 'Pro Player', kind: 'icon', icon: 'bolt', earned: proLeader === m.publicId, group: 'monthly', desc: 'Highest FFA win streak this month' },
-    { id: 'grinder', name: 'Grinder', kind: 'icon', icon: 'pickaxe', earned: grinderLeader === m.publicId, group: 'monthly', desc: 'Most FFA points this month' },
-    { id: 'marine', name: 'Marine', kind: 'icon', icon: 'anchor', earned: marineLeader === m.publicId, group: 'monthly', desc: 'Highest Team gold/min this month' },
-    { id: 'destroyer', name: 'Destroyer', kind: 'icon', icon: 'blast', earned: destroyerLeader === m.publicId, group: 'monthly', desc: 'Most Team kills this month' },
-    { id: 'teamGrinder', name: 'Team Grinder', kind: 'icon', icon: 'wrench', earned: teamGrinderLeader === m.publicId, group: 'monthly', desc: 'Most Team points this month' },
+    {
+      id: 'predator',
+      name: 'Predator (FFA)',
+      kind: 'icon',
+      icon: 'bow',
+      earned: predator?.id === m.publicId,
+      group: 'monthly',
+      desc: `Highest FFA avg kills this month${predator ? ` - currently ${predator.v.toFixed(1)}` : ''}`,
+    },
+    {
+      id: 'pro',
+      name: 'Pro Player (FFA)',
+      kind: 'icon',
+      icon: 'bolt',
+      earned: pro?.id === m.publicId,
+      group: 'monthly',
+      desc: `Highest FFA win streak this month${pro ? ` - currently ${pro.v}` : ''}`,
+    },
+    {
+      id: 'grinder',
+      name: 'Grinder (FFA)',
+      kind: 'icon',
+      icon: 'pickaxe',
+      earned: grinder?.id === m.publicId,
+      group: 'monthly',
+      desc: `Most FFA points this month${grinder ? ` - currently ${grinder.v}` : ''}`,
+    },
+    {
+      id: 'marine',
+      name: 'Marine (Team)',
+      kind: 'icon',
+      icon: 'anchor',
+      earned: marine?.id === m.publicId,
+      group: 'monthly',
+      desc: `Highest Team gold/min this month${marine ? ` - currently ${marine.v.toFixed(0)}` : ''}`,
+    },
+    {
+      id: 'destroyer',
+      name: 'Destroyer (Team)',
+      kind: 'icon',
+      icon: 'blast',
+      earned: destroyer?.id === m.publicId,
+      group: 'monthly',
+      desc: `Most Team kills this month${destroyer ? ` - currently ${destroyer.v}` : ''}`,
+    },
+    {
+      id: 'teamGrinder',
+      name: 'Team Grinder (Team)',
+      kind: 'icon',
+      icon: 'wrench',
+      earned: teamGrinder?.id === m.publicId,
+      group: 'monthly',
+      desc: `Most Team points this month${teamGrinder ? ` - currently ${teamGrinder.v}` : ''}`,
+    },
   ]
 }

@@ -13,6 +13,7 @@ import {
   submitEventEntry,
   reviewSubmission,
   CATEGORY_LABELS,
+  CATEGORY_POINTS,
   type EventTeam,
   type EventSubmission,
   type SubmissionCategory,
@@ -28,16 +29,56 @@ const STATUS_STYLE: Record<ClanEvent['status'], string> = {
   ended: 'bg-base-700 text-slate-400 border-base-600',
 }
 
+/** Section label used for Rules / Points / Reward, so the event card reads as clearly separated blocks. */
+function BlockLabel({ children }: { children: string }) {
+  return <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{children}</p>
+}
+
+/** Reward skin image - bigger, and expandable to a fullscreen lightbox for a clean close look. */
 function SkinPreview({ url, alt }: { url?: string; alt: string }) {
   const [ok, setOk] = useState(!!url)
+  const [expanded, setExpanded] = useState(false)
+
   if (!url || !ok) {
     return (
-      <div className="flex h-full min-h-[140px] w-full items-center justify-center rounded-xl border border-gold/30 bg-base-850/60 px-3 text-center text-xs text-slate-500">
+      <div className="flex h-full min-h-[180px] w-full items-center justify-center rounded-xl border border-gold/30 bg-base-850/60 px-3 text-center text-xs text-slate-500">
         Reward skin preview coming soon
       </div>
     )
   }
-  return <img src={url} alt={alt} onError={() => setOk(false)} className="h-full w-full rounded-xl border border-gold/30 object-cover" />
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="group relative block w-full overflow-hidden rounded-xl border border-gold/30"
+        aria-label="Expand reward skin preview"
+      >
+        <img src={url} alt={alt} onError={() => setOk(false)} className="max-h-[420px] w-full object-contain bg-base-950" />
+        <span className="absolute bottom-2 right-2 rounded-md bg-base-950/80 px-2 py-1 text-[11px] font-medium text-slate-200 opacity-0 transition-opacity group-hover:opacity-100">
+          Click to expand ⤢
+        </span>
+      </button>
+
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setExpanded(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="absolute right-4 top-4 rounded-lg bg-base-800/80 px-3 py-1.5 text-sm font-semibold text-white hover:bg-base-700"
+            aria-label="Close"
+          >
+            ✕ Close
+          </button>
+          <img src={url} alt={alt} className="max-h-full max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </>
+  )
 }
 
 function EventCard({ event }: { event: ClanEvent }) {
@@ -117,19 +158,36 @@ function EventCard({ event }: { event: ClanEvent }) {
         </p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_200px]">
+      {/* rules */}
+      <div>
+        <BlockLabel>Regeln</BlockLabel>
         <p className="text-sm leading-relaxed text-slate-300">{event.description}</p>
-        <SkinPreview url={event.skinImageUrl} alt={`${event.name} reward skin`} />
       </div>
 
-      <div className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
-        <span className="font-semibold text-gold-light">Reward: </span>
-        {event.reward}
+      {/* points */}
+      <div>
+        <BlockLabel>Punkte</BlockLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(CATEGORY_LABELS) as SubmissionCategory[]).map((c) => (
+            <div key={c} className="flex items-center justify-between rounded-lg border border-base-700 bg-base-850/40 px-3 py-2 text-sm">
+              <span className="text-slate-300">{CATEGORY_LABELS[c].replace(/\s*\(\d+ pts?\)$/, '')}</span>
+              <span className="font-display font-bold text-accent-light">{CATEGORY_POINTS[c]} pts</span>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* reward */}
+      <div>
+        <BlockLabel>Reward</BlockLabel>
+        <div className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">{event.reward}</div>
+      </div>
+
+      <SkinPreview url={event.skinImageUrl} alt={`${event.name} reward skin`} />
 
       {/* standings */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Standings</p>
+        <BlockLabel>Standings</BlockLabel>
         {loading ? (
           <Spinner />
         ) : teams.length === 0 ? (

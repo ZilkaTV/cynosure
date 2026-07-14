@@ -16,5 +16,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/vendor"],
+  "references": [{ "path": "./src/vendor/openfront-core" }]
 }

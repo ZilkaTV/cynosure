@@ -3,6 +3,9 @@ import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/op
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 
+// Checkpoint used for the "Tiles @ 3min" column below - see src/lib/replaySim.ts.
+const TILE_CHECKPOINT_SECONDS = 180
+
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -36,6 +39,11 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const [detail, setDetail] = useState<GameDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
 
+  // Tiles @ 3min replays the actual game simulation, so it's computed
+  // separately and doesn't block the rest of the modal - see replaySim.ts.
+  const [tilePercent, setTilePercent] = useState<Record<string, number> | null>(null)
+  const [tileState, setTileState] = useState<'loading' | 'ok' | 'error'>('loading')
+
   useEffect(() => {
     if (!gameId) return
     setState('loading')
@@ -48,6 +56,28 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         } else setState('error')
       })
       .catch(() => setState('error'))
+  }, [gameId])
+
+  useEffect(() => {
+    if (!gameId) return
+    setTileState('loading')
+    setTilePercent(null)
+    let cancelled = false
+    import('../lib/replaySim')
+      .then(({ getTilePercentAt }) => getTilePercentAt(gameId, TILE_CHECKPOINT_SECONDS))
+      .then((result) => {
+        if (cancelled) return
+        if (result) {
+          setTilePercent(result)
+          setTileState('ok')
+        } else setTileState('error')
+      })
+      .catch(() => {
+        if (!cancelled) setTileState('error')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [gameId])
 
   useEffect(() => {
@@ -138,6 +168,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                     <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Gold/min"><Emoji char={EMOJI.coin} className="h-3.5 w-3.5" /></ThIcon></th>
                     <th className="px-3 py-2.5 text-right font-semibold">Kills</th>
                     <th className="px-3 py-2.5 text-right font-semibold">End Tiles</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Tiles @ 3min</th>
                     <th className="px-3 py-2.5 text-right font-semibold"><ThIcon label="Death"><Emoji char={EMOJI.skull} className="h-3.5 w-3.5" /></ThIcon></th>
                   </tr>
                 </thead>
@@ -172,6 +203,16 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                         <td className="px-3 py-2 text-right tabular-nums text-slate-400">
                           {r.endTiles != null ? fmt(r.endTiles) : <span className="text-slate-600">-</span>}
                         </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">
+                          {tileState === 'loading' && <span className="text-slate-600">Computing…</span>}
+                          {tileState === 'error' && <span className="text-slate-600">-</span>}
+                          {tileState === 'ok' &&
+                            (tilePercent?.[r.p.clientID] != null ? (
+                              `${tilePercent[r.p.clientID].toFixed(1)}%`
+                            ) : (
+                              <span className="text-slate-600">-</span>
+                            ))}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-500">
                           {r.deathSec != null ? fmtDuration(r.deathSec) : '-'}
                         </td>
@@ -183,8 +224,11 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
             </div>
             <p className="mt-3 text-center text-xs text-slate-500">
               Hover a Kills number to see who was eliminated. Sword/Shield = attack troops sent/received per
-              minute; Coin = gold earned per minute. End Tiles = tiles owned when the game ended (max tiles
-              during the game isn't available from OpenFront's public data).
+              minute; Coin = gold earned per minute. End Tiles = tiles owned when the game ended. Tiles @ 3min
+              is the percent of the map owned at the 3 minute mark, from replaying the game - OpenFront's public
+              data only gives final tile counts, not tile ownership at an arbitrary point in time, so this one
+              checkpoint is computed locally and can take a few seconds. It isn't a running max over the whole
+              game, just this one point in time.
             </p>
           </div>
         )}

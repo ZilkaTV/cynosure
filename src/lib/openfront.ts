@@ -263,6 +263,46 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
   return detail
 }
 
+/**
+ * The `duration` OpenFront reports is how long the connection stayed open,
+ * NOT how long it took to win - a player can win, then leave the game/replay
+ * running (watching, idle, disconnect delay), inflating `duration` well past
+ * the actual result. Confirmed on a real submitted run: last real action at
+ * turn 3771 (~6:17) but reported duration was 18:18.
+ *
+ * This walks the turn log backwards for the last turn with a real action
+ * (anything besides "mark_disconnected", which fires continuously even while
+ * idle) and converts its turn number to seconds using the game's own tick
+ * rate, giving the actual time-to-decide instead of time-to-disconnect.
+ */
+export async function fetchLastActionSeconds(gameId: string): Promise<number | null> {
+  const key = `${CACHE_NS}:lastaction:${gameId}`
+  const cached = cacheGet<number | null>(key)
+  if (cached !== null) return cached
+
+  let seconds: number | null = null
+  try {
+    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=true`)) as {
+      info?: { duration?: number; num_turns?: number }
+      turns?: { turnNumber: number; intents?: { type: string }[] }[]
+    }
+    const info = json.info
+    const turns = json.turns ?? []
+    const tickRate = info?.duration && info.num_turns ? info.num_turns / info.duration : 10
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const real = (turns[i].intents ?? []).some((x) => x.type !== 'mark_disconnected')
+      if (real) {
+        seconds = turns[i].turnNumber / tickRate
+        break
+      }
+    }
+  } catch {
+    seconds = null
+  }
+  cacheSet(key, seconds)
+  return seconds
+}
+
 export async function fetchGameClanTags(gameId: string): Promise<string[]> {
   const key = `${CACHE_NS}:game:${gameId}`
   const cached = cacheGet<string[]>(key)

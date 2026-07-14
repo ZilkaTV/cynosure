@@ -78,9 +78,11 @@ export default function Speedrun() {
             </div>
           )}
           <p className="mt-3 text-xs text-slate-500">
-            The site pulls the game from OpenFront and checks every rule automatically. Only your own
-            fastest valid run is kept. Old-version games can't be auto-verified - use the replay tool link
-            above with the game id to check them manually.
+            The site pulls the game from OpenFront and checks every rule automatically. Your time is measured
+            up to your last in-game action, not until the connection closes - so idling on the win screen or
+            leaving a replay open afterwards doesn't inflate it. Only your own fastest valid run is kept.
+            Old-version games can't be auto-verified - use the replay tool link above with the game id to
+            check them manually.
           </p>
         </Card>
       </section>

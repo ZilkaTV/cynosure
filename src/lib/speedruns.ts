@@ -4,7 +4,7 @@
 // game from OpenFront, checks every condition, and - if valid and faster than
 // their current best - records the time.
 
-import { fetchGameDetail, type GameDetail } from './openfront'
+import { fetchGameDetail, fetchLastActionSeconds, type GameDetail } from './openfront'
 import { supabase } from './supabase'
 
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
@@ -96,6 +96,13 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string): Pro
 
   const v = verifySpeedrun(detail)
   if (!v.ok) return { ok: false, message: v.reason ?? 'This game does not meet the speedrun rules.' }
+
+  // OpenFront's duration measures until the connection closes, not until the
+  // game is won - a player can win and then idle/watch/disconnect late,
+  // inflating it well past the real result. Use the last real in-game action
+  // instead, when it's available.
+  const actualSeconds = (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
+  v.seconds = Math.round(actualSeconds)
 
   if (!supabase) return { ok: true, message: `Verified (${fmtTime(v.seconds)})! Connect the backend to save times.`, seconds: v.seconds }
 

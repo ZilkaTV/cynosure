@@ -5,9 +5,16 @@
 // font, which is what rendered inconsistently ("WhatsApp-style" on some
 // systems, invisible on others) before.
 
+const VARIATION_SELECTOR_16 = 0xfe0f
+
 function toCodepoints(char: string): string {
+  // Twemoji's SVG filenames drop the U+FE0F "emoji presentation" variation
+  // selector for basically every character we use (⛏️, 🛠️, ⚔️, 🛡️, 🗺️, 🎖️
+  // all 404 with it in the filename, 200 without) - so strip it before joining.
   return Array.from(char)
-    .map((c) => c.codePointAt(0)!.toString(16))
+    .map((c) => c.codePointAt(0)!)
+    .filter((cp) => cp !== VARIATION_SELECTOR_16)
+    .map((cp) => cp.toString(16))
     .join('-')
 }
 

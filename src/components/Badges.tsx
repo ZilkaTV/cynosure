@@ -73,8 +73,9 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
         <span key={b.id} className="relative">
           <button
             type="button"
-            title={`${b.name} - ${b.desc}`}
             onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
+            onMouseEnter={() => setOpenId(b.id)}
+            onMouseLeave={() => setOpenId((id) => (id === b.id ? null : id))}
             className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
           >
             <BadgeVisual badge={b} className="h-4 w-4 text-xs" />

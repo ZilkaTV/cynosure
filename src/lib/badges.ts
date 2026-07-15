@@ -149,10 +149,10 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: fastest ? b.fastest.descWithLeader(fmtTime(fastest.v)) : b.fastest.descNoLeader,
     },
     // ── milestones (permanent) ──
-    { id: 'good', name: b.good.name, kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: b.good.desc(m.allWins) },
-    { id: 'god', name: b.god.name, kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: b.god.desc(m.allWins) },
+    { id: 'good', name: b.good.name, kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: b.good.desc },
+    { id: 'god', name: b.god.name, kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: b.god.desc },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
-    { id: 'pusher', name: b.pusher.name, kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: b.pusher.desc(m.bumpCount) },
+    { id: 'pusher', name: b.pusher.name, kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: b.pusher.desc },
     // ── monthly (losable) ──
     {
       id: 'predator',

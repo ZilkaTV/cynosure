@@ -104,6 +104,11 @@ export default function Register() {
       // member editing their settings (timezone, etc) shouldn't get locked
       // out just because they haven't played recently.
       if (!profile) {
+        if (!nationality) {
+          setError(t.register.nationalityRequired)
+          setBusy(false)
+          return
+        }
         const recentGames = await fetchPlayerGames(id, 3)
         if (!recentGames.some((g) => g.clanTag === CLAN_TAG)) {
           setError(t.register.notClanMember(CLAN_TAG))

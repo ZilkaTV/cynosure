@@ -91,7 +91,15 @@ create policy "anyone can update cyn_bumps"
 -- ============================================================
 
 create table if not exists public.cyn_event_admins (
-  discord_username text primary key
+  discord_username text primary key,
+  -- The real, stable Supabase auth user id (auth.uid()) behind this admin.
+  -- RLS below is keyed on THIS, never on user_metadata: user_metadata is
+  -- freely editable by the signed-in user themselves via supabase.auth.
+  -- updateUser(), so checking it in a security policy would let anyone
+  -- rewrite their own metadata to impersonate an admin's name and grant
+  -- themselves access. auth.uid() (the "sub" claim) cannot be forged by
+  -- the client, so it's the only thing that's actually safe to gate on.
+  user_id uuid references auth.users(id)
 );
 
 alter table public.cyn_event_admins enable row level security;
@@ -99,41 +107,55 @@ alter table public.cyn_event_admins enable row level security;
 create policy "public can read cyn_event_admins"
   on public.cyn_event_admins for select to public using (true);
 
--- Only an EXISTING admin can whitelist/remove another one - this mirrors the
--- same discord-name fallback chain discordDisplayName() uses client-side
--- (see src/lib/useSession.ts), checked against the admins table itself so a
--- signed-in visitor who isn't already an admin can't call this directly.
+-- Only an EXISTING admin (matched by their real auth user id) can
+-- whitelist/remove another one.
 create policy "admins can add cyn_event_admins"
   on public.cyn_event_admins for insert to authenticated with check (
-    exists (
-      select 1 from public.cyn_event_admins a
-      where a.discord_username = coalesce(
-        auth.jwt() -> 'user_metadata' ->> 'full_name',
-        auth.jwt() -> 'user_metadata' ->> 'name',
-        auth.jwt() -> 'user_metadata' ->> 'preferred_username',
-        auth.jwt() -> 'user_metadata' ->> 'user_name',
-        auth.jwt() -> 'user_metadata' ->> 'username',
-        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name'
-      )
-    )
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
   );
 
 create policy "admins can remove cyn_event_admins"
   on public.cyn_event_admins for delete to authenticated using (
-    exists (
-      select 1 from public.cyn_event_admins a
-      where a.discord_username = coalesce(
-        auth.jwt() -> 'user_metadata' ->> 'full_name',
-        auth.jwt() -> 'user_metadata' ->> 'name',
-        auth.jwt() -> 'user_metadata' ->> 'preferred_username',
-        auth.jwt() -> 'user_metadata' ->> 'user_name',
-        auth.jwt() -> 'user_metadata' ->> 'username',
-        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name'
-      )
-    )
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
   );
 
--- Seed the initial admins (edit/add rows here as needed).
+-- New admin rows only carry a discord_username (typed by whoever is
+-- promoting someone from the member profile page) - this trigger resolves
+-- that name to the target's real auth user id automatically, the same way
+-- discordDisplayName() resolves a session client-side, but by reading the
+-- authoritative auth.users record server-side instead of a client-supplied
+-- (and therefore spoofable) JWT claim.
+create or replace function public.cyn_event_admins_fill_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.user_id is null then
+    select u.id into new.user_id
+    from auth.users u
+    where coalesce(
+      u.raw_user_meta_data ->> 'full_name',
+      u.raw_user_meta_data ->> 'name',
+      u.raw_user_meta_data ->> 'preferred_username',
+      u.raw_user_meta_data ->> 'user_name',
+      u.raw_user_meta_data ->> 'username',
+      u.raw_user_meta_data -> 'custom_claims' ->> 'global_name'
+    ) = new.discord_username
+    limit 1;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_event_admins_fill_user_id on public.cyn_event_admins;
+create trigger trg_cyn_event_admins_fill_user_id
+  before insert on public.cyn_event_admins
+  for each row execute function public.cyn_event_admins_fill_user_id();
+
+-- Seed the initial admins (edit/add rows here as needed). user_id is filled
+-- in by the trigger above, provided the person has signed in at least once.
 insert into public.cyn_event_admins (discord_username) values
   ('zjlka'),
   ('Kaizeron')

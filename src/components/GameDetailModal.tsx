@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
-import type { GameTileStats } from '../lib/replaySim'
+import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -75,9 +75,13 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
 
   // Max Tiles replays the whole game to find each player's peak (and their
   // real end-of-game tile count), so it's computed separately and doesn't
-  // block the rest of the modal - see replaySim.ts.
+  // block the rest of the modal - see replaySim.ts. The replay itself runs
+  // in the background independent of this component (see getGameTileStats),
+  // so closing the modal or switching games doesn't restart it, and its
+  // result is cached permanently once computed.
   const [tileStats, setTileStats] = useState<GameTileStats | null>(null)
   const [tileState, setTileState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [tileProgress, setTileProgress] = useState<ReplayProgress | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -100,25 +104,29 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
     if (!gameId) return
     setTileState('loading')
     setTileStats(null)
-    // Replaying a whole game runs a CPU-heavy tick loop - without actually
-    // aborting it, switching to a different game (or closing the modal)
-    // would leave the old replay running in the background, competing for
-    // CPU with whatever comes next. See getGameTileStats in replaySim.ts.
-    const controller = new AbortController()
-    import('../lib/replaySim')
-      .then(({ getGameTileStats }) => getGameTileStats(gameId, controller.signal))
-      .then((result) => {
-        if (controller.signal.aborted) return
-        if (result) {
-          setTileStats(result)
-          setTileState('ok')
-        } else setTileState('error')
+    setTileProgress(null)
+    let cancelled = false
+    let unsubscribe = () => {}
+    import('../lib/replaySim').then(({ getGameTileStats, subscribeReplayProgress }) => {
+      if (cancelled) return
+      unsubscribe = subscribeReplayProgress(gameId, (p) => {
+        if (!cancelled) setTileProgress(p)
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setTileState('error')
-      })
+      getGameTileStats(gameId)
+        .then((result) => {
+          if (cancelled) return
+          if (result) {
+            setTileStats(result)
+            setTileState('ok')
+          } else setTileState('error')
+        })
+        .catch(() => {
+          if (!cancelled) setTileState('error')
+        })
+    })
     return () => {
-      controller.abort()
+      cancelled = true
+      unsubscribe()
     }
   }, [gameId])
 
@@ -264,7 +272,13 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                           )}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-400">
-                          {tileState === 'loading' && <span className="text-slate-600">{t.gameDetail.computing}</span>}
+                          {tileState === 'loading' && (
+                            <span className="text-slate-600">
+                              {tileProgress && tileProgress.totalTicks > 0
+                                ? `${t.gameDetail.computing} ${Math.min(99, Math.round((tileProgress.tick / tileProgress.totalTicks) * 100))}%`
+                                : t.gameDetail.computing}
+                            </span>
+                          )}
                           {tileState === 'error' && <span className="text-slate-600">-</span>}
                           {tileState === 'ok' &&
                             (r.maxPercent != null ? `${r.maxPercent.toFixed(1)}%` : <span className="text-slate-600">-</span>)}

@@ -31,14 +31,22 @@ const API_BASE = '/api/of'
 // (a player's territory doesn't meaningfully swing within half a second).
 const SAMPLE_EVERY_N_TICKS = 5
 
-// How often the tick loop yields back to the browser (setTimeout 0) so the
-// tab stays responsive during a long replay instead of freezing solid. Kept
-// coarse on purpose: browsers throttle timers hard in a backgrounded tab
-// (observed: 1000ms+ per setTimeout(0) once the tab isn't visible/focused),
-// so yielding too often can turn a 20s replay into several minutes if the
-// visitor switches tabs while it runs. Every 200 ticks is still frequent
-// enough to keep a focused tab responsive without paying that cost badly.
-const YIELD_EVERY_N_TICKS = 200
+// How often the tick loop yields back to the browser so the tab stays
+// responsive during a long replay instead of freezing solid. Backgrounded
+// tabs throttle timers hard (observed: 1000ms+ per yield once the tab isn't
+// visible/focused), so a coarser interval is used while hidden to avoid
+// turning a 20s replay into several minutes; a tighter interval is used
+// while the tab is visible/focused, since that's when jank is actually felt.
+const YIELD_EVERY_N_TICKS_VISIBLE = 40
+const YIELD_EVERY_N_TICKS_HIDDEN = 200
+
+// Hard wall-clock ceiling on a single replay. Some games (100+ bots, tens of
+// thousands of ticks) are heavy enough that the tick loop could realistically
+// run for many minutes - rather than let it hang indefinitely (which reads
+// as "broken" to a visitor watching a spinner), give up cleanly after this
+// long and let the UI show an error state instead. Not cached as a permanent
+// failure - reopening the game just tries again.
+const MAX_COMPUTE_MS = 3 * 60 * 1000
 
 // Map assets are fetched straight from OpenFront's repo at the same commit
 // the vendored engine is pinned to, so terrain data always matches the code
@@ -241,24 +249,73 @@ export interface GameTileStats {
   finalTiles: Record<string, number>
 }
 
+export interface ReplayProgress {
+  tick: number
+  totalTicks: number
+}
+
+// A finished game's tile stats never change, so completed results are cached
+// forever (no TTL) in the same IndexedDB store the map binaries use.
+function statsKey(gameId: string): string {
+  return `stats:${gameId}`
+}
+
+// Computation is keyed by gameId at module scope (not tied to any component)
+// so switching games or closing the modal doesn't stop it, and reopening the
+// same game while it's still running reattaches to the SAME run instead of
+// starting a second one from scratch.
+const inFlight = new Map<string, Promise<GameTileStats | null>>()
+const progressListeners = new Map<string, Set<(p: ReplayProgress) => void>>()
+const lastProgress = new Map<string, ReplayProgress>()
+
+function notifyProgress(gameId: string, p: ReplayProgress) {
+  lastProgress.set(gameId, p)
+  progressListeners.get(gameId)?.forEach((fn) => fn(p))
+}
+
+/** Subscribe to tick progress for a game currently being replayed. Fires immediately with the last known progress, if any. */
+export function subscribeReplayProgress(gameId: string, fn: (p: ReplayProgress) => void): () => void {
+  if (!progressListeners.has(gameId)) progressListeners.set(gameId, new Set())
+  progressListeners.get(gameId)!.add(fn)
+  const last = lastProgress.get(gameId)
+  if (last) fn(last)
+  return () => progressListeners.get(gameId)?.delete(fn)
+}
+
 /**
  * Replays a full game tick by tick to find each player's peak tile count
  * (a true running max, not a single checkpoint) plus their tile count at
  * the end - both unavailable from OpenFront's public API, which only
  * exposes a single final-tiles number per player (and even that is missing
- * for some players). Returns null if the game couldn't be fetched, replayed,
- * or `signal` was aborted. This replays the ENTIRE game, so it can take up
- * to a minute or more for a long match - callers should show a loading
- * state that says so, and pass an AbortSignal that fires when the result is
- * no longer wanted (e.g. the caller switched to a different game) - without
- * it, closing/switching away doesn't actually stop the tick loop, and it
- * keeps burning CPU in the background competing with whatever replay comes
- * next.
+ * for some players). Returns null if the game couldn't be fetched or
+ * replayed. This replays the ENTIRE game, so it can take up to a few
+ * minutes for a very long/heavy match - the computation runs in the
+ * background independent of any caller, is shared across every caller
+ * asking for the same gameId, and its result is cached permanently, so a
+ * visitor closing and reopening the same game's detail modal never pays
+ * for the replay twice.
  */
-export async function getGameTileStats(gameId: string, signal?: AbortSignal): Promise<GameTileStats | null> {
+export function getGameTileStats(gameId: string): Promise<GameTileStats | null> {
+  const running = inFlight.get(gameId)
+  if (running) return running
+
+  const p = (async () => {
+    const cached = await idbGet<GameTileStats>(statsKey(gameId))
+    if (cached) return cached
+    const result = await computeGameTileStats(gameId)
+    if (result) await idbSet(statsKey(gameId), result)
+    return result
+  })().finally(() => inFlight.delete(gameId))
+
+  inFlight.set(gameId, p)
+  return p
+}
+
+async function computeGameTileStats(gameId: string): Promise<GameTileStats | null> {
+  const startedAt = Date.now()
   try {
     const [raw, rawTurns] = await Promise.all([fetchRawInfo(gameId), fetchRawTurns(gameId)])
-    if (!raw || signal?.aborted) return null
+    if (!raw) return null
 
     const gameStart = buildGameStartInfo(raw)
     const lastTick = raw.num_turns
@@ -284,13 +341,14 @@ export async function getGameTileStats(gameId: string, signal?: AbortSignal): Pr
     let tick = 0
     while (runner.executeNextTick()) {
       tick++
-      // Ticking a long, many-player game is CPU-heavy - yielding periodically
-      // keeps the tab responsive (and the loading state actually animating)
-      // instead of freezing the whole page for the entire replay. It's also
-      // the only place an abort can actually take effect mid-replay.
-      if (tick % YIELD_EVERY_N_TICKS === 0) {
+      const yieldEvery = document.hidden ? YIELD_EVERY_N_TICKS_HIDDEN : YIELD_EVERY_N_TICKS_VISIBLE
+      if (tick % yieldEvery === 0) {
+        notifyProgress(gameId, { tick, totalTicks: lastTick })
         await new Promise((r) => setTimeout(r, 0))
-        if (signal?.aborted) return null
+        if (Date.now() - startedAt > MAX_COMPUTE_MS) {
+          console.error(`Replay simulation for ${gameId} exceeded ${MAX_COMPUTE_MS}ms, giving up`)
+          return null
+        }
       }
       if (tick % SAMPLE_EVERY_N_TICKS !== 0) continue
       for (const player of runner.game.players()) {
@@ -322,5 +380,8 @@ export async function getGameTileStats(gameId: string, signal?: AbortSignal): Pr
   } catch (err) {
     console.error('Replay simulation failed', err)
     return null
+  } finally {
+    progressListeners.delete(gameId)
+    lastProgress.delete(gameId)
   }
 }

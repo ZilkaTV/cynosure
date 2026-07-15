@@ -105,12 +105,12 @@ create policy "admins can add cyn_event_admins"
     exists (
       select 1 from public.cyn_event_admins a
       where a.discord_username = coalesce(
-        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name',
         auth.jwt() -> 'user_metadata' ->> 'full_name',
         auth.jwt() -> 'user_metadata' ->> 'name',
         auth.jwt() -> 'user_metadata' ->> 'preferred_username',
         auth.jwt() -> 'user_metadata' ->> 'user_name',
-        auth.jwt() -> 'user_metadata' ->> 'username'
+        auth.jwt() -> 'user_metadata' ->> 'username',
+        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name'
       )
     )
   );
@@ -120,12 +120,12 @@ create policy "admins can remove cyn_event_admins"
     exists (
       select 1 from public.cyn_event_admins a
       where a.discord_username = coalesce(
-        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name',
         auth.jwt() -> 'user_metadata' ->> 'full_name',
         auth.jwt() -> 'user_metadata' ->> 'name',
         auth.jwt() -> 'user_metadata' ->> 'preferred_username',
         auth.jwt() -> 'user_metadata' ->> 'user_name',
-        auth.jwt() -> 'user_metadata' ->> 'username'
+        auth.jwt() -> 'user_metadata' ->> 'username',
+        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name'
       )
     )
   );

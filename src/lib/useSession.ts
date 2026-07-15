@@ -21,25 +21,29 @@ export function useSession() {
 }
 
 /**
- * Discord OAuth via Supabase doesn't always populate the same metadata key -
- * it's depended on custom_claims.global_name (the new Discord display name),
- * full_name, name, preferred_username or user_name showing up depending on
- * how/when the session was issued. user_metadata itself can also be missing
- * entirely right after the OAuth redirect, before a session refresh fills it
- * in - guard against that too, since reading a field off `undefined` would
- * throw and silently break the register form's name auto-fill (the effect
- * calling this never gets to set anything, leaving the field empty).
+ * Discord OAuth via Supabase doesn't always populate the same metadata key.
+ * full_name is Supabase's own mapping of Discord's raw, unique "username"
+ * field (e.g. "zjlka") - confirmed from Supabase auth's Go source, where
+ * FullName is set to u.Name straight from Discord's username JSON field.
+ * custom_claims.global_name is Discord's newer, changeable display name
+ * (e.g. "Zilka") and must NOT be checked first, since anything stored
+ * elsewhere (cyn_event_admins, registered profiles) uses the raw username.
+ * user_metadata itself can also be missing entirely right after the OAuth
+ * redirect, before a session refresh fills it in - guard against that too,
+ * since reading a field off `undefined` would throw and silently break the
+ * register form's name auto-fill (the effect calling this never gets to set
+ * anything, leaving the field empty).
  */
 export function discordDisplayName(session: Session): string {
   const m = session.user.user_metadata ?? {}
   const claims = (m.custom_claims ?? {}) as Record<string, unknown>
   return (
-    (claims.global_name as string | undefined) ||
     m.full_name ||
     m.name ||
     m.preferred_username ||
     m.user_name ||
     m.username ||
+    (claims.global_name as string | undefined) ||
     'Player'
   )
 }

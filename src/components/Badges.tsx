@@ -73,6 +73,7 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
         <span key={b.id} className="relative">
           <button
             type="button"
+            title={`${b.name} - ${b.desc}`}
             onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
             className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
           >

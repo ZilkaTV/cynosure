@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DISCORD_GUILD_ID, DISCORD_INVITE } from '../config'
+import { useLanguage } from '../i18n/LanguageContext'
 
 interface WidgetChannel {
   id: string
@@ -28,6 +29,7 @@ const DiscordIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
 )
 
 export default function DiscordWidget() {
+  const { t } = useLanguage()
   const [data, setData] = useState<WidgetData | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'disabled' | 'error'>('loading')
 
@@ -67,35 +69,35 @@ export default function DiscordWidget() {
     <div className="panel overflow-hidden">
       <div className="flex items-center justify-between bg-[#5865F2] px-4 py-3 text-white">
         <span className="inline-flex items-center gap-2 font-semibold">
-          <DiscordIcon /> Discord
+          <DiscordIcon /> {t.footer.discord}
         </span>
         {state === 'ok' && (
           <span className="inline-flex items-center gap-1.5 text-sm">
             <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            {data?.presence_count} online
+            {t.discordWidget.online(data?.presence_count ?? 0)}
           </span>
         )}
       </div>
 
       <div className="max-h-[420px] overflow-y-auto p-3">
-        {state === 'loading' && <p className="px-2 py-6 text-center text-sm text-slate-500">Loading…</p>}
+        {state === 'loading' && <p className="px-2 py-6 text-center text-sm text-slate-500">{t.discordWidget.loading}</p>}
 
         {state === 'disabled' && (
           <div className="px-2 py-4 text-sm text-slate-400">
-            <p className="mb-1 font-medium text-slate-300">Widget not enabled yet</p>
+            <p className="mb-1 font-medium text-slate-300">{t.discordWidget.widgetNotEnabled}</p>
             <p className="text-xs leading-relaxed text-slate-500">
-              Enable it in Discord: <span className="text-slate-300">Server Settings → Widget →
-              “Enable Server Widget”.</span> Live voice channels will appear here automatically.
+              {t.discordWidget.widgetNotEnabledBodyPre} <span className="text-slate-300">{t.discordWidget.widgetNotEnabledBodySetting}</span>{' '}
+              {t.discordWidget.widgetNotEnabledBodyPost}
             </p>
           </div>
         )}
 
         {state === 'error' && (
-          <p className="px-2 py-4 text-sm text-slate-500">Couldn’t reach Discord right now.</p>
+          <p className="px-2 py-4 text-sm text-slate-500">{t.discordWidget.couldNotReach}</p>
         )}
 
         {state === 'ok' && voiceChannels.length === 0 && (
-          <p className="px-2 py-4 text-sm text-slate-500">No public voice channels are exposed.</p>
+          <p className="px-2 py-4 text-sm text-slate-500">{t.discordWidget.noVoiceChannels}</p>
         )}
 
         {state === 'ok' &&
@@ -133,7 +135,7 @@ export default function DiscordWidget() {
           rel="noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"
         >
-          <DiscordIcon className="h-4 w-4" /> Join Server
+          <DiscordIcon className="h-4 w-4" /> {t.discordWidget.joinServer}
         </a>
       </div>
     </div>

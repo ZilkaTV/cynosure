@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CLAN_TAG } from '../config'
+import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
@@ -14,16 +14,18 @@ import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { Card, LastUpdated, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { useLanguage } from '../i18n/LanguageContext'
+import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
 import type { PlayerGame } from '../lib/openfront'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): Column[] {
   return [
     {
       key: 'name',
-      label: 'Name',
+      label: t.monthly.colName,
       render: (m) => (
         <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
           {m.name}
@@ -33,20 +35,20 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'region',
-      label: 'Region',
+      label: t.home.colRegion,
       render: (m) => m.timezone ?? <span className="text-slate-600">-</span>,
       sortValue: (m) => m.timezone ?? '',
     },
     {
       key: 'badges',
-      label: 'Badges',
+      label: t.home.colBadges,
       align: 'center',
-      render: (m) => <BadgeStrip badges={computeBadges(m, all)} />,
-      sortValue: (m) => computeBadges(m, all).filter((b) => b.earned).length,
+      render: (m) => <BadgeStrip badges={computeBadges(m, all, t)} />,
+      sortValue: (m) => computeBadges(m, all, t).filter((b) => b.earned).length,
     },
     {
       key: 'ffa',
-      label: 'FFA',
+      label: t.home.colFfa,
       align: 'right',
       render: (m) => (
         <>
@@ -58,7 +60,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'team',
-      label: 'Team',
+      label: t.home.colTeam,
       align: 'right',
       render: (m) => (
         <>
@@ -70,7 +72,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'ranked',
-      label: '1v1',
+      label: t.home.col1v1,
       align: 'right',
       render: (m) => (
         <>
@@ -82,7 +84,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'elo',
-      label: '1v1 Elo',
+      label: t.home.colElo,
       align: 'right',
       render: (m) =>
         m.elo == null ? (
@@ -97,14 +99,14 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'peak',
-      label: 'Peak',
+      label: t.home.colPeak,
       align: 'right',
       render: (m) => (m.peakElo == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
       sortValue: (m) => m.peakElo ?? -1,
     },
     {
       key: 'speedrun',
-      label: 'Speedrun',
+      label: t.home.colSpeedrun,
       align: 'right',
       render: (m) =>
         m.speedrunSeconds == null ? (
@@ -116,7 +118,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'bumps',
-      label: 'Bumps',
+      label: t.home.colBumps,
       align: 'right',
       render: (m) =>
         m.bumpCount > 0 ? (
@@ -131,7 +133,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas): Column[] {
     },
     {
       key: 'all',
-      label: 'All Wins',
+      label: t.home.statAllWins,
       align: 'right',
       render: (m) => (
         <span className="font-display font-bold text-accent-light">
@@ -155,13 +157,14 @@ function fmtDuration(s: number): string {
 
 export default function Home() {
   const { profile } = useProfile()
+  const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
 
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
-  const columns = makeColumns(data?.members ?? [], deltas)
+  const columns = makeColumns(data?.members ?? [], deltas, t)
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   // Same game can show up under multiple members if several CYN players were
@@ -180,25 +183,23 @@ export default function Home() {
   return (
     <StatsShell>
       <section>
-        <SectionHeading center eyebrow={`[${CLAN_TAG}] Cynosure`} title="Clan Overview" />
+        <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label="Members" value={totals ? totals.members : '…'} accent="plain" />
-          <StatCard label="Top 1v1 Elo" value={totals?.topElo ?? '…'} accent="gold" />
-          <StatCard label="1v1 Wins" value={totals ? totals.rankedWins : '…'} accent="purple" />
-          <StatCard label="Team Wins" value={totals ? totals.teamWins : '…'} accent="purple" />
-          <StatCard className="col-span-2 sm:col-span-1" label="All Wins" value={totals ? totals.allWins : '…'} accent="gold" />
+          <StatCard label={t.home.statMembers} value={totals ? totals.members : '…'} accent="plain" />
+          <StatCard label={t.home.statTopElo} value={totals?.topElo ?? '…'} accent="gold" />
+          <StatCard label={t.home.stat1v1Wins} value={totals ? totals.rankedWins : '…'} accent="purple" />
+          <StatCard label={t.home.statTeamWins} value={totals ? totals.teamWins : '…'} accent="purple" />
+          <StatCard className="col-span-2 sm:col-span-1" label={t.home.statAllWins} value={totals ? totals.allWins : '…'} accent="gold" />
         </div>
       </section>
 
       <TagNotice />
 
       <section className="space-y-4">
-        <SectionHeading center eyebrow="Roster" title="Member Stats" />
-        {loading && <Spinner label="Pulling live data from OpenFront…" />}
+        <SectionHeading center eyebrow={t.home.rosterEyebrow} title={t.home.memberStatsTitle} />
+        {loading && <Spinner label={t.common.loadingLiveData} />}
         {error && !data && (
-          <Card className="text-center text-sm text-signal-red">
-            Couldn’t load stats: {error}. The OpenFront API rate-limits hard - try Refresh in a minute.
-          </Card>
+          <Card className="text-center text-sm text-signal-red">{t.home.loadErrorFull(error)}</Card>
         )}
         {data && (
           <>
@@ -206,17 +207,14 @@ export default function Home() {
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
             {data.oldestGame && (
               <p className="text-center text-xs text-slate-500">
-                Counting [{CLAN_TAG}] games since{' '}
+                {t.home.countingSincePrefix(CLAN_TAG)}{' '}
                 <span className="text-slate-300">
                   {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>{' '}
-                - older games fall outside OpenFront’s public history window.
+                {t.home.countingSinceSuffix}
               </p>
             )}
-            <p className="text-center text-xs text-slate-500">
-              1v1 Elo comes from OpenFront’s ranked ladder (global top 100 only). Click a name for that
-              member’s full profile.
-            </p>
+            <p className="text-center text-xs text-slate-500">{t.home.eloNote}</p>
           </>
         )}
       </section>
@@ -230,18 +228,18 @@ export default function Home() {
 
       {recentGames.length > 0 && (
         <section className="space-y-4">
-          <SectionHeading center eyebrow="Activity" title="Latest Games" />
+          <SectionHeading center eyebrow={t.home.activityEyebrow} title={t.home.latestGamesTitle} />
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px] text-sm">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-4 py-3 text-left font-semibold">Date</th>
-                    <th className="px-4 py-3 text-left font-semibold">Player</th>
-                    <th className="px-4 py-3 text-left font-semibold">Mode</th>
-                    <th className="px-4 py-3 text-left font-semibold">Map</th>
-                    <th className="px-4 py-3 text-right font-semibold">Duration</th>
-                    <th className="px-4 py-3 text-right font-semibold">Result</th>
+                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
+                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
+                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,7 +248,7 @@ export default function Home() {
                       key={g.gameId}
                       onClick={() => setOpenGame(g.gameId)}
                       className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                      title="Click for the full post-game report"
+                      title={t.home.clickForReportTitle}
                     >
                       <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                       <td className="px-4 py-2.5 text-white">{memberName}</td>

@@ -6,6 +6,8 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, EloDelta, LastUpdated, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
+import { useLanguage } from '../i18n/LanguageContext'
+import type { TranslationShape } from '../i18n/translations'
 import {
   availableMonths,
   currentMonthKey,
@@ -26,25 +28,33 @@ function fmtGold(n: number | null): string {
   return `${Math.round(n)}`
 }
 
-const rules: Partial<Record<Variant, React.ReactNode>> = {
-  ffa: (
-    <>
-      <li><span className="font-semibold text-white">1 point</span> per win.</li>
-      <li>
-        <span className="font-semibold text-white">Win streak (2+ in a row, no loss between):</span> every win
-        in the streak is worth <span className="font-semibold text-white">2 points</span>.
-      </li>
-    </>
-  ),
-  team: (
-    <>
-      <li><span className="font-semibold text-white">1 point</span> per win.</li>
-      <li>
-        <span className="font-semibold text-white">2 points</span> for a win played with another
-        [{CLAN_TAG}]-tagged player.
-      </li>
-    </>
-  ),
+function rulesFor(variant: Variant, t: TranslationShape): React.ReactNode | null {
+  if (variant === 'ffa') {
+    return (
+      <>
+        <li>
+          <span className="font-semibold text-white">{t.monthly.rulesFfa1Bold}</span> {t.monthly.rulesFfa1Rest}
+        </li>
+        <li>
+          <span className="font-semibold text-white">{t.monthly.rulesFfa2Label}</span> {t.monthly.rulesFfa2Mid}{' '}
+          <span className="font-semibold text-white">{t.monthly.rulesFfa2Bold}</span>.
+        </li>
+      </>
+    )
+  }
+  if (variant === 'team') {
+    return (
+      <>
+        <li>
+          <span className="font-semibold text-white">{t.monthly.rulesTeam1Bold}</span> {t.monthly.rulesTeam1Rest}
+        </li>
+        <li>
+          <span className="font-semibold text-white">{t.monthly.rulesTeam2Bold}</span> {t.monthly.rulesTeam2Rest(CLAN_TAG)}
+        </li>
+      </>
+    )
+  }
+  return null
 }
 
 interface Leader {
@@ -80,6 +90,7 @@ function TitleCard({
 
 export default function Monthly({ variant }: { variant: Variant }) {
   const { profile } = useProfile()
+  const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
   const [month, setMonth] = useState<string>(currentMonthKey())
 
@@ -97,15 +108,16 @@ export default function Monthly({ variant }: { variant: Variant }) {
     return best ? { name: best.m.name, value: best.v } : null
   }
 
-  const title = variant === 'ffa' ? 'FFA' : variant === 'team' ? 'Team' : '1v1 Ranked'
+  const title = variant === 'ffa' ? t.monthly.titleFfa : variant === 'team' ? t.monthly.titleTeam : t.monthly.title1v1
+  const rules = rulesFor(variant, t)
 
   return (
     <StatsShell>
       <section className="space-y-4">
-        <SectionHeading center eyebrow={`Monthly · ${monthLabel(month)}`} title={title} />
+        <SectionHeading center eyebrow={`${t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
 
         <div className="flex items-center justify-center gap-2 text-sm">
-          <label className="text-slate-400">Month</label>
+          <label className="text-slate-400">{t.monthly.monthLabel}</label>
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
@@ -114,17 +126,17 @@ export default function Monthly({ variant }: { variant: Variant }) {
             {months.map((mk) => (
               <option key={mk} value={mk}>
                 {monthLabel(mk)}
-                {mk === currentMonthKey() ? ' (current)' : ''}
+                {mk === currentMonthKey() ? ` ${t.monthly.currentSuffix}` : ''}
               </option>
             ))}
           </select>
-          {!isCurrent && <span className="text-xs text-slate-500">archived</span>}
+          {!isCurrent && <span className="text-xs text-slate-500">{t.monthly.archived}</span>}
         </div>
 
-        {rules[variant] && (
+        {rules && (
           <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">Scoring</p>
-            <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules[variant]}</ul>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{t.monthly.scoring}</p>
+            <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules}</ul>
           </div>
         )}
       </section>
@@ -132,8 +144,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
       <TagNotice />
 
       <section className="space-y-4">
-        {loading && <Spinner label="Pulling live data from OpenFront…" />}
-        {error && !data && <Card className="text-center text-sm text-signal-red">Couldn’t load stats: {error}</Card>}
+        {loading && <Spinner label={t.common.loadingLiveData} />}
+        {error && !data && <Card className="text-center text-sm text-signal-red">{t.monthly.loadError(error)}</Card>}
 
         {data && variant === 'ffa' && (() => {
           const rows = members
@@ -142,23 +154,23 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard emoji={EMOJI.bow} title="Predator" metric="Avg Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
-                <TitleCard emoji={EMOJI.bolt} title="Pro Player" metric="Win Streak" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
-                <TitleCard emoji={EMOJI.pickaxe} title="Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard emoji={EMOJI.bow} title={t.monthly.titlePredator} metric={t.monthly.metricAvgKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+                <TitleCard emoji={EMOJI.bolt} title={t.monthly.titlePro} metric={t.monthly.metricWinStreak} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-sm">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                        <th className="px-3 py-3 text-left font-semibold">#</th>
-                        <th className="px-3 py-3 text-left font-semibold">Name</th>
-                        <th className="px-3 py-3 text-right font-semibold">Wins</th>
-                        <th className="px-3 py-3 text-right font-semibold">Losses</th>
-                        <th className="px-3 py-3 text-right font-semibold">WR%</th>
-                        <th className="px-3 py-3 text-right font-semibold">Streak</th>
-                        <th className="px-3 py-3 text-right font-semibold">Avg Kills</th>
-                        <th className="px-3 py-3 text-right font-semibold">Points</th>
+                        <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                        <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWins}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWR}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colStreak}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colAvgKills}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colPoints}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -189,23 +201,23 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <TitleCard emoji={EMOJI.anchor} title="Marine" metric="Gold/min" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
-                <TitleCard emoji={EMOJI.blast} title="Destroyer" metric="Kills" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
-                <TitleCard emoji={EMOJI.wrench} title="Team Grinder" metric="Most Points" leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard emoji={EMOJI.anchor} title={t.monthly.titleMarine} metric={t.monthly.metricGoldMin} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
+                <TitleCard emoji={EMOJI.blast} title={t.monthly.titleDestroyer} metric={t.monthly.metricKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
+                <TitleCard emoji={EMOJI.wrench} title={t.monthly.titleTeamGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-sm">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                        <th className="px-3 py-3 text-left font-semibold">#</th>
-                        <th className="px-3 py-3 text-left font-semibold">Name</th>
-                        <th className="px-3 py-3 text-right font-semibold">Wins</th>
-                        <th className="px-3 py-3 text-right font-semibold">Losses</th>
-                        <th className="px-3 py-3 text-right font-semibold">WR%</th>
-                        <th className="px-3 py-3 text-right font-semibold">Kills</th>
-                        <th className="px-3 py-3 text-right font-semibold">Gold/min</th>
-                        <th className="px-3 py-3 text-right font-semibold">Points</th>
+                        <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                        <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWins}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWR}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colKills}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colGoldMin}</th>
+                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colPoints}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -239,13 +251,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
                 <table className="w-full min-w-[600px] text-sm">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                      <th className="px-4 py-3 text-left font-semibold">#</th>
-                      <th className="px-4 py-3 text-left font-semibold">Name</th>
-                      <th className="px-4 py-3 text-right font-semibold">Wins</th>
-                      <th className="px-4 py-3 text-right font-semibold">Losses</th>
-                      <th className="px-4 py-3 text-right font-semibold">WR%</th>
-                      <th className="px-4 py-3 text-right font-semibold">Elo Δ</th>
-                      <th className="px-4 py-3 text-right font-semibold">Current Elo</th>
+                      <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                      <th className="px-4 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colWins}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colWR}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colEloDelta}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colCurrentElo}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -271,10 +283,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           <>
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
             {(variant === 'ffa' || variant === 'team') && (
-              <p className="text-center text-xs text-slate-500">
-                Kills{variant === 'team' ? ' & gold' : ''} come from each game’s post-game report - available for
-                this month’s games (older games fill in over time). “-” = not fetched yet.
-              </p>
+              <p className="text-center text-xs text-slate-500">{t.monthly.killsNote(variant === 'team')}</p>
             )}
           </>
         )}

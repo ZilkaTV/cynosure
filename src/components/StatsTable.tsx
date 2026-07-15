@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { MemberStats } from '../lib/stats'
+import { useLanguage } from '../i18n/LanguageContext'
 
 export interface Column {
   key: string
@@ -15,13 +16,14 @@ export function StatsTable({
   members,
   columns,
   defaultSort,
-  emptyLabel = 'No members yet.',
+  emptyLabel,
 }: {
   members: MemberStats[]
   columns: Column[]
   defaultSort: string
   emptyLabel?: string
 }) {
+  const { t } = useLanguage()
   const [sortKey, setSortKey] = useState(defaultSort)
   const [dir, setDir] = useState<'asc' | 'desc'>('desc')
 
@@ -46,7 +48,7 @@ export function StatsTable({
   }
 
   if (members.length === 0) {
-    return <p className="panel px-5 py-8 text-center text-sm text-slate-500">{emptyLabel}</p>
+    return <p className="panel px-5 py-8 text-center text-sm text-slate-500">{emptyLabel ?? t.common.noMembersYet}</p>
   }
 
   return (

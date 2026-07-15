@@ -5,9 +5,11 @@ import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner, useCountdown } from '../components/ui'
 import { QUESTS, fetchClaimsToday, claimQuest, todayKey, nextResetAt } from '../lib/quests'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
+import { useLanguage } from '../i18n/LanguageContext'
 
 export default function Quests() {
   const { profile } = useProfile()
+  const { t } = useLanguage()
   const { data, loading, refresh } = useRoster(!!profile)
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -20,7 +22,7 @@ export default function Quests() {
   }, [profile, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return <RegistrationGate />
-  if (loading || !me) return <Spinner label="Loading quests…" />
+  if (loading || !me) return <Spinner label={t.common.loadingLiveData} />
 
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
@@ -42,11 +44,11 @@ export default function Quests() {
   return (
     <StatsShell>
       <section className="space-y-4">
-        <SectionHeading center eyebrow="Progression" title="Quests" />
+        <SectionHeading center eyebrow={t.quests.eyebrowProgression} title={t.nav.quests} />
         <Card className="text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-gold">{titleForLevel(progress.level)}</p>
           <p className="mt-1 font-display text-3xl font-bold text-white">
-            Level {progress.level}
+            {t.quests.levelPrefix} {progress.level}
             {progress.level < MAX_LEVEL && <span className="text-base font-normal text-slate-500"> / {MAX_LEVEL}</span>}
           </p>
           {progress.next != null ? (
@@ -58,29 +60,34 @@ export default function Quests() {
                 />
               </div>
               <p className="mt-1.5 text-xs text-slate-500">
-                {me.xp} XP · {progress.span - progress.into} XP to level {progress.level + 1}
+                {t.quests.xpToNext(me.xp, progress.span - progress.into, progress.level + 1)}
               </p>
             </>
           ) : (
-            <p className="mt-2 text-xs text-slate-500">{me.xp} XP · Max level reached</p>
+            <p className="mt-2 text-xs text-slate-500">{t.quests.maxLevelReached(me.xp)}</p>
           )}
         </Card>
       </section>
 
       <section className="space-y-4">
-        <SectionHeading center eyebrow={`Resets daily (UTC) · ${todayKey()}`} title="Daily Quests" />
+        <SectionHeading center eyebrow={`${t.quests.resetsDailyPrefix} · ${todayKey()}`} title={t.quests.dailyQuestsTitle} />
         <div className="space-y-3">
           {QUESTS.map((q) => {
             const done = q.check(me, coop)
             const claimed = claimedToday.has(q.id)
+            const qt = t.quests.items[q.id as keyof typeof t.quests.items]
             return (
               <Card key={q.id} className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-white">{q.name}</p>
-                  <p className="text-sm text-slate-400">{q.description}</p>
+                  <p className="font-semibold text-white">{qt?.name ?? q.name}</p>
+                  <p className="text-sm text-slate-400">{qt?.description ?? q.description}</p>
                   {msg[q.id] && <p className="mt-1 text-xs text-slate-500">{msg[q.id]}</p>}
-                  {claimed && <p className="mt-1 text-xs text-slate-500">Resets in {resetCountdown ?? 'a moment'}</p>}
-                  {!claimed && done && <p className="mt-1 text-xs font-semibold text-signal-green">Ready</p>}
+                  {claimed && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {resetCountdown ? t.quests.resetsIn(resetCountdown) : t.quests.resetsInAMoment}
+                    </p>
+                  )}
+                  {!claimed && done && <p className="mt-1 text-xs font-semibold text-signal-green">{t.quests.ready}</p>}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-display text-sm font-bold text-gold-light">+{q.xp} XP</span>
@@ -95,17 +102,14 @@ export default function Quests() {
                           : 'cursor-not-allowed bg-base-700 text-slate-500'
                     }`}
                   >
-                    {claimed ? 'Claimed' : busyId === q.id ? 'Claiming…' : done ? 'Claim' : 'Not yet'}
+                    {claimed ? t.quests.claimed : busyId === q.id ? t.quests.claiming : done ? t.quests.claim : t.quests.notYet}
                   </button>
                 </div>
               </Card>
             )
           })}
         </div>
-        <p className="text-center text-xs text-slate-500">
-          Quests check your OpenFront/site data directly - no proof needed. Progress fast at low levels;
-          the climb to level {MAX_LEVEL} takes years even playing every day.
-        </p>
+        <p className="text-center text-xs text-slate-500">{t.quests.footerNote(MAX_LEVEL)}</p>
       </section>
     </StatsShell>
   )

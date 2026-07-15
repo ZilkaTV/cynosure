@@ -7,14 +7,16 @@ import MemberProfile from './pages/MemberProfile'
 import Speedrun from './pages/Speedrun'
 import Events from './pages/Events'
 import Quests from './pages/Quests'
+import { useLanguage } from './i18n/LanguageContext'
 
 function NotFound() {
+  const { t } = useLanguage()
   return (
     <div className="py-20 text-center">
       <h1 className="font-display text-3xl font-bold text-white">404</h1>
-      <p className="mt-2 text-slate-400">This page drifted off the star chart.</p>
+      <p className="mt-2 text-slate-400">{t.notFound.body}</p>
       <Link to="/" className="btn-accent mt-6 inline-flex">
-        Back to overview
+        {t.notFound.button}
       </Link>
     </div>
   )

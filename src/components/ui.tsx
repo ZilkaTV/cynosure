@@ -1,4 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { CLAN_TAG } from '../config'
+import { useLanguage } from '../i18n/LanguageContext'
+import type { TranslationShape } from '../i18n/translations'
 
 /** Ticking "1h 23m" / "23m 05s" countdown to a target timestamp, or null once it's passed. */
 export function useCountdown(targetMs: number | null): string | null {
@@ -86,14 +89,15 @@ export function StatCard({
 
 /** Green/amber/grey dot summarising how active a member is (games in 30 days). */
 export function ActivityDot({ games }: { games: number }) {
+  const { t } = useLanguage()
   const { cls, label } =
     games >= 10
-      ? { cls: 'bg-signal-green', label: `Very active · ${games} games / 30d` }
+      ? { cls: 'bg-signal-green', label: t.ui.activityVeryActive(games) }
       : games >= 3
-        ? { cls: 'bg-gold', label: `Active · ${games} games / 30d` }
+        ? { cls: 'bg-gold', label: t.ui.activityActive(games) }
         : games >= 1
-          ? { cls: 'bg-signal-blue', label: `Light · ${games} games / 30d` }
-          : { cls: 'bg-base-500', label: 'Inactive · no CYN games in 30d' }
+          ? { cls: 'bg-signal-blue', label: t.ui.activityLight(games) }
+          : { cls: 'bg-base-500', label: t.ui.activityInactive(CLAN_TAG) }
   return (
     <span className="inline-flex items-center gap-2" title={label}>
       <span className={`h-2.5 w-2.5 rounded-full ${cls} ${games >= 10 ? 'animate-pulse' : ''}`} />
@@ -126,15 +130,15 @@ export function RefreshDelta({ value }: { value: number | undefined }) {
 }
 
 /** "5 minutes ago" style relative time. */
-export function relativeTime(ts: number): string {
+export function relativeTime(ts: number, t: TranslationShape): string {
   const s = Math.floor((Date.now() - ts) / 1000)
-  if (s < 60) return 'just now'
+  if (s < 60) return t.ui.justNow
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`
+  if (m < 60) return t.ui.minutesAgo(m)
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
+  if (h < 24) return t.ui.hoursAgo(h)
   const d = Math.floor(h / 24)
-  return `${d} day${d === 1 ? '' : 's'} ago`
+  return t.ui.daysAgo(d)
 }
 
 export function LastUpdated({
@@ -146,9 +150,10 @@ export function LastUpdated({
   onRefresh: () => void
   refreshing: boolean
 }) {
+  const { t } = useLanguage()
   return (
     <div className="flex items-center justify-center gap-3 text-xs text-slate-500">
-      <span>{ts ? `Updated ${relativeTime(ts)}` : 'Loading live data…'}</span>
+      <span>{ts ? t.ui.updatedAgo(relativeTime(ts, t)) : t.ui.loadingLiveDataShort}</span>
       <button
         onClick={onRefresh}
         disabled={refreshing}
@@ -158,7 +163,7 @@ export function LastUpdated({
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
         </svg>
-        {refreshing ? 'Refreshing…' : 'Refresh'}
+        {refreshing ? t.ui.refreshing : t.ui.refresh}
       </button>
     </div>
   )

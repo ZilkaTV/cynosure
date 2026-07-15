@@ -1,5 +1,6 @@
 import type { Badge, BadgeTier, IconKey } from '../lib/badges'
 import { Emoji, EMOJI } from './Emoji'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const TIER_RING: Record<BadgeTier, string> = {
   bronze: 'ring-2 ring-[#cd7f32]/70',
@@ -70,10 +71,11 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
 
 /** Full badge board (for the profile): earned in colour, others greyed. */
 export function BadgeBoard({ badges }: { badges: Badge[] }) {
+  const { t } = useLanguage()
   const groups: { key: Badge['group']; label: string }[] = [
-    { key: 'rank', label: 'Rank & Records' },
-    { key: 'monthly', label: 'Monthly (this month)' },
-    { key: 'milestone', label: 'Milestones (permanent)' },
+    { key: 'rank', label: t.badges.groupRank },
+    { key: 'monthly', label: t.badges.groupMonthly },
+    { key: 'milestone', label: t.badges.groupMilestone },
   ]
   return (
     <div className="space-y-5">

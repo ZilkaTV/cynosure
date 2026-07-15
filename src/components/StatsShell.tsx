@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
+import { useLanguage } from '../i18n/LanguageContext'
 
 /** Handy OpenFront community sites, shown to the right of the stats. */
 export function UsefulLinks() {
+  const { t } = useLanguage()
   return (
     <div className="panel overflow-hidden">
       <div className="border-b border-base-700 px-4 py-3">
-        <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">Useful Links</span>
+        <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{t.statsShell.usefulLinks}</span>
       </div>
       <ul className="divide-y divide-base-700/60">
         {USEFUL_LINKS.map((l) => (
@@ -56,14 +58,15 @@ export function StatsShell({ children }: { children: ReactNode }) {
 
 /** Prominent, unmissable notice that only CYN-tagged games are counted. */
 export function TagNotice() {
+  const { t } = useLanguage()
   return (
     <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
       <p className="font-display text-base font-bold uppercase tracking-wide text-gold-light sm:text-lg">
-        Only games played with the [{CLAN_TAG}] tag are counted
+        {t.statsShell.tagNoticeTitle(CLAN_TAG)}
       </p>
       <p className="mt-1 text-sm text-slate-300">
-        Every game is checked individually - wins played under no tag or a different tag are{' '}
-        <span className="font-semibold text-white">not</span> included.
+        {t.statsShell.tagNoticeBodyPre}{' '}
+        <span className="font-semibold text-white">{t.statsShell.tagNoticeBodyBold}</span> {t.statsShell.tagNoticeBodyPost}
       </p>
     </div>
   )
@@ -71,15 +74,13 @@ export function TagNotice() {
 
 /** Shown instead of stats until the visitor registers. */
 export function RegistrationGate() {
+  const { t } = useLanguage()
   return (
     <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:gap-10">
       <div className="panel order-1 mx-auto flex w-full max-w-3xl flex-col items-center justify-center bg-grid-fade px-6 py-16 text-center lg:order-none lg:col-start-2 lg:row-start-1">
         <CynLogo className="h-20 w-20 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
-        <h1 className="mt-4 font-display text-2xl font-bold text-white">Members only - one quick step</h1>
-        <p className="mx-auto mt-2 max-w-md text-slate-400">
-          Register with Discord and enter your in-game name, timezone and OpenFront public id to unlock
-          the [{CLAN_TAG}] roster and stats.
-        </p>
+        <h1 className="mt-4 font-display text-2xl font-bold text-white">{t.statsShell.membersOnlyTitle}</h1>
+        <p className="mx-auto mt-2 max-w-md text-slate-400">{t.statsShell.membersOnlyBody(CLAN_TAG)}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Link
             to="/register"
@@ -88,10 +89,10 @@ export function RegistrationGate() {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.213.38-.462.893-.634 1.301a18.27 18.27 0 0 0-5.5 0A12.6 12.6 0 0 0 9.115 3a19.74 19.74 0 0 0-4.435 1.371C1.4 9.043.65 13.6.925 18.096a19.9 19.9 0 0 0 6.06 3.06c.49-.665.926-1.372 1.302-2.115a12.9 12.9 0 0 1-2.049-.98c.172-.125.34-.256.503-.392a14.19 14.19 0 0 0 12.516 0c.166.14.334.27.503.392-.65.385-1.336.71-2.052.982.377.742.812 1.45 1.303 2.114a19.83 19.83 0 0 0 6.064-3.06c.323-5.218-.552-9.735-2.758-13.727ZM8.68 15.331c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.815 2.081-1.85 2.081Zm6.646 0c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.806 2.081-1.85 2.081Z" />
             </svg>
-            Register
+            {t.nav.register}
           </Link>
           <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" className="btn-ghost">
-            Join the Discord
+            {t.statsShell.joinDiscord}
           </a>
         </div>
       </div>

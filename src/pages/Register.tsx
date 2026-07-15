@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
 import { Card, SectionHeading, Spinner } from '../components/ui'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const TIMEZONES = ['EU', 'America', 'Asia']
 
@@ -26,6 +27,7 @@ export default function Register() {
   const navigate = useNavigate()
   const { profile, refresh } = useProfile()
   const session = useSession()
+  const { t } = useLanguage()
 
   const remembered = getRemembered()
   const [name, setName] = useState(profile?.in_game_name ?? remembered.in_game_name ?? '')
@@ -46,7 +48,7 @@ export default function Register() {
       if (existing) {
         setName((n) => n || existing.in_game_name)
         setOpenfrontId((v) => v || existing.openfront_id)
-        if (existing.timezone) setTimezone((t) => t || existing.timezone)
+        if (existing.timezone) setTimezone((tz) => tz || existing.timezone)
       } else {
         setName((n) => n || discordDisplayName(session))
       }
@@ -70,7 +72,7 @@ export default function Register() {
       refresh()
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : t.register.somethingWrong)
     } finally {
       setBusy(false)
     }
@@ -78,7 +80,7 @@ export default function Register() {
 
   const backHome = (
     <Link to="/" className="mb-6 inline-block text-sm text-slate-400 hover:text-accent-light">
-      ← Back to overview
+      {t.register.backToOverview}
     </Link>
   )
 
@@ -89,7 +91,7 @@ export default function Register() {
     return (
       <div className="mx-auto max-w-xl">
         {backHome}
-        <Spinner label="Checking your session…" />
+        <Spinner label={t.register.checkingSession} />
       </div>
     )
   }
@@ -98,13 +100,11 @@ export default function Register() {
     return (
       <div className="mx-auto max-w-xl">
         {backHome}
-        <SectionHeading eyebrow="Members" title={`Join the [${CLAN_TAG}] roster`} />
+        <SectionHeading eyebrow={t.register.eyebrowMembers} title={t.register.titleJoin(CLAN_TAG)} />
         <Card className="py-10 text-center">
           <DiscordIcon className="mx-auto mb-3 h-10 w-10 text-[#5865F2]" />
-          <h2 className="mb-1 text-lg font-semibold text-white">Verify with Discord</h2>
-          <p className="mx-auto mb-6 max-w-sm text-sm text-slate-400">
-            Sign in with Discord first. Then you’ll enter your in-game name, timezone and OpenFront public id.
-          </p>
+          <h2 className="mb-1 text-lg font-semibold text-white">{t.register.verifyWithDiscord}</h2>
+          <p className="mx-auto mb-6 max-w-sm text-sm text-slate-400">{t.register.discordIntro}</p>
           <button
             onClick={() =>
               supabase?.auth.signInWithOAuth({
@@ -114,7 +114,7 @@ export default function Register() {
             }
             className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"
           >
-            <DiscordIcon className="h-4 w-4" /> Continue with Discord
+            <DiscordIcon className="h-4 w-4" /> {t.register.continueWithDiscord}
           </button>
         </Card>
       </div>
@@ -126,16 +126,16 @@ export default function Register() {
     <div className="mx-auto max-w-xl">
       {backHome}
       <SectionHeading
-        eyebrow={profile ? 'Settings' : 'Members'}
-        title={profile ? `Your [${CLAN_TAG}] profile` : `Join the [${CLAN_TAG}] roster`}
+        eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
+        title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
       />
 
       {session && (
-        <p className="mb-4 text-sm text-signal-green">✓ Signed in as {discordDisplayName(session)}</p>
+        <p className="mb-4 text-sm text-signal-green">{t.register.signedInAs(discordDisplayName(session))}</p>
       )}
       {profile && (
         <div className="mb-5 rounded-lg border border-signal-green/30 bg-signal-green/10 px-4 py-3 text-sm text-signal-green">
-          ✓ You’re registered as <strong>{profile.in_game_name}</strong>. Editing below updates your entry.
+          {t.register.registeredAs(profile.in_game_name)}
         </div>
       )}
 
@@ -143,16 +143,13 @@ export default function Register() {
         {!hasBackend && (
           <div className="mb-6 flex items-center gap-3 rounded-lg border border-base-600 bg-base-800/50 px-4 py-3">
             <DiscordIcon className="h-6 w-6 shrink-0 text-[#5865F2]" />
-            <p className="text-xs text-slate-400">
-              Discord verification activates once the site’s Supabase backend is connected. For now, just fill
-              in your details below.
-            </p>
+            <p className="text-xs text-slate-400">{t.register.backendNotConnected}</p>
           </div>
         )}
 
         <form className="space-y-5" onSubmit={onSubmit}>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">In-game name</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-300">{t.register.inGameName}</label>
             <input
               required
               value={name}
@@ -164,7 +161,7 @@ export default function Register() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Timezone</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">{t.register.timezone}</label>
               <select
                 required
                 value={timezone}
@@ -179,7 +176,7 @@ export default function Register() {
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">OpenFront public id</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">{t.register.openfrontId}</label>
               <input
                 required
                 value={openfrontId}
@@ -189,15 +186,13 @@ export default function Register() {
               />
             </div>
           </div>
-          <p className="-mt-2 text-xs text-slate-500">
-            Find your public id in OpenFront under your profile - it’s the code in your player URL.
-          </p>
+          <p className="-mt-2 text-xs text-slate-500">{t.register.findIdHelp}</p>
 
           {error && <p className="text-sm text-signal-red">{error}</p>}
 
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={busy} className="btn-accent disabled:opacity-60">
-              {busy ? 'Saving…' : profile ? 'Update registration' : 'Register & view stats'}
+              {busy ? t.register.saving : profile ? t.register.updateRegistration : t.register.registerAndView}
             </button>
             {(profile || session) && (
               <button
@@ -209,7 +204,7 @@ export default function Register() {
                 }}
                 className="btn-ghost"
               >
-                Sign out
+                {t.accountMenu.signOut}
               </button>
             )}
           </div>

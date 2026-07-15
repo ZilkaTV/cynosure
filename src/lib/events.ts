@@ -83,6 +83,35 @@ export async function isEventAdmin(discordUsername: string | undefined): Promise
   return !!data
 }
 
+export async function fetchEventAdmins(): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('cyn_event_admins').select('discord_username').order('discord_username')
+  if (error) return []
+  return (data as { discord_username: string }[]).map((r) => r.discord_username)
+}
+
+export interface AdminActionResult {
+  ok: boolean
+  message: string
+}
+
+/** Only succeeds if the caller is already an admin themselves - enforced by the table's own RLS policy, not just this check. */
+export async function addEventAdmin(discordUsername: string): Promise<AdminActionResult> {
+  if (!supabase) return { ok: false, message: 'Backend not connected.' }
+  const trimmed = discordUsername.trim()
+  if (!trimmed) return { ok: false, message: 'Enter a Discord username first.' }
+  const { error } = await supabase.from('cyn_event_admins').insert({ discord_username: trimmed })
+  if (error) return { ok: false, message: error.code === '23505' ? 'Already an admin.' : `Couldn't add: ${error.message}` }
+  return { ok: true, message: `${trimmed} is now an admin.` }
+}
+
+export async function removeEventAdmin(discordUsername: string): Promise<AdminActionResult> {
+  if (!supabase) return { ok: false, message: 'Backend not connected.' }
+  const { error } = await supabase.from('cyn_event_admins').delete().eq('discord_username', discordUsername)
+  if (error) return { ok: false, message: `Couldn't remove: ${error.message}` }
+  return { ok: true, message: `${discordUsername} removed.` }
+}
+
 export interface SubmitEntryResult {
   ok: boolean
   message: string

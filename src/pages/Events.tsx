@@ -12,6 +12,9 @@ import type { TranslationShape } from '../i18n/translations'
 import {
   fetchEventTeams,
   fetchEventSubmissions,
+  fetchEventAdmins,
+  addEventAdmin,
+  removeEventAdmin,
   computeStandings,
   isEventAdmin,
   submitEventEntry,
@@ -119,6 +122,9 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const [teams, setTeams] = useState<EventTeam[]>([])
   const [submissions, setSubmissions] = useState<EventSubmission[]>([])
   const [admin, setAdmin] = useState(false)
+  const [admins, setAdmins] = useState<string[]>([])
+  const [newAdminName, setNewAdminName] = useState('')
+  const [adminMsg, setAdminMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [teamId, setTeamId] = useState('')
@@ -137,9 +143,26 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
     setTeams(teamsResult)
     setSubmissions(submissionsResult)
     setAdmin(adminResult)
+    if (adminResult) setAdmins(await fetchEventAdmins().catch(() => []))
     if (!teamId && teamsResult.length) setTeamId(teamsResult[0].id)
     setLoading(false)
   }, [event.id, discordName]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function onAddAdmin(e: React.FormEvent) {
+    e.preventDefault()
+    const r = await addEventAdmin(newAdminName)
+    setAdminMsg(r.message)
+    if (r.ok) {
+      setNewAdminName('')
+      setAdmins(await fetchEventAdmins().catch(() => []))
+    }
+  }
+
+  async function onRemoveAdmin(discordUsername: string) {
+    const r = await removeEventAdmin(discordUsername)
+    setAdminMsg(r.message)
+    if (r.ok) setAdmins(await fetchEventAdmins().catch(() => []))
+  }
 
   useEffect(() => {
     load()
@@ -376,6 +399,42 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* admin whitelist management */}
+      {admin && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{t.events.adminsTitle}</p>
+          <Card className="space-y-3">
+            <form className="flex flex-wrap gap-2" onSubmit={onAddAdmin}>
+              <input
+                value={newAdminName}
+                onChange={(e) => setNewAdminName(e.target.value)}
+                placeholder={t.events.adminUsernamePlaceholder}
+                className="min-w-0 flex-1 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+              />
+              <button type="submit" disabled={!newAdminName.trim()} className="btn-accent !px-4 !py-2 text-sm disabled:opacity-60">
+                {t.events.addAdmin}
+              </button>
+            </form>
+            {adminMsg && <p className="text-xs text-slate-400">{adminMsg}</p>}
+            <div className="space-y-1.5">
+              {admins.map((name) => (
+                <div key={name} className="flex items-center justify-between rounded-lg border border-base-700 bg-base-850/50 px-3 py-2 text-sm">
+                  <span className="text-slate-200">{name}</span>
+                  <button
+                    onClick={() => onRemoveAdmin(name)}
+                    disabled={name === discordName}
+                    title={name === discordName ? t.events.cantRemoveSelf : undefined}
+                    className="text-xs font-semibold text-signal-red hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {t.events.removeAdmin}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       )}
     </div>

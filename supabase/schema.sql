@@ -96,6 +96,40 @@ alter table public.cyn_event_admins enable row level security;
 create policy "public can read cyn_event_admins"
   on public.cyn_event_admins for select to public using (true);
 
+-- Only an EXISTING admin can whitelist/remove another one - this mirrors the
+-- same discord-name fallback chain discordDisplayName() uses client-side
+-- (see src/lib/useSession.ts), checked against the admins table itself so a
+-- signed-in visitor who isn't already an admin can't call this directly.
+create policy "admins can add cyn_event_admins"
+  on public.cyn_event_admins for insert to authenticated with check (
+    exists (
+      select 1 from public.cyn_event_admins a
+      where a.discord_username = coalesce(
+        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name',
+        auth.jwt() -> 'user_metadata' ->> 'full_name',
+        auth.jwt() -> 'user_metadata' ->> 'name',
+        auth.jwt() -> 'user_metadata' ->> 'preferred_username',
+        auth.jwt() -> 'user_metadata' ->> 'user_name',
+        auth.jwt() -> 'user_metadata' ->> 'username'
+      )
+    )
+  );
+
+create policy "admins can remove cyn_event_admins"
+  on public.cyn_event_admins for delete to authenticated using (
+    exists (
+      select 1 from public.cyn_event_admins a
+      where a.discord_username = coalesce(
+        auth.jwt() -> 'user_metadata' -> 'custom_claims' ->> 'global_name',
+        auth.jwt() -> 'user_metadata' ->> 'full_name',
+        auth.jwt() -> 'user_metadata' ->> 'name',
+        auth.jwt() -> 'user_metadata' ->> 'preferred_username',
+        auth.jwt() -> 'user_metadata' ->> 'user_name',
+        auth.jwt() -> 'user_metadata' ->> 'username'
+      )
+    )
+  );
+
 -- Seed the initial admins (edit/add rows here as needed).
 insert into public.cyn_event_admins (discord_username) values
   ('zjlka'),

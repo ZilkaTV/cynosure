@@ -81,21 +81,21 @@ export function loyalStreak(m: MemberStats): number {
   return streak
 }
 
-/** Leader (publicId + their value) of a numeric metric among members, if any value > 0. */
-function leader(members: MemberStats[], value: (m: MemberStats) => number): { id: string; v: number } | null {
-  let best: { id: string; v: number } | null = null
+/** Leader (publicId + name + their value) of a numeric metric among members, if any value > 0. */
+function leader(members: MemberStats[], value: (m: MemberStats) => number): { id: string; name: string; v: number } | null {
+  let best: { id: string; name: string; v: number } | null = null
   for (const m of members) {
     const v = value(m)
-    if (v > 0 && (!best || v > best.v)) best = { id: m.publicId, v }
+    if (v > 0 && (!best || v > best.v)) best = { id: m.publicId, name: m.name, v }
   }
   return best
 }
 
 /** Member holding the single fastest (lowest) speedrun time clan-wide, if any. */
-function fastestSpeedrunner(members: MemberStats[]): { id: string; v: number } | null {
-  let best: { id: string; v: number } | null = null
+function fastestSpeedrunner(members: MemberStats[]): { id: string; name: string; v: number } | null {
+  let best: { id: string; name: string; v: number } | null = null
   for (const m of members) {
-    if (m.speedrunSeconds != null && (!best || m.speedrunSeconds < best.v)) best = { id: m.publicId, v: m.speedrunSeconds }
+    if (m.speedrunSeconds != null && (!best || m.speedrunSeconds < best.v)) best = { id: m.publicId, name: m.name, v: m.speedrunSeconds }
   }
   return best
 }
@@ -137,7 +137,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'trophy',
       earned: mostWins?.id === m.publicId,
       group: 'rank',
-      desc: mostWins ? b.mostWins.descWithLeader(mostWins.v) : b.mostWins.descNoLeader,
+      desc: mostWins ? b.mostWins.descWithLeader(mostWins.name, mostWins.v) : b.mostWins.descNoLeader,
     },
     {
       id: 'fastest',
@@ -146,7 +146,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'flag',
       earned: fastest?.id === m.publicId,
       group: 'rank',
-      desc: fastest ? b.fastest.descWithLeader(fmtTime(fastest.v)) : b.fastest.descNoLeader,
+      desc: fastest ? b.fastest.descWithLeader(fastest.name, fmtTime(fastest.v)) : b.fastest.descNoLeader,
     },
     // ── milestones (permanent) ──
     { id: 'good', name: b.good.name, kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: b.good.desc },
@@ -161,7 +161,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'bow',
       earned: predator?.id === m.publicId,
       group: 'monthly',
-      desc: predator ? b.predator.descWithLeader(predator.v.toFixed(1)) : b.predator.descNoLeader,
+      desc: predator ? b.predator.descWithLeader(predator.name, predator.v.toFixed(1)) : b.predator.descNoLeader,
     },
     {
       id: 'pro',
@@ -170,7 +170,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'bolt',
       earned: pro?.id === m.publicId,
       group: 'monthly',
-      desc: pro ? b.pro.descWithLeader(pro.v) : b.pro.descNoLeader,
+      desc: pro ? b.pro.descWithLeader(pro.name, pro.v) : b.pro.descNoLeader,
     },
     {
       id: 'grinder',
@@ -179,7 +179,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'pickaxe',
       earned: grinder?.id === m.publicId,
       group: 'monthly',
-      desc: grinder ? b.grinder.descWithLeader(grinder.v) : b.grinder.descNoLeader,
+      desc: grinder ? b.grinder.descWithLeader(grinder.name, grinder.v) : b.grinder.descNoLeader,
     },
     {
       id: 'marine',
@@ -188,7 +188,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'anchor',
       earned: marine?.id === m.publicId,
       group: 'monthly',
-      desc: marine ? b.marine.descWithLeader(fmtCompact(marine.v)) : b.marine.descNoLeader,
+      desc: marine ? b.marine.descWithLeader(marine.name, fmtCompact(marine.v)) : b.marine.descNoLeader,
     },
     {
       id: 'destroyer',
@@ -197,7 +197,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'blast',
       earned: destroyer?.id === m.publicId,
       group: 'monthly',
-      desc: destroyer ? b.destroyer.descWithLeader(destroyer.v) : b.destroyer.descNoLeader,
+      desc: destroyer ? b.destroyer.descWithLeader(destroyer.name, destroyer.v) : b.destroyer.descNoLeader,
     },
     {
       id: 'teamGrinder',
@@ -206,7 +206,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'wrench',
       earned: teamGrinder?.id === m.publicId,
       group: 'monthly',
-      desc: teamGrinder ? b.teamGrinder.descWithLeader(teamGrinder.v) : b.teamGrinder.descNoLeader,
+      desc: teamGrinder ? b.teamGrinder.descWithLeader(teamGrinder.name, teamGrinder.v) : b.teamGrinder.descNoLeader,
     },
   ]
 }

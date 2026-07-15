@@ -5,6 +5,7 @@ import { hasBackend, saveProfile, clearLocalProfile, getRemembered, fetchByDisco
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
+import { fetchPlayerGames } from '../lib/openfront'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -70,10 +71,28 @@ export default function Register() {
     setBusy(true)
     setError(null)
     try {
+      const id = openfrontId.trim()
+      // OpenFront's own clan-member list needs a logged-in OpenFront session
+      // to query (401 without one) - there's no way to check current
+      // membership directly. The closest public signal: since a recent
+      // OpenFront patch, the [CYN] tag can only appear on a game if the
+      // player was actually in the clan when they played it (no more
+      // spoofing), so a recent CYN-tagged game is good evidence of real
+      // membership. Only gates a brand-new registration - an existing
+      // member editing their settings (timezone, etc) shouldn't get locked
+      // out just because they haven't played recently.
+      if (!profile) {
+        const recentGames = await fetchPlayerGames(id, 3)
+        if (!recentGames.some((g) => g.clanTag === CLAN_TAG)) {
+          setError(t.register.notClanMember(CLAN_TAG))
+          setBusy(false)
+          return
+        }
+      }
       await saveProfile({
         in_game_name: name.trim(),
         timezone,
-        openfront_id: openfrontId.trim(),
+        openfront_id: id,
         discord_username: session ? discordDisplayName(session) : undefined,
       })
       refresh()

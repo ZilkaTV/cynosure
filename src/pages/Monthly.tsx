@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
@@ -62,6 +62,41 @@ interface Leader {
   value: number
 }
 
+/** null-safe compare - rows missing a stat always sort to the bottom, whichever direction. */
+function compareNullable(a: number | null, b: number | null, dir: 1 | -1): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  return (a - b) * dir
+}
+
+/** Clickable column header that sorts a table - shared across all three monthly tables. */
+function SortTh({
+  label,
+  sortKey,
+  active,
+  dir,
+  onClick,
+  align = 'right',
+}: {
+  label: string
+  sortKey: string
+  active: boolean
+  dir: 1 | -1
+  onClick: (key: string) => void
+  align?: 'left' | 'right'
+}) {
+  return (
+    <th
+      onClick={() => onClick(sortKey)}
+      className={`cursor-pointer select-none px-3 py-3 font-semibold hover:text-white ${align === 'right' ? 'text-right' : 'text-left'}`}
+    >
+      {label}
+      {active && <span className="ml-1">{dir === -1 ? '▼' : '▲'}</span>}
+    </th>
+  )
+}
+
 /** A "title" earned by the monthly leader in one category, showing their number. */
 function TitleCard({
   emoji,
@@ -93,6 +128,22 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
   const [month, setMonth] = useState<string>(currentMonthKey())
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<1 | -1>(-1)
+
+  useEffect(() => {
+    setSortKey(null)
+    setSortDir(-1)
+  }, [variant])
+
+  function onSortClick(key: string) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === -1 ? 1 : -1))
+    } else {
+      setSortKey(key)
+      setSortDir(-1)
+    }
+  }
 
   const months = useMemo(() => (data ? availableMonths(data.members) : [currentMonthKey()]), [data])
 
@@ -150,7 +201,15 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {data && variant === 'ffa' && (() => {
           const rows = members
             .map((m) => ({ m, r: ffaMonthly(m, month) }))
-            .sort((a, b) => b.r.points - a.r.points || b.r.wins - a.r.wins)
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
+              if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
+              if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
+              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
+              return b.r.points - a.r.points || b.r.wins - a.r.wins
+            })
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
@@ -165,12 +224,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWins}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWR}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colStreak}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colAvgKills}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colPoints}</th>
+                        <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colStreak} sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colPoints} sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
@@ -197,7 +256,15 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {data && variant === 'team' && (() => {
           const rows = members
             .map((m) => ({ m, r: teamMonthly(m, month, coop) }))
-            .sort((a, b) => b.r.points - a.r.points || b.r.wins - a.r.wins)
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
+              if (sortKey === 'kills') return compareNullable(a.r.kills, b.r.kills, sortDir)
+              if (sortKey === 'avgGold') return compareNullable(a.r.avgGold, b.r.avgGold, sortDir)
+              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
+              return b.r.points - a.r.points || b.r.wins - a.r.wins
+            })
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
@@ -212,12 +279,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWins}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colWR}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colKills}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colGoldMin}</th>
-                        <th className="px-3 py-3 text-right font-semibold">{t.monthly.colPoints}</th>
+                        <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colKills} sortKey="kills" active={sortKey === 'kills'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colGoldMin} sortKey="avgGold" active={sortKey === 'avgGold'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colPoints} sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
@@ -243,8 +310,15 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && variant === '1v1' && (() => {
           const rows = members
-            .map((m) => ({ m, b: oneVoneBucket(m.cynGames, month) }))
-            .sort((a, b) => (b.m.eloMonthDelta ?? -9999) - (a.m.eloMonthDelta ?? -9999) || b.b.wins - a.b.wins)
+            .map((m) => ({ m, b: oneVoneBucket(m.cynGames, month), wr: winRate(oneVoneBucket(m.cynGames, month).wins, oneVoneBucket(m.cynGames, month).losses) }))
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.b.wins, b.b.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.b.losses, b.b.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.wr, b.wr, sortDir)
+              if (sortKey === 'elo') return compareNullable(a.m.elo, b.m.elo, sortDir)
+              if (sortKey === 'eloDelta') return compareNullable(a.m.eloMonthDelta, b.m.eloMonthDelta, sortDir)
+              return (b.m.eloMonthDelta ?? -9999) - (a.m.eloMonthDelta ?? -9999) || b.b.wins - a.b.wins
+            })
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
@@ -253,23 +327,23 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colName}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colWins}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colLosses}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colWR}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colEloDelta}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{t.monthly.colCurrentElo}</th>
+                      <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colCurrentElo} sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colEloDelta} sortKey="eloDelta" active={sortKey === 'eloDelta'} dir={sortDir} onClick={onSortClick} />
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b }, i) => (
+                    {rows.map(({ m, b, wr }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{winRate(b.wins, b.losses)}%</td>
-                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">-</span>}</td>
+                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
                       </tr>
                     ))}
                   </tbody>

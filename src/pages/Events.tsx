@@ -85,8 +85,18 @@ function SkinPreview({ url, alt, t }: { url?: string; alt: string; t: Translatio
 }
 
 /** Team roster name - linked to the member's profile if that name matches a registered [CYN] member. */
+// Some team rosters use the name people actually call each other rather than
+// their exact registered in-game name (e.g. "Calos" vs the registered
+// "cal0s_") - this maps those so the link still resolves without changing
+// what's displayed.
+const PLAYER_LINK_ALIASES: Record<string, string> = {
+  calos: 'cal0s_',
+  franquito: 'frqnquitqu',
+}
+
 function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string }[] }) {
-  const match = roster.find((m) => m.name.toLowerCase() === name.toLowerCase())
+  const lookupName = PLAYER_LINK_ALIASES[name.toLowerCase()] ?? name
+  const match = roster.find((m) => m.name.toLowerCase() === lookupName.toLowerCase())
   if (!match) return <span>{name}</span>
   return (
     <Link to={`/member/${match.publicId}`} className="text-accent-light hover:text-accent">

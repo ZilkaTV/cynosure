@@ -122,6 +122,9 @@ create policy "public can read cyn_event_teams"
 create policy "anyone can insert cyn_event_teams"
   on public.cyn_event_teams for insert to public with check (true);
 
+create policy "anyone can update cyn_event_teams"
+  on public.cyn_event_teams for update to public using (true) with check (true);
+
 -- Seed the CYN Trio Challenge teams with their points collected before this
 -- website-based system existed (see the Discord leaderboard post).
 insert into public.cyn_event_teams (event_id, name, starting_points, captain, players) values

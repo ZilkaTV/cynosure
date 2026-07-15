@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { Badge, BadgeTier, IconKey } from '../lib/badges'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -53,16 +54,36 @@ function BadgeVisual({ badge, className }: { badge: Badge; className?: string })
 /** Compact earned-only badges (for the roster / overview). */
 export function BadgeStrip({ badges }: { badges: Badge[] }) {
   const earned = badges.filter((b) => b.earned)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!openId) return
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpenId(null)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [openId])
+
   if (earned.length === 0) return <span className="text-slate-700">-</span>
   return (
-    <span className="inline-flex flex-wrap items-center justify-center gap-1">
+    <span className="relative inline-flex flex-wrap items-center justify-center gap-1" ref={ref}>
       {earned.map((b) => (
-        <span
-          key={b.id}
-          title={`${b.name} - ${b.desc}`}
-          className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
-        >
-          <BadgeVisual badge={b} className="h-4 w-4 text-xs" />
+        <span key={b.id} className="relative">
+          <button
+            type="button"
+            onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
+          >
+            <BadgeVisual badge={b} className="h-4 w-4 text-xs" />
+          </button>
+          {openId === b.id && (
+            <div className="absolute left-1/2 top-full z-50 mt-1.5 w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">
+              <p className="text-xs font-semibold text-white">{b.name}</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">{b.desc}</p>
+            </div>
+          )}
         </span>
       ))}
     </span>

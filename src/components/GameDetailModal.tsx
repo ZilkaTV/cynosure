@@ -42,12 +42,11 @@ interface Row {
   kills: number
   victims: string[]
   deathSec: number | null
-  endTiles: number | null
   maxPercent: number | null
   isWinner: boolean
 }
 
-type SortKey = 'out' | 'inc' | 'gold' | 'kills' | 'endTiles' | 'maxPercent' | 'deathSec'
+type SortKey = 'out' | 'inc' | 'gold' | 'kills' | 'maxPercent' | 'deathSec'
 
 function getColumns(t: TranslationShape): { key: SortKey; label: string; icon?: string }[] {
   return [
@@ -55,7 +54,6 @@ function getColumns(t: TranslationShape): { key: SortKey; label: string; icon?: 
     { key: 'inc', label: t.gameDetail.colIn, icon: EMOJI.shield },
     { key: 'gold', label: t.gameDetail.colGold, icon: EMOJI.coin },
     { key: 'kills', label: t.gameDetail.colKills, icon: EMOJI.skull },
-    { key: 'endTiles', label: t.gameDetail.colEndTiles },
     { key: 'maxPercent', label: t.gameDetail.colMaxTiles },
     { key: 'deathSec', label: t.gameDetail.colDeath, icon: EMOJI.cross },
   ]
@@ -151,11 +149,6 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
       const goldTotal = (st.gold ?? []).reduce((s, g) => s + num(g), 0)
       const kills = st.kills ?? []
       const killedAt = st.killedAt ? num(st.killedAt) : null
-      // The simulation's own final tile count is more complete than the
-      // API's stats.finalTiles (which is missing for a lot of players) -
-      // prefer it once it's loaded, fall back to the API value until then.
-      const simFinal = tileStats?.finalTiles[p.clientID]
-      const endTiles = simFinal != null ? simFinal : st.finalTiles ? num(st.finalTiles) : null
       return {
         p,
         out: num(st.attacks?.[0]) / durMin,
@@ -164,7 +157,6 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         kills: kills.length,
         victims: kills.map((k) => byId.get(k.victim)?.username ?? t.gameDetail.unknownPlayer),
         deathSec: killedAt != null ? killedAt / tickRate : null,
-        endTiles,
         maxPercent: tileStats?.maxPercent[p.clientID] ?? null,
         isWinner: detail?.winnerClientId === p.clientID,
       }
@@ -270,9 +262,6 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                           ) : (
                             <span className="text-slate-600">0</span>
                           )}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">
-                          {r.endTiles != null ? fmt(r.endTiles) : <span className="text-slate-600">-</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-400">
                           {tileState === 'loading' && <span className="text-slate-600">{t.gameDetail.computing}</span>}

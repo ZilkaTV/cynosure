@@ -358,7 +358,7 @@ export const translations = {
       unknownPlayer: 'Unknown',
       computing: 'Computing…',
       footerNote:
-        "Click a column header to sort by it. Hover a Kills number to see who was eliminated. Sword/Shield = attack troops sent/received per minute; Coin = gold earned per minute. End Tiles and Max Tiles come from replaying the actual game (OpenFront's public data only gives an incomplete final-tiles number, not a running peak) - this can take up to a minute for longer games.",
+        "Click a column header to sort by it. Hover a Kills number to see who was eliminated. Sword/Shield = attack troops sent/received per minute; Coin = gold earned per minute. Max Tiles comes from replaying the actual game (OpenFront's public data doesn't expose a running peak, only ever a final snapshot) - this can take up to a minute for longer games.",
     },
     bump: {
       title: 'Discord Bumps',
@@ -762,7 +762,7 @@ export const translations = {
       unknownPlayer: 'Unbekannt',
       computing: 'Wird berechnet…',
       footerNote:
-        'Klick auf eine Spaltenüberschrift, um danach zu sortieren. Fahr über eine Kills-Zahl, um zu sehen, wer eliminiert wurde. Schwert/Schild = gesendete/erhaltene Angriffstruppen pro Minute; Münze = Gold pro Minute. End-Felder und Max-Felder stammen aus dem Nachspielen des echten Spiels (OpenFronts öffentliche Daten liefern nur eine unvollständige End-Felder-Zahl, keinen laufenden Höchstwert) - das kann bei längeren Spielen bis zu einer Minute dauern.',
+        'Klick auf eine Spaltenüberschrift, um danach zu sortieren. Fahr über eine Kills-Zahl, um zu sehen, wer eliminiert wurde. Schwert/Schild = gesendete/erhaltene Angriffstruppen pro Minute; Münze = Gold pro Minute. Max-Felder stammt aus dem Nachspielen des echten Spiels (OpenFronts öffentliche Daten liefern nur einen finalen Schnappschuss, keinen laufenden Höchstwert) - das kann bei längeren Spielen bis zu einer Minute dauern.',
     },
     bump: {
       title: 'Discord-Bumps',
@@ -1166,7 +1166,7 @@ export const translations = {
       unknownPlayer: 'Inconnu',
       computing: 'Calcul en cours…',
       footerNote:
-        "Clique sur un en-tête de colonne pour trier selon ce critère. Survole un nombre de kills pour voir qui a été éliminé. Épée/Bouclier = troupes d'attaque envoyées/reçues par minute ; Pièce = or gagné par minute. Cases finales et Cases max viennent d'un rejeu complet de la partie (les données publiques d'OpenFront ne donnent qu'un nombre de cases finales incomplet, pas un pic en temps réel) - ça peut prendre jusqu'à une minute pour les parties longues.",
+        "Clique sur un en-tête de colonne pour trier selon ce critère. Survole un nombre de kills pour voir qui a été éliminé. Épée/Bouclier = troupes d'attaque envoyées/reçues par minute ; Pièce = or gagné par minute. Cases max vient d'un rejeu complet de la partie (les données publiques d'OpenFront ne donnent qu'un instantané final, pas un pic en temps réel) - ça peut prendre jusqu'à une minute pour les parties longues.",
     },
     bump: {
       title: 'Bumps Discord',

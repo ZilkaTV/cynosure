@@ -11,6 +11,13 @@ import { levelFromXp, titleForLevel } from './levels'
 import { fmtTime } from './speedruns'
 import type { TranslationShape } from '../i18n/translations'
 
+/** "2786767" -> "2.7M", "15400" -> "15.4k" - matches the abbreviation used elsewhere for gold figures. */
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return `${Math.round(n)}`
+}
+
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 
 export type IconKey =
@@ -181,7 +188,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       icon: 'anchor',
       earned: marine?.id === m.publicId,
       group: 'monthly',
-      desc: marine ? b.marine.descWithLeader(marine.v.toFixed(0)) : b.marine.descNoLeader,
+      desc: marine ? b.marine.descWithLeader(fmtCompact(marine.v)) : b.marine.descNoLeader,
     },
     {
       id: 'destroyer',

@@ -14,6 +14,7 @@ export default function Quests() {
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
+  const resetCountdown = useCountdown(nextResetAt())
 
   const me = data?.members.find((m) => m.publicId === profile?.openfront_id)
 
@@ -26,7 +27,6 @@ export default function Quests() {
 
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
-  const resetCountdown = useCountdown(nextResetAt())
 
   async function onClaim(questId: string) {
     if (!profile || !me) return

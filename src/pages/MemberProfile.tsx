@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -20,6 +20,8 @@ import {
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useIsAdmin } from '../lib/useSession'
+import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
 
 export default function MemberProfile() {
   const { id } = useParams()
@@ -27,11 +29,33 @@ export default function MemberProfile() {
   const { t } = useLanguage()
   const { data, loading, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const viewerIsAdmin = useIsAdmin()
+  const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
+  const [adminMsg, setAdminMsg] = useState<string | null>(null)
+
+  const m = data?.members.find((x) => x.publicId === id)
+  const isOwnProfile = profile?.openfront_id === m?.publicId
+
+  useEffect(() => {
+    if (!m?.discord || isOwnProfile) return
+    let alive = true
+    isEventAdmin(m.discord).then((result) => {
+      if (alive) setViewedIsAdmin(result)
+    })
+    return () => {
+      alive = false
+    }
+  }, [m?.discord, isOwnProfile])
+
+  async function onToggleAdmin() {
+    if (!m?.discord) return
+    const r = viewedIsAdmin ? await removeEventAdmin(m.discord) : await addEventAdmin(m.discord)
+    setAdminMsg(r.message)
+    if (r.ok) setViewedIsAdmin(!viewedIsAdmin)
+  }
 
   if (!profile) return <RegistrationGate />
   if (loading) return <Spinner label={t.memberProfile.loadingMember} />
-
-  const m = data?.members.find((x) => x.publicId === id)
   if (!m) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
@@ -65,17 +89,37 @@ export default function MemberProfile() {
 
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
-        <h1 className="mt-1 font-display text-3xl font-bold text-white">{m.name}</h1>
+        <h1 className="mt-1 font-display text-3xl font-bold text-white">
+          {m.name}
+          {isOwnProfile && viewerIsAdmin && (
+            <span className="ml-2 align-middle rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-gold-light">
+              {t.accountMenu.adminBadge}
+            </span>
+          )}
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           {m.timezone && <span>{m.timezone}</span>}
           {m.discord && <span> · {t.memberProfile.discordPrefix} {m.discord}</span>}
         </p>
-        {profile?.openfront_id === m.publicId ? (
+        {isOwnProfile ? (
           <div className="mx-auto mt-4 max-w-xs">
             <BumpCard openfrontId={m.publicId} bumpCount={m.bumpCount} lastBumpAt={m.lastBumpAt} onDone={refresh} />
           </div>
         ) : (
           <p className="mt-2 text-sm text-slate-500">{t.memberProfile.bumpsCount(m.bumpCount)}</p>
+        )}
+        {!isOwnProfile && viewerIsAdmin && m.discord && (
+          <div className="mt-3 flex flex-col items-center gap-1.5">
+            <button
+              onClick={onToggleAdmin}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                viewedIsAdmin ? 'bg-signal-red/15 text-signal-red hover:bg-signal-red/25' : 'bg-gold/15 text-gold-light hover:bg-gold/25'
+              }`}
+            >
+              {viewedIsAdmin ? t.memberProfile.demoteFromAdmin : t.memberProfile.promoteToAdmin}
+            </button>
+            {adminMsg && <p className="text-xs text-slate-500">{adminMsg}</p>}
+          </div>
         )}
       </div>
 

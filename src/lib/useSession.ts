@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import { isEventAdmin } from './events'
 
 /** undefined while the initial session loads, null when signed out. */
 export function useSession() {
@@ -41,4 +42,26 @@ export function discordDisplayName(session: Session): string {
     m.username ||
     'Player'
   )
+}
+
+/** Whether the signed-in visitor is a whitelisted site admin (cyn_event_admins). */
+export function useIsAdmin(): boolean {
+  const session = useSession()
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    if (!session) {
+      setIsAdmin(false)
+      return
+    }
+    let alive = true
+    isEventAdmin(discordDisplayName(session)).then((result) => {
+      if (alive) setIsAdmin(result)
+    })
+    return () => {
+      alive = false
+    }
+  }, [session])
+
+  return isAdmin
 }

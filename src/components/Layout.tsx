@@ -6,6 +6,7 @@ import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
+import { useIsAdmin } from '../lib/useSession'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 
@@ -50,6 +51,7 @@ function trackingSince(): string {
 function AccountMenu() {
   const { profile, refresh } = useProfile()
   const { t } = useLanguage()
+  const isAdmin = useIsAdmin()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -79,6 +81,7 @@ function AccountMenu() {
       >
         <GearIcon />
         <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
+        {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">

@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
-import { Card, SectionHeading, Spinner } from '../components/ui'
+import { Card, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
 import { fmtTime, submitSpeedrun, replayToolUrl, type SubmitResult } from '../lib/speedruns'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -116,7 +115,7 @@ export default function Speedrun() {
                       <RankMedal rank={i + 1} />
                     </td>
                     <td className="px-4 py-3">
-                      <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link>
+                      <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-400">{m.speedrunAttempts}</td>
                     <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -13,7 +12,7 @@ import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
-import { Card, LastUpdated, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -26,11 +25,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
     {
       key: 'name',
       label: t.monthly.colName,
-      render: (m) => (
-        <Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">
-          {m.name}
-        </Link>
-      ),
+      render: (m) => <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />,
       sortValue: (m) => m.name.toLowerCase(),
     },
     {

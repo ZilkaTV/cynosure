@@ -19,6 +19,7 @@ export interface RosterInput {
   in_game_name?: string
   timezone?: string
   discord_username?: string
+  nationality?: string
 }
 
 export interface Bucket {
@@ -32,6 +33,7 @@ export interface MemberStats {
   name: string
   timezone?: string
   discord?: string
+  nationality?: string
   // lifetime, CYN-tagged only
   ffaWins: number
   teamWins: number
@@ -351,6 +353,7 @@ export async function buildRoster(
       name: input.in_game_name?.trim() || r?.username || games[0]?.username || input.openfront_id,
       timezone: input.timezone,
       discord: input.discord_username,
+      nationality: input.nationality,
       ffaWins,
       teamWins,
       rankedWins,

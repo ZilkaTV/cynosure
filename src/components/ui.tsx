@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
+import { Flag } from './Emoji'
 
 /** Ticking "1h 23m" / "23m 05s" countdown to a target timestamp, or null once it's passed. */
 export function useCountdown(targetMs: number | null): string | null {
@@ -166,6 +168,16 @@ export function LastUpdated({
         {refreshing ? t.ui.refreshing : t.ui.refresh}
       </button>
     </div>
+  )
+}
+
+/** A member's linked name with their nationality flag (if set) shown to the left, for use in every table/roster. */
+export function MemberNameLink({ publicId, name, nationality, className = 'font-medium text-white hover:text-accent-light' }: { publicId: string; name: string; nationality?: string; className?: string }) {
+  return (
+    <Link to={`/member/${publicId}`} className={`inline-flex items-center gap-1.5 ${className}`}>
+      {nationality && <Flag code={nationality} />}
+      <span>{name}</span>
+    </Link>
   )
 }
 

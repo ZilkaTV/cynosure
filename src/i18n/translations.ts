@@ -245,6 +245,10 @@ export const translations = {
         "Discord verification activates once the site's Supabase backend is connected. For now, just fill in your details below.",
       inGameName: 'In-game name',
       timezone: 'Timezone',
+      nationality: 'Nationality',
+      nationalityPlaceholder: 'e.g. DE',
+      nationalityHelp: 'Optional - shows your flag next to your name in every table.',
+      nationalityClear: 'Clear nationality',
       openfrontId: 'OpenFront public id',
       findIdHelp: "Find your public id in OpenFront under your profile - it's the code in your player URL.",
       notClanMember: (tag: string) =>
@@ -659,6 +663,10 @@ export const translations = {
         'Die Discord-Verifizierung aktiviert sich, sobald das Supabase-Backend der Seite verbunden ist. Trag für jetzt einfach deine Daten unten ein.',
       inGameName: 'Ingame-Name',
       timezone: 'Zeitzone',
+      nationality: 'Nationalität',
+      nationalityPlaceholder: 'z.B. DE',
+      nationalityHelp: 'Optional - zeigt deine Flagge neben deinem Namen in jeder Tabelle.',
+      nationalityClear: 'Nationalität entfernen',
       openfrontId: 'Öffentliche OpenFront-ID',
       findIdHelp: 'Du findest deine öffentliche ID in OpenFront in deinem Profil - es ist der Code in deiner Spieler-URL.',
       notClanMember: (tag: string) =>
@@ -1073,6 +1081,10 @@ export const translations = {
         "La vérification Discord s'active une fois le backend Supabase du site connecté. Pour l'instant, remplis simplement tes infos ci-dessous.",
       inGameName: 'Pseudo en jeu',
       timezone: 'Fuseau horaire',
+      nationality: 'Nationalité',
+      nationalityPlaceholder: 'ex. DE',
+      nationalityHelp: 'Facultatif - affiche ton drapeau à côté de ton nom dans chaque tableau.',
+      nationalityClear: 'Effacer la nationalité',
       openfrontId: 'ID public OpenFront',
       findIdHelp: "Trouve ton ID public dans OpenFront sous ton profil - c'est le code dans l'URL de ton joueur.",
       notClanMember: (tag: string) =>

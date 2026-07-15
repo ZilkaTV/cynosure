@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { hasBackend, saveProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName } from '../lib/useSession'
 import { fetchPlayerGames } from '../lib/openfront'
+import { COUNTRIES, countryName } from '../lib/countries'
+import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -34,8 +36,27 @@ export default function Register() {
   const [name, setName] = useState(profile?.in_game_name ?? remembered.in_game_name ?? '')
   const [timezone, setTimezone] = useState(profile?.timezone ?? remembered.timezone ?? guessTz())
   const [openfrontId, setOpenfrontId] = useState(profile?.openfront_id ?? remembered.openfront_id ?? '')
+  const [nationality, setNationality] = useState(profile?.nationality ?? remembered.nationality ?? '')
+  const [natQuery, setNatQuery] = useState('')
+  const [natOpen, setNatOpen] = useState(false)
+  const natRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!natOpen) return
+    function onDoc(e: MouseEvent) {
+      if (natRef.current && !natRef.current.contains(e.target as Node)) setNatOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [natOpen])
+
+  const natMatches = natQuery.trim()
+    ? COUNTRIES.filter(
+        (c) => c.code.toLowerCase().startsWith(natQuery.trim().toLowerCase()) || c.name.toLowerCase().includes(natQuery.trim().toLowerCase()),
+      ).slice(0, 8)
+    : []
 
   // On sign-in, recover any existing registration (keyed by Discord name) from
   // the backend so the OpenFront id / details come back automatically. Falls
@@ -57,6 +78,7 @@ export default function Register() {
         setName((n) => n || existing.in_game_name)
         setOpenfrontId((v) => v || existing.openfront_id)
         if (existing.timezone) setTimezone((tz) => tz || existing.timezone)
+        if (existing.nationality) setNationality((nat) => nat || existing.nationality!)
       } else {
         setName((n) => n || discordDisplayName(session))
       }
@@ -94,6 +116,7 @@ export default function Register() {
         timezone,
         openfront_id: id,
         discord_username: session ? discordDisplayName(session) : undefined,
+        nationality: nationality || undefined,
       })
       refresh()
       navigate('/')
@@ -213,6 +236,60 @@ export default function Register() {
             </div>
           </div>
           <p className="-mt-2 text-xs text-slate-500">{t.register.findIdHelp}</p>
+
+          <div className="relative" ref={natRef}>
+            <label className="mb-1.5 block text-sm font-medium text-slate-300">{t.register.nationality}</label>
+            <div className="flex items-center gap-2 rounded-lg border border-base-600 bg-base-800 px-3.5 py-2.5 focus-within:border-accent">
+              {nationality && !natOpen && <Flag code={nationality} className="h-4 w-6 shrink-0" />}
+              <input
+                value={natOpen ? natQuery : countryName(nationality) ?? ''}
+                onChange={(e) => {
+                  setNatQuery(e.target.value)
+                  setNatOpen(true)
+                }}
+                onFocus={() => {
+                  setNatQuery('')
+                  setNatOpen(true)
+                }}
+                placeholder={t.register.nationalityPlaceholder}
+                className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+              />
+              {nationality && (
+                <button
+                  type="button"
+                  aria-label={t.register.nationalityClear}
+                  onClick={() => {
+                    setNationality('')
+                    setNatQuery('')
+                  }}
+                  className="shrink-0 text-slate-500 hover:text-slate-300"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {natOpen && natMatches.length > 0 && (
+              <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-base-600 bg-base-800 shadow-xl">
+                {natMatches.map((c) => (
+                  <button
+                    type="button"
+                    key={c.code}
+                    onClick={() => {
+                      setNationality(c.code)
+                      setNatQuery('')
+                      setNatOpen(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-200 hover:bg-base-700"
+                  >
+                    <Flag code={c.code} className="h-4 w-6 shrink-0" />
+                    <span>{c.name}</span>
+                    <span className="ml-auto text-xs text-slate-500">{c.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-1.5 text-xs text-slate-500">{t.register.nationalityHelp}</p>
+          </div>
 
           {error && <p className="text-sm text-signal-red">{error}</p>}
 

@@ -7,6 +7,7 @@ import GameDetailModal from '../components/GameDetailModal'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
+import { Flag } from '../components/Emoji'
 import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   currentMonthKey,
@@ -89,7 +90,8 @@ export default function MemberProfile() {
 
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
-        <h1 className="mt-1 font-display text-3xl font-bold text-white">
+        <h1 className="mt-1 inline-flex items-center gap-2 font-display text-3xl font-bold text-white">
+          {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
           {m.name}
           {isOwnProfile && viewerIsAdmin && (
             <span className="ml-2 align-middle rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-gold-light">

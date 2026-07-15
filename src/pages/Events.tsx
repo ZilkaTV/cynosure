@@ -5,7 +5,7 @@ import { useSession, discordDisplayName } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner } from '../components/ui'
-import { RankMedal } from '../components/Emoji'
+import { Flag, RankMedal } from '../components/Emoji'
 import { EVENTS, type ClanEvent } from '../data/events'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
@@ -97,12 +97,13 @@ const PLAYER_LINK_ALIASES: Record<string, string> = {
   franquito: 'frqnquitqu',
 }
 
-function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string }[] }) {
+function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string; nationality?: string }[] }) {
   const lookupName = PLAYER_LINK_ALIASES[name.toLowerCase()] ?? name
   const match = roster.find((m) => m.name.toLowerCase() === lookupName.toLowerCase())
   if (!match) return <span>{name}</span>
   return (
-    <Link to={`/member/${match.publicId}`} className="text-accent-light hover:text-accent">
+    <Link to={`/member/${match.publicId}`} className="inline-flex items-center gap-1 text-accent-light hover:text-accent">
+      {match.nationality && <Flag code={match.nationality} />}
       {name}
     </Link>
   )
@@ -252,7 +253,7 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             <table className="w-full text-sm">
               <tbody>
                 {standings.map((row, i) => {
-                  const rosterNames = (roster?.members ?? []).map((m) => ({ publicId: m.publicId, name: m.name }))
+                  const rosterNames = (roster?.members ?? []).map((m) => ({ publicId: m.publicId, name: m.name, nationality: m.nationality }))
                   return (
                     <tr key={row.team.id} className="border-b border-base-700/50 last:border-0">
                       <td className="w-12 px-4 py-2.5 text-center">

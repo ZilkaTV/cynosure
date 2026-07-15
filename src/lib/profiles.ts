@@ -15,6 +15,7 @@ export interface Profile {
   in_game_name: string
   timezone: string
   discord_username?: string
+  nationality?: string
 }
 
 const LOCAL_KEY = 'cyn:profile'
@@ -48,7 +49,10 @@ export function getLocalProfile(): Profile | null {
 export function saveLocalProfile(p: Profile) {
   localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
   // Remember id + name so a later sign-in can pre-fill them.
-  localStorage.setItem(REMEMBER_KEY, JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone }))
+  localStorage.setItem(
+    REMEMBER_KEY,
+    JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
+  )
   notifyProfileChange()
 }
 
@@ -67,6 +71,7 @@ export async function saveProfile(p: Profile): Promise<void> {
         in_game_name: p.in_game_name,
         timezone: p.timezone,
         discord_username: p.discord_username ?? null,
+        nationality: p.nationality ?? null,
       },
       { onConflict: 'openfront_id' },
     )
@@ -82,7 +87,7 @@ export async function fetchByDiscord(discordUsername: string): Promise<Profile |
   if (!supabase || !discordUsername) return null
   const { data, error } = await supabase
     .from('cyn_members')
-    .select('openfront_id, in_game_name, timezone, discord_username')
+    .select('openfront_id, in_game_name, timezone, discord_username, nationality')
     .eq('discord_username', discordUsername)
     .maybeSingle()
   if (error) return null
@@ -94,7 +99,7 @@ export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {
     const { data, error } = await supabase
       .from('cyn_members')
-      .select('openfront_id, in_game_name, timezone, discord_username')
+      .select('openfront_id, in_game_name, timezone, discord_username, nationality')
     if (error) throw error
     return (data as Profile[]) ?? []
   }

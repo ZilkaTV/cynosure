@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
-import { Card, EloDelta, LastUpdated, SectionHeading, Spinner } from '../components/ui'
+import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
@@ -236,7 +235,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       {rows.map(({ m, r }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
-                          <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                          <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
@@ -291,7 +290,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       {rows.map(({ m, r }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
-                          <td className="px-3 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                          <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
@@ -338,7 +337,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     {rows.map(({ m, b, wr }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
-                        <td className="px-4 py-3"><Link to={`/member/${m.publicId}`} className="font-medium text-white hover:text-accent-light">{m.name}</Link></td>
+                        <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>

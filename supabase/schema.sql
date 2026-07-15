@@ -9,9 +9,12 @@ create table if not exists public.cyn_members (
   in_game_name text not null,
   timezone text not null,
   discord_username text,
+  nationality text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.cyn_members add column if not exists nationality text;
 
 alter table public.cyn_members enable row level security;
 

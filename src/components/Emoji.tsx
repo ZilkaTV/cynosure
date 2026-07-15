@@ -5,6 +5,8 @@
 // font, which is what rendered inconsistently ("WhatsApp-style" on some
 // systems, invisible on others) before.
 
+import { flagEmoji, countryName } from '../lib/countries'
+
 const VARIATION_SELECTOR_16 = 0xfe0f
 
 function toCodepoints(char: string): string {
@@ -58,6 +60,12 @@ export const EMOJI = {
   ship: '⛵',
   cross: '✝️',
 } as const
+
+/** A member's nationality flag (ISO alpha-2 code), for showing next to their name in tables. */
+export function Flag({ code, className = 'h-3.5 w-5' }: { code?: string; className?: string }) {
+  if (!code) return null
+  return <Emoji char={flagEmoji(code)} className={className} label={countryName(code)} />
+}
 
 /** Rank medal for #1/#2/#3 leaderboard rows (gold/silver/bronze emoji), plain number after. */
 export function RankMedal({ rank, className = 'h-4 w-4' }: { rank: number; className?: string }) {

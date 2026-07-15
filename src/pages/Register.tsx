@@ -43,7 +43,14 @@ export default function Register() {
     if (!session) return
     let alive = true
     ;(async () => {
-      const existing = await fetchByDiscord(discordDisplayName(session)).catch(() => null)
+      // Falls back to the Discord name unconditionally on any failure here
+      // (a bad/missing lookup should never leave the field silently empty).
+      let existing = null
+      try {
+        existing = await fetchByDiscord(discordDisplayName(session))
+      } catch {
+        existing = null
+      }
       if (!alive) return
       if (existing) {
         setName((n) => n || existing.in_game_name)

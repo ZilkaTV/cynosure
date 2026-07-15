@@ -178,11 +178,20 @@ alter table public.cyn_event_teams enable row level security;
 create policy "public can read cyn_event_teams"
   on public.cyn_event_teams for select to public using (true);
 
-create policy "anyone can insert cyn_event_teams"
-  on public.cyn_event_teams for insert to public with check (true);
+-- Only admins can create/edit teams (rosters, captains, starting points feed
+-- directly into event standings) - keyed on auth.uid(), same as
+-- cyn_event_admins above, never on client-editable user_metadata.
+create policy "admins can insert cyn_event_teams"
+  on public.cyn_event_teams for insert to authenticated with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
-create policy "anyone can update cyn_event_teams"
-  on public.cyn_event_teams for update to public using (true) with check (true);
+create policy "admins can update cyn_event_teams"
+  on public.cyn_event_teams for update to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
 -- Seed the CYN Trio Challenge teams with their points collected before this
 -- website-based system existed (see the Discord leaderboard post).
@@ -223,8 +232,15 @@ create policy "public can read cyn_event_submissions"
 create policy "anyone can insert cyn_event_submissions"
   on public.cyn_event_submissions for insert to public with check (true);
 
-create policy "anyone can update cyn_event_submissions"
-  on public.cyn_event_submissions for update to public using (true) with check (true);
+-- Only admins can review (accept/deny) a submission - this is the actual
+-- enforcement point; the UI hides the review buttons from non-admins too,
+-- but that's just presentation and was never a substitute for this.
+create policy "admins can update cyn_event_submissions"
+  on public.cyn_event_submissions for update to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
 -- Storage bucket for win-screen screenshots.
 insert into storage.buckets (id, name, public)

@@ -8,7 +8,8 @@
 // This module also owns the parts that must live on the main thread anyway:
 // sharing one computation per gameId across every caller (so switching tabs
 // or reopening a game never starts a duplicate replay), the permanent
-// IndexedDB result cache, and progress subscriptions for the UI.
+// IndexedDB result cache, the shared Supabase cache (see below), and
+// progress subscriptions for the UI.
 
 import {
   computeGameTileStats,
@@ -19,6 +20,7 @@ import {
   type GameTileStats,
   type ReplayProgress,
 } from './replaySimCore'
+import { supabase } from './supabase'
 
 export type { GameTileStats, ReplayProgress }
 
@@ -32,6 +34,51 @@ export type { GameTileStats, ReplayProgress }
 // recomputes once instead.
 function statsKey(gameId: string): string {
   return `stats:${VENDORED_COMMIT}:${COMPUTE_LOGIC_VERSION}:${gameId}`
+}
+
+// ── Shared cache (Supabase, when configured) ────────────────────────────
+// The IndexedDB cache above is per-visitor - every browser that opens a
+// game's report for the first time pays for the same replay. Since the
+// result is identical for everyone (same game, same engine version), it's
+// stored centrally too: the first visitor to compute a given game (at this
+// VENDORED_COMMIT/COMPUTE_LOGIC_VERSION) uploads it, and every visitor after
+// that - any browser, any device - gets it back on the next read, never
+// recomputing at all. Falls back to IndexedDB-only (still correct, just not
+// shared) if Supabase isn't configured.
+
+interface SharedRow {
+  max_tiles: Record<string, number>
+  max_percent: Record<string, number>
+  final_tiles: Record<string, number>
+}
+
+async function fetchShared(gameId: string): Promise<GameTileStats | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('cyn_game_tile_stats')
+    .select('max_tiles, max_percent, final_tiles')
+    .eq('game_id', gameId)
+    .eq('vendored_commit', VENDORED_COMMIT)
+    .eq('compute_logic_version', COMPUTE_LOGIC_VERSION)
+    .maybeSingle()
+  if (error || !data) return null
+  const row = data as SharedRow
+  return { maxTiles: row.max_tiles, maxPercent: row.max_percent, finalTiles: row.final_tiles }
+}
+
+async function saveShared(gameId: string, stats: GameTileStats): Promise<void> {
+  if (!supabase) return
+  await supabase
+    .from('cyn_game_tile_stats')
+    .insert({
+      game_id: gameId,
+      vendored_commit: VENDORED_COMMIT,
+      compute_logic_version: COMPUTE_LOGIC_VERSION,
+      max_tiles: stats.maxTiles,
+      max_percent: stats.maxPercent,
+      final_tiles: stats.finalTiles,
+    })
+    .then(() => {}, () => {}) // best-effort - a duplicate-key race (two visitors finishing at once) is fine, the row's already correct either way
 }
 
 // Computation is keyed by gameId at module scope (not tied to any component)
@@ -133,8 +180,18 @@ export function getGameTileStats(gameId: string): Promise<GameTileStats | null> 
   const p = (async () => {
     const cached = await idbGet<GameTileStats>(statsKey(gameId))
     if (cached) return cached
+
+    const shared = await fetchShared(gameId)
+    if (shared) {
+      await idbSet(statsKey(gameId), shared)
+      return shared
+    }
+
     const result = await runReplay(gameId)
-    if (result) await idbSet(statsKey(gameId), result)
+    if (result) {
+      await idbSet(statsKey(gameId), result)
+      await saveShared(gameId, result)
+    }
     return result
   })().finally(() => {
     inFlight.delete(gameId)

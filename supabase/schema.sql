@@ -293,3 +293,41 @@ create policy "public can read cyn_quest_claims"
 
 create policy "anyone can insert cyn_quest_claims"
   on public.cyn_quest_claims for insert to public with check (true);
+
+-- ============================================================
+-- Shared Max Tiles cache: a finished game's tile-ownership replay result
+-- (see src/lib/replaySim.ts) never changes once computed, so the FIRST
+-- visitor to open a game's report pays for the replay and every visitor
+-- after that - on any device, any browser, forever - gets it back instantly
+-- from here instead of everyone silently redoing the same multi-second (or,
+-- for a huge game, multi-minute) computation on their own machine. Keyed by
+-- the engine commit + logic version that produced it (see
+-- COMPUTE_LOGIC_VERSION in replaySimCore.ts) so re-vendoring the engine or
+-- fixing a bug in the math invalidates old rows instead of serving stale,
+-- known-wrong numbers forever.
+-- ============================================================
+
+create table if not exists public.cyn_game_tile_stats (
+  game_id text not null,
+  vendored_commit text not null,
+  compute_logic_version integer not null,
+  max_tiles jsonb not null,
+  max_percent jsonb not null,
+  final_tiles jsonb not null,
+  computed_at timestamptz not null default now(),
+  primary key (game_id, vendored_commit, compute_logic_version)
+);
+
+alter table public.cyn_game_tile_stats enable row level security;
+
+create policy "public can read cyn_game_tile_stats"
+  on public.cyn_game_tile_stats for select to public using (true);
+
+-- Insert-only, no update/delete policy at all: once a (game_id, commit,
+-- version) row exists it's correct and immutable, so there's nothing for a
+-- later visitor to legitimately overwrite - this is simpler than an
+-- admin-gated write and just as safe, since the composite primary key
+-- means a second insert for the same row can only ever fail (via
+-- onConflict do-nothing on the client side), never silently replace it.
+create policy "anyone can insert cyn_game_tile_stats"
+  on public.cyn_game_tile_stats for insert to public with check (true);

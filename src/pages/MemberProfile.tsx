@@ -36,6 +36,11 @@ export default function MemberProfile() {
 
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
+  const recentGameIds = (m?.cynGames ?? [])
+    .filter((g) => g.type !== 'Private')
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    .slice(0, 12)
+    .map((g) => g.gameId)
 
   useEffect(() => {
     if (!m?.discord || isOwnProfile) return
@@ -47,6 +52,15 @@ export default function MemberProfile() {
       alive = false
     }
   }, [m?.discord, isOwnProfile])
+
+  // Warm the Max Tiles cache for the recent games shown below while the
+  // visitor is browsing the profile, so opening one's report later is
+  // instant instead of waiting on the replay - see prefetchGameTileStats.
+  useEffect(() => {
+    if (recentGameIds.length === 0) return
+    import('../lib/replaySim').then(({ prefetchGameTileStats }) => prefetchGameTileStats(recentGameIds))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGameIds.join(',')])
 
   async function onToggleAdmin() {
     if (!m?.discord) return

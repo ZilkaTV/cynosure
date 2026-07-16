@@ -145,3 +145,24 @@ export function getGameTileStats(gameId: string): Promise<GameTileStats | null> 
   inFlight.set(gameId, p)
   return p
 }
+
+let prefetchChain: Promise<unknown> = Promise.resolve()
+
+/**
+ * Queues Max Tiles computations for games a visitor is likely to open soon
+ * (e.g. the games listed on the Overview/profile pages), so by the time
+ * they actually click into one, it's often already cached instead of
+ * making them wait. Fire-and-forget - callers don't await this.
+ *
+ * Deliberately sequential, not one Promise.all: OpenFront's public API is
+ * strictly rate-limited, and firing off a full game+turns fetch for every
+ * visible row at once would compete with (and could break) every other
+ * live fetch on the page. Each already-cached game resolves near-instantly
+ * anyway, so the queue only actually pays the full cost for genuinely new
+ * games.
+ */
+export function prefetchGameTileStats(gameIds: string[]): void {
+  for (const gameId of gameIds) {
+    prefetchChain = prefetchChain.then(() => getGameTileStats(gameId)).catch(() => {})
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { languages } from '../i18n/translations'
 import { useLanguage } from '../i18n/LanguageContext'
+import { Emoji, EMOJI } from './Emoji'
 
 export default function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage()
@@ -21,8 +22,9 @@ export default function LanguageSwitcher() {
         onClick={() => setOpen((o) => !o)}
         aria-label="Change language"
         aria-expanded={open}
-        className="btn-ghost inline-flex items-center gap-1 !px-3 !py-2 text-xs font-bold uppercase tracking-wide"
+        className="btn-ghost inline-flex items-center gap-1.5 !px-3 !py-2 text-xs font-bold uppercase tracking-wide"
       >
+        <Emoji char={EMOJI.globe} className="h-3.5 w-3.5" />
         {language}
       </button>
       {open && (

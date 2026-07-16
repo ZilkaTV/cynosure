@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -174,6 +174,17 @@ export default function Home() {
   const recentGames = [...byGameId.values()]
     .sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
     .slice(0, 5)
+
+  // Warm the Max Tiles cache for the games shown below while the visitor is
+  // just browsing the roster, so opening one's report later is instant
+  // instead of waiting on the replay - see prefetchGameTileStats.
+  useEffect(() => {
+    if (recentGames.length === 0) return
+    import('../lib/replaySim').then(({ prefetchGameTileStats }) => {
+      prefetchGameTileStats(recentGames.map(({ g }) => g.gameId))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGames.map(({ g }) => g.gameId).join(',')])
 
   return (
     <StatsShell>

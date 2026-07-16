@@ -64,6 +64,28 @@ create policy "anyone can upsert cyn_speedruns"
 create policy "anyone can update cyn_speedruns"
   on public.cyn_speedruns for update to public using (true) with check (true);
 
+-- Tiles @ 3min: same category rules as the speedrun above (Solo · Australia
+-- · No Nations), but the tracked value is a tile-share snapshot at the 3:00
+-- mark (see src/lib/tiles3min.ts) rather than a win time.
+create table if not exists public.cyn_tiles3min (
+  openfront_id text primary key,
+  game_id text not null,
+  percent numeric not null,
+  attempts integer not null default 1,
+  submitted_at timestamptz not null default now()
+);
+
+alter table public.cyn_tiles3min enable row level security;
+
+create policy "public can read cyn_tiles3min"
+  on public.cyn_tiles3min for select to public using (true);
+
+create policy "anyone can upsert cyn_tiles3min"
+  on public.cyn_tiles3min for insert to public with check (true);
+
+create policy "anyone can update cyn_tiles3min"
+  on public.cyn_tiles3min for update to public using (true) with check (true);
+
 -- Self-reported Discord bumps. There's no bot access to the bump channel (it's
 -- not our server), so members log their own bumps with a 2h cooldown enforced
 -- client-side + by checking last_bump_at before accepting a new one.

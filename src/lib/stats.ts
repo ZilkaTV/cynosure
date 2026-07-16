@@ -49,6 +49,10 @@ export interface MemberStats {
   speedrunAttempts: number // how many valid runs this member has submitted
   speedrunGameId: string | null // game id of their best run, for the leaderboard link
   lastSpeedrunAt: string | null
+  tiles3minPercent: number | null // best verified tile share at the 3:00 mark (same category rules as speedrun)
+  tiles3minAttempts: number
+  tiles3minGameId: string | null
+  lastTiles3minAt: string | null
   bumpCount: number // self-reported Discord bumps (2h cooldown enforced)
   lastBumpAt: string | null
   xp: number // total XP from claimed daily quests
@@ -279,6 +283,7 @@ export async function buildRoster(
   speedruns: Record<string, { seconds: number; attempts: number; game_id?: string; submitted_at?: string }> = {},
   bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
+  tiles3min: Record<string, { percent: number; attempts: number; game_id?: string; submitted_at?: string }> = {},
 ): Promise<RosterResult> {
   const [ranked, ffaLb] = await Promise.all([fetchRankedMap(), fetchFfaLeaderboard()])
 
@@ -372,6 +377,10 @@ export async function buildRoster(
       speedrunAttempts: speedruns[input.openfront_id]?.attempts ?? 0,
       speedrunGameId: speedruns[input.openfront_id]?.game_id ?? null,
       lastSpeedrunAt: speedruns[input.openfront_id]?.submitted_at ?? null,
+      tiles3minPercent: tiles3min[input.openfront_id]?.percent ?? null,
+      tiles3minAttempts: tiles3min[input.openfront_id]?.attempts ?? 0,
+      tiles3minGameId: tiles3min[input.openfront_id]?.game_id ?? null,
+      lastTiles3minAt: tiles3min[input.openfront_id]?.submitted_at ?? null,
       xp: xpMap[input.openfront_id] ?? 0,
       bumpCount: bumps[input.openfront_id]?.bump_count ?? 0,
       lastBumpAt: bumps[input.openfront_id]?.last_bump_at ?? null,

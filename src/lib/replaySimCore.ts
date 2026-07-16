@@ -240,6 +240,36 @@ function makeMapLoader(gameMapName: string): GameMapLoader {
   return { getMapData: () => mapData }
 }
 
+// ── Shared setup (fetch + feed the full turn log into a fresh runner) ───────
+// Both computeGameTileStats (full replay, running peaks) and
+// computeTilePercentAtTick (a single snapshot at a given tick) need the
+// exact same game constructed and pre-loaded with every turn - factored out
+// so the two stay in lockstep instead of risking drift between two copies.
+
+async function loadRunner(gameId: string) {
+  const [raw, rawTurns] = await Promise.all([fetchRawInfo(gameId), fetchRawTurns(gameId)])
+  if (!raw) return null
+
+  const gameStart = buildGameStartInfo(raw)
+  const lastTick = raw.num_turns
+
+  // OpenFront's API only returns turns that carry intents or a periodic
+  // desync-check hash (about 1 in every 20 ticks are present, not every
+  // tick) - the gaps are real empty ticks, not missing data. GameRunner
+  // advances its own tick counter once per addTurn/executeNextTick call
+  // regardless of what turnNumber says, so skipping the gaps would replay
+  // every intent dozens of ticks too early. Fill them in explicitly.
+  const byTurnNumber = new Map<number, Turn>()
+  for (const t of rawTurns) byTurnNumber.set(t.turnNumber, t)
+
+  const runner = await createGameRunner(gameStart, undefined, makeMapLoader(raw.config.gameMap), () => {})
+  for (let t = 0; t <= lastTick; t++) {
+    runner.addTurn(byTurnNumber.get(t) ?? { turnNumber: t, intents: [] })
+  }
+
+  return { raw, runner, lastTick }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 export interface GameTileStats {
@@ -273,25 +303,9 @@ export interface ComputeOptions {
 export async function computeGameTileStats(gameId: string, opts: ComputeOptions): Promise<GameTileStats | null> {
   const startedAt = Date.now()
   try {
-    const [raw, rawTurns] = await Promise.all([fetchRawInfo(gameId), fetchRawTurns(gameId)])
-    if (!raw) return null
-
-    const gameStart = buildGameStartInfo(raw)
-    const lastTick = raw.num_turns
-
-    // OpenFront's API only returns turns that carry intents or a periodic
-    // desync-check hash (about 1 in every 20 ticks are present, not every
-    // tick) - the gaps are real empty ticks, not missing data. GameRunner
-    // advances its own tick counter once per addTurn/executeNextTick call
-    // regardless of what turnNumber says, so skipping the gaps would replay
-    // every intent dozens of ticks too early. Fill them in explicitly.
-    const byTurnNumber = new Map<number, Turn>()
-    for (const t of rawTurns) byTurnNumber.set(t.turnNumber, t)
-
-    const runner = await createGameRunner(gameStart, undefined, makeMapLoader(raw.config.gameMap), () => {})
-    for (let t = 0; t <= lastTick; t++) {
-      runner.addTurn(byTurnNumber.get(t) ?? { turnNumber: t, intents: [] })
-    }
+    const loaded = await loadRunner(gameId)
+    if (!loaded) return null
+    const { raw, runner, lastTick } = loaded
 
     // Total land tiles is fixed for the map, but the *ownable* share of it
     // shrinks over the game as nukes leave lingering fallout - the engine's
@@ -390,6 +404,41 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
     return { maxTiles, maxPercent, finalTiles }
   } catch (err) {
     console.error('Replay simulation failed', err)
+    return null
+  }
+}
+
+/**
+ * Replays a game up to (and stopping exactly at) one specific tick and
+ * returns every player's land share at that instant - e.g. tick 1800 for
+ * "tile % at 3:00". Unlike computeGameTileStats this never runs to the
+ * game's end or its winner: it only ever simulates as many ticks as
+ * requested, so it's cheap even for a game that later runs for 20+ minutes.
+ * Returns null if the game couldn't be fetched/replayed, or didn't last
+ * long enough to reach that tick at all.
+ */
+export async function computeTilePercentAtTick(gameId: string, atTick: number): Promise<Record<string, number> | null> {
+  try {
+    const loaded = await loadRunner(gameId)
+    if (!loaded) return null
+    const { runner, lastTick } = loaded
+    if (lastTick < atTick) return null
+
+    let tick = 0
+    while (tick < atTick && runner.executeNextTick()) tick++
+    if (tick < atTick) return null
+
+    const totalLandTiles = runner.game.map().numLandTiles()
+    const denom = Math.max(1, totalLandTiles - runner.game.numTilesWithFallout())
+    const percentByClientId: Record<string, number> = {}
+    for (const player of runner.game.players()) {
+      const clientId = player.clientID()
+      if (!clientId) continue
+      percentByClientId[clientId] = (player.numTilesOwned() / denom) * 100
+    }
+    return percentByClientId
+  } catch (err) {
+    console.error('Tile-percent-at-tick replay failed', err)
     return null
   }
 }

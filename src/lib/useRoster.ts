@@ -11,6 +11,17 @@ const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'allWins', 'elo', 'bu
 export type DeltaField = (typeof DELTA_FIELDS)[number]
 export type Deltas = Record<string, Partial<Record<DeltaField, number>>>
 
+// Win-count fields are cumulative history read back from a *bounded* window
+// of each player's most recent OpenFront games (fetchPlayerGames caps how
+// many pages it fetches) - so for a very active player, an old CYN-tagged
+// win can roll out of that window between two fetches and make the count
+// look like it dropped, even though no win was actually lost. That's a
+// pagination-window artifact, not a real event, so these fields only ever
+// surface a positive delta (a real new win) and silently drop a decrease.
+// Elo isn't a monotonic counter - it genuinely goes up and down with real
+// results - so it keeps showing deltas in both directions.
+const MONOTONIC_FIELDS = new Set<DeltaField>(['ffaWins', 'teamWins', 'rankedWins', 'allWins', 'bumpCount'])
+
 function computeDeltas(before: RosterResult | null, after: RosterResult): Deltas {
   if (!before) return {}
   const beforeById = new Map(before.members.map((m) => [m.publicId, m]))
@@ -22,7 +33,9 @@ function computeDeltas(before: RosterResult | null, after: RosterResult): Deltas
     for (const f of DELTA_FIELDS) {
       const a = prev[f as keyof MemberStats] as number | null
       const b = m[f as keyof MemberStats] as number | null
-      if (typeof a === 'number' && typeof b === 'number' && b !== a) changed[f] = b - a
+      if (typeof a !== 'number' || typeof b !== 'number' || b === a) continue
+      if (MONOTONIC_FIELDS.has(f) && b < a) continue
+      changed[f] = b - a
     }
     if (Object.keys(changed).length) deltas[m.publicId] = changed
   }

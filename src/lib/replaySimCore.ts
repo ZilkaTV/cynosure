@@ -51,11 +51,17 @@ const MAX_COMPUTE_MS = 3 * 60 * 1000
 export const VENDORED_COMMIT = 'dcc18d5231af6253b0e991bf04a4c764982fe262'
 
 // Bump this whenever computeGameTileStats's own math changes (not just the
-// vendored engine commit) - e.g. the maxPercent independent-tracking fix
-// below. replaySim.ts folds this into its cache key alongside
-// VENDORED_COMMIT, so a logic-only fix also invalidates previously cached
-// (and now known-stale) results instead of leaving them stuck forever.
-export const COMPUTE_LOGIC_VERSION = 2
+// vendored engine commit), OR when trust in previously-cached results
+// itself changes - e.g. this bump (2 -> 3) isn't a formula change, it's
+// because a corrupted result was found in the shared cache (see the worker
+// serialization + coverage-check fix alongside this) and every visitor's
+// own local IndexedDB copy needed a clean slate too, not just the shared
+// table - a visitor with a bad result already cached locally would keep
+// reading it forever otherwise, since the local cache is checked before
+// the shared one. replaySim.ts folds this into its cache key alongside
+// VENDORED_COMMIT, so a bump invalidates every previously cached result
+// (local AND shared) at once, no manual per-visitor cache-clearing needed.
+export const COMPUTE_LOGIC_VERSION = 3
 
 /** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
 function mapSlug(gameMapName: string): string {

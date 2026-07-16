@@ -68,17 +68,25 @@ async function fetchShared(gameId: string): Promise<GameTileStats | null> {
 
 async function saveShared(gameId: string, stats: GameTileStats): Promise<void> {
   if (!supabase) return
+  // Upsert, not insert-only: computeGameTileStats now fails closed on an
+  // obviously-incomplete result (see its own coverage check), but a
+  // corrupted row still reached this table once in production before that
+  // existed - upserting means a later, correct recomputation can replace a
+  // bad row instead of being permanently locked out by it.
   await supabase
     .from('cyn_game_tile_stats')
-    .insert({
-      game_id: gameId,
-      vendored_commit: VENDORED_COMMIT,
-      compute_logic_version: COMPUTE_LOGIC_VERSION,
-      max_tiles: stats.maxTiles,
-      max_percent: stats.maxPercent,
-      final_tiles: stats.finalTiles,
-    })
-    .then(() => {}, () => {}) // best-effort - a duplicate-key race (two visitors finishing at once) is fine, the row's already correct either way
+    .upsert(
+      {
+        game_id: gameId,
+        vendored_commit: VENDORED_COMMIT,
+        compute_logic_version: COMPUTE_LOGIC_VERSION,
+        max_tiles: stats.maxTiles,
+        max_percent: stats.maxPercent,
+        final_tiles: stats.finalTiles,
+      },
+      { onConflict: 'game_id,vendored_commit,compute_logic_version' },
+    )
+    .then(() => {}, () => {}) // best-effort - a failed upload just means the next visitor computes it fresh too
 }
 
 // Computation is keyed by gameId at module scope (not tied to any component)

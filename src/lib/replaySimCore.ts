@@ -366,6 +366,21 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
       }
     }
 
+    // Sanity check: a game with N registered (human) players should end
+    // with tile data for close to all of them - a result covering only a
+    // small fraction is a sign the replay was somehow cut short or
+    // corrupted (observed once in production: 39 of 125 players, everyone
+    // including the actual winner reading near-zero) rather than a
+    // legitimate small game. Fail closed instead of returning - and,
+    // upstream, permanently caching - obviously-wrong data.
+    const coverage = raw.players.length > 0 ? Object.keys(maxPercent).length / raw.players.length : 1
+    if (coverage < 0.5) {
+      console.error(
+        `Replay simulation for ${gameId} only covered ${Object.keys(maxPercent).length}/${raw.players.length} players - treating as failed`,
+      )
+      return null
+    }
+
     return { maxTiles, maxPercent, finalTiles }
   } catch (err) {
     console.error('Replay simulation failed', err)

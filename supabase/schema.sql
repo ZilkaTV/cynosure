@@ -323,11 +323,12 @@ alter table public.cyn_game_tile_stats enable row level security;
 create policy "public can read cyn_game_tile_stats"
   on public.cyn_game_tile_stats for select to public using (true);
 
--- Insert-only, no update/delete policy at all: once a (game_id, commit,
--- version) row exists it's correct and immutable, so there's nothing for a
--- later visitor to legitimately overwrite - this is simpler than an
--- admin-gated write and just as safe, since the composite primary key
--- means a second insert for the same row can only ever fail (via
--- onConflict do-nothing on the client side), never silently replace it.
+-- Update is allowed too (not insert-only): a corrupted result did reach
+-- this table once in production (computeGameTileStats now fails closed on
+-- it, but this table has to allow a later, correct recomputation to
+-- replace a bad row that already got through, not lock it in forever).
 create policy "anyone can insert cyn_game_tile_stats"
   on public.cyn_game_tile_stats for insert to public with check (true);
+
+create policy "anyone can update cyn_game_tile_stats"
+  on public.cyn_game_tile_stats for update to public using (true) with check (true);

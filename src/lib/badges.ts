@@ -63,13 +63,24 @@ function tierLimit(tier: BadgeTier): number {
   return { diamond: 3, gold: 10, silver: 50, bronze: 100 }[tier]
 }
 
-/** Consecutive days (ending on the latest win-day) with at least one CYN win. */
+/**
+ * Consecutive days with at least one CYN game (any result - this measures
+ * showing up, not winning), counting backward from today. Resets to 0 as
+ * soon as more than a day has passed without a new game, rather than
+ * freezing at whatever the streak last was - a player who stops playing
+ * shouldn't keep reading as "currently on a streak" forever.
+ */
 export function loyalStreak(m: MemberStats): number {
-  const days = new Set(
-    m.cynGames.filter((g) => g.result === 'victory').map((g) => g.start.slice(0, 10)),
-  )
+  const days = new Set(m.cynGames.map((g) => g.start.slice(0, 10)))
   if (days.size === 0) return 0
   const sorted = [...days].sort().reverse() // newest first
+
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const today = new Date(todayKey + 'T00:00:00Z')
+  const mostRecent = new Date(sorted[0] + 'T00:00:00Z')
+  const daysSinceLast = (today.getTime() - mostRecent.getTime()) / 86_400_000
+  if (daysSinceLast > 1) return 0
+
   let streak = 1
   for (let i = 1; i < sorted.length; i++) {
     const prev = new Date(sorted[i - 1] + 'T00:00:00Z')

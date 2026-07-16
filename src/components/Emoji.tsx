@@ -60,6 +60,7 @@ export const EMOJI = {
   ship: '⛵',
   cross: '✝️',
   globe: '🌐',
+  globeAfrica: '🌍',
 } as const
 
 /** A member's nationality flag (ISO alpha-2 code), for showing next to their name in tables. */

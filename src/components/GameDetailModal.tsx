@@ -54,7 +54,7 @@ function getColumns(t: TranslationShape): { key: SortKey; label: string; icon?: 
     { key: 'inc', label: t.gameDetail.colIn, icon: EMOJI.shield },
     { key: 'gold', label: t.gameDetail.colGold, icon: EMOJI.coin },
     { key: 'kills', label: t.gameDetail.colKills, icon: EMOJI.skull },
-    { key: 'maxPercent', label: t.gameDetail.colMaxTiles },
+    { key: 'maxPercent', label: t.gameDetail.colMaxTiles, icon: EMOJI.globeAfrica },
     { key: 'deathSec', label: t.gameDetail.colDeath, icon: EMOJI.cross },
   ]
 }

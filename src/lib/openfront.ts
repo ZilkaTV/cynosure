@@ -272,17 +272,31 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
 // instead of the correct 6:17.
 const SERVER_TICKS_PER_SECOND = 10
 
+// Every game starts with a spawn-phase countdown (picking where to land)
+// before the match clock a player actually experiences starts moving - the
+// engine's own config (Config.numSpawnPhaseTurns()) returns 100 turns (10s)
+// for a Singleplayer game specifically, which every speedrun submission is
+// (verifySpeedrun requires it). That countdown is included in a turn's raw
+// turnNumber, so converting turnNumber straight to seconds over-counts every
+// run by exactly this much - confirmed against two real submitted runs
+// (previously stored as 6:17/5:45, real in-game times 6:07/5:35 - both off
+// by precisely 10s, i.e. 100 ticks).
+const SINGLEPLAYER_SPAWN_PHASE_TURNS = 100
+
 /**
  * The `duration` OpenFront reports is how long the connection stayed open,
  * NOT how long it took to win - a player can win, then leave the game/replay
  * running (watching, idle, disconnect delay), inflating `duration` well past
  * the actual result. Confirmed on a real submitted run: last real action at
- * turn 3771 (~6:17) but reported duration was 18:18.
+ * turn 3771 (~6:17 before the spawn-phase correction, 6:07 after) but
+ * reported duration was 18:18.
  *
  * This walks the turn log backwards for the last turn with a real action
  * (anything besides "mark_disconnected", which fires continuously even while
- * idle) and converts its turn number to seconds using the server's fixed
- * tick rate, giving the actual time-to-decide instead of time-to-disconnect.
+ * idle), converts its turn number to seconds using the server's fixed tick
+ * rate, and subtracts the spawn-phase countdown - giving the actual
+ * time-to-decide a player would see on their own in-game clock, not
+ * time-to-disconnect and not time-including-the-pre-match-countdown.
  */
 export async function fetchLastActionSeconds(gameId: string): Promise<number | null> {
   const key = `${CACHE_NS}:lastaction:${gameId}`
@@ -298,7 +312,7 @@ export async function fetchLastActionSeconds(gameId: string): Promise<number | n
     for (let i = turns.length - 1; i >= 0; i--) {
       const real = (turns[i].intents ?? []).some((x) => x.type !== 'mark_disconnected')
       if (real) {
-        seconds = turns[i].turnNumber / SERVER_TICKS_PER_SECOND
+        seconds = Math.max(0, turns[i].turnNumber - SINGLEPLAYER_SPAWN_PHASE_TURNS) / SERVER_TICKS_PER_SECOND
         break
       }
     }

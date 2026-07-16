@@ -317,9 +317,28 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
         const owned = player.numTilesOwned()
         if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
           maxTiles[clientId] = owned
-          maxPercent[clientId] = (owned / denom) * 100
+        }
+        // Tracked independently from maxTiles: the denominator (non-fallout
+        // land) shrinks over the game as nukes spread, so a player's peak
+        // *percentage* doesn't necessarily land on the same tick as their
+        // peak *raw tile count* - gating this update behind "owned just hit
+        // a new high" (as a single combined check used to do) can miss a
+        // later tick where they held fewer tiles but a shrunk denominator
+        // still made that a higher percentage.
+        const percent = (owned / denom) * 100
+        if (maxPercent[clientId] === undefined || percent > maxPercent[clientId]) {
+          maxPercent[clientId] = percent
         }
       }
+      // OpenFront's own win check (WinCheckExecution) has just decided the
+      // match at this tick - the turn log often runs on well past this
+      // point (players who stick around keep playing in what's already a
+      // decided game), but none of that changes who won or their peak
+      // share, so simulating it is pure wasted CPU/time. Stopping here
+      // instead of at the log's real end is a deliberate, usually large
+      // saving (a match decided a third of the way through a long log
+      // currently still gets replayed to the end for nothing).
+      if (runner.game.getWinner()) break
     }
 
     const finalTiles: Record<string, number> = {}
@@ -330,10 +349,13 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
       const owned = player.numTilesOwned()
       finalTiles[clientId] = owned
       // The last tick isn't necessarily a sampled one - make sure it's
-      // still reflected in the max.
+      // still reflected in the max (tracked independently, see above).
       if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
         maxTiles[clientId] = owned
-        maxPercent[clientId] = (owned / finalDenom) * 100
+      }
+      const percent = (owned / finalDenom) * 100
+      if (maxPercent[clientId] === undefined || percent > maxPercent[clientId]) {
+        maxPercent[clientId] = percent
       }
     }
 

@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/client/graphics/NameBoxCalculator.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/client/hud/NameBoxCalculator.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { Cell, Game, NameViewData, Player } from "../../core/game/Game";
 import { calculateBoundingBox } from "../../core/Util";
@@ -16,12 +16,43 @@ export interface Rectangle {
   height: number;
 }
 
+// Spawn region diameter (see getSpawnTiles in SpawnExecution — euclidean
+// radius 4). Used to size spawn-phase names directly off the spawn tile,
+// instead of waiting on cluster recomputation.
+const SPAWN_REGION_DIAMETER = 8;
+
+/**
+ * Place a player's name during the spawn phase using their currently-selected
+ * spawn tile. Tracks re-rolls immediately, since spawnTile updates the same
+ * tick the player picks a new location.
+ */
+export function placeSpawnName(game: Game, player: Player): NameViewData {
+  const spawnTile = player.spawnTile();
+  if (spawnTile === undefined) {
+    return { x: 0, y: 0, size: 0 };
+  }
+  const fontSize = calculateFontSize(
+    {
+      x: 0,
+      y: 0,
+      width: SPAWN_REGION_DIAMETER,
+      height: SPAWN_REGION_DIAMETER,
+    },
+    player.displayName(),
+  );
+  return {
+    x: Math.ceil(game.x(spawnTile)),
+    y: Math.ceil(game.y(spawnTile) - fontSize / 3),
+    size: fontSize,
+  };
+}
+
 export function placeName(game: Game, player: Player): NameViewData {
   const boundingBox =
     player.largestClusterBoundingBox ??
     calculateBoundingBox(game, player.borderTiles());
 
-  let scalingFactor = 1;
+  let scalingFactor: number;
   const width = boundingBox.max.x - boundingBox.min.x;
   const height = boundingBox.max.y - boundingBox.min.y;
   const size = Math.min(width, height);
@@ -94,8 +125,8 @@ export function createGrid(
       if (game.isOnMap(cell)) {
         const tile = game.ref(cell.x, cell.y);
         grid[x - scaledBoundingBox.min.x][y - scaledBoundingBox.min.y] =
-          game.isLake(tile) ||
           game.isShore(tile) ||
+          (game.isOcean(tile) && game.magnitude(tile) < 10) ||
           game.owner(tile) === player ||
           game.hasFallout(tile);
       }

@@ -1,9 +1,10 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/SpawnExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/SpawnExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import {
   Execution,
   Game,
+  GameType,
   Player,
   PlayerInfo,
   PlayerType,
@@ -42,11 +43,6 @@ export class SpawnExecution implements Execution {
   tick(ticks: number) {
     this.active = false;
 
-    if (!this.mg.inSpawnPhase()) {
-      this.active = false;
-      return;
-    }
-
     let player: Player | null = null;
     if (this.mg.hasPlayer(this.playerInfo.id)) {
       player = this.mg.player(this.playerInfo.id);
@@ -60,7 +56,9 @@ export class SpawnExecution implements Execution {
     }
 
     player.tiles().forEach((t) => player.relinquish(t));
-    const spawn = this.getSpawn(this.tile);
+    const spawn = this.getSpawn(
+      this.mg.config().isRandomSpawn() ? undefined : this.tile,
+    );
 
     if (!spawn) {
       console.warn(`SpawnExecution: cannot spawn ${this.playerInfo.name}`);
@@ -79,6 +77,15 @@ export class SpawnExecution implements Execution {
     }
 
     player.setSpawnTile(spawn.center);
+
+    if (
+      this.mg.config().gameConfig().gameType === GameType.Singleplayer &&
+      this.playerInfo.playerType === PlayerType.Human
+    ) {
+      // In singleplayer, spawn ends when player selects
+      // a spawn location.
+      this.mg.endSpawnPhase();
+    }
   }
 
   isActive(): boolean {

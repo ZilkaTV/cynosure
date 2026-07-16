@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/game/Stats.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/game/Stats.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { AllPlayersStats } from "../Schemas";
 import { NukeType, OtherUnitType, PlayerStats } from "../StatsSchemas";
@@ -104,6 +104,12 @@ export interface Stats {
 
   // player was killed (0 tiles)
   playerKilled(player: Player, tick: number): void;
+
+  // Record tiles owned at game end (final standings).
+  recordFinalTiles(player: Player, tiles: number | bigint): void;
+
+  // Record that player eliminated human victim at tick (OFM kill scoring).
+  recordKill(player: Player, victim: Player, tick: number | bigint): void;
 
   // Player's train arrives at any station, generating gold
   trainSelfTrade(player: Player, gold: number | bigint): void;

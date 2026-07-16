@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/MIRVExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/MIRVExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import {
   Execution,
@@ -85,7 +85,7 @@ export class MirvExecution implements Execution {
       });
       this.mg.stats().bombLaunch(this.player, this.targetPlayer, UnitType.MIRV);
       const x = Math.floor(
-        (this.mg.x(this.dst) + this.mg.x(this.mg.x(this.nuke.tile()))) / 2,
+        (this.mg.x(this.dst) + this.mg.x(this.nuke.tile())) / 2,
       );
       const y = Math.max(0, this.mg.y(this.dst) - 500) + 50;
       this.separateDst = this.mg.ref(x, y);

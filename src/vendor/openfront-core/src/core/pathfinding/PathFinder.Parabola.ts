@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/pathfinding/PathFinder.Parabola.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/pathfinding/PathFinder.Parabola.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { GameMap, TileRef } from "../game/GameMap";
 import { within } from "../Util";
@@ -14,9 +14,7 @@ export interface ParabolaOptions {
 
 const PARABOLA_MIN_HEIGHT = 50;
 
-export class ParabolaUniversalPathFinder
-  implements SteppingPathFinder<TileRef>
-{
+export class ParabolaUniversalPathFinder implements SteppingPathFinder<TileRef> {
   private curve: DistanceBasedBezierCurve | null = null;
   private lastTo: TileRef | null = null;
 

@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/game/NationCreation.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/game/NationCreation.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { PseudoRandom } from "../PseudoRandom";
 import { GameStartInfo } from "../Schemas";
@@ -13,7 +13,7 @@ import {
   PlayerInfo,
   PlayerType,
 } from "./Game";
-import { Nation as ManifestNation } from "./TerrainMapLoader";
+import { AdditionalNation, Nation as ManifestNation } from "./TerrainMapLoader";
 
 /**
  * Creates the nations array for a game.
@@ -24,16 +24,22 @@ import { Nation as ManifestNation } from "./TerrainMapLoader";
  *   - Public HumansVsNations: matches nation count to human player count
  *   - Public compact maps: uses 25% of manifest nations
  *   - Otherwise: uses all manifest nations
+ *
+ * When more nations are needed than the manifest defines, names are first
+ * drawn from `additionalNations`; any remainder is generated procedurally.
  */
 export function createNationsForGame(
   gameStart: GameStartInfo,
   manifestNations: ManifestNation[],
+  additionalNations: AdditionalNation[],
   numHumans: number,
   random: PseudoRandom,
 ): Nation[] {
   const toNation = (n: ManifestNation): Nation =>
     new Nation(
-      new Cell(n.coordinates[0], n.coordinates[1]),
+      n.coordinates !== undefined
+        ? new Cell(n.coordinates[0], n.coordinates[1])
+        : undefined,
       new PlayerInfo(n.name, PlayerType.Nation, null, random.nextID()),
     );
 
@@ -52,6 +58,7 @@ export function createNationsForGame(
     return createRandomNations(
       configNations,
       manifestNations,
+      additionalNations,
       toNation,
       random,
     );
@@ -60,7 +67,13 @@ export function createNationsForGame(
   if (gameStart.config.gameType === GameType.Public) {
     // For HvN, balance nation count to match human count
     if (isHumansVsNations) {
-      return createRandomNations(numHumans, manifestNations, toNation, random);
+      return createRandomNations(
+        numHumans,
+        manifestNations,
+        additionalNations,
+        toNation,
+        random,
+      );
     }
 
     // For compact maps, use only 25% of nations (minimum 1)
@@ -80,11 +93,14 @@ export function createNationsForGame(
 
 /**
  * Creates the requested number of nations from manifest data.
- * If more nations are needed than available in the manifest, generates additional ones with random names.
+ * If more nations are needed than available in the manifest, fills the gap
+ * first with random picks from `additionalNations`, then with procedurally
+ * generated names if still short.
  */
 function createRandomNations(
   targetCount: number,
   manifestNations: ManifestNation[],
+  additionalNations: AdditionalNation[],
   toNation: (n: ManifestNation) => Nation,
   random: PseudoRandom,
 ): Nation[] {
@@ -92,11 +108,31 @@ function createRandomNations(
   if (targetCount <= manifestNations.length) {
     return shuffled.slice(0, targetCount).map(toNation);
   }
-  // Need more nations than defined in manifest, create additional ones
   const nations: Nation[] = shuffled.map(toNation);
   const usedNames = new Set(nations.map((n) => n.playerInfo.name));
-  const additionalCount = targetCount - manifestNations.length;
-  for (let i = 0; i < additionalCount; i++) {
+  let remaining = targetCount - manifestNations.length;
+
+  if (remaining > 0 && additionalNations.length > 0) {
+    const candidates = additionalNations.filter((n) => !usedNames.has(n.name));
+    const shuffledExtras = random.shuffleArray(candidates);
+    const picked = shuffledExtras.slice(0, remaining);
+    for (const extra of picked) {
+      const spawnCell =
+        extra.coordinates !== undefined
+          ? new Cell(extra.coordinates[0], extra.coordinates[1])
+          : undefined;
+      nations.push(
+        new Nation(
+          spawnCell,
+          new PlayerInfo(extra.name, PlayerType.Nation, null, random.nextID()),
+        ),
+      );
+      usedNames.add(extra.name);
+    }
+    remaining -= picked.length;
+  }
+
+  for (let i = 0; i < remaining; i++) {
     const name = generateUniqueNationName(random, usedNames);
     usedNames.add(name);
     nations.push(

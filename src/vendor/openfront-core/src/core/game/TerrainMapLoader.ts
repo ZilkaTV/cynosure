@@ -1,30 +1,19 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/game/TerrainMapLoader.ts
-// Modified for this vendor build: dropped the module-level loadedMaps cache
-// (see below). See src/vendor/openfront-core/README.md.
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/game/TerrainMapLoader.ts
+// Unmodified copy - see src/vendor/openfront-core/README.md.
 import { GameMapSize, GameMapType, TeamGameSpawnAreas } from "./Game";
 import { GameMap, GameMapImpl } from "./GameMap";
 import { GameMapLoader } from "./GameMapLoader";
 
 export type TerrainMapData = {
   nations: Nation[];
+  additionalNations: AdditionalNation[];
   gameMap: GameMap;
   miniGameMap: GameMap;
   teamGameSpawnAreas?: TeamGameSpawnAreas;
 };
 
-// Upstream caches TerrainMapData here across the whole page session, which
-// is correct for a rendering client (one map loaded once per live/replayed
-// game). It's wrong for us: replaySim.ts can run createGameRunner multiple
-// times per page load (different games, or the same game twice), and the
-// returned GameMap is mutated in place as the simulation plays out (tile
-// ownership, terrain changes from nukes). Reusing a cached instance across
-// replays fed a second call the first call's already-played-out map instead
-// of pristine terrain - confirmed by running getTilePercentAt twice in a
-// row in-browser: the second call silently returned no players at all.
-// Dropping the cache costs re-parsing the map bytes into a GameMapImpl on
-// every call (cheap - the bytes themselves are still cached by replaySim.ts
-// via IndexedDB, so this never touches the network twice).
+const loadedMaps = new Map<string, TerrainMapData>();
 
 export interface MapMetadata {
   width: number;
@@ -38,12 +27,22 @@ export interface MapManifest {
   map4x: MapMetadata;
   map16x: MapMetadata;
   nations: Nation[];
+  // Optional pool of fallback nation names used when a game requests more
+  // nations than the manifest defines. Picked at random; if still not enough,
+  // the remainder is generated procedurally.
+  additionalNations?: AdditionalNation[];
   teamGameSpawnAreas?: TeamGameSpawnAreas;
 }
 
 export interface Nation {
-  coordinates: [number, number];
-  flag: string;
+  coordinates?: [number, number];
+  flag?: string;
+  name: string;
+}
+
+export interface AdditionalNation {
+  coordinates?: [number, number];
+  flag?: string;
   name: string;
 }
 
@@ -52,6 +51,9 @@ export async function loadTerrainMap(
   mapSize: GameMapSize,
   terrainMapFileLoader: GameMapLoader,
 ): Promise<TerrainMapData> {
+  const cacheKey = `${map}:${mapSize}`;
+  const cached = loadedMaps.get(cacheKey);
+  if (cached !== undefined) return cached;
   const mapFiles = terrainMapFileLoader.getMapData(map);
   const manifest = await mapFiles.manifest();
 
@@ -70,10 +72,20 @@ export async function loadTerrainMap(
 
   if (mapSize === GameMapSize.Compact) {
     manifest.nations.forEach((nation) => {
-      nation.coordinates = [
-        Math.floor(nation.coordinates[0] / 2),
-        Math.floor(nation.coordinates[1] / 2),
-      ];
+      if (nation.coordinates !== undefined) {
+        nation.coordinates = [
+          Math.floor(nation.coordinates[0] / 2),
+          Math.floor(nation.coordinates[1] / 2),
+        ];
+      }
+    });
+    manifest.additionalNations?.forEach((nation) => {
+      if (nation.coordinates !== undefined) {
+        nation.coordinates = [
+          Math.floor(nation.coordinates[0] / 2),
+          Math.floor(nation.coordinates[1] / 2),
+        ];
+      }
     });
   }
 
@@ -94,10 +106,12 @@ export async function loadTerrainMap(
 
   const result = {
     nations: manifest.nations,
+    additionalNations: manifest.additionalNations ?? [],
     gameMap: gameMap,
     miniGameMap: miniMap,
     teamGameSpawnAreas,
   };
+  loadedMaps.set(cacheKey, result);
   return result;
 }
 

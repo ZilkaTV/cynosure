@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/NationExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/NationExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import {
   Difficulty,
@@ -31,6 +31,7 @@ export class NationExecution implements Execution {
   private active = true;
   private random: PseudoRandom;
   private behaviorsInitialized = false;
+  private spawnExecAdded = false;
   private emojiBehavior!: NationEmojiBehavior;
   private mirvBehavior!: NationMIRVBehavior;
   private attackBehavior!: AiAttackBehavior;
@@ -107,7 +108,14 @@ export class NationExecution implements Execution {
     }
 
     if (this.mg.inSpawnPhase()) {
-      if (ticks % this.attackRate !== this.attackTick) {
+      if (this.player.hasSpawned()) {
+        // Already on the map — periodically re-spawn so the nation
+        // visibly hops to different locations during the spawn phase.
+        if (ticks % this.attackRate !== this.attackTick) {
+          return;
+        }
+      } else if (this.spawnExecAdded) {
+        // First SpawnExecution already queued, wait for it to land.
         return;
       }
       // Place nations without a spawn cell (Dynamically created for HumansVsNations) randomly by SpawnExecution
@@ -115,6 +123,7 @@ export class NationExecution implements Execution {
         this.mg.addExecution(
           new SpawnExecution(this.gameID, this.nation.playerInfo),
         );
+        this.spawnExecAdded = true;
         return;
       }
 
@@ -134,6 +143,7 @@ export class NationExecution implements Execution {
             this.mg.addExecution(
               new SpawnExecution(this.gameID, this.nation.playerInfo),
             );
+            this.spawnExecAdded = true;
             return;
           }
         }
@@ -150,6 +160,12 @@ export class NationExecution implements Execution {
       this.mg.addExecution(
         new SpawnExecution(this.gameID, this.nation.playerInfo, rl),
       );
+      this.spawnExecAdded = true;
+      return;
+    }
+
+    // Spawn phase already ended but our SpawnExecution hasn't fired yet — wait.
+    if (this.spawnExecAdded && !this.player.hasSpawned()) {
       return;
     }
 

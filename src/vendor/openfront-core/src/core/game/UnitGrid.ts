@@ -1,8 +1,8 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/game/UnitGrid.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/game/UnitGrid.ts
 // Modified for this vendor build - see src/vendor/openfront-core/README.md
-// for exactly what changed and why (rendering-only references stripped, or
-// GameRunner's config loader swapped for a direct instantiation).
+// for exactly what changed and why (dropped the `Unit | UnitView` union arms (kept plain `Unit`) and the now-unused `client/view` import).
+
 import { PlayerID, Unit, UnitType } from "./Game";
 import { GameMap, TileRef } from "./GameMap";
 

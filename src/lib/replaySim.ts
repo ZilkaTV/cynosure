@@ -10,14 +10,18 @@
 // or reopening a game never starts a duplicate replay), the permanent
 // IndexedDB result cache, and progress subscriptions for the UI.
 
-import { computeGameTileStats, idbGet, idbSet, type GameTileStats, type ReplayProgress } from './replaySimCore'
+import { computeGameTileStats, idbGet, idbSet, VENDORED_COMMIT, type GameTileStats, type ReplayProgress } from './replaySimCore'
 
 export type { GameTileStats, ReplayProgress }
 
-// A finished game's tile stats never change, so completed results are cached
-// forever (no TTL) in the same IndexedDB store the map binaries use.
+// A finished game's tile stats never change *for a given engine commit*, so
+// completed results are cached forever (no TTL) in the same IndexedDB store
+// the map binaries use - but keyed to VENDORED_COMMIT too, so re-vendoring
+// the engine (which happens periodically - see replaySimCore.ts) doesn't
+// leave every visitor stuck with a stale, wrong result computed against a
+// since-replaced engine version; it just quietly recomputes once instead.
 function statsKey(gameId: string): string {
-  return `stats:${gameId}`
+  return `stats:${VENDORED_COMMIT}:${gameId}`
 }
 
 // Computation is keyed by gameId at module scope (not tied to any component)

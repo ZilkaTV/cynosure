@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/MoveWarshipExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/MoveWarshipExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { Execution, Game, Player, UnitType } from "../game/Game";
 import { TileRef } from "../game/GameMap";
@@ -16,6 +16,8 @@ export class MoveWarshipExecution implements Execution {
       console.warn(`MoveWarshipExecution: position ${this.position} not valid`);
       return;
     }
+    // Get water component of new TargetTile for connectivity check
+    const newPatrolTileWaterComponent = mg.getWaterComponent(this.position);
     // Cache warship list and build a lookup map — avoids repeated iteration
     const warshipMap = new Map(
       this.owner.units(UnitType.Warship).map((u) => [u.id(), u]),
@@ -29,6 +31,10 @@ export class MoveWarshipExecution implements Execution {
       }
       if (!warship.isActive()) {
         console.warn(`MoveWarshipExecution: warship ${unitId} is not active`);
+        continue;
+      }
+      // Do not update the warship's patrolTile if it is in a different Water Component
+      if (!mg.hasWaterComponent(warship.tile(), newPatrolTileWaterComponent!)) {
         continue;
       }
       warship.updateWarshipState({

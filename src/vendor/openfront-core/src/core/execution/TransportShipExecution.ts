@@ -1,8 +1,7 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/TransportShipExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/TransportShipExecution.ts
 // Modified for this vendor build - see src/vendor/openfront-core/README.md
-// for exactly what changed and why (rendering-only references stripped, or
-// GameRunner's config loader swapped for a direct instantiation).
+// for exactly what changed and why (repointed the `renderTroops` import at the local core/utilities/RenderNumber.ts instead of client/Utils.ts).
 import { renderTroops } from "../utilities/RenderNumber";
 import {
   Execution,
@@ -94,6 +93,11 @@ export class TransportShipExecution implements Execution {
       ) {
         this.rejectIncomingAllianceRequests(targetPlayer);
       }
+    }
+
+    if (this.target === this.attacker) {
+      this.active = false;
+      return;
     }
 
     if (this.target.isPlayer() && !this.attacker.canAttackPlayer(this.target)) {

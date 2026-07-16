@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/WarshipExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/WarshipExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import {
   Execution,
@@ -125,6 +125,10 @@ export class WarshipExecution implements Execution {
 
   private healWarship(): void {
     const owner = this.warship.owner();
+    // A doomed side (below the Doomsday Clock bar) cannot repair its navy, so the
+    // decay in DoomsdayClockExecution actually sinks warships instead of being
+    // out-healed at a port. Inert when the mode is off: the mark is never set.
+    if (owner.inDoomsdayClock()) return;
     const passiveHealing = this.mg.config().warshipPassiveHealing();
     const passiveHealingRange = this.mg.config().warshipPassiveHealingRange();
     const passiveHealingRangeSquared =

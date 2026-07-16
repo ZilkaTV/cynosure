@@ -35,18 +35,20 @@ const MAX_COMPUTE_MS = 3 * 60 * 1000
 
 // Map assets are fetched straight from OpenFront's repo at the same commit
 // the vendored engine is pinned to, so terrain data always matches the code
-// reading it. Pinned to the commit game URdAfzpM was actually played on
+// reading it. Pinned to the commit game GEiyYVf3 was actually played on
 // (its raw API record includes gitCommit) rather than a current HEAD - see
 // src/vendor/openfront-core/README.md for why that distinction matters:
 // the simulation only reproduces a game bit-for-bit when the engine version
 // matches what the real server ran, and this engine changes often enough
-// (458 commits in ~2 months between this pin and today) that a replay
-// against a mismatched version diverges within the first few seconds. The
-// same drift applies to maps: a game played on a newer commit can use a map
-// that didn't exist yet at this pin (or was renamed), in which case the
-// fetch below 404s and computeGameTileStats fails closed (returns null)
-// rather than silently replaying with the wrong terrain.
-const VENDORED_COMMIT = 'aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d'
+// that a replay against a mismatched version diverges (or crashes) within
+// the first few seconds. The same drift applies to maps: a game played on a
+// newer commit can use a map that didn't exist yet at this pin (or was
+// renamed), in which case the fetch below 404s and computeGameTileStats
+// fails closed (returns null) rather than silently replaying with the wrong
+// terrain. This pin will drift again as the live server moves on - see the
+// README's "Why this specific commit" section for the expected re-vendoring
+// maintenance cadence.
+export const VENDORED_COMMIT = 'dcc18d5231af6253b0e991bf04a4c764982fe262'
 
 /** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
 function mapSlug(gameMapName: string): string {
@@ -278,7 +280,21 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
       runner.addTurn(byTurnNumber.get(t) ?? { turnNumber: t, intents: [] })
     }
 
+    // Total land tiles is fixed for the map, but the *ownable* share of it
+    // shrinks over the game as nukes leave lingering fallout - the engine's
+    // own win check (WinCheckExecution.checkWinnerFFA: `numLandTiles() -
+    // numTilesWithFallout()`) and the in-client/replay-viewer "% of map"
+    // stat both measure a player's share against that shrinking
+    // non-fallout denominator, not raw land tiles. Matching that (instead
+    // of dividing by the constant numLandTiles) is the difference between
+    // this coming out close to the real confirmed result and badly
+    // undercounting on any heavily-nuked game - confirmed by direct
+    // comparison against game GEiyYVf3 (real result ~80.2%; dividing by
+    // raw land tiles here gave ~46%, dividing by non-fallout land tiles
+    // gave ~81%). numTilesWithFallout() changes every tick, so it's
+    // recomputed at each sample rather than cached alongside totalLandTiles.
     const totalLandTiles = runner.game.map().numLandTiles()
+    const nonFalloutLandTiles = () => Math.max(1, totalLandTiles - runner.game.numTilesWithFallout())
     const maxTiles: Record<string, number> = {}
     const maxPercent: Record<string, number> = {}
 
@@ -294,18 +310,20 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
         }
       }
       if (tick % SAMPLE_EVERY_N_TICKS !== 0) continue
+      const denom = nonFalloutLandTiles()
       for (const player of runner.game.players()) {
         const clientId = player.clientID()
         if (!clientId) continue
         const owned = player.numTilesOwned()
         if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
           maxTiles[clientId] = owned
-          maxPercent[clientId] = (owned / totalLandTiles) * 100
+          maxPercent[clientId] = (owned / denom) * 100
         }
       }
     }
 
     const finalTiles: Record<string, number> = {}
+    const finalDenom = nonFalloutLandTiles()
     for (const player of runner.game.players()) {
       const clientId = player.clientID()
       if (!clientId) continue
@@ -315,7 +333,7 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
       // still reflected in the max.
       if (maxTiles[clientId] === undefined || owned > maxTiles[clientId]) {
         maxTiles[clientId] = owned
-        maxPercent[clientId] = (owned / totalLandTiles) * 100
+        maxPercent[clientId] = (owned / finalDenom) * 100
       }
     }
 

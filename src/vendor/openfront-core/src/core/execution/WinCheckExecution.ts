@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/WinCheckExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/WinCheckExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { GameEvent } from "../EventBus";
 import {
@@ -67,8 +67,7 @@ export class WinCheckExecution implements Execution {
     }
 
     const max = sorted[0];
-    const timeElapsed =
-      (this.mg.ticks() - this.mg.config().numSpawnPhaseTurns()) / 10;
+    const timeElapsed = this.mg.elapsedGameSeconds();
     const numTilesWithoutFallout =
       this.mg.numLandTiles() - this.mg.numTilesWithFallout();
     if (
@@ -103,8 +102,7 @@ export class WinCheckExecution implements Execution {
       return;
     }
     const max = sorted[0];
-    const timeElapsed =
-      (this.mg.ticks() - this.mg.config().numSpawnPhaseTurns()) / 10;
+    const timeElapsed = this.mg.elapsedGameSeconds();
     const numTilesWithoutFallout =
       this.mg.numLandTiles() - this.mg.numTilesWithFallout();
     const percentage = (max[1] / numTilesWithoutFallout) * 100;

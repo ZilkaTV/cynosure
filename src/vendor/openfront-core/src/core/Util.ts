@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/Util.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/Util.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import DOMPurify from "dompurify";
 import { customAlphabet } from "nanoid";
@@ -364,6 +364,18 @@ export function createRandomName(
     randomName = `👤 ${TRIBE_NAME_PREFIXES[prefixIndex]} ${TRIBE_NAME_SUFFIXES[suffixIndex]}`;
   }
   return randomName;
+}
+
+// Deterministic anonymized username. Reuses createRandomName, then strips the
+// emoji and any illegal chars so it passes UsernameSchema and survives the wire
+// (createRandomName's output is a display string, not a valid username).
+export function anonymousUsername(seed: string): string {
+  const base = createRandomName(seed, PlayerType.Human) ?? "";
+  const name = base
+    .replace(/[^a-zA-Z0-9_ üÜ.]/g, "")
+    .trim()
+    .slice(0, 27);
+  return name.length >= 3 ? name : "Player";
 }
 
 export const emojiTable = [

@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/game/GameMap.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/game/GameMap.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import { Cell, TerrainType } from "./Game";
 
@@ -39,8 +39,19 @@ export interface GameMap {
   isOnEdgeOfMap(ref: TileRef): boolean;
   isBorder(ref: TileRef): boolean;
   neighbors(ref: TileRef): TileRef[];
+  // Zero-allocation neighbor iteration (cardinal only), in W, E, N, S order.
+  forEachNeighbor(ref: TileRef, callback: (neighbor: TileRef) => void): void;
+  // Writes the cardinal neighbors of ref into out (W, E, N, S order) and
+  // returns the count. out must have length >= 4; reuse it across calls to
+  // avoid allocation in hot loops.
+  neighbors4(ref: TileRef, out: TileRef[]): number;
+  // Zero-allocation neighbor iteration including diagonals, in dx-major
+  // order: (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1).
+  forEachNeighborWithDiag(
+    ref: TileRef,
+    callback: (neighbor: TileRef) => void,
+  ): void;
   isWater(ref: TileRef): boolean;
-  isLake(ref: TileRef): boolean;
   isShore(ref: TileRef): boolean;
   cost(ref: TileRef): number;
   terrainType(ref: TileRef): TerrainType;
@@ -74,6 +85,20 @@ export interface GameMap {
    * Returns `true` when the terrain byte changed (land/water/shoreline/magnitude).
    */
   updateTile(tile: TileRef, state: number): boolean;
+
+  /**
+   * Direct access to the per-tile state buffer for zero-copy consumers
+   * (e.g. WebGL renderer uploading to a R16UI texture).
+   *
+   * The returned array is a live reference — it is mutated by `updateTile()`
+   * each tick. Callers must not write to it.
+   *
+   * The bit layout of each `uint16` matches the renderer's tile state:
+   *   bits  0-11: ownerID
+   *   bit   13:  fallout
+   *   bit   14:  defense bonus
+   */
+  tileStateBuffer(): Uint16Array;
 
   numTilesWithFallout(): number;
 }
@@ -186,9 +211,16 @@ export class GameMapImpl implements GameMap {
   }
 
   isOceanShore(ref: TileRef): boolean {
-    return (
-      this.isLand(ref) && this.neighbors(ref).some((tr) => this.isOcean(tr))
-    );
+    if (!this.isLand(ref)) {
+      return false;
+    }
+    const w = this.width_;
+    const x = this.refToX[ref];
+    if (x !== 0 && this.isOcean(ref - 1)) return true;
+    if (x !== w - 1 && this.isOcean(ref + 1)) return true;
+    if (ref >= w && this.isOcean(ref - w)) return true;
+    if (ref < (this.height_ - 1) * w && this.isOcean(ref + w)) return true;
+    return false;
   }
 
   isOcean(ref: TileRef): boolean {
@@ -278,9 +310,16 @@ export class GameMapImpl implements GameMap {
   }
 
   isBorder(ref: TileRef): boolean {
-    return this.neighbors(ref).some(
-      (tr) => this.ownerID(tr) !== this.ownerID(ref),
-    );
+    const w = this.width_;
+    const x = this.refToX[ref];
+    const owner = this.ownerID(ref);
+    if (x !== 0 && this.ownerID(ref - 1) !== owner) return true;
+    if (x !== w - 1 && this.ownerID(ref + 1) !== owner) return true;
+    if (ref >= w && this.ownerID(ref - w) !== owner) return true;
+    if (ref < (this.height_ - 1) * w && this.ownerID(ref + w) !== owner) {
+      return true;
+    }
+    return false;
   }
 
   hasDefenseBonus(ref: TileRef): boolean {
@@ -300,10 +339,6 @@ export class GameMapImpl implements GameMap {
     return !this.isLand(ref);
   }
 
-  isLake(ref: TileRef): boolean {
-    return !this.isLand(ref) && !this.isOcean(ref);
-  }
-
   isShore(ref: TileRef): boolean {
     return this.isLand(ref) && this.isShoreline(ref);
   }
@@ -321,7 +356,7 @@ export class GameMapImpl implements GameMap {
       if (magnitude < 20) return TerrainType.Highland;
       return TerrainType.Mountain;
     }
-    return this.isOcean(ref) ? TerrainType.Ocean : TerrainType.Lake;
+    return TerrainType.Ocean;
   }
 
   neighbors(ref: TileRef): TileRef[] {
@@ -335,6 +370,51 @@ export class GameMapImpl implements GameMap {
     if (x !== w - 1) neighbors.push(ref + 1);
 
     return neighbors;
+  }
+
+  forEachNeighbor(ref: TileRef, callback: (neighbor: TileRef) => void): void {
+    const w = this.width_;
+    const x = this.refToX[ref];
+
+    if (x !== 0) callback(ref - 1);
+    if (x !== w - 1) callback(ref + 1);
+    if (ref >= w) callback(ref - w);
+    if (ref < (this.height_ - 1) * w) callback(ref + w);
+  }
+
+  neighbors4(ref: TileRef, out: TileRef[]): number {
+    const w = this.width_;
+    const x = this.refToX[ref];
+    let n = 0;
+
+    if (x !== 0) out[n++] = ref - 1;
+    if (x !== w - 1) out[n++] = ref + 1;
+    if (ref >= w) out[n++] = ref - w;
+    if (ref < (this.height_ - 1) * w) out[n++] = ref + w;
+    return n;
+  }
+
+  forEachNeighborWithDiag(
+    ref: TileRef,
+    callback: (neighbor: TileRef) => void,
+  ): void {
+    const w = this.width_;
+    const x = this.refToX[ref];
+    const hasN = ref >= w;
+    const hasS = ref < (this.height_ - 1) * w;
+
+    if (x !== 0) {
+      if (hasN) callback(ref - 1 - w);
+      callback(ref - 1);
+      if (hasS) callback(ref - 1 + w);
+    }
+    if (hasN) callback(ref - w);
+    if (hasS) callback(ref + w);
+    if (x !== w - 1) {
+      if (hasN) callback(ref + 1 - w);
+      callback(ref + 1);
+      if (hasS) callback(ref + 1 + w);
+    }
   }
 
   forEachTile(fn: (tile: TileRef) => void): void {
@@ -402,6 +482,10 @@ export class GameMapImpl implements GameMap {
 
   tileState(tile: TileRef): number {
     return this.state[tile];
+  }
+
+  tileStateBuffer(): Uint16Array {
+    return this.state;
   }
 
   /**

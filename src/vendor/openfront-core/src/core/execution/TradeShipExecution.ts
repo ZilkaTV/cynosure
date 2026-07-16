@@ -1,8 +1,7 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/TradeShipExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/TradeShipExecution.ts
 // Modified for this vendor build - see src/vendor/openfront-core/README.md
-// for exactly what changed and why (rendering-only references stripped, or
-// GameRunner's config loader swapped for a direct instantiation).
+// for exactly what changed and why (repointed the `renderNumber` import at the local core/utilities/RenderNumber.ts instead of client/Utils.ts).
 import { renderNumber } from "../utilities/RenderNumber";
 import {
   Execution,
@@ -74,6 +73,14 @@ export class TradeShipExecution implements Execution {
     if (this.wasCaptured !== true && this.origOwner !== tradeShipOwner) {
       // Store as variable in case ship is recaptured by previous owner
       this.wasCaptured = true;
+      this.mg.displayMessage(
+        "events_display.trade_ship_captured",
+        MessageType.UNIT_DESTROYED,
+        this.origOwner.id(),
+        undefined,
+        { name: tradeShipOwner.displayName() },
+        this.tradeShip.id(),
+      );
     }
 
     // If a player captures another player's port while trading we should delete
@@ -194,28 +201,8 @@ export class TradeShipExecution implements Execution {
         .stats()
         .boatCapturedTrade(this.tradeShip!.owner(), this.origOwner, gold);
     } else {
-      this.srcPort.owner().addGold(gold);
+      this.srcPort.owner().addGold(gold, this.srcPort.tile());
       this._dstPort.owner().addGold(gold, this._dstPort.tile());
-      this.mg.displayMessage(
-        "events_display.received_gold_from_trade",
-        MessageType.RECEIVED_GOLD_FROM_TRADE,
-        this._dstPort.owner().id(),
-        gold,
-        {
-          gold: renderNumber(gold),
-          name: this.srcPort.owner().displayName(),
-        },
-      );
-      this.mg.displayMessage(
-        "events_display.received_gold_from_trade",
-        MessageType.RECEIVED_GOLD_FROM_TRADE,
-        this.srcPort.owner().id(),
-        gold,
-        {
-          gold: renderNumber(gold),
-          name: this._dstPort.owner().displayName(),
-        },
-      );
       // Record stats
       this.mg
         .stats()

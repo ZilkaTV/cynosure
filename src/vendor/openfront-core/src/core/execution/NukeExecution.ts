@@ -1,5 +1,5 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/NukeExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/NukeExecution.ts
 // Unmodified copy - see src/vendor/openfront-core/README.md.
 import {
   Execution,
@@ -191,6 +191,7 @@ export class NukeExecution implements Execution {
         targetTile: this.dst,
         trajectory: this.getTrajectory(this.dst),
       });
+      this.recordMotionPlan(ticks);
       if (this.nuke.type() !== UnitType.MIRVWarhead) {
         this.maybeBreakAlliances();
       }
@@ -256,6 +257,38 @@ export class NukeExecution implements Execution {
 
   public getNuke(): Unit | null {
     return this.nuke;
+  }
+
+  /**
+   * Record a motion plan so the client can derive the nuke's position each
+   * tick instead of receiving per-tick unit updates (see TradeShipExecution).
+   * Replays a separate pathfinder because the curve's cached points don't
+   * advance exactly one index per tick — the plan path must be the exact
+   * tile sequence that movement's `next()` calls will produce.
+   */
+  private recordMotionPlan(ticks: number): void {
+    if (this.nuke === null || this.src === undefined || this.src === null) {
+      return;
+    }
+    const pathFinder = UniversalPathFinding.Parabola(this.mg, {
+      increment: this.speed,
+      distanceBasedHeight: this.nukeType !== UnitType.MIRVWarhead,
+      directionUp: this.rocketDirectionUp,
+    });
+    const path: TileRef[] = [this.src];
+    let result = pathFinder.next(this.src, this.dst, this.speed);
+    while (result.status === PathStatus.NEXT) {
+      path.push(result.node);
+      result = pathFinder.next(this.src, this.dst, this.speed);
+    }
+    this.mg.recordMotionPlan({
+      kind: "grid",
+      unitId: this.nuke.id(),
+      planId: 1,
+      startTick: ticks + this.waitTicks + 1,
+      ticksPerStep: 1,
+      path,
+    });
   }
 
   private getTrajectory(target: TileRef): TrajectoryTile[] {
@@ -328,6 +361,10 @@ export class NukeExecution implements Execution {
     for (const [player, numImpactedTiles] of tilesPerPlayers) {
       const tilesBeforeNuke = player.numTilesOwned() + numImpactedTiles;
       const transportShips = player.units(UnitType.TransportShip);
+      const transportShipTroops = new Map<Unit, number>();
+      for (const unit of transportShips) {
+        transportShipTroops.set(unit, unit.troops());
+      }
       const outgoingAttacks = player.outgoingAttacks();
       const maxTroops = config.maxTroops(player);
       // nukeDeathFactor could compute the complete fallout in a single call instead
@@ -353,15 +390,18 @@ export class NukeExecution implements Execution {
           attack.setTroops(attackTroops - deaths);
         }
         for (const unit of transportShips) {
-          const unitTroops = unit.troops();
+          const unitTroops = transportShipTroops.get(unit) ?? unit.troops();
           const deaths = config.nukeDeathFactor(
             this.nukeType,
             unitTroops,
             numTilesLeft,
             maxTroops,
           );
-          unit.setTroops(unitTroops - deaths);
+          transportShipTroops.set(unit, Math.max(0, unitTroops - deaths));
         }
+      }
+      for (const [unit, troops] of transportShipTroops) {
+        unit.setTroops(troops);
       }
     }
 
@@ -388,6 +428,27 @@ export class NukeExecution implements Execution {
     this.active = false;
     this.nuke.setReachedTarget();
     this.nuke.delete(false);
+
+    if (
+      this.nukeType === UnitType.AtomBomb ||
+      this.nukeType === UnitType.HydrogenBomb
+    ) {
+      const messageKey =
+        this.nukeType === UnitType.AtomBomb
+          ? "events_display.atom_bomb_detonated"
+          : "events_display.hydrogen_bomb_detonated";
+      for (const [impactedPlayer] of tilesPerPlayers) {
+        mg.displayMessage(
+          messageKey,
+          MessageType.NUKE_DETONATED,
+          impactedPlayer.id(),
+          undefined,
+          { name: this.player.displayName() },
+          undefined,
+          this.player.id(),
+        );
+      }
+    }
 
     // Record stats
     this.mg

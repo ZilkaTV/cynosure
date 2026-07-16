@@ -1,11 +1,9 @@
-// Locally authored for Cynosure, extracted from OpenFrontIO's
-// src/client/Utils.ts (openfrontio/OpenFrontIO, commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d)
-// to avoid pulling in that file's i18n/clipboard dependencies.
-// Licensed AGPL-3.0-or-later - see src/vendor/openfront-core/README.md.
+// Locally authored for Cynosure - not an upstream OpenFrontIO file.
 // Extracted from OpenFrontIO's src/client/Utils.ts (renderNumber/renderTroops
-// only) - the full file also pulls in intl-messageformat, LangSelector, and
-// Platform for chat/UI translation, none of which the headless simulation
-// needs. Source: openfrontio/OpenFrontIO, commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
+// only, unchanged between the aeb8d60 and dcc18d5 vendoring passes) at
+// commit dcc18d5231af6253b0e991bf04a4c764982fe262 - the full file also pulls
+// in intl-messageformat, LangSelector, and Platform for chat/UI translation,
+// none of which the headless simulation needs.
 // Licensed AGPL-3.0-or-later - see src/vendor/openfront-core/README.md.
 
 export function renderNumber(num: number | bigint, fixedPoints?: number): string {

@@ -1,8 +1,7 @@
-// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d.
-// Source: https://github.com/openfrontio/OpenFrontIO/blob/aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d/src/core/execution/AttackExecution.ts
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit dcc18d5231af6253b0e991bf04a4c764982fe262.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/dcc18d5231af6253b0e991bf04a4c764982fe262/src/core/execution/AttackExecution.ts
 // Modified for this vendor build - see src/vendor/openfront-core/README.md
-// for exactly what changed and why (rendering-only references stripped, or
-// GameRunner's config loader swapped for a direct instantiation).
+// for exactly what changed and why (repointed the `renderTroops` import at the local core/utilities/RenderNumber.ts instead of client/Utils.ts).
 import { renderTroops } from "../utilities/RenderNumber";
 import {
   Attack,
@@ -16,7 +15,7 @@ import {
   TerrainType,
   TerraNullius,
 } from "../game/Game";
-import { TileRef } from "../game/GameMap";
+import { GameMap, TileRef } from "../game/GameMap";
 import { PseudoRandom } from "../PseudoRandom";
 import { assertNever } from "../Util";
 import { FlatBinaryHeap } from "./utils/FlatBinaryHeap"; // adjust path if needed
@@ -31,8 +30,17 @@ export class AttackExecution implements Execution {
   private target: Player | TerraNullius;
 
   private mg: Game;
+  // Direct GameMap reference to skip the Game delegation hop in hot loops.
+  private map: GameMap;
 
   private attack: Attack | null = null;
+
+  // Cached smallIDs for integer owner comparisons in hot loops.
+  private ownerSmallID: number;
+  private targetSmallID: number;
+  // Reusable neighbor buffers to avoid closures/allocation in hot loops.
+  private nbuf: TileRef[] = [0, 0, 0, 0];
+  private nbuf2: TileRef[] = [0, 0, 0, 0];
 
   constructor(
     private startTroops: number | null = null,
@@ -55,6 +63,7 @@ export class AttackExecution implements Execution {
       return;
     }
     this.mg = mg;
+    this.map = mg.map();
 
     if (this._targetID !== null && !mg.hasPlayer(this._targetID)) {
       console.warn(`target ${this._targetID} not found`);
@@ -66,6 +75,8 @@ export class AttackExecution implements Execution {
       this._targetID === this.mg.terraNullius().id()
         ? mg.terraNullius()
         : mg.player(this._targetID);
+    this.ownerSmallID = this._owner.smallID();
+    this.targetSmallID = this.target.smallID();
 
     if (this._owner === this.target) {
       console.error(`Player ${this._owner} cannot attack itself`);
@@ -275,20 +286,21 @@ export class AttackExecution implements Execution {
         return;
       }
 
-      const [tileToConquer] = this.toConquer.dequeue();
+      const tileToConquer = this.toConquer.dequeue();
       this.attack.removeBorderTile(tileToConquer);
 
       let onBorder = false;
-      for (const n of this.mg.neighbors(tileToConquer)) {
-        if (this.mg.owner(n) === this._owner) {
+      const numNeighbors = this.map.neighbors4(tileToConquer, this.nbuf);
+      for (let i = 0; i < numNeighbors; i++) {
+        if (this.map.ownerID(this.nbuf[i]) === this.ownerSmallID) {
           onBorder = true;
           break;
         }
       }
-      if (this.mg.owner(tileToConquer) !== this.target || !onBorder) {
+      if (this.map.ownerID(tileToConquer) !== this.targetSmallID || !onBorder) {
         continue;
       }
-      if (!this.mg.isLand(tileToConquer)) {
+      if (!this.map.isLand(tileToConquer)) {
         continue;
       }
       this.addNeighbors(tileToConquer);
@@ -328,23 +340,26 @@ export class AttackExecution implements Execution {
 
     const tickNow = this.mg.ticks(); // cache tick
 
-    for (const neighbor of this.mg.neighbors(tile)) {
+    const numNeighbors = this.map.neighbors4(tile, this.nbuf);
+    for (let i = 0; i < numNeighbors; i++) {
+      const neighbor = this.nbuf[i];
       if (
-        this.mg.isWater(neighbor) ||
-        this.mg.owner(neighbor) !== this.target
+        this.map.isWater(neighbor) ||
+        this.map.ownerID(neighbor) !== this.targetSmallID
       ) {
         continue;
       }
       this.attack.addBorderTile(neighbor);
       let numOwnedByMe = 0;
-      for (const n of this.mg.neighbors(neighbor)) {
-        if (this.mg.owner(n) === this._owner) {
+      const numInner = this.map.neighbors4(neighbor, this.nbuf2);
+      for (let j = 0; j < numInner; j++) {
+        if (this.map.ownerID(this.nbuf2[j]) === this.ownerSmallID) {
           numOwnedByMe++;
         }
       }
 
-      let mag = 0;
-      switch (this.mg.terrainType(neighbor)) {
+      let mag: number;
+      switch (this.map.terrainType(neighbor)) {
         case TerrainType.Plains:
           mag = 1;
           break;
@@ -353,6 +368,9 @@ export class AttackExecution implements Execution {
           break;
         case TerrainType.Mountain:
           mag = 2;
+          break;
+        default:
+          mag = 0;
           break;
       }
 
@@ -366,28 +384,30 @@ export class AttackExecution implements Execution {
 
   private handleDeadDefender() {
     if (!(this.target.isPlayer() && this.target.numTilesOwned() < 100)) return;
+    const target: Player = this.target;
 
-    this.mg.conquerPlayer(this._owner, this.target);
+    this.mg.conquerPlayer(this._owner, target);
 
     for (let i = 0; i < 10; i++) {
-      for (const tile of this.target.tiles()) {
-        const borders = this.mg
-          .neighbors(tile)
-          .some((t) => this.mg.owner(t) === this._owner);
+      for (const tile of target.tiles()) {
+        let borders = false;
+        this.mg.forEachNeighbor(tile, (t) => {
+          if (!borders && this.mg.owner(t) === this._owner) {
+            borders = true;
+          }
+        });
         if (borders) {
           this._owner.conquer(tile);
         } else {
-          for (const neighbor of this.mg.neighbors(tile)) {
+          let captured = false;
+          this.mg.forEachNeighbor(tile, (neighbor) => {
+            if (captured) return;
             const no = this.mg.owner(neighbor);
-            if (
-              no.isPlayer() &&
-              no !== this.target &&
-              !no.isFriendly(this.target)
-            ) {
+            if (no.isPlayer() && no !== target && !no.isFriendly(target)) {
               this.mg.player(no.id()).conquer(tile);
-              break;
+              captured = true;
             }
-          }
+          });
         }
       }
     }

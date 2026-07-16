@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchRegistered } from './profiles'
 import { fetchSpeedruns } from './speedruns'
-import { fetchTiles3Min } from './tiles3min'
 import { fetchBumps } from './bumps'
 import { fetchXp } from './quests'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
@@ -67,14 +66,13 @@ export function useRoster(enabled = true): RosterState {
 
   const load = useCallback(async () => {
     try {
-      const [registered, speedruns, bumps, xpMap, tiles3min] = await Promise.all([
+      const [registered, speedruns, bumps, xpMap] = await Promise.all([
         fetchRegistered().catch(() => []),
         fetchSpeedruns().catch(() => ({})),
         fetchBumps().catch(() => ({})),
         fetchXp().catch(() => ({})),
-        fetchTiles3Min().catch(() => ({})),
       ])
-      const result = await buildRoster(registered, speedruns, bumps, xpMap, tiles3min)
+      const result = await buildRoster(registered, speedruns, bumps, xpMap)
       setDeltas(isRefreshRef.current ? computeDeltas(dataRef.current, result) : {})
       dataRef.current = result
       setData(result)

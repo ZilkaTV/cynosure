@@ -10,12 +10,24 @@ import { CLAN_TAG } from '../config'
 
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 
+// Tiles @ 3:00 - how much of the map the player controlled at the exact
+// 3:00 mark of their current best-time game. Not an independent category
+// with its own attempts: it's a second stat read off the same submitted
+// game as the speedrun time, recomputed only when that game changes (a new
+// best time), never bumping the attempts counter on its own.
+const TILES_AT_TICK = 3 * 60 * 10 // 3:00 at the server's fixed 10 ticks/sec
+
 export interface SpeedrunEntry {
   openfront_id: string
   game_id: string
   seconds: number
   attempts: number
   submitted_at: string
+  tiles3min_percent: number | null
+}
+
+export function fmtPercent(p: number): string {
+  return `${p.toFixed(1)}%`
 }
 
 // Segments that show up in game links but are never the game id itself (the
@@ -55,7 +67,10 @@ export function fmtTime(s: number): string {
  * the submitting member themselves, playing under the [CYN] tag - otherwise
  * anyone could submit someone else's (or a stranger's) replay as their own.
  */
-export function verifySpeedrun(d: GameDetail, inGameName: string): { ok: boolean; reason?: string; seconds: number } {
+export function verifySpeedrun(
+  d: GameDetail,
+  inGameName: string,
+): { ok: boolean; reason?: string; seconds: number; clientID?: string } {
   if (d.map !== 'Australia') return { ok: false, reason: `Map must be Australia (this game was ${d.map}).`, seconds: 0 }
   if (d.gameType !== 'Singleplayer') return { ok: false, reason: `Must be a solo (singleplayer) game (this was ${d.gameType}).`, seconds: 0 }
   if (d.nations !== 'disabled') return { ok: false, reason: 'Nations must be disabled ("No Nations").', seconds: 0 }
@@ -70,12 +85,14 @@ export function verifySpeedrun(d: GameDetail, inGameName: string): { ok: boolean
     return { ok: false, reason: 'You must be playing with the [CYN] tag for the run to count.', seconds: 0 }
   }
 
-  return { ok: true, seconds: d.durationSeconds }
+  return { ok: true, seconds: d.durationSeconds, clientID: winner.clientID }
 }
 
 export async function fetchSpeedruns(): Promise<Record<string, SpeedrunEntry>> {
   if (!supabase) return {}
-  const { data, error } = await supabase.from('cyn_speedruns').select('openfront_id, game_id, seconds, attempts, submitted_at')
+  const { data, error } = await supabase
+    .from('cyn_speedruns')
+    .select('openfront_id, game_id, seconds, attempts, submitted_at, tiles3min_percent')
   if (error) return {}
   const map: Record<string, SpeedrunEntry> = {}
   for (const r of (data as SpeedrunEntry[]) ?? []) map[r.openfront_id] = r
@@ -141,8 +158,27 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
     }
   }
 
+  // New best time - also read this same game's tile share at the 3:00 mark
+  // (see TILES_AT_TICK) so the leaderboard's "Tiles @ 3min" column stays in
+  // sync with whichever game is actually the current best-time run. Not a
+  // separate attempt: it rides along with this one. A run under 3 minutes
+  // never reaches that mark, so this can legitimately come back null.
+  let tiles3minPercent: number | null = null
+  if (v.clientID) {
+    const { computeTilePercentAtTick } = await import('./replaySimCore')
+    const percentByClientId = await computeTilePercentAtTick(gameId, TILES_AT_TICK).catch(() => null)
+    tiles3minPercent = percentByClientId?.[v.clientID] ?? null
+  }
+
   const { error } = await supabase.from('cyn_speedruns').upsert(
-    { openfront_id: openfrontId, game_id: gameId, seconds: v.seconds, attempts, submitted_at: new Date().toISOString() },
+    {
+      openfront_id: openfrontId,
+      game_id: gameId,
+      seconds: v.seconds,
+      attempts,
+      submitted_at: new Date().toISOString(),
+      tiles3min_percent: tiles3minPercent,
+    },
     { onConflict: 'openfront_id' },
   )
   if (error) return { ok: false, message: `Verified, but saving failed: ${error.message}` }

@@ -50,6 +50,13 @@ const MAX_COMPUTE_MS = 3 * 60 * 1000
 // maintenance cadence.
 export const VENDORED_COMMIT = 'dcc18d5231af6253b0e991bf04a4c764982fe262'
 
+// Bump this whenever computeGameTileStats's own math changes (not just the
+// vendored engine commit) - e.g. the maxPercent independent-tracking fix
+// below. replaySim.ts folds this into its cache key alongside
+// VENDORED_COMMIT, so a logic-only fix also invalidates previously cached
+// (and now known-stale) results instead of leaving them stuck forever.
+export const COMPUTE_LOGIC_VERSION = 2
+
 /** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
 function mapSlug(gameMapName: string): string {
   return gameMapName.toLowerCase().replace(/[^a-z0-9]/g, '')

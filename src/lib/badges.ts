@@ -69,9 +69,15 @@ function tierLimit(tier: BadgeTier): number {
  * soon as more than a day has passed without a new game, rather than
  * freezing at whatever the streak last was - a player who stops playing
  * shouldn't keep reading as "currently on a streak" forever.
+ *
+ * Only counts Public games. Private games are deliberately excluded from
+ * the visible game history everywhere else (MemberProfile/Home filter them
+ * out - nobody else can see them), so a private-only grind day shouldn't be
+ * able to earn a badge that's supposed to reflect showing up in the games
+ * the clan can actually see.
  */
 export function loyalStreak(m: MemberStats): number {
-  const days = new Set(m.cynGames.map((g) => g.start.slice(0, 10)))
+  const days = new Set(m.cynGames.filter((g) => g.type === 'Public').map((g) => g.start.slice(0, 10)))
   if (days.size === 0) return 0
   const sorted = [...days].sort().reverse() // newest first
 

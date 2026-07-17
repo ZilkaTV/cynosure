@@ -163,12 +163,16 @@ export default function Home() {
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   // Same game can show up under multiple members if several CYN players were
-  // in it together - dedupe by gameId so it only appears once.
-  const byGameId = new Map<string, { g: PlayerGame; memberName: string }>()
+  // in it together - dedupe by gameId so it only appears once, but keep
+  // every member's name (not just whoever was found first) so a shared game
+  // credits everyone who played, e.g. "Zilka, Chuma".
+  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
-      if (g.type === 'Private' || byGameId.has(g.gameId)) continue
-      byGameId.set(g.gameId, { g, memberName: m.name })
+      if (g.type === 'Private') continue
+      const existing = byGameId.get(g.gameId)
+      if (existing) existing.memberNames.push(m.name)
+      else byGameId.set(g.gameId, { g, memberNames: [m.name] })
     }
   }
   const recentGames = [...byGameId.values()]
@@ -249,7 +253,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentGames.map(({ g, memberName }) => (
+                  {recentGames.map(({ g, memberNames }) => (
                     <tr
                       key={g.gameId}
                       onClick={() => setOpenGame(g.gameId)}
@@ -257,7 +261,7 @@ export default function Home() {
                       title={t.home.clickForReportTitle}
                     >
                       <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-white">{memberName}</td>
+                      <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
                       <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
                       <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>

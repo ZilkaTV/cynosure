@@ -11,7 +11,6 @@
 // instead of an npm/git dependency) tick by tick from OpenFront's own turn
 // log, then reads real tile ownership straight out of the simulated state.
 
-import { createGameRunner } from '../vendor/openfront-core/src/core/GameRunner'
 import type { GameMapLoader, MapData } from '../vendor/openfront-core/src/core/game/GameMapLoader'
 import type { MapManifest } from '../vendor/openfront-core/src/core/game/TerrainMapLoader'
 import type { GameStartInfo, Turn } from '../vendor/openfront-core/src/core/Schemas'
@@ -33,34 +32,51 @@ const SAMPLE_EVERY_N_TICKS = 5
 // failure - reopening the game just tries again.
 const MAX_COMPUTE_MS = 3 * 60 * 1000
 
-// Map assets are fetched straight from OpenFront's repo at the same commit
-// the vendored engine is pinned to, so terrain data always matches the code
-// reading it. Pinned to the commit game GEiyYVf3 was actually played on
-// (its raw API record includes gitCommit) rather than a current HEAD - see
-// src/vendor/openfront-core/README.md for why that distinction matters:
-// the simulation only reproduces a game bit-for-bit when the engine version
-// matches what the real server ran, and this engine changes often enough
-// that a replay against a mismatched version diverges (or crashes) within
-// the first few seconds. The same drift applies to maps: a game played on a
-// newer commit can use a map that didn't exist yet at this pin (or was
-// renamed), in which case the fetch below 404s and computeGameTileStats
-// fails closed (returns null) rather than silently replaying with the wrong
-// terrain. This pin will drift again as the live server moves on - see the
-// README's "Why this specific commit" section for the expected re-vendoring
-// maintenance cadence.
-export const VENDORED_COMMIT = 'dcc18d5231af6253b0e991bf04a4c764982fe262'
+// A game only replays bit-for-bit against the exact engine commit it was
+// actually played on (see src/vendor/openfront-core/README.md) - the engine
+// changes upstream often enough that a single global pin inevitably goes
+// stale for some games while being correct for others. Confirmed directly:
+// two real speedrun submissions (games 4pQDDgSw, URdAfzpM) both carry
+// gitCommit aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d, a different real game
+// (Md4w7sVS) carries dcc18d5231af6253b0e991bf04a4c764982fe262, and a real
+// Team game (GWMNzCWe) carries 16be9d7c15d7abc115691def3a0b2aa559664705 -
+// no single pin gets all three right. Rather than chase a moving target
+// with one vendored tree (re-vendoring to fix one game's replay just breaks
+// another), this keeps a small matrix of vendored engine trees, one per
+// commit we've actually needed, and picks the one matching each game's own
+// gitCommit at replay time. A commit with no matching vendored tree fails
+// closed (returns null) instead of silently replaying against the wrong
+// engine version and producing plausible-looking but wrong numbers.
+export const KNOWN_ENGINE_COMMITS = [
+  'dcc18d5231af6253b0e991bf04a4c764982fe262',
+  'aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d',
+  '16be9d7c15d7abc115691def3a0b2aa559664705',
+] as const
+export type EngineCommit = (typeof KNOWN_ENGINE_COMMITS)[number]
+
+async function loadCreateGameRunner(commit: EngineCommit) {
+  switch (commit) {
+    case 'dcc18d5231af6253b0e991bf04a4c764982fe262':
+      return (await import('../vendor/openfront-core/src/core/GameRunner')).createGameRunner
+    case 'aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d':
+      return (await import('../vendor/openfront-core-aeb8d60/src/core/GameRunner')).createGameRunner
+    case '16be9d7c15d7abc115691def3a0b2aa559664705':
+      return (await import('../vendor/openfront-core-16be9d7/src/core/GameRunner')).createGameRunner
+  }
+}
 
 // Bump this whenever computeGameTileStats's own math changes (not just the
 // vendored engine commit), OR when trust in previously-cached results
-// itself changes - e.g. this bump (2 -> 3) isn't a formula change, it's
+// itself changes - e.g. the 2 -> 3 bump wasn't a formula change, it was
 // because a corrupted result was found in the shared cache (see the worker
-// serialization + coverage-check fix alongside this) and every visitor's
+// serialization + coverage-check fix alongside that) and every visitor's
 // own local IndexedDB copy needed a clean slate too, not just the shared
 // table - a visitor with a bad result already cached locally would keep
 // reading it forever otherwise, since the local cache is checked before
-// the shared one. replaySim.ts folds this into its cache key alongside
-// VENDORED_COMMIT, so a bump invalidates every previously cached result
-// (local AND shared) at once, no manual per-visitor cache-clearing needed.
+// the shared one. replaySim.ts folds this into its cache key alongside the
+// resolved engine commit (see resolveEngineCommit), so a bump invalidates
+// every previously cached result (local AND shared) at once, no manual
+// per-visitor cache-clearing needed.
 export const COMPUTE_LOGIC_VERSION = 3
 
 /** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
@@ -104,13 +120,33 @@ interface RawGameInfo {
   players: RawPlayer[]
 }
 
-async function fetchRawInfo(gameId: string): Promise<RawGameInfo | null> {
+interface RawGameRecord {
+  info: RawGameInfo
+  gitCommit: string | null
+}
+
+async function fetchRawRecord(gameId: string): Promise<RawGameRecord | null> {
   const res = await fetch(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`, {
     headers: { Accept: 'application/json' },
   })
   if (!res.ok) return null
-  const json = (await res.json()) as { info?: RawGameInfo }
-  return json.info ?? null
+  const json = (await res.json()) as { info?: RawGameInfo; gitCommit?: string }
+  if (!json.info) return null
+  return { info: json.info, gitCommit: json.gitCommit ?? null }
+}
+
+/**
+ * Which vendored engine tree (if any) matches the exact commit a game was
+ * played on. Cheap (one turns=false fetch) - meant to be called before
+ * deciding a cache key, so a caller never has to check a cache under the
+ * wrong commit or run a doomed-to-be-wrong replay against a commit we don't
+ * have vendored at all.
+ */
+export async function resolveEngineCommit(gameId: string): Promise<EngineCommit | null> {
+  const record = await fetchRawRecord(gameId)
+  const commit = record?.gitCommit
+  if (!commit) return null
+  return (KNOWN_ENGINE_COMMITS as readonly string[]).includes(commit) ? (commit as EngineCommit) : null
 }
 
 async function fetchRawTurns(gameId: string): Promise<Turn[]> {
@@ -226,15 +262,15 @@ async function cachedManifest(slug: string, base: string): Promise<MapManifest> 
   return manifest
 }
 
-/** Loads whichever map the game actually used (see mapSlug) - fails (throws/404s) if that map didn't exist yet at VENDORED_COMMIT. */
-function makeMapLoader(gameMapName: string): GameMapLoader {
+/** Loads whichever map the game actually used (see mapSlug) - fails (throws/404s) if that map didn't exist yet at the given commit. */
+function makeMapLoader(gameMapName: string, commit: EngineCommit): GameMapLoader {
   const slug = mapSlug(gameMapName)
-  const base = `https://raw.githubusercontent.com/openfrontio/OpenFrontIO/${VENDORED_COMMIT}/resources/maps/${slug}`
+  const base = `https://raw.githubusercontent.com/openfrontio/OpenFrontIO/${commit}/resources/maps/${slug}`
   const mapData: MapData = {
-    mapBin: () => cachedArrayBuffer(`${base}/map.bin`, `${slug}:map.bin`),
-    map4xBin: () => cachedArrayBuffer(`${base}/map4x.bin`, `${slug}:map4x.bin`),
-    map16xBin: () => cachedArrayBuffer(`${base}/map16x.bin`, `${slug}:map16x.bin`),
-    manifest: () => cachedManifest(slug, base),
+    mapBin: () => cachedArrayBuffer(`${base}/map.bin`, `${commit}:${slug}:map.bin`),
+    map4xBin: () => cachedArrayBuffer(`${base}/map4x.bin`, `${commit}:${slug}:map4x.bin`),
+    map16xBin: () => cachedArrayBuffer(`${base}/map16x.bin`, `${commit}:${slug}:map16x.bin`),
+    manifest: () => cachedManifest(`${commit}:${slug}`, base),
     webpPath: '',
   }
   return { getMapData: () => mapData }
@@ -247,8 +283,19 @@ function makeMapLoader(gameMapName: string): GameMapLoader {
 // so the two stay in lockstep instead of risking drift between two copies.
 
 async function loadRunner(gameId: string) {
-  const [raw, rawTurns] = await Promise.all([fetchRawInfo(gameId), fetchRawTurns(gameId)])
-  if (!raw) return null
+  const [record, rawTurns] = await Promise.all([fetchRawRecord(gameId), fetchRawTurns(gameId)])
+  if (!record) return null
+  const { info: raw, gitCommit } = record
+
+  if (!gitCommit || !(KNOWN_ENGINE_COMMITS as readonly string[]).includes(gitCommit)) {
+    console.error(
+      `Game ${gameId} was played on engine commit ${gitCommit ?? '(unknown)'}, which isn't one of the vendored ` +
+        `engine trees (${KNOWN_ENGINE_COMMITS.join(', ')}) - refusing to replay it against a mismatched engine ` +
+        `rather than produce a plausible-looking but wrong result.`,
+    )
+    return null
+  }
+  const commit = gitCommit as EngineCommit
 
   const gameStart = buildGameStartInfo(raw)
   const lastTick = raw.num_turns
@@ -262,12 +309,23 @@ async function loadRunner(gameId: string) {
   const byTurnNumber = new Map<number, Turn>()
   for (const t of rawTurns) byTurnNumber.set(t.turnNumber, t)
 
-  const runner = await createGameRunner(gameStart, undefined, makeMapLoader(raw.config.gameMap), () => {})
+  // gameStart/turns are typed against the dcc18d5 tree's Schemas (the static
+  // import at the top of this file), but createGameRunner here may be the
+  // aeb8d60 tree's version instead, whose equivalent types differ in a few
+  // fields (e.g. a kick_player intent's target field was renamed between
+  // commits) - a real, confirmed difference, not a type-safety gap being
+  // papered over. It doesn't matter at runtime: both gameStart and every
+  // turn are just OpenFront's own untransformed JSON for a game actually
+  // played on `commit`, so they already match whichever shape that engine
+  // tree expects - only TS's structural typing sees two nominally different
+  // trees and can't verify that across a dynamic, commit-selected import.
+  const createGameRunner = await loadCreateGameRunner(commit)
+  const runner = await createGameRunner(gameStart as never, undefined, makeMapLoader(raw.config.gameMap, commit) as never, () => {})
   for (let t = 0; t <= lastTick; t++) {
-    runner.addTurn(byTurnNumber.get(t) ?? { turnNumber: t, intents: [] })
+    runner.addTurn((byTurnNumber.get(t) ?? { turnNumber: t, intents: [] }) as never)
   }
 
-  return { raw, runner, lastTick }
+  return { raw, runner, lastTick, commit }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────

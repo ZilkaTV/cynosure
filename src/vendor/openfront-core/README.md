@@ -10,6 +10,66 @@ it only gives the final tile count via `stats.finalTiles`).
 - Every vendored `.ts` file has a top-of-file comment with its exact upstream
   path and whether it's an unmodified copy or was trimmed for this build.
 
+## Multiple vendored commits
+
+This directory is **one of several** vendored engine trees, not the only
+one - see `src/vendor/openfront-core-aeb8d60` for the other currently
+maintained one, and `src/lib/replaySimCore.ts`'s `KNOWN_ENGINE_COMMITS` /
+`loadCreateGameRunner` for the small registry that picks between them.
+
+A single global pin was tried first (this file originally documented just
+that, and re-vendoring to "fix" one game's replay twice in a row - see the
+section below - just broke a different real game each time). Confirmed
+directly: two real speedrun submissions (games `4pQDDgSw`, `URdAfzpM`) both
+carry `gitCommit` `aeb8d60224e3eb72fdbae0fdf91ebb8a9affe77d`, while another
+real game (`Md4w7sVS`) carries `dcc18d5231af6253b0e991bf04a4c764982fe262` -
+no single pin gets both right, and there is no reason to expect that will
+ever stop being true, since the live server's engine keeps moving on while
+already-played games stay permanently tied to whatever commit they ran on.
+
+So instead: keep a vendored tree per distinct commit actually needed (found
+via a game's own `gitCommit` field), and resolve which one to use per game
+at replay time (`resolveEngineCommit` in `replaySimCore.ts`). A game whose
+`gitCommit` doesn't match any vendored tree here fails closed - the replay
+is skipped (returns `null`, surfaced in the UI as "no data" rather than a
+wrong number) instead of running against a mismatched engine and producing
+a plausible-looking but incorrect result. Adding support for a newly
+encountered commit means repeating the vendoring process below against that
+commit and adding it to `KNOWN_ENGINE_COMMITS` - this is manual, ongoing
+maintenance, not a one-time fix, same as the single-pin approach always
+warned it would need. A third tree, `src/vendor/openfront-core-16be9d7`, was
+added this way for a real Team/Duos game (`GWMNzCWe`).
+
+## A second, unrelated failure mode: real server-side desyncs
+
+Not every wrong-looking replay is a commit mismatch. Investigating
+`GWMNzCWe` (a Team game whose Max Tiles looked implausibly low even after
+vendoring its correct commit) turned up a second, separate category of
+problem: the game's own turn log is not faithfully replayable by *anyone*,
+not just us. Confirmed independently by opening the game directly in
+OpenFront's own official client
+(`openfront.io/w12/game/GWMNzCWe`) - it throws its own
+`"Error: desync from server"` partway through (turn 930 of ~12611), with a
+`correctHash`/`yourHash` mismatch reported by the server itself, and the
+replayed state visibly diverges from what was seen live (one player showing
+far fewer tiles in the replay than they actually had in the live game).
+
+This means the turn log for this specific match is intrinsically broken -
+no replay, whether OpenFront's own client or this vendored engine, can
+reconstruct the real outcome from it, because the divergence originates in
+whatever produced the recorded log, not in which engine version reads it.
+For a game in this state, returning `null` / showing no data (the existing
+coverage-check and error-handling in `computeGameTileStats` already do this
+for other failure shapes) is the *correct* outcome, not a bug to keep
+chasing - there is no version of "replay it correctly" available for a game
+that even the original client can't reproduce. There is no reliable way to
+detect this class of failure ahead of time (it requires actually attempting
+a full replay and it can present as merely implausible numbers rather than
+a hard crash) - if a specific game's Max Tiles or winner look wrong even
+after confirming the commit matches a vendored tree, checking the game
+directly in OpenFront's own replay viewer for its own desync error is the
+fastest way to tell "our bug" apart from "this game's data is unreliable."
+
 ## Why this specific commit, not current `main`
 
 This matters more than it sounds like it should. OpenFront's public API

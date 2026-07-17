@@ -1,0 +1,15 @@
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit 16be9d7c15d7abc115691def3a0b2aa559664705.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/16be9d7c15d7abc115691def3a0b2aa559664705/src/core/execution/NoOpExecution.ts
+// Unmodified copy - see src/vendor/openfront-core-16be9d7/README.md.
+import { Execution, Game } from "../game/Game";
+
+export class NoOpExecution implements Execution {
+  isActive(): boolean {
+    return false;
+  }
+  activeDuringSpawnPhase(): boolean {
+    return false;
+  }
+  init(mg: Game, ticks: number): void {}
+  tick(ticks: number): void {}
+}

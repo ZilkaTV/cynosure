@@ -18,5 +18,9 @@
   },
   "include": ["src"],
   "exclude": ["src/vendor"],
-  "references": [{ "path": "./src/vendor/openfront-core" }]
+  "references": [
+    { "path": "./src/vendor/openfront-core" },
+    { "path": "./src/vendor/openfront-core-aeb8d60" },
+    { "path": "./src/vendor/openfront-core-16be9d7" }
+  ]
 }

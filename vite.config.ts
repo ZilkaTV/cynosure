@@ -6,6 +6,15 @@ import react from '@vitejs/plugin-react'
 // production the same path is served by the Vercel function in api/of/.
 export default defineConfig({
   plugins: [react()],
+  // replaySim.worker.ts (a module worker - see replaySim.ts) now dynamically
+  // imports whichever vendored engine tree matches a game's own commit (see
+  // replaySimCore.ts), which needs the worker's own output bundle to support
+  // code-splitting. Vite's default worker format ('iife') can't do that -
+  // 'es' can, and every browser that supports module workers already
+  // supports ES module workers, so this has no compatibility cost.
+  worker: {
+    format: 'es',
+  },
   server: {
     proxy: {
       '/api/of': {

@@ -15,8 +15,9 @@ import {
   computeGameTileStats,
   idbGet,
   idbSet,
-  VENDORED_COMMIT,
+  resolveEngineCommit,
   COMPUTE_LOGIC_VERSION,
+  type EngineCommit,
   type GameTileStats,
   type ReplayProgress,
 } from './replaySimCore'
@@ -24,16 +25,18 @@ import { supabase } from './supabase'
 
 export type { GameTileStats, ReplayProgress }
 
-// A finished game's tile stats never change *for a given engine commit and
-// computation logic*, so completed results are cached forever (no TTL) in
-// the same IndexedDB store the map binaries use - but keyed to
-// VENDORED_COMMIT and COMPUTE_LOGIC_VERSION too, so re-vendoring the engine
-// or fixing a bug in how the numbers are derived (both happen periodically
-// - see replaySimCore.ts) doesn't leave every visitor stuck with a stale,
-// wrong result computed against a since-replaced version; it just quietly
+// A finished game's tile stats never change *for the engine commit it was
+// actually played on and a given computation logic version*, so completed
+// results are cached forever (no TTL) in the same IndexedDB store the map
+// binaries use - keyed to the game's own resolved commit (see
+// resolveEngineCommit in replaySimCore.ts - different games can and do
+// resolve to different commits) and COMPUTE_LOGIC_VERSION, so re-vendoring
+// the engine or fixing a bug in how the numbers are derived (both happen
+// periodically) doesn't leave every visitor stuck with a stale, wrong
+// result computed against a since-replaced version; it just quietly
 // recomputes once instead.
-function statsKey(gameId: string): string {
-  return `stats:${VENDORED_COMMIT}:${COMPUTE_LOGIC_VERSION}:${gameId}`
+function statsKey(gameId: string, commit: EngineCommit): string {
+  return `stats:${commit}:${COMPUTE_LOGIC_VERSION}:${gameId}`
 }
 
 // ── Shared cache (Supabase, when configured) ────────────────────────────
@@ -52,13 +55,13 @@ interface SharedRow {
   final_tiles: Record<string, number>
 }
 
-async function fetchShared(gameId: string): Promise<GameTileStats | null> {
+async function fetchShared(gameId: string, commit: EngineCommit): Promise<GameTileStats | null> {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('cyn_game_tile_stats')
     .select('max_tiles, max_percent, final_tiles')
     .eq('game_id', gameId)
-    .eq('vendored_commit', VENDORED_COMMIT)
+    .eq('vendored_commit', commit)
     .eq('compute_logic_version', COMPUTE_LOGIC_VERSION)
     .maybeSingle()
   if (error || !data) return null
@@ -66,7 +69,7 @@ async function fetchShared(gameId: string): Promise<GameTileStats | null> {
   return { maxTiles: row.max_tiles, maxPercent: row.max_percent, finalTiles: row.final_tiles }
 }
 
-async function saveShared(gameId: string, stats: GameTileStats): Promise<void> {
+async function saveShared(gameId: string, commit: EngineCommit, stats: GameTileStats): Promise<void> {
   if (!supabase) return
   // Upsert, not insert-only: computeGameTileStats now fails closed on an
   // obviously-incomplete result (see its own coverage check), but a
@@ -78,7 +81,7 @@ async function saveShared(gameId: string, stats: GameTileStats): Promise<void> {
     .upsert(
       {
         game_id: gameId,
-        vendored_commit: VENDORED_COMMIT,
+        vendored_commit: commit,
         compute_logic_version: COMPUTE_LOGIC_VERSION,
         max_tiles: stats.maxTiles,
         max_percent: stats.maxPercent,
@@ -186,19 +189,28 @@ export function getGameTileStats(gameId: string): Promise<GameTileStats | null> 
   if (running) return running
 
   const p = (async () => {
-    const cached = await idbGet<GameTileStats>(statsKey(gameId))
+    // Resolved first, before touching any cache: which engine commit (if
+    // any) actually matches this specific game. Different games can and do
+    // resolve to different commits (see replaySimCore.ts), so the cache key
+    // below is per-game, not a single fixed value - and a game whose commit
+    // we don't have vendored at all is reported as unavailable rather than
+    // computed against the wrong engine.
+    const commit = await resolveEngineCommit(gameId)
+    if (!commit) return null
+
+    const cached = await idbGet<GameTileStats>(statsKey(gameId, commit))
     if (cached) return cached
 
-    const shared = await fetchShared(gameId)
+    const shared = await fetchShared(gameId, commit)
     if (shared) {
-      await idbSet(statsKey(gameId), shared)
+      await idbSet(statsKey(gameId, commit), shared)
       return shared
     }
 
     const result = await runReplay(gameId)
     if (result) {
-      await idbSet(statsKey(gameId), result)
-      await saveShared(gameId, result)
+      await idbSet(statsKey(gameId, commit), result)
+      await saveShared(gameId, commit, result)
     }
     return result
   })().finally(() => {

@@ -281,7 +281,7 @@ const SERVER_TICKS_PER_SECOND = 10
 // run by exactly this much - confirmed against two real submitted runs
 // (previously stored as 6:17/5:45, real in-game times 6:07/5:35 - both off
 // by precisely 10s, i.e. 100 ticks).
-const SINGLEPLAYER_SPAWN_PHASE_TURNS = 100
+export const SINGLEPLAYER_SPAWN_PHASE_TURNS = 100
 
 /**
  * The `duration` OpenFront reports is how long the connection stayed open,

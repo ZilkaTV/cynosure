@@ -4,7 +4,7 @@
 // game from OpenFront, checks every condition, and - if valid and faster than
 // their current best - records the time.
 
-import { fetchGameDetail, fetchLastActionSeconds, type GameDetail } from './openfront'
+import { fetchGameDetail, fetchLastActionSeconds, SINGLEPLAYER_SPAWN_PHASE_TURNS, type GameDetail } from './openfront'
 import { supabase } from './supabase'
 import { CLAN_TAG } from '../config'
 
@@ -15,7 +15,20 @@ export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 // with its own attempts: it's a second stat read off the same submitted
 // game as the speedrun time, recomputed only when that game changes (a new
 // best time), never bumping the attempts counter on its own.
-const TILES_AT_TICK = 3 * 60 * 10 // 3:00 at the server's fixed 10 ticks/sec
+//
+// The player's own in-game clock reads "3:00" only after the spawn-phase
+// countdown has already run (see SINGLEPLAYER_SPAWN_PHASE_TURNS in
+// openfront.ts - the same 100-turn/10s offset that had to be subtracted for
+// speedrun *timing*, here added instead since this is the reverse
+// direction: converting a displayed time back to a raw tick). Every
+// speedrun submission is a Singleplayer game (verifySpeedrun requires it),
+// so this offset always applies, unconditionally. Confirmed against both
+// real submitted runs via the openfront-tools.frozenpenguin.media replay
+// viewer's own "Besitz" (% owned) readout at its displayed 03:00 mark: raw
+// tick 1800 (no offset) gave implausible ~9% for both, while tick 1900
+// (with the offset) landed within about a percentage point of the
+// viewer's own 11.0%/10.7%.
+const TILES_AT_TICK = 3 * 60 * 10 + SINGLEPLAYER_SPAWN_PHASE_TURNS
 
 export interface SpeedrunEntry {
   openfront_id: string

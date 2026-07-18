@@ -35,10 +35,48 @@ is skipped (returns `null`, surfaced in the UI as "no data" rather than a
 wrong number) instead of running against a mismatched engine and producing
 a plausible-looking but incorrect result. Adding support for a newly
 encountered commit means repeating the vendoring process below against that
-commit and adding it to `KNOWN_ENGINE_COMMITS` - this is manual, ongoing
-maintenance, not a one-time fix, same as the single-pin approach always
-warned it would need. A third tree, `src/vendor/openfront-core-16be9d7`, was
-added this way for a real Team/Duos game (`GWMNzCWe`).
+commit and adding it to `KNOWN_ENGINE_COMMITS` - this is ongoing maintenance,
+not a one-time fix, same as the single-pin approach always warned it would
+need. A third tree, `src/vendor/openfront-core-16be9d7`, was added this way
+for a real Team/Duos game (`GWMNzCWe`).
+
+## Automating the maintenance: scripts/vendor-engine.mjs
+
+The vendoring process below (clone, compute the closure, trim the known
+patterns, headers, tsconfig, register in the loader) is mechanical enough
+that it's now scripted:
+
+```
+node scripts/detect-engine-commits.mjs [daysBack=14]   # find out what's missing
+node scripts/vendor-engine.mjs <full 40-char commit sha>  # vendor one
+```
+
+`detect-engine-commits.mjs` scans real registered members' recent CYN games
+(via the same OpenFront public API everything else here uses) for distinct
+`gitCommit` values, and reports which ones have no matching vendored tree
+yet (grab the exact commit + an example game id straight from the output)
+plus which currently-vendored commits matched zero games in the checked
+window - a *candidate list* for pruning later, never an instruction to
+delete anything on its own, since a commit with zero matches in the last N
+days can still be exactly what an older, unchecked game needs.
+
+`vendor-engine.mjs` does steps 1-8 below automatically: clones/updates a
+cached OpenFrontIO checkout (`.vendor-cache/`, gitignored, re-usable across
+runs), computes the GameRunner.ts closure, applies the mechanical trims
+(union-view types, `renderNumber`/`renderTroops` repointing, QuickChat.json
+repointing, `GameUpdateUtils.applyStateUpdate` removal - each one re-verified
+against the specific commit's actual code, not assumed from a prior pass),
+prunes whatever becomes unreachable as a result, writes headers/tsconfig/
+README, registers the commit in `replaySimCore.ts` and the root
+`tsconfig.json`, and runs `tsc -b` to confirm the result actually compiles.
+Both `openfront-core-16be9d7` and `openfront-core-53e1a5b` were vendored
+this way, end to end, with no manual file edits needed.
+
+This automates the *mechanical* part, not judgment: if a future commit
+introduces a genuinely new pattern (a new client-only dependency, `Theme`
+moving back into `Config.ts`, etc.), the script's `tsc -b` step at the end
+will fail and name exactly what needs a human/agent look - the same
+starting point you'd have doing this by hand.
 
 ## A second, unrelated failure mode: real server-side desyncs
 

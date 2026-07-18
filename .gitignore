@@ -6,3 +6,8 @@ dist
 .DS_Store
 
 tsconfig.tsbuildinfo
+
+# Scratch clone of OpenFrontIO used by scripts/vendor-engine.mjs - large
+# (hundreds of MB), never committed. Safe to delete any time; re-cloned
+# automatically on next run.
+.vendor-cache

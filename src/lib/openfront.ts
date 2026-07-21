@@ -67,6 +67,43 @@ function cacheSet<T>(key: string, data: T) {
   }
 }
 
+// A completed game's own data (its player list, per-player stats, last real
+// action) never changes - re-fetching it every CACHE_TTL_MS like the rest of
+// this cache (built for genuinely time-varying data: rankings, in-progress
+// game lists) is needless repeat load on OpenFront's API for an answer that
+// was already known. Cached with no expiry via `cachePermGet`/`cachePermSet`
+// below, used by fetchGameDetail/fetchLastActionSeconds/fetchGameClanTags -
+// each of those still only *writes* here on a genuinely successful fetch, so
+// a rate-limited/failed attempt is retried on the next visit rather than
+// getting stuck (there's nothing stable to cache from a failure).
+//
+// Distinguishing "never fetched" from "fetched and the real answer is null"
+// (fetchLastActionSeconds legitimately returns null for some games) needs an
+// explicit wrapper - `data !== null` can't tell those apart, since null is
+// itself a valid permanent answer here.
+interface PermCacheEnvelope<T> {
+  data: T
+}
+
+function cachePermGet<T>(key: string): { hit: true; data: T } | { hit: false } {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return { hit: false }
+    const env = JSON.parse(raw) as PermCacheEnvelope<T>
+    return { hit: true, data: env.data }
+  } catch {
+    return { hit: false }
+  }
+}
+
+function cachePermSet<T>(key: string, data: T) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data } satisfies PermCacheEnvelope<T>))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 function markFetched() {
   try {
     localStorage.setItem(LAST_FETCH_KEY, String(Date.now()))
@@ -95,29 +132,61 @@ export function clearOpenFrontCache() {
   }
 }
 
-// Bulk callers (buildRoster's game-detail lookups in particular) fire dozens
-// of these concurrently via Promise.all with no throttling of their own -
-// confirmed directly that a burst like that trips OpenFront's rate limit,
-// and a single 429 anywhere in the burst used to just silently produce a
-// permanent-for-that-load `null` (a member's kills/gold quietly showing "-"
-// with no error, no indication it was ever attempted, and no retry). A short
-// backoff-and-retry here fixes it at the one shared low-level layer instead
-// of trying to throttle every current and future bulk caller individually.
-const RATE_LIMIT_RETRIES = 3
+// Bulk callers (buildRoster's game-detail lookups in particular - up to ~140
+// of them from one roster build, confirmed directly) fire many requests
+// concurrently via Promise.all with no throttling of their own. A burst that
+// size reliably trips OpenFront's rate limit, and a single 429 anywhere in
+// it used to just silently produce a permanent-for-that-load `null` (a
+// member's kills/gold quietly showing "-" with no error, no indication it
+// was ever attempted, and no retry).
+//
+// Fixed structurally at this one shared layer rather than by throttling each
+// current bulk caller individually (which a future one could just as easily
+// forget to do): every call to getJson passes through a small global
+// concurrency gate first, so no matter how many logical requests any part of
+// the app fires at once, at most MAX_CONCURRENT_REQUESTS ever reach the
+// network simultaneously - the rate limit that caused this can't be
+// retriggered by request *volume* again. A 429 that still gets through
+// (OpenFront tightening its limit further, multiple browser tabs contending,
+// etc.) is retried with backoff on top of that.
+const MAX_CONCURRENT_REQUESTS = 6
+const RATE_LIMIT_RETRIES = 4
 const RATE_LIMIT_BASE_DELAY_MS = 500
 
+let activeRequests = 0
+const requestQueue: (() => void)[] = []
+
+function acquireRequestSlot(): Promise<void> {
+  if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+    activeRequests++
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => requestQueue.push(resolve))
+}
+
+function releaseRequestSlot() {
+  const next = requestQueue.shift()
+  if (next) next() // slot passes straight to the next waiter - activeRequests stays the same
+  else activeRequests--
+}
+
 async function getJson(url: string): Promise<unknown> {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } })
-    if (res.status === 429) {
-      if (attempt >= RATE_LIMIT_RETRIES) throw new Error('rate-limited')
-      await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
-      continue
+  await acquireRequestSlot()
+  try {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (res.status === 429) {
+        if (attempt >= RATE_LIMIT_RETRIES) throw new Error('rate-limited')
+        await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
+        continue
+      }
+      if (!res.ok) throw new Error(`OpenFront API ${res.status}`)
+      const json = await res.json()
+      markFetched()
+      return json
     }
-    if (!res.ok) throw new Error(`OpenFront API ${res.status}`)
-    const json = await res.json()
-    markFetched()
-    return json
+  } finally {
+    releaseRequestSlot()
   }
 }
 
@@ -239,28 +308,35 @@ export interface GameDetail {
   players: GamePlayerStat[]
 }
 
-/** Full post-game report for one game (players + per-player stats). Cached. */
+/**
+ * Full post-game report for one game (players + per-player stats). A
+ * finished game's own record never changes, so this is cached forever, not
+ * on the usual TTL - see the note above cachePermGet. A genuinely-absent
+ * game (no `info` in an otherwise successful response) is a stable "no"
+ * worth caching too; a network/rate-limit failure is not, so it's retried
+ * on the next call instead of getting stuck.
+ */
 export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
   const key = `${CACHE_NS}:detail:${gameId}`
-  const cached = cacheGet<GameDetail | null>(key)
-  if (cached !== null) return cached
+  const cached = cachePermGet<GameDetail | null>(key)
+  if (cached.hit) return cached.data
 
-  let detail: GameDetail | null = null
-  try {
-    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`)) as {
-      info?: {
-        gameID?: string
-        duration?: number
-        num_turns?: number
-        start?: number
-        winner?: [string, string] | null
-        config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number }
-        players?: GamePlayerStat[]
-      }
+  const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as {
+    info?: {
+      gameID?: string
+      duration?: number
+      num_turns?: number
+      start?: number
+      winner?: [string, string] | null
+      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number }
+      players?: GamePlayerStat[]
     }
-    const info = json.info
-    if (info) {
-      detail = {
+  } | null
+  if (json === null) return null // fetch failed - not cached, try again next time
+
+  const info = json.info
+  const detail: GameDetail | null = info
+    ? {
         gameId: info.gameID ?? gameId,
         map: info.config?.gameMap ?? '?',
         gameType: info.config?.gameType ?? '?',
@@ -272,11 +348,8 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
         start: info.start ?? 0,
         players: info.players ?? [],
       }
-    }
-  } catch {
-    detail = null
-  }
-  cacheSet(key, detail)
+    : null
+  cachePermSet(key, detail)
   return detail
 }
 
@@ -317,43 +390,38 @@ export const SINGLEPLAYER_SPAWN_PHASE_TURNS = 100
  */
 export async function fetchLastActionSeconds(gameId: string): Promise<number | null> {
   const key = `${CACHE_NS}:lastaction:${gameId}`
-  const cached = cacheGet<number | null>(key)
-  if (cached !== null) return cached
+  const cached = cachePermGet<number | null>(key)
+  if (cached.hit) return cached.data
 
+  const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=true`).catch(() => null)) as {
+    turns?: { turnNumber: number; intents?: { type: string }[] }[]
+  } | null
+  if (json === null) return null // fetch failed - not cached, try again next time
+
+  const turns = json.turns ?? []
   let seconds: number | null = null
-  try {
-    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=true`)) as {
-      turns?: { turnNumber: number; intents?: { type: string }[] }[]
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const real = (turns[i].intents ?? []).some((x) => x.type !== 'mark_disconnected')
+    if (real) {
+      seconds = Math.max(0, turns[i].turnNumber - SINGLEPLAYER_SPAWN_PHASE_TURNS) / SERVER_TICKS_PER_SECOND
+      break
     }
-    const turns = json.turns ?? []
-    for (let i = turns.length - 1; i >= 0; i--) {
-      const real = (turns[i].intents ?? []).some((x) => x.type !== 'mark_disconnected')
-      if (real) {
-        seconds = Math.max(0, turns[i].turnNumber - SINGLEPLAYER_SPAWN_PHASE_TURNS) / SERVER_TICKS_PER_SECOND
-        break
-      }
-    }
-  } catch {
-    seconds = null
   }
-  cacheSet(key, seconds)
+  cachePermSet(key, seconds)
   return seconds
 }
 
 export async function fetchGameClanTags(gameId: string): Promise<string[]> {
   const key = `${CACHE_NS}:game:${gameId}`
-  const cached = cacheGet<string[]>(key)
-  if (cached) return cached
+  const cached = cachePermGet<string[]>(key)
+  if (cached.hit) return cached.data
 
-  let tags: string[] = []
-  try {
-    const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`)) as {
-      info?: { players?: Array<{ clanTag?: string | null }> }
-    }
-    tags = (json.info?.players ?? []).map((p) => p.clanTag ?? '').filter(Boolean)
-  } catch {
-    tags = []
-  }
-  cacheSet(key, tags)
+  const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as {
+    info?: { players?: Array<{ clanTag?: string | null }> }
+  } | null
+  if (json === null) return [] // fetch failed - not cached, try again next time
+
+  const tags = (json.info?.players ?? []).map((p) => p.clanTag ?? '').filter(Boolean)
+  cachePermSet(key, tags)
   return tags
 }

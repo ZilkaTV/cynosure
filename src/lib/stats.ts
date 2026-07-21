@@ -309,26 +309,22 @@ export async function buildRoster(
       if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
     }
   }
-  // Fetched in small concurrent batches, not all at once: a plain
-  // Promise.all over the full list (previously up to 140 at a time)
-  // reliably tripped OpenFront's rate limit, and a 429 anywhere in that
-  // burst used to just leave that game's detail permanently null for the
-  // whole roster build - a member's kills/gold quietly showing "-" with no
-  // error and no retry. getJson itself now retries a single rate-limited
-  // request, but that alone doesn't help when the burst size is what's
-  // causing the throttling in the first place - keeping the concurrency
-  // modest avoids provoking it at all.
-  const DETAIL_FETCH_CONCURRENCY = 8
+  // Firing every lookup at once here used to reliably trip OpenFront's rate
+  // limit (confirmed directly: up to ~140 concurrent requests, a burst large
+  // enough to get 429'd) - a 429 anywhere in that burst just left that game's
+  // detail permanently null for the whole roster build, a member's kills/gold
+  // quietly showing "-" with no error and no retry. Fixed once, structurally,
+  // at the shared network layer instead of here: getJson (openfront.ts) now
+  // caps how many requests are ever in flight to OpenFront at once and
+  // retries a 429 with backoff, so this Promise.all (and any future bulk
+  // caller) can't reintroduce the same bug just by firing a lot of requests.
   const detailMap = new Map<string, GameDetail | null>()
   const detailIds = [...wantDetail].slice(0, MAX_DETAIL_LOOKUPS)
-  for (let i = 0; i < detailIds.length; i += DETAIL_FETCH_CONCURRENCY) {
-    const batch = detailIds.slice(i, i + DETAIL_FETCH_CONCURRENCY)
-    await Promise.all(
-      batch.map(async (id) => {
-        detailMap.set(id, await fetchGameDetail(id))
-      }),
-    )
-  }
+  await Promise.all(
+    detailIds.map(async (id) => {
+      detailMap.set(id, await fetchGameDetail(id))
+    }),
+  )
 
   // Co-op = another CYN player in the same team-win game.
   const coopByGame: Record<string, boolean> = {}

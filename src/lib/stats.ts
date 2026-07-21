@@ -409,10 +409,10 @@ export async function buildRoster(
     topElo: members.reduce<number | null>((mx, m) => (m.elo != null && (mx == null || m.elo > mx) ? m.elo : mx), null),
   }
 
-  // Oldest CYN game currently counted = the start of the coverage window.
-  const oldestGame = members
-    .flatMap((m) => m.cynGames.map((g) => g.start))
-    .reduce<string | null>((acc, s) => (!acc || new Date(s) < new Date(acc) ? s : acc), null)
+  // Start of the coverage window shown to visitors - fixed, not derived from
+  // the earliest game actually found (that reflects OpenFront's public
+  // history window, not a clan-meaningful date), matching EARLIEST_MONTH_KEY.
+  const oldestGame = '2026-06-01'
 
   return { members, coopByGame, oldestGame, totals }
 }

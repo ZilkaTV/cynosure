@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
-import { SectionHeading, Card, Spinner, useCountdown } from '../components/ui'
+import { SectionHeading, Card, Spinner, LastUpdated, useCountdown } from '../components/ui'
 import { QUESTS, fetchClaimsToday, claimQuest, todayKey, nextResetAt } from '../lib/quests'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -10,7 +10,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 export default function Quests() {
   const { profile } = useProfile()
   const { t } = useLanguage()
-  const { data, loading, refresh } = useRoster(!!profile)
+  const { data, loading, lastUpdated, refreshing, refresh } = useRoster(!!profile)
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
@@ -71,6 +71,7 @@ export default function Quests() {
 
       <section className="space-y-4">
         <SectionHeading center eyebrow={`${t.quests.resetsDailyPrefix} · ${todayKey()}`} title={t.quests.dailyQuestsTitle} />
+        <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
         <div className="space-y-3">
           {QUESTS.map((q) => {
             const done = q.check(me, coop)

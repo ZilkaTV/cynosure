@@ -224,20 +224,32 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               </a>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-base-700">
-              <table className="w-full min-w-[680px] text-sm">
+            {/* table-fixed + a fixed column width plan (colgroup below) keeps the
+                table's total width constant no matter how long any single
+                cell's content is - a long player name truncates with an
+                ellipsis (full name on hover) instead of forcing the whole
+                table, and therefore the page, to scroll horizontally. */}
+            <div className="rounded-xl border border-base-700">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-8" />
+                  <col />
+                  {columns.map((c) => (
+                    <col key={c.key} className="w-[13%]" />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-3 py-2.5 text-left font-semibold">{t.monthly.colRank}</th>
+                    <th className="px-2 py-2.5 text-left font-semibold">{t.monthly.colRank}</th>
                     <th className="px-3 py-2.5 text-left font-semibold">{t.common.table.player}</th>
                     {columns.map((c) => (
                       <th
                         key={c.key}
                         onClick={() => onSortClick(c.key)}
-                        className="cursor-pointer select-none px-3 py-2.5 text-right font-semibold hover:text-white"
+                        className="cursor-pointer select-none truncate px-2 py-2.5 text-right font-semibold hover:text-white"
                         title={t.gameDetail.sortBy(c.label)}
                       >
-                        {c.icon ? <ThIcon label={c.label}><Emoji char={c.icon} className="h-3.5 w-3.5" /></ThIcon> : c.label}
+                        {c.icon ? <ThIcon label={c.label}><Emoji char={c.icon} className="h-3.5 w-3.5 shrink-0" /></ThIcon> : c.label}
                         {sortKey === c.key && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
                       </th>
                     ))}
@@ -248,18 +260,23 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                     const isCyn = r.p.clanTag === CLAN_TAG
                     return (
                       <tr key={r.p.clientID} className={`border-b border-base-700/50 last:border-0 ${isCyn ? 'bg-accent/5' : ''}`}>
-                        <td className="px-3 py-2 font-display font-bold text-slate-500">{i + 1}</td>
-                        <td className="px-3 py-2">
-                          <span className={isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}>
-                            {r.p.clanTag && <span className="text-slate-500">[{r.p.clanTag}] </span>}
-                            {r.p.username}
-                            {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="ml-1 h-3.5 w-3.5" />}
+                        <td className="px-2 py-2 font-display font-bold text-slate-500">{i + 1}</td>
+                        <td className="max-w-0 px-3 py-2">
+                          <span
+                            className={`flex items-center gap-1 truncate ${isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}`}
+                            title={r.p.clanTag ? `[${r.p.clanTag}] ${r.p.username}` : r.p.username}
+                          >
+                            <span className="truncate">
+                              {r.p.clanTag && <span className="text-slate-500">[{r.p.clanTag}] </span>}
+                              {r.p.username}
+                            </span>
+                            {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.out)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">{fmt(r.inc)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gold-light">{fmt(r.gold)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">{fmt(r.out)}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">{fmt(r.inc)}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-gold-light">{fmt(r.gold)}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums">
                           {r.kills > 0 ? (
                             <span
                               className="cursor-help font-semibold text-white underline decoration-dotted underline-offset-2"
@@ -271,19 +288,19 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                             <span className="text-slate-600">0</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-400">
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">
                           {tileState === 'loading' && (
                             <span className="text-slate-600">
                               {tileProgress && tileProgress.totalTicks > 0
-                                ? `${t.gameDetail.computing} ${Math.min(99, Math.round((tileProgress.tick / tileProgress.totalTicks) * 100))}%`
-                                : t.gameDetail.computing}
+                                ? `${Math.min(99, Math.round((tileProgress.tick / tileProgress.totalTicks) * 100))}%`
+                                : '…'}
                             </span>
                           )}
                           {tileState === 'error' && <span className="text-slate-600">-</span>}
                           {tileState === 'ok' &&
                             (r.maxPercent != null ? `${r.maxPercent.toFixed(1)}%` : <span className="text-slate-600">-</span>)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-500">
                           {r.deathSec != null ? fmtDuration(r.deathSec) : '-'}
                         </td>
                       </tr>

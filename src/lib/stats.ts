@@ -271,10 +271,6 @@ function eloMonthDelta(publicId: string, currentElo: number | null): number | nu
 
 // ── build roster ─────────────────────────────────────────────────────────────
 
-// Cap on full game-detail fetches per roster build (co-op + kills/gold). Details
-// are cached, so coverage grows over time; kept bounded to respect rate limits.
-const MAX_DETAIL_LOOKUPS = 140
-
 export async function buildRoster(
   registered: RosterInput[],
   speedruns: Record<
@@ -309,19 +305,25 @@ export async function buildRoster(
       if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
     }
   }
-  // Firing every lookup at once here used to reliably trip OpenFront's rate
-  // limit (confirmed directly: up to ~140 concurrent requests, a burst large
-  // enough to get 429'd) - a 429 anywhere in that burst just left that game's
-  // detail permanently null for the whole roster build, a member's kills/gold
-  // quietly showing "-" with no error and no retry. Fixed once, structurally,
-  // at the shared network layer instead of here: getJson (openfront.ts) now
-  // caps how many requests are ever in flight to OpenFront at once and
-  // retries a 429 with backoff, so this Promise.all (and any future bulk
-  // caller) can't reintroduce the same bug just by firing a lot of requests.
+  // No cap on how many of these get fetched: an earlier version capped this
+  // at 140 "to respect rate limits", which silently dropped whichever games
+  // fell past that point in the Set's iteration order from ever being
+  // fetched at all - confirmed directly, with a real roster needing 292
+  // lookups, that this is exactly what made one member's *current* games
+  // permanently show "-" for kills/gold, not a rate-limit failure (retries
+  // handled those fine, 0 net failures). Firing every lookup at once here
+  // used to reliably trip OpenFront's rate limit before that fix existed; a
+  // 429 anywhere in the burst just left that game's detail permanently null
+  // for the whole roster build. Fixed once, structurally, at the shared
+  // network layer instead of here: getJson (openfront.ts) now caps how many
+  // requests are ever in flight to OpenFront at once and retries a 429 with
+  // backoff, so this Promise.all (and any future bulk caller) can't
+  // reintroduce that bug just by firing a lot of requests - and since a
+  // successful detail fetch is now cached forever (not just for an hour),
+  // the one-time cost of a large batch like this doesn't recur.
   const detailMap = new Map<string, GameDetail | null>()
-  const detailIds = [...wantDetail].slice(0, MAX_DETAIL_LOOKUPS)
   await Promise.all(
-    detailIds.map(async (id) => {
+    [...wantDetail].map(async (id) => {
       detailMap.set(id, await fetchGameDetail(id))
     }),
   )

@@ -47,12 +47,12 @@ interface CacheEnvelope<T> {
   data: T
 }
 
-function cacheGet<T>(key: string): T | null {
+function cacheGet<T>(key: string, ttlMs: number = CACHE_TTL_MS): T | null {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const env = JSON.parse(raw) as CacheEnvelope<T>
-    if (Date.now() - env.ts > CACHE_TTL_MS) return null
+    if (Date.now() - env.ts > ttlMs) return null
     return env.data
   } catch {
     return null
@@ -259,13 +259,26 @@ async function fetchGamesPaged(publicId: string, filter: string | null, maxPages
   return all
 }
 
+// A finished game can take a while to even appear here in the first place -
+// OpenFront's own duration for a game reflects how long the connection
+// stayed open (see fetchLastActionSeconds below), which suggests a game's
+// record isn't necessarily finalized/listable until every player has
+// actually left, not the moment the match is decided. That part is outside
+// this site's control. What IS controllable is not stacking a long local
+// cache on top of that: the general CACHE_TTL_MS (1 hour) was originally
+// sized around elo updating hourly, not around how often a player's own
+// list of played games changes, which is far more frequent. A shorter TTL
+// here is safe now that bulk fetches are rate-limit-protected (see getJson's
+// concurrency gate + retry in this file) - it was never the bottleneck.
+const GAMES_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
 /**
  * A player's full game history: the default feed (FFA/Team) merged with the
  * ranked feed (1v1), de-duplicated by gameId. Cached per player.
  */
 export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise<PlayerGame[]> {
   const key = `${CACHE_NS}:games:${publicId}`
-  const cached = cacheGet<PlayerGame[]>(key)
+  const cached = cacheGet<PlayerGame[]>(key, GAMES_CACHE_TTL_MS)
   if (cached) return cached
 
   const [main, ranked] = await Promise.all([

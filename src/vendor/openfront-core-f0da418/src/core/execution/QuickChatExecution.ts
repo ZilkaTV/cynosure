@@ -1,0 +1,83 @@
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit f0da41820727cfccc27320d7eb97fbd188488e47.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/f0da41820727cfccc27320d7eb97fbd188488e47/src/core/execution/QuickChatExecution.ts
+// Unmodified copy - see src/vendor/openfront-core-f0da418/README.md.
+import { Execution, Game, Player, PlayerID } from "../game/Game";
+
+export class QuickChatExecution implements Execution {
+  private recipient: Player;
+  private mg: Game;
+
+  private active = true;
+
+  constructor(
+    private sender: Player,
+    private recipientID: PlayerID,
+    private quickChatKey: string,
+    private target: PlayerID | undefined,
+  ) {}
+
+  init(mg: Game, ticks: number): void {
+    this.mg = mg;
+    if (!mg.hasPlayer(this.recipientID)) {
+      console.warn(
+        `QuickChatExecution: recipient ${this.recipientID} not found`,
+      );
+      this.active = false;
+      return;
+    }
+
+    this.recipient = mg.player(this.recipientID);
+  }
+
+  tick(ticks: number): void {
+    if (!this.sender.canSendQuickChat(this.recipient)) {
+      this.active = false;
+      return;
+    }
+
+    const message = this.getMessageFromKey(this.quickChatKey);
+
+    this.sender.recordQuickChat(this.recipient);
+
+    this.mg.displayChat(
+      message[1],
+      message[0],
+      this.target,
+      this.recipient.id(),
+      true,
+      this.sender.id(),
+    );
+
+    this.mg.displayChat(
+      message[1],
+      message[0],
+      this.target,
+      this.sender.id(),
+      false,
+      this.recipient.id(),
+    );
+
+    console.log(
+      `[QuickChat] ${this.sender.name} → ${this.recipient.displayName}: ${message}`,
+    );
+
+    this.active = false;
+  }
+
+  owner(): Player {
+    return this.sender;
+  }
+
+  isActive(): boolean {
+    return this.active;
+  }
+
+  activeDuringSpawnPhase(): boolean {
+    return false;
+  }
+
+  private getMessageFromKey(fullKey: string): string[] {
+    const translated = fullKey.split(".");
+    return translated;
+  }
+}

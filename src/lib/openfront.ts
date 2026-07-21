@@ -95,13 +95,30 @@ export function clearOpenFrontCache() {
   }
 }
 
+// Bulk callers (buildRoster's game-detail lookups in particular) fire dozens
+// of these concurrently via Promise.all with no throttling of their own -
+// confirmed directly that a burst like that trips OpenFront's rate limit,
+// and a single 429 anywhere in the burst used to just silently produce a
+// permanent-for-that-load `null` (a member's kills/gold quietly showing "-"
+// with no error, no indication it was ever attempted, and no retry). A short
+// backoff-and-retry here fixes it at the one shared low-level layer instead
+// of trying to throttle every current and future bulk caller individually.
+const RATE_LIMIT_RETRIES = 3
+const RATE_LIMIT_BASE_DELAY_MS = 500
+
 async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (res.status === 429) throw new Error('rate-limited')
-  if (!res.ok) throw new Error(`OpenFront API ${res.status}`)
-  const json = await res.json()
-  markFetched()
-  return json
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (res.status === 429) {
+      if (attempt >= RATE_LIMIT_RETRIES) throw new Error('rate-limited')
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
+      continue
+    }
+    if (!res.ok) throw new Error(`OpenFront API ${res.status}`)
+    const json = await res.json()
+    markFetched()
+    return json
+  }
 }
 
 // ── Ranked leaderboard (the only source of elo - top 100 players) ───────────

@@ -295,7 +295,19 @@ const GAMES_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 // reasonably fresh; past that it's treated as a miss and re-fetched live
 // (which then re-uploads it here too, so the next visitor doesn't have to
 // wait for the next Cron tick either).
-const GAMES_SHARED_STALE_AFTER_MS = 20 * 60 * 1000 // 20 minutes
+//
+// Confirmed live that 20 minutes was too tight a leash: under sustained
+// OpenFront rate limiting the Cron's own scan can't always get through every
+// member in one run (see SCAN_TIME_BUDGET_MS in api/cron/refresh-details.js),
+// so a member can legitimately go without a fresh write for longer than that
+// even with the Cron firing every ~5 minutes - and every visitor who then
+// hits that one "stale" row pays the full live-pagination cost again,
+// regressing right back toward the original slow-load problem. A player's
+// game list only grows by a handful of entries a day at most, so there's
+// nothing time-sensitive being traded away by trusting it much longer - this
+// matches the general CACHE_TTL_MS used for similarly slow-changing data
+// (elo, rankings).
+const GAMES_SHARED_STALE_AFTER_MS = CACHE_TTL_MS // 1 hour
 
 interface SharedGamesRow {
   openfront_id: string

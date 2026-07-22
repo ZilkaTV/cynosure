@@ -29,6 +29,10 @@ export const config = { maxDuration: 60 }
 const CLAN_TAG = 'CYN'
 const MAX_GAMES_PER_RUN = 60
 const TIME_BUDGET_MS = 50_000 // stay under the 60s maxDuration above
+// Leaves headroom under TIME_BUDGET_MS/maxDuration for the detail-fetch loop
+// and the response itself - both share the same startedAt clock, so this
+// isn't "35s on top of" the detail budget, it's a checkpoint partway through it.
+const SCAN_TIME_BUDGET_MS = 35_000
 
 // Confirmed directly (this cron's own logs, before this fix): a plain
 // unretried 429 anywhere in a member's game-list scan makes that whole
@@ -121,7 +125,21 @@ export default async function handler(req, res) {
     const mk = currentMonthKey()
     const wantDetail = new Set()
     let membersScanFailed = 0
-    for (const r of registered ?? []) {
+    let scanTimedOut = false
+    const members = registered ?? []
+    for (let i = 0; i < members.length; i++) {
+      // The scan loop below had no time budget of its own - only the
+      // detail-fetch loop further down did. Under heavy rate-limiting this
+      // let the scan alone run past Vercel's own maxDuration, killing the
+      // whole invocation before it ever returned a response (a hard
+      // FUNCTION_INVOCATION_TIMEOUT, confirmed live) instead of degrading to
+      // a partial result like every other failure mode here does.
+      if (Date.now() - startedAt > SCAN_TIME_BUDGET_MS) {
+        membersScanFailed += members.length - i
+        scanTimedOut = true
+        break
+      }
+      const r = members[i]
       let games
       try {
         games = await fetchPlayerGames(r.openfront_id)
@@ -184,6 +202,7 @@ export default async function handler(req, res) {
     const remaining = [...wantDetail].filter((id) => !alreadyCached.has(id)).length - fetched
     res.status(200).json({
       scanIncomplete, // true means membersScanFailed > 0 below - totalNeeded is a lower bound, not exact
+      scanTimedOut, // true means SCAN_TIME_BUDGET_MS cut the member-list scan itself short
       membersScanFailed,
       totalNeeded: wantDetail.size,
       alreadyCached: alreadyCached.size,

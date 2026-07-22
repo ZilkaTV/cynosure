@@ -48,15 +48,26 @@ export interface HelpMessage {
   created_at: string
 }
 
-export async function fetchHelpHistory(conversationId: string): Promise<HelpMessage[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('cyn_help_messages')
-    .select('role, content, image_url, created_at')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-  if (error) return []
-  return (data as HelpMessage[]) ?? []
+/**
+ * Reloads a VISITOR'S OWN conversation (e.g. reopening the widget later).
+ * Routed through the server, not a direct table read - cyn_help_messages has
+ * no public RLS policy at all (see supabase/schema.sql), so this is the only
+ * way a normal visitor can read it, and the server only returns anything
+ * after confirming conversationId actually belongs to this visitorKey.
+ */
+export async function fetchOwnHelpHistory(conversationId: string): Promise<HelpMessage[]> {
+  try {
+    const res = await fetch('/api/help-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'history', conversationId, visitorKey: getVisitorKey() }),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { messages: HelpMessage[] }
+    return data.messages ?? []
+  } catch {
+    return []
+  }
 }
 
 async function uploadHelpImage(file: File): Promise<string | null> {
@@ -116,6 +127,11 @@ export async function sendHelpMessage(params: {
 }
 
 // ── Admin review (see pages/AdminHelp.tsx) ──────────────────────────────────
+// These read/write cyn_help_conversations/cyn_help_messages directly with
+// the anon key - safe only because supabase/schema.sql now gates both
+// tables' select (and this table's update) on a real auth.uid() check
+// against cyn_event_admins, the same pattern cyn_event_submissions already
+// uses. A non-admin session gets zero rows back, not just a hidden button.
 
 export interface HelpConversation {
   id: string
@@ -134,6 +150,17 @@ export async function fetchAllHelpConversations(): Promise<HelpConversation[]> {
     .order('updated_at', { ascending: false })
   if (error) return []
   return (data as HelpConversation[]) ?? []
+}
+
+export async function fetchAdminHelpMessages(conversationId: string): Promise<HelpMessage[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('cyn_help_messages')
+    .select('role, content, image_url, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  if (error) return []
+  return (data as HelpMessage[]) ?? []
 }
 
 export async function setHelpConversationStatus(id: string, status: 'open' | 'resolved'): Promise<void> {

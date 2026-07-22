@@ -6,7 +6,20 @@
 // cyn_help_conversations/cyn_help_messages for the site admin to review in
 // a real coding session later. This function only ever reads/writes
 // Supabase and calls the Claude API - it has no access to this repo and
-// cannot make or deploy code changes itself.
+// cannot make or deploy code changes itself (no tools are declared on the
+// Claude call, so there is nothing a message could "trigger" beyond text).
+//
+// Uses the Supabase SERVICE ROLE key, not the anon key - these two tables
+// have no public RLS policy at all (see supabase/schema.sql), since a
+// conversation can contain whatever a visitor typed, including a screenshot.
+// This function is the only thing allowed to read or write them (besides
+// the admin review page, which goes through its own auth.uid()-gated RLS
+// policy instead). Because RLS is bypassed here, ownership has to be
+// enforced in code: a client-supplied conversationId is only ever trusted
+// after confirming its stored visitor_key matches the caller's own -
+// otherwise nothing would stop one visitor from passing another visitor's
+// (guessed or leaked) conversation id and reading their history or
+// appending to their thread.
 
 import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -37,6 +50,42 @@ Your job:
 - Ask a clarifying question if you don't have enough detail to help (e.g. which member, which game, what they expected vs what they saw).
 - Be friendly, concise, and avoid jargon. Do not use em-dashes - use regular hyphens or commas instead.`
 
+/** Looks up a conversation's stored visitor_key and confirms it matches the caller's. */
+async function ownsConversation(supabase, conversationId, visitorKey) {
+  const { data, error } = await supabase
+    .from('cyn_help_conversations')
+    .select('visitor_key')
+    .eq('id', conversationId)
+    .maybeSingle()
+  if (error || !data) return false
+  return data.visitor_key === visitorKey
+}
+
+async function handleHistory(req, res, supabase) {
+  const { conversationId, visitorKey } = req.body || {}
+  if (typeof conversationId !== 'string' || typeof visitorKey !== 'string' || !conversationId || !visitorKey) {
+    res.status(400).json({ error: 'missing_fields' })
+    return
+  }
+  if (!(await ownsConversation(supabase, conversationId, visitorKey))) {
+    // Same response whether the id doesn't exist or belongs to someone else -
+    // doesn't matter which for a visitor's own reload path, and avoids
+    // confirming/denying that a given id exists to someone probing for one.
+    res.status(200).json({ messages: [] })
+    return
+  }
+  const { data, error } = await supabase
+    .from('cyn_help_messages')
+    .select('role, content, image_url, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  if (error) {
+    res.status(500).json({ error: 'history_failed', message: error.message })
+    return
+  }
+  res.status(200).json({ messages: data ?? [] })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method_not_allowed' })
@@ -44,12 +93,20 @@ export default async function handler(req, res) {
   }
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     res.status(500).json({ error: 'supabase_not_configured' })
     return
   }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+  if (req.body?.action === 'history') {
+    await handleHistory(req, res, supabase)
+    return
+  }
+
   if (!anthropicKey) {
     res.status(500).json({ error: 'anthropic_not_configured' })
     return
@@ -70,11 +127,15 @@ export default async function handler(req, res) {
     return
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey)
   const anthropic = new Anthropic({ apiKey: anthropicKey })
 
   try {
-    let convId = conversationId
+    // A client-supplied conversationId is only reused after confirming it's
+    // actually this visitor's own - otherwise it's silently treated as
+    // absent and a fresh conversation is started, rather than letting
+    // someone else's (guessed or leaked) id be read from or written into.
+    let convId = conversationId && (await ownsConversation(supabase, conversationId, visitorKey)) ? conversationId : null
+
     if (!convId) {
       const { data, error } = await supabase
         .from('cyn_help_conversations')

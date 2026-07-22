@@ -407,6 +407,19 @@ create policy "anyone can update cyn_member_games_cache"
 -- in a real coding session - the assistant never touches site code itself.
 -- ============================================================
 
+-- Unlike almost every other table in this file, these two are NOT public-read.
+-- A help conversation can contain whatever a visitor typed - including a
+-- screenshot or a description of a personal problem - so a visitor reading
+-- every other visitor's conversation straight off the anon key (which is
+-- public, embedded in the site bundle) would be a real privacy leak, not a
+-- theoretical one. All reads and writes now go exclusively through
+-- api/help-chat.js using the service-role key (bypasses RLS, kept strictly
+-- server-side, never sent to the browser) - that function is also the only
+-- place ownership is enforced: a conversationId is only ever trusted after
+-- confirming its visitor_key matches the caller's own. The only client that
+-- reads these tables directly is the admin review page, gated the same way
+-- cyn_event_submissions already gates its review actions - a real
+-- auth.uid() check against cyn_event_admins, not just a hidden UI element.
 create table if not exists public.cyn_help_conversations (
   id uuid primary key default gen_random_uuid(),
   visitor_key text not null,
@@ -420,14 +433,17 @@ create index if not exists cyn_help_conversations_visitor_idx on public.cyn_help
 
 alter table public.cyn_help_conversations enable row level security;
 
-create policy "public can read cyn_help_conversations"
-  on public.cyn_help_conversations for select to public using (true);
+create policy "admins can read cyn_help_conversations"
+  on public.cyn_help_conversations for select to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
-create policy "anyone can insert cyn_help_conversations"
-  on public.cyn_help_conversations for insert to public with check (true);
-
-create policy "anyone can update cyn_help_conversations"
-  on public.cyn_help_conversations for update to public using (true) with check (true);
+create policy "admins can update cyn_help_conversations"
+  on public.cyn_help_conversations for update to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
 create table if not exists public.cyn_help_messages (
   id uuid primary key default gen_random_uuid(),
@@ -442,11 +458,18 @@ create index if not exists cyn_help_messages_conversation_idx on public.cyn_help
 
 alter table public.cyn_help_messages enable row level security;
 
-create policy "public can read cyn_help_messages"
-  on public.cyn_help_messages for select to public using (true);
+create policy "admins can read cyn_help_messages"
+  on public.cyn_help_messages for select to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
 
-create policy "anyone can insert cyn_help_messages"
-  on public.cyn_help_messages for insert to public with check (true);
+-- If this migration is replacing an earlier version of this feature, drop
+-- the old public policies (harmless no-op if they were never created).
+drop policy if exists "public can read cyn_help_conversations" on public.cyn_help_conversations;
+drop policy if exists "anyone can insert cyn_help_conversations" on public.cyn_help_conversations;
+drop policy if exists "anyone can update cyn_help_conversations" on public.cyn_help_conversations;
+drop policy if exists "public can read cyn_help_messages" on public.cyn_help_messages;
+drop policy if exists "anyone can insert cyn_help_messages" on public.cyn_help_messages;
 
 -- Storage bucket for images visitors attach to a help-chat message.
 insert into storage.buckets (id, name, public)

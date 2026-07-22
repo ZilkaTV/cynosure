@@ -4,7 +4,7 @@ import { SectionHeading, Card, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
   fetchAllHelpConversations,
-  fetchHelpHistory,
+  fetchAdminHelpMessages,
   setHelpConversationStatus,
   type HelpConversation,
   type HelpMessage,
@@ -18,7 +18,7 @@ function ConversationCard({ conversation, onStatusChange }: { conversation: Help
 
   useEffect(() => {
     if (!open || messages !== null) return
-    fetchHelpHistory(conversation.id).then(setMessages)
+    fetchAdminHelpMessages(conversation.id).then(setMessages)
   }, [open, messages, conversation.id])
 
   async function toggleStatus() {

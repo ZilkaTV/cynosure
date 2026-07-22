@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
-  fetchHelpHistory,
+  fetchOwnHelpHistory,
   getStoredConversationId,
   sendHelpMessage,
   type HelpMessage,
@@ -59,7 +59,7 @@ export default function HelpWidget() {
     const conversationId = getStoredConversationId()
     if (!conversationId) return
     setLoadingHistory(true)
-    fetchHelpHistory(conversationId)
+    fetchOwnHelpHistory(conversationId)
       .then((history) => setMessages(history))
       .finally(() => setLoadingHistory(false))
   }, [open])

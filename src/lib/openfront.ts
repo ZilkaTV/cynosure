@@ -280,6 +280,86 @@ async function fetchGamesPaged(publicId: string, filter: string | null, maxPages
 // concurrency gate + retry in this file) - it was never the bottleneck.
 const GAMES_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
+// Shared per-member game-list cache (see supabase/schema.sql). Profiling a
+// fully cold roster build (empty localStorage, 8 members) found this - not
+// game-detail lookups - is the actual dominant cost of a first/cold page
+// load: about half of OpenFront's own paginated `/games` responses came back
+// 429 under that load, each one paying getJson's retry backoff before
+// eventually succeeding, for a combined ~25-35s just to list everyone's
+// games. The Cron (api/cron/refresh-details.js) already fetches every
+// member's game list every ~5 minutes anyway (to know which games need
+// detail caching) - it now writes that list here too, so a visitor's
+// browser can read it back in one query instead of repeating the same
+// rate-limited pagination itself. Unlike cyn_game_detail_cache, a game LIST
+// isn't immutable (it grows over time), so a row is only trusted while
+// reasonably fresh; past that it's treated as a miss and re-fetched live
+// (which then re-uploads it here too, so the next visitor doesn't have to
+// wait for the next Cron tick either).
+const GAMES_SHARED_STALE_AFTER_MS = 20 * 60 * 1000 // 20 minutes
+
+interface SharedGamesRow {
+  openfront_id: string
+  games: PlayerGame[]
+  updated_at: string
+}
+
+async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<string, PlayerGame[]>> {
+  const result = new Map<string, PlayerGame[]>()
+  if (!supabase || publicIds.length === 0) return result
+  const { data, error } = await supabase
+    .from('cyn_member_games_cache')
+    .select('openfront_id, games, updated_at')
+    .in('openfront_id', publicIds)
+  if (error || !data) return result
+  const cutoff = Date.now() - GAMES_SHARED_STALE_AFTER_MS
+  for (const row of data as SharedGamesRow[]) {
+    if (new Date(row.updated_at).getTime() < cutoff) continue
+    result.set(row.openfront_id, row.games)
+  }
+  return result
+}
+
+function saveSharedPlayerGames(publicId: string, games: PlayerGame[]): void {
+  if (!supabase) return
+  supabase
+    .from('cyn_member_games_cache')
+    .upsert({ openfront_id: publicId, games, updated_at: new Date().toISOString() }, { onConflict: 'openfront_id' })
+    .then(() => {}, () => {}) // best-effort - a failed upload just means the next fetch (by anyone) tries again
+}
+
+// Layers in every game this player has ever had successfully fetched before
+// (no-expiry local cache) on top of whatever this pass found - a fetch that
+// breaks off early after a failed page (see fetchGamesPaged) or a stale
+// shared-cache miss only ever adds what it managed to get this time, it
+// never removes anything a past successful fetch already found. This is
+// what actually stops a member's win/loss counts from randomly dropping on
+// one refresh and reappearing on the next: the visible list can only grow,
+// never shrink, across refreshes.
+function mergeAndCacheGames(publicId: string, freshGames: PlayerGame[]): PlayerGame[] {
+  const lastGoodKey = `${CACHE_NS}:games:lastgood:${publicId}`
+  const lastGood = cachePermGet<PlayerGame[]>(lastGoodKey)
+  const byGame = new Map(freshGames.map((g) => [g.gameId, g] as const))
+  if (lastGood.hit) {
+    for (const g of lastGood.data) if (!byGame.has(g.gameId)) byGame.set(g.gameId, g)
+  }
+  const merged = [...byGame.values()]
+  cacheSet(`${CACHE_NS}:games:${publicId}`, merged)
+  cachePermSet(lastGoodKey, merged)
+  return merged
+}
+
+async function fetchPlayerGamesLive(publicId: string, maxPages: number): Promise<PlayerGame[]> {
+  const [main, ranked] = await Promise.all([
+    fetchGamesPaged(publicId, null, maxPages),
+    fetchGamesPaged(publicId, 'ranked', Math.ceil(maxPages / 2)),
+  ])
+  const byGame = new Map<string, PlayerGame>()
+  for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
+  const merged = mergeAndCacheGames(publicId, [...byGame.values()])
+  saveSharedPlayerGames(publicId, merged)
+  return merged
+}
+
 /**
  * A player's full game history: the default feed (FFA/Team) merged with the
  * ranked feed (1v1), de-duplicated by gameId. Cached per player.
@@ -289,31 +369,45 @@ export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise
   const cached = cacheGet<PlayerGame[]>(key, GAMES_CACHE_TTL_MS)
   if (cached) return cached
 
-  const [main, ranked] = await Promise.all([
-    fetchGamesPaged(publicId, null, maxPages),
-    fetchGamesPaged(publicId, 'ranked', Math.ceil(maxPages / 2)),
-  ])
-  const byGame = new Map<string, PlayerGame>()
-  for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
+  const shared = await fetchSharedPlayerGamesBatch([publicId])
+  const sharedGames = shared.get(publicId)
+  if (sharedGames) return mergeAndCacheGames(publicId, sharedGames)
 
-  // Layer in every game this player has ever had successfully fetched before
-  // (no-expiry cache, keyed separately from the 10-minute one above) - a
-  // fetch that breaks off early after a failed page (see fetchGamesPaged)
-  // only adds what it managed to get this time, it never removes anything a
-  // past successful fetch already found. This is what actually stops a
-  // member's win/loss counts from randomly dropping on one refresh and
-  // reappearing on the next: the visible list can only grow, never shrink,
-  // across refreshes.
-  const lastGoodKey = `${CACHE_NS}:games:lastgood:${publicId}`
-  const lastGood = cachePermGet<PlayerGame[]>(lastGoodKey)
-  if (lastGood.hit) {
-    for (const g of lastGood.data) if (!byGame.has(g.gameId)) byGame.set(g.gameId, g)
+  return fetchPlayerGamesLive(publicId, maxPages)
+}
+
+/**
+ * Bulk variant of fetchPlayerGames for buildRoster's up-front pass: resolves
+ * every member still missing from their own local cache in ONE shared-cache
+ * query instead of one live, rate-limited OpenFront pagination per member,
+ * falling back to a live fetch (same as fetchPlayerGames) only for whoever
+ * isn't in the shared cache or has an entry too stale to trust.
+ */
+export async function fetchPlayerGamesBatch(publicIds: string[], maxPages = 25): Promise<Record<string, PlayerGame[]>> {
+  const result: Record<string, PlayerGame[]> = {}
+  const stillNeeded: string[] = []
+  for (const id of publicIds) {
+    const cached = cacheGet<PlayerGame[]>(`${CACHE_NS}:games:${id}`, GAMES_CACHE_TTL_MS)
+    if (cached) result[id] = cached
+    else stillNeeded.push(id)
   }
+  if (stillNeeded.length === 0) return result
 
-  const merged = [...byGame.values()]
-  cacheSet(key, merged)
-  cachePermSet(lastGoodKey, merged)
-  return merged
+  const shared = await fetchSharedPlayerGamesBatch(stillNeeded)
+  const liveNeeded: string[] = []
+  for (const id of stillNeeded) {
+    const games = shared.get(id)
+    if (games) result[id] = mergeAndCacheGames(id, games)
+    else liveNeeded.push(id)
+  }
+  if (liveNeeded.length > 0) {
+    await Promise.all(
+      liveNeeded.map(async (id) => {
+        result[id] = await fetchPlayerGamesLive(id, maxPages)
+      }),
+    )
+  }
+  return result
 }
 
 // ── Game detail (players + their clan tags, for team co-op detection) ───────

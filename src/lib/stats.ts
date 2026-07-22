@@ -6,7 +6,7 @@
 import {
   fetchFfaLeaderboard,
   fetchGameDetail,
-  fetchPlayerGames,
+  fetchPlayerGamesBatch,
   fetchRankedMap,
   type GameDetail,
   type PlayerGame,
@@ -280,16 +280,17 @@ export async function buildRoster(
   bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
 ): Promise<RosterResult> {
-  const [ranked, ffaLb] = await Promise.all([fetchRankedMap(), fetchFfaLeaderboard()])
+  const registeredWithId = registered.filter((r) => r.openfront_id)
+  const [ranked, ffaLb, gamesById] = await Promise.all([
+    fetchRankedMap(),
+    fetchFfaLeaderboard(),
+    fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
+  ])
 
-  const raw = await Promise.all(
-    registered
-      .filter((r) => r.openfront_id)
-      .map(async (r) => {
-        const games = (await fetchPlayerGames(r.openfront_id)).filter(isCyn)
-        return { input: r, games }
-      }),
-  )
+  const raw = registeredWithId.map((r) => ({
+    input: r,
+    games: (gamesById[r.openfront_id] ?? []).filter(isCyn),
+  }))
 
   // Which games need a full detail fetch? Team victories (for co-op scoring)
   // + this month's FFA/Team games (for the Monthly page) + each member's own

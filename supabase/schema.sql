@@ -365,3 +365,36 @@ create policy "anyone can insert cyn_game_detail_cache"
 
 create policy "anyone can update cyn_game_detail_cache"
   on public.cyn_game_detail_cache for update to public using (true) with check (true);
+
+-- ============================================================
+-- Shared per-member game-list cache. Confirmed directly (profiling a fully
+-- cold roster build): fetching every registered member's own paginated game
+-- list from OpenFront is the actual dominant cost of a first/cold page load
+-- (~25-35s of it), not game-detail lookups - OpenFront rate-limits this
+-- particular endpoint hard enough that roughly half of a full roster's page
+-- requests come back 429 and have to be retried with backoff. The 5-minute
+-- Cron (api/cron/refresh-details.js) already fetches every member's game
+-- list anyway (to know which games need detail caching) - it now also
+-- writes that list here, so a visitor's browser can read one row per member
+-- instead of repeating that same rate-limited pagination itself. Unlike
+-- cyn_game_detail_cache, a game LIST isn't immutable (it grows over time),
+-- so the client checks updated_at and only trusts a row while it's still
+-- reasonably fresh - see STALE_AFTER_MS in src/lib/openfront.ts.
+-- ============================================================
+
+create table if not exists public.cyn_member_games_cache (
+  openfront_id text primary key,
+  games jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cyn_member_games_cache enable row level security;
+
+create policy "public can read cyn_member_games_cache"
+  on public.cyn_member_games_cache for select to public using (true);
+
+create policy "anyone can insert cyn_member_games_cache"
+  on public.cyn_member_games_cache for insert to public with check (true);
+
+create policy "anyone can update cyn_member_games_cache"
+  on public.cyn_member_games_cache for update to public using (true) with check (true);

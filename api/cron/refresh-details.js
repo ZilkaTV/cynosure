@@ -130,6 +130,20 @@ export default async function handler(req, res) {
         membersScanFailed++
         continue
       }
+      // Shared with the client's own fetchPlayerGamesBatch (src/lib/openfront.ts)
+      // via cyn_member_games_cache - this scan is the same rate-limited,
+      // paginated OpenFront fetch every visitor's browser would otherwise have
+      // to repeat itself, which profiling found to be the actual dominant cost
+      // of a cold page load (not game-detail lookups). Writing it here once
+      // every ~5 minutes means a visitor's browser can read it back in one
+      // query instead.
+      await supabase
+        .from('cyn_member_games_cache')
+        .upsert(
+          { openfront_id: r.openfront_id, games, updated_at: new Date().toISOString() },
+          { onConflict: 'openfront_id' },
+        )
+        .then(() => {}, () => {})
       for (const g of games) {
         if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer') continue
         const isTeam = g.mode === 'Team'

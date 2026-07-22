@@ -110,6 +110,21 @@ async function fetchGameDetail(gameId) {
 
 export default async function handler(req, res) {
   const startedAt = Date.now()
+
+  // This endpoint does real work (OpenFront API calls, Supabase writes)
+  // every time it's hit and was previously wide open - anyone who found the
+  // URL could trigger it repeatedly, wasting rate-limit budget and DB writes
+  // for no reason. Vercel's own Cron Jobs send this same header
+  // automatically when CRON_SECRET is set (see vercel.json's daily
+  // fallback), so this check covers both triggers with one secret - it just
+  // also needs adding to the GitHub Actions workflow that does the real
+  // 5-minute triggering (see .github/workflows/refresh-details-cron.yml).
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && req.headers.authorization !== `Bearer ${cronSecret}`) {
+    res.status(401).json({ error: 'unauthorized' })
+    return
+  }
+
   const url = process.env.VITE_SUPABASE_URL
   const key = process.env.VITE_SUPABASE_ANON_KEY
   if (!url || !key) {

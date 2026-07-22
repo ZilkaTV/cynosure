@@ -556,3 +556,14 @@ create table if not exists public.cyn_help_rate_limit (
 );
 
 alter table public.cyn_help_rate_limit enable row level security;
+
+-- Both upload buckets accepted any file type/size until now - the
+-- `accept="image/*"` on each <input type="file"> is only a UI hint, never
+-- enforced; nothing stopped uploading an arbitrarily large or non-image
+-- file (a renamed script, a video, etc.) through either upload path.
+-- Restrict at the bucket level, so this is enforced no matter what a
+-- browser or a direct API call sends.
+update storage.buckets
+set allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    file_size_limit = 8388608 -- 8 MB, matches the client-side cap in HelpWidget.tsx
+where id in ('help-chat-images', 'event-screenshots');

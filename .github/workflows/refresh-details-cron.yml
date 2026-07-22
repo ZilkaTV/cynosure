@@ -8,9 +8,10 @@ name: Refresh game-detail cache
 # reference bot (github.com/deshack/openfront-discord-bot) this whole
 # design was modeled on.
 #
-# The endpoint itself is public/unauthenticated (same RLS-open tables it
-# reads/writes already allow that), so this just needs a plain HTTP call,
-# no secrets.
+# The endpoint checks a CRON_SECRET (same one Vercel's own Cron Jobs send
+# automatically) so randoms can't trigger it and burn rate-limit budget /
+# Supabase writes for no reason - stored here as a GitHub Actions repo
+# secret of the same name, never committed.
 #
 # Note: GitHub only guarantees scheduled workflows run at LEAST this often,
 # not exactly on the dot - during high GitHub Actions load, a run can be
@@ -27,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call refresh-details endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -sS -o - -w "\nHTTP %{http_code}\n" \
+            -H "Authorization: Bearer $CRON_SECRET" \
             "https://cynosure-khaki.vercel.app/api/cron/refresh-details"

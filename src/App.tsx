@@ -1,14 +1,21 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
-import Monthly from './pages/Monthly'
-import Register from './pages/Register'
-import MemberProfile from './pages/MemberProfile'
-import Speedrun from './pages/Speedrun'
-import Events from './pages/Events'
-import Quests from './pages/Quests'
-import AdminHelp from './pages/AdminHelp'
+import { Spinner } from './components/ui'
 import { useLanguage } from './i18n/LanguageContext'
+
+// Home is the most common landing page, so it stays a normal (eager) import -
+// no loading flicker for the majority of visits. Every other page is only
+// ever needed after a click, so it's fetched on demand instead of bloating
+// the bundle every visitor downloads just to see the Overview page.
+const Monthly = lazy(() => import('./pages/Monthly'))
+const Register = lazy(() => import('./pages/Register'))
+const MemberProfile = lazy(() => import('./pages/MemberProfile'))
+const Speedrun = lazy(() => import('./pages/Speedrun'))
+const Events = lazy(() => import('./pages/Events'))
+const Quests = lazy(() => import('./pages/Quests'))
+const AdminHelp = lazy(() => import('./pages/AdminHelp'))
 
 function NotFound() {
   const { t } = useLanguage()
@@ -26,19 +33,21 @@ function NotFound() {
 export default function App() {
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
-        <Route path="/monthly/team" element={<Monthly variant="team" />} />
-        <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
-        <Route path="/member/:id" element={<MemberProfile />} />
-        <Route path="/speedrun" element={<Speedrun />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/quests" element={<Quests />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/admin/help" element={<AdminHelp />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={<Spinner />}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
+          <Route path="/monthly/team" element={<Monthly variant="team" />} />
+          <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
+          <Route path="/member/:id" element={<MemberProfile />} />
+          <Route path="/speedrun" element={<Speedrun />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/quests" element={<Quests />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/admin/help" element={<AdminHelp />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </Layout>
   )
 }

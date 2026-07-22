@@ -15,6 +15,21 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Splits stable, rarely-changing vendor code from app code, so a
+        // deploy that only touches app logic doesn't force every returning
+        // visitor to re-download React/Router/Supabase again - the vendor
+        // chunk keeps the same content hash (and stays browser-cached)
+        // across app-only releases.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api/of': {

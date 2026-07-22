@@ -3,5 +3,8 @@
     { "source": "/api/of/:path*", "destination": "/api/of?path=:path*" },
     { "source": "/api/tf/:path*", "destination": "/api/tf?path=:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/refresh-details", "schedule": "0 4 * * *" }
   ]
 }

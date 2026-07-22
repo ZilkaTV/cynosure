@@ -337,3 +337,31 @@ create policy "anyone can insert cyn_game_tile_stats"
 
 create policy "anyone can update cyn_game_tile_stats"
   on public.cyn_game_tile_stats for update to public using (true) with check (true);
+
+-- ============================================================
+-- Shared game-detail cache: a finished game's own record (players, their
+-- clan tags, per-player stats) never changes once OpenFront finalizes it,
+-- so - same reasoning as cyn_game_tile_stats above - the FIRST visitor (or
+-- the daily Vercel Cron backfill, see api/cron/refresh-details.js) to fetch
+-- a given game's detail saves everyone else from re-fetching it from
+-- OpenFront's own rate-limited API. Before this, every visitor's own
+-- browser had to redo the same ~hundreds of lookups a full roster build
+-- needs from scratch, which is what made a first/cold page load slow.
+-- ============================================================
+
+create table if not exists public.cyn_game_detail_cache (
+  game_id text primary key,
+  detail jsonb not null,
+  cached_at timestamptz not null default now()
+);
+
+alter table public.cyn_game_detail_cache enable row level security;
+
+create policy "public can read cyn_game_detail_cache"
+  on public.cyn_game_detail_cache for select to public using (true);
+
+create policy "anyone can insert cyn_game_detail_cache"
+  on public.cyn_game_detail_cache for insert to public with check (true);
+
+create policy "anyone can update cyn_game_detail_cache"
+  on public.cyn_game_detail_cache for update to public using (true) with check (true);

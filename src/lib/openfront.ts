@@ -5,6 +5,7 @@
 // keeps us under OpenFront's strict rate limits.
 
 import { CACHE_TTL_MS, LEADERBOARD_SCAN_PAGES } from '../config'
+import { supabase } from './supabase'
 
 const API_BASE = '/api/of'
 
@@ -322,17 +323,49 @@ export interface GameDetail {
 }
 
 /**
+ * Reads a game's detail from the shared cyn_game_detail_cache table, if any
+ * visitor (or the daily Vercel Cron backfill) has already fetched it - see
+ * supabase/schema.sql. A finished game's own record never changes, so
+ * there's no version/TTL to invalidate against here, unlike the Max Tiles
+ * cache: once a row exists, it's simply correct forever.
+ */
+async function fetchSharedGameDetail(gameId: string): Promise<GameDetail | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('cyn_game_detail_cache').select('detail').eq('game_id', gameId).maybeSingle()
+  if (error || !data) return null
+  return (data as { detail: GameDetail }).detail
+}
+
+function saveSharedGameDetail(gameId: string, detail: GameDetail): void {
+  if (!supabase) return
+  supabase
+    .from('cyn_game_detail_cache')
+    .upsert({ game_id: gameId, detail }, { onConflict: 'game_id' })
+    .then(() => {}, () => {}) // best-effort - a failed upload just means the next fetch (by anyone) tries again
+}
+
+/**
  * Full post-game report for one game (players + per-player stats). A
  * finished game's own record never changes, so this is cached forever, not
- * on the usual TTL - see the note above cachePermGet. A genuinely-absent
- * game (no `info` in an otherwise successful response) is a stable "no"
- * worth caching too; a network/rate-limit failure is not, so it's retried
- * on the next call instead of getting stuck.
+ * on the usual TTL - see the note above cachePermGet. Checked in order:
+ * this browser's own permanent cache, then the cyn_game_detail_cache table
+ * shared across every visitor (and kept warm by a daily Cron backfill - see
+ * api/cron/refresh-details.js), and only as a last resort a live fetch from
+ * OpenFront's own rate-limited API. A genuinely-absent game (no `info` in an
+ * otherwise successful response) is a stable "no" worth caching too; a
+ * network/rate-limit failure is not, so it's retried on the next call
+ * instead of getting stuck.
  */
 export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
   const key = `${CACHE_NS}:detail:${gameId}`
   const cached = cachePermGet<GameDetail | null>(key)
   if (cached.hit) return cached.data
+
+  const shared = await fetchSharedGameDetail(gameId)
+  if (shared) {
+    cachePermSet(key, shared)
+    return shared
+  }
 
   const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as {
     info?: {
@@ -363,6 +396,7 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
       }
     : null
   cachePermSet(key, detail)
+  if (detail) saveSharedGameDetail(gameId, detail)
   return detail
 }
 

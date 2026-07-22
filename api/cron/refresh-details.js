@@ -119,8 +119,22 @@ export default async function handler(req, res) {
   const supabase = createClient(url, key)
 
   try {
-    const { data: registered, error: regError } = await supabase.from('cyn_members').select('openfront_id')
+    const { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id')
     if (regError) throw regError
+
+    // Confirmed live: the member scan runs sequentially (one full paginated
+    // fetch per member, not in parallel), so whoever Supabase happens to
+    // return last consistently faces the worst rate-limit pressure - by
+    // then every earlier member's own requests this same run have already
+    // been fired. A stable select order (Supabase's default) meant the same
+    // member got starved every single run - not bad luck, a standing bias.
+    // Shuffling here spreads that pressure across a different member each
+    // run instead of parking it permanently on one.
+    const registered = [...(registeredRaw ?? [])]
+    for (let i = registered.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[registered[i], registered[j]] = [registered[j], registered[i]]
+    }
 
     // This cron is a stateless serverless function - unlike the browser
     // (which keeps its own permanent "last known good" games list, see
@@ -141,7 +155,7 @@ export default async function handler(req, res) {
     const wantDetail = new Set()
     let membersScanFailed = 0
     let scanTimedOut = false
-    const members = registered ?? []
+    const members = registered
     for (let i = 0; i < members.length; i++) {
       // The scan loop below had no time budget of its own - only the
       // detail-fetch loop further down did. Under heavy rate-limiting this

@@ -44,6 +44,21 @@
     },
     {
       "path": "./src/vendor/openfront-core-f0da418"
+    },
+    {
+      "path": "./src/vendor/openfront-core-3687eee"
+    },
+    {
+      "path": "./src/vendor/openfront-core-b716adb"
+    },
+    {
+      "path": "./src/vendor/openfront-core-580460c"
+    },
+    {
+      "path": "./src/vendor/openfront-core-b22f422"
+    },
+    {
+      "path": "./src/vendor/openfront-core-0c4c7d7"
     }
   ]
 }

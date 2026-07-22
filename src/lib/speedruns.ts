@@ -11,10 +11,15 @@ import { CLAN_TAG } from '../config'
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 
 // Tiles @ 3:00 - how much of the map the player controlled at the exact
-// 3:00 mark of their current best-time game. Not an independent category
-// with its own attempts: it's a second stat read off the same submitted
-// game as the speedrun time, recomputed only when that game changes (a new
-// best time), never bumping the attempts counter on its own.
+// 3:00 mark. Tracked as its own best-ever value, independent of which game
+// holds the best TIME: a run that doesn't beat the clock can still beat the
+// tile share, and a member's current best-time game may simply predate this
+// stat existing at all (confirmed report: showed up missing for a member
+// whose stored best time was never re-submitted since). Every valid
+// submission recomputes it and keeps the higher of the two, regardless of
+// whether that submission was a new best time. Not an independent category
+// with its own attempts counter - it rides along with whichever submission
+// happens to improve it.
 //
 // The player's own in-game clock reads "3:00" only after the spawn-phase
 // countdown has already run (see SINGLEPLAYER_SPAWN_PHASE_TURNS in
@@ -152,35 +157,42 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
 
   const { data: existing } = await supabase
     .from('cyn_speedruns')
-    .select('seconds, attempts')
+    .select('seconds, attempts, tiles3min_percent')
     .eq('openfront_id', openfrontId)
     .maybeSingle()
 
-  const row = existing as { seconds: number; attempts: number } | null
+  const row = existing as { seconds: number; attempts: number; tiles3min_percent: number | null } | null
   const attempts = (row?.attempts ?? 0) + 1
 
+  // Read this submission's own tile share at the 3:00 mark (see
+  // TILES_AT_TICK) regardless of whether it ends up being a new best TIME -
+  // it's tracked as its own best-ever value. A run under 3 minutes never
+  // reaches that mark, so this can legitimately come back null.
+  let tiles3minPercent: number | null = null
+  if (v.clientID) {
+    const { computeTilePercentAtTick } = await import('./replaySimCore')
+    const percentByClientId = await computeTilePercentAtTick(gameId, TILES_AT_TICK).catch(() => null)
+    tiles3minPercent = percentByClientId?.[v.clientID] ?? null
+  }
+  const bestTiles3minPercent =
+    tiles3minPercent != null && (row?.tiles3min_percent == null || tiles3minPercent > row.tiles3min_percent)
+      ? tiles3minPercent
+      : (row?.tiles3min_percent ?? null)
+
   // Every valid run counts as an attempt (and updates submitted_at, so the
-  // "posted a speedrun today" quest sees it), even if it doesn't beat the best.
+  // "posted a speedrun today" quest sees it), even if it doesn't beat the
+  // best TIME - the tile-share best above is kept either way.
   if (row != null && row.seconds <= v.seconds) {
-    await supabase.from('cyn_speedruns').update({ attempts, submitted_at: new Date().toISOString() }).eq('openfront_id', openfrontId)
+    await supabase
+      .from('cyn_speedruns')
+      .update({ attempts, submitted_at: new Date().toISOString(), tiles3min_percent: bestTiles3minPercent })
+      .eq('openfront_id', openfrontId)
     return {
       ok: true,
       message: `Verified (${fmtTime(v.seconds)}), but your current best (${fmtTime(row.seconds)}) is faster.`,
       seconds: v.seconds,
       best: false,
     }
-  }
-
-  // New best time - also read this same game's tile share at the 3:00 mark
-  // (see TILES_AT_TICK) so the leaderboard's "Tiles @ 3min" column stays in
-  // sync with whichever game is actually the current best-time run. Not a
-  // separate attempt: it rides along with this one. A run under 3 minutes
-  // never reaches that mark, so this can legitimately come back null.
-  let tiles3minPercent: number | null = null
-  if (v.clientID) {
-    const { computeTilePercentAtTick } = await import('./replaySimCore')
-    const percentByClientId = await computeTilePercentAtTick(gameId, TILES_AT_TICK).catch(() => null)
-    tiles3minPercent = percentByClientId?.[v.clientID] ?? null
   }
 
   const { error } = await supabase.from('cyn_speedruns').upsert(
@@ -190,7 +202,7 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
       seconds: v.seconds,
       attempts,
       submitted_at: new Date().toISOString(),
-      tiles3min_percent: tiles3minPercent,
+      tiles3min_percent: bestTiles3minPercent,
     },
     { onConflict: 'openfront_id' },
   )

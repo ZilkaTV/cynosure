@@ -354,7 +354,10 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             <div className="mt-3 space-y-1.5">
               {mySubmissions.map((s) => (
                 <div key={s.id} className="flex items-center justify-between rounded-lg border border-base-700 bg-base-850/50 px-3 py-2 text-xs">
-                  <span className="text-slate-400">{categoryLabel(t, s.category)}</span>
+                  <span className="text-slate-400">
+                    {categoryLabel(t, s.category)}
+                    <span className="ml-2 text-slate-600">{new Date(s.created_at).toLocaleString('en-GB')}</span>
+                  </span>
                   <span
                     className={
                       s.status === 'accepted' ? 'font-semibold text-signal-green' : s.status === 'denied' ? 'font-semibold text-signal-red' : 'text-slate-500'
@@ -382,6 +385,7 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
                     <span className="font-semibold text-white">{team?.name ?? '?'}</span>
                     <span className="text-slate-400">{categoryLabel(t, s.category)}</span>
                   </div>
+                  <p className="text-xs text-slate-500">{new Date(s.created_at).toLocaleString('en-GB')}</p>
                   <a href={s.game_link} target="_blank" rel="noreferrer" className="block truncate text-xs text-accent-light hover:text-accent">
                     {s.game_link}
                   </a>

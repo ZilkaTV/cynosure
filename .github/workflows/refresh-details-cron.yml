@@ -1,0 +1,32 @@
+name: Refresh game-detail cache
+
+# Vercel's free Hobby plan caps native Cron Jobs at once/day (see the
+# "crons" entry in vercel.json, kept as a daily fallback in case this
+# workflow itself is ever paused/disabled). GitHub Actions has no such
+# limit on scheduled workflows, so this is what actually gives
+# api/cron/refresh-details.js its real ~5-minute cadence - matching the
+# reference bot (github.com/deshack/openfront-discord-bot) this whole
+# design was modeled on.
+#
+# The endpoint itself is public/unauthenticated (same RLS-open tables it
+# reads/writes already allow that), so this just needs a plain HTTP call,
+# no secrets.
+#
+# Note: GitHub only guarantees scheduled workflows run at LEAST this often,
+# not exactly on the dot - during high GitHub Actions load, a run can be
+# delayed by a few minutes. That's fine here; the job is idempotent and
+# self-catches-up next time regardless.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call refresh-details endpoint
+        run: |
+          curl -sS -o - -w "\nHTTP %{http_code}\n" \
+            "https://cynosure-khaki.vercel.app/api/cron/refresh-details"

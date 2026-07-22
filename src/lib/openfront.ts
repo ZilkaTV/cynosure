@@ -251,6 +251,13 @@ async function fetchGamesPaged(publicId: string, filter: string | null, maxPages
     try {
       json = (await getJson(url.toString())) as typeof json
     } catch {
+      // A page request failing here (rate limit surviving all of getJson's
+      // retries, a network blip) used to just silently stop pagination and
+      // hand back whatever had been collected so far - a plausible-looking
+      // but truncated list, indistinguishable from "that's really all of
+      // them". fetchPlayerGames unions this against every previously-seen
+      // game, so an early break here only ever risks missing brand-new
+      // games for this one refresh, never erasing ones already known.
       break
     }
     all.push(...(json.results ?? []))
@@ -288,8 +295,24 @@ export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise
   ])
   const byGame = new Map<string, PlayerGame>()
   for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
+
+  // Layer in every game this player has ever had successfully fetched before
+  // (no-expiry cache, keyed separately from the 10-minute one above) - a
+  // fetch that breaks off early after a failed page (see fetchGamesPaged)
+  // only adds what it managed to get this time, it never removes anything a
+  // past successful fetch already found. This is what actually stops a
+  // member's win/loss counts from randomly dropping on one refresh and
+  // reappearing on the next: the visible list can only grow, never shrink,
+  // across refreshes.
+  const lastGoodKey = `${CACHE_NS}:games:lastgood:${publicId}`
+  const lastGood = cachePermGet<PlayerGame[]>(lastGoodKey)
+  if (lastGood.hit) {
+    for (const g of lastGood.data) if (!byGame.has(g.gameId)) byGame.set(g.gameId, g)
+  }
+
   const merged = [...byGame.values()]
   cacheSet(key, merged)
+  cachePermSet(lastGoodKey, merged)
   return merged
 }
 

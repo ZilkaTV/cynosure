@@ -122,6 +122,21 @@ export default async function handler(req, res) {
     const { data: registered, error: regError } = await supabase.from('cyn_members').select('openfront_id')
     if (regError) throw regError
 
+    // This cron is a stateless serverless function - unlike the browser
+    // (which keeps its own permanent "last known good" games list, see
+    // mergeAndCacheGames in src/lib/openfront.ts), it has no history of its
+    // own to fall back on. Confirmed live: without reading what's already
+    // cached first, a live re-fetch that has a bad pass under rate limiting
+    // (partial/empty result) directly overwrites cyn_member_games_cache with
+    // that worse result - a member whose real game count was in the
+    // hundreds briefly showed 0 games site-wide the moment this shipped,
+    // since every visitor reads the same shared row. Reading the existing
+    // rows up front and unioning by gameId before every upsert below makes
+    // this cache monotonic too: a bad pass can only fail to add new games,
+    // it can never make previously-cached ones disappear for everyone.
+    const { data: existingGamesRows } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
+    const existingGamesByMember = new Map((existingGamesRows ?? []).map((r) => [r.openfront_id, r.games]))
+
     const mk = currentMonthKey()
     const wantDetail = new Set()
     let membersScanFailed = 0
@@ -154,15 +169,23 @@ export default async function handler(req, res) {
       // to repeat itself, which profiling found to be the actual dominant cost
       // of a cold page load (not game-detail lookups). Writing it here once
       // every ~5 minutes means a visitor's browser can read it back in one
-      // query instead.
+      // query instead. Unioned against whatever's already cached (see above)
+      // so this write can only grow the list, never shrink it.
+      const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
+      const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
+      for (const g of games) byGameId.set(g.gameId, g)
+      const mergedGames = [...byGameId.values()]
       await supabase
         .from('cyn_member_games_cache')
         .upsert(
-          { openfront_id: r.openfront_id, games, updated_at: new Date().toISOString() },
+          { openfront_id: r.openfront_id, games: mergedGames, updated_at: new Date().toISOString() },
           { onConflict: 'openfront_id' },
         )
         .then(() => {}, () => {})
-      for (const g of games) {
+      // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
+      // pass here can't also make wantDetail miss a team win or this
+      // month's game that a previous run already knew about.
+      for (const g of mergedGames) {
         if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer') continue
         const isTeam = g.mode === 'Team'
         const isFfa = g.mode === 'Free For All'

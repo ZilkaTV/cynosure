@@ -27,6 +27,40 @@ import Anthropic from '@anthropic-ai/sdk'
 const MAX_MESSAGE_LENGTH = 4000
 const MAX_HISTORY_MESSAGES = 40 // bounds the Claude call on a very long-running thread
 
+// Every message here triggers a real, billed Claude API call - the one
+// endpoint on this site where spamming costs actual money, not just load.
+// visitorKey is client-supplied and free to regenerate per request, so it
+// can't be the rate-limit key; this is keyed on the request's own IP
+// instead, which a script can't shed just by clearing localStorage.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
+const RATE_LIMIT_MAX = 15 // messages per IP per window
+
+function clientIp(req) {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded.split(',')[0].trim()
+  return req.socket?.remoteAddress || 'unknown'
+}
+
+/**
+ * Fixed-window counter, not perfectly atomic under concurrent requests from
+ * the same IP (read-then-write) - acceptable here since the goal is only to
+ * bound runaway cost/volume, not to enforce an exact limit.
+ */
+async function checkRateLimit(supabase, key) {
+  const now = Date.now()
+  const { data } = await supabase.from('cyn_help_rate_limit').select('window_start, count').eq('rate_key', key).maybeSingle()
+
+  if (!data || now - new Date(data.window_start).getTime() > RATE_LIMIT_WINDOW_MS) {
+    await supabase
+      .from('cyn_help_rate_limit')
+      .upsert({ rate_key: key, window_start: new Date(now).toISOString(), count: 1 }, { onConflict: 'rate_key' })
+    return true
+  }
+  if (data.count >= RATE_LIMIT_MAX) return false
+  await supabase.from('cyn_help_rate_limit').update({ count: data.count + 1 }).eq('rate_key', key)
+  return true
+}
+
 const SYSTEM_PROMPT = `You are the support assistant for Cynosure, the [CYN] clan's OpenFront.io stats website. You appear in a small help-chat widget on every page.
 
 What the site does:
@@ -124,6 +158,11 @@ export default async function handler(req, res) {
   }
   if (typeof visitorKey !== 'string' || !visitorKey) {
     res.status(400).json({ error: 'missing_visitor_key' })
+    return
+  }
+
+  if (!(await checkRateLimit(supabase, clientIp(req)))) {
+    res.status(429).json({ error: 'rate_limited' })
     return
   }
 

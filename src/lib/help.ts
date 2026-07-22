@@ -85,6 +85,7 @@ export interface SendHelpMessageResult {
   reply?: string
   conversationId?: string
   message?: string
+  rateLimited?: boolean
 }
 
 export async function sendHelpMessage(params: {
@@ -115,6 +116,7 @@ export async function sendHelpMessage(params: {
       }),
     })
     if (!res.ok) {
+      if (res.status === 429) return { ok: false, rateLimited: true }
       const body = (await res.json().catch(() => null)) as { message?: string } | null
       return { ok: false, message: body?.message ?? `Request failed (${res.status}).` }
     }

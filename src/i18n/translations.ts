@@ -313,6 +313,8 @@ export const translations = {
       closeAria: 'Close',
       loadingHistory: 'Loading...',
       errorGeneric: "Something went wrong - please try again.",
+      errorRateLimited: 'Too many messages in a short time - please wait a few minutes and try again.',
+      errorImageTooLarge: 'That image is too large (max 8 MB).',
       loggedNote: 'Real bugs and feature requests are logged for the site admin to review.',
     },
     adminHelp: {
@@ -772,6 +774,8 @@ export const translations = {
       closeAria: 'Schließen',
       loadingHistory: 'Lädt...',
       errorGeneric: 'Etwas ist schiefgelaufen - bitte versuch es erneut.',
+      errorRateLimited: 'Zu viele Nachrichten in kurzer Zeit - bitte warte ein paar Minuten und versuch es erneut.',
+      errorImageTooLarge: 'Das Bild ist zu groß (max. 8 MB).',
       loggedNote: 'Echte Fehler und Feature-Wünsche werden für den Seitenadmin protokolliert.',
     },
     adminHelp: {
@@ -1231,6 +1235,8 @@ export const translations = {
       closeAria: 'Fermer',
       loadingHistory: 'Chargement...',
       errorGeneric: 'Une erreur est survenue - merci de réessayer.',
+      errorRateLimited: 'Trop de messages en peu de temps - merci de patienter quelques minutes avant de réessayer.',
+      errorImageTooLarge: 'Cette image est trop grande (8 Mo max).',
       loggedNote: 'Les vrais bugs et demandes de fonctionnalités sont enregistrés pour que l\'admin du site les examine.',
     },
     adminHelp: {

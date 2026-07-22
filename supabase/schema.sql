@@ -483,3 +483,76 @@ create policy "public can view help chat images"
 create policy "anyone can upload help chat images"
   on storage.objects for insert to public
   with check (bucket_id = 'help-chat-images');
+
+-- ============================================================
+-- Security hardening pass. Several tables above were left "anyone can
+-- write, no login required" (`with check (true)`) because the app's own
+-- client-side logic validates every submission before writing (e.g.
+-- verifying a speedrun against OpenFront). That validation lives in the
+-- BROWSER, not the database - anyone with the public anon key (embedded in
+-- every page load, not a secret) can call the Supabase REST API directly
+-- and skip the app entirely, inserting or overwriting rows with whatever
+-- they want: fake speedrun world records, fake XP/levels, fake quest
+-- claims, or vandalized/mass-spammed member registrations. Requiring a real
+-- Discord-authenticated session (`to authenticated`) doesn't re-validate
+-- the *content* of a submission - a signed-in member could still fake their
+-- own speedrun time this way - but it closes the much larger hole of a
+-- fully anonymous script hitting these tables with zero barrier, which is
+-- what actually enables bulk spam/vandalism. This matches the bar already
+-- set elsewhere in this file (cyn_event_teams, cyn_event_submissions'
+-- update) - just applied consistently instead of selectively.
+drop policy if exists "anyone can upsert cyn_members" on public.cyn_members;
+drop policy if exists "anyone can update cyn_members" on public.cyn_members;
+create policy "members can upsert cyn_members"
+  on public.cyn_members for insert to authenticated with check (true);
+create policy "members can update cyn_members"
+  on public.cyn_members for update to authenticated using (true) with check (true);
+
+drop policy if exists "anyone can upsert cyn_speedruns" on public.cyn_speedruns;
+drop policy if exists "anyone can update cyn_speedruns" on public.cyn_speedruns;
+create policy "members can upsert cyn_speedruns"
+  on public.cyn_speedruns for insert to authenticated with check (true);
+create policy "members can update cyn_speedruns"
+  on public.cyn_speedruns for update to authenticated using (true) with check (true);
+
+drop policy if exists "anyone can upsert cyn_bumps" on public.cyn_bumps;
+drop policy if exists "anyone can update cyn_bumps" on public.cyn_bumps;
+create policy "members can upsert cyn_bumps"
+  on public.cyn_bumps for insert to authenticated with check (true);
+create policy "members can update cyn_bumps"
+  on public.cyn_bumps for update to authenticated using (true) with check (true);
+
+drop policy if exists "anyone can upsert cyn_xp" on public.cyn_xp;
+drop policy if exists "anyone can update cyn_xp" on public.cyn_xp;
+create policy "members can upsert cyn_xp"
+  on public.cyn_xp for insert to authenticated with check (true);
+create policy "members can update cyn_xp"
+  on public.cyn_xp for update to authenticated using (true) with check (true);
+
+drop policy if exists "anyone can insert cyn_quest_claims" on public.cyn_quest_claims;
+create policy "members can insert cyn_quest_claims"
+  on public.cyn_quest_claims for insert to authenticated with check (true);
+
+-- Deliberately NOT tightened: cyn_game_tile_stats, cyn_game_detail_cache,
+-- and cyn_member_games_cache. These hold OpenFront-derived, non-authored
+-- data (replay results, game details, game lists) that every visitor's
+-- browser helps populate as a shared cache, by design - requiring login
+-- would break the whole point of spreading that work across anonymous
+-- visitors, and a bad write here just gets silently recomputed/overwritten
+-- next time, unlike a fake speedrun time or a vandalized member row.
+
+-- Per-IP rate limiting for the help-chat endpoint (api/help-chat.js) - the
+-- one endpoint that costs real money per call (the Claude API). visitorKey
+-- is client-supplied and free to regenerate, so it can't be the rate-limit
+-- key on its own; this is keyed on request IP instead, which the server
+-- fills in from the platform's forwarded-for header. No RLS policy is
+-- granted here at all (service-role key only, same as the help-chat tables
+-- themselves) - this table has no reason to ever be read or written by a
+-- browser directly.
+create table if not exists public.cyn_help_rate_limit (
+  rate_key text primary key,
+  window_start timestamptz not null default now(),
+  count integer not null default 1
+);
+
+alter table public.cyn_help_rate_limit enable row level security;

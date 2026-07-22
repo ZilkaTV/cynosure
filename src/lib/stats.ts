@@ -59,8 +59,8 @@ export interface MemberStats {
   clanGamesTotal: number
   // raw CYN games (for profile page + month archive)
   cynGames: PlayerGame[]
-  // per-game detail (kills + gold/min) for this member, where fetched (recent games)
-  detailByGame: Record<string, { kills: number; goldPerMin: number }>
+  // per-game detail (kills + gold/min + troops) for this member, where fetched (recent games)
+  detailByGame: Record<string, { kills: number; goldPerMin: number; troopsOutPerMin: number; troopsInPerMin: number; clientId: string }>
 }
 
 export interface RosterResult {
@@ -291,8 +291,13 @@ export async function buildRoster(
       }),
   )
 
-  // Which games need a full detail fetch? Team victories (for co-op scoring) +
-  // this month's FFA/Team games (for kills/gold). One detail serves both.
+  // Which games need a full detail fetch? Team victories (for co-op scoring)
+  // + this month's FFA/Team games (for the Monthly page) + each member's own
+  // most recent RECENT_DETAIL_COUNT games of any mode/result (for the
+  // profile page's last-N-games stats card, which needs kills/gold/troops
+  // across FFA/Team/1v1 alike, not just this month's FFA/Team). One detail
+  // fetch serves all three needs at once where they overlap.
+  const RECENT_DETAIL_COUNT = 20
   const mk = currentMonthKey()
   const teamWinIds = new Set<string>()
   const wantDetail = new Set<string>()
@@ -304,6 +309,8 @@ export async function buildRoster(
       }
       if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
     }
+    const recentSorted = [...games].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) wantDetail.add(g.gameId)
   }
   // No cap on how many of these get fetched: an earlier version capped this
   // at 140 "to respect rate limits", which silently dropped whichever games
@@ -346,9 +353,17 @@ export async function buildRoster(
       null,
     )
 
-    // Pull this member's kills + gold/min out of each fetched game detail
-    // (match by the exact name they used in that game).
-    const detailByGame: Record<string, { kills: number; goldPerMin: number }> = {}
+    // Pull this member's kills + gold/min + troops out of each fetched game
+    // detail (match by the exact name they used in that game). Troop fields
+    // mirror GameDetailModal's own out/inc calc (attacks[0]/attacks[1] over
+    // game duration) so the two stay consistent. clientId is kept alongside
+    // so callers (the profile stats card) can look up this same game's Max
+    // Tiles share (keyed by clientID, see replaySim.ts) without re-matching
+    // players against game detail themselves.
+    const detailByGame: Record<
+      string,
+      { kills: number; goldPerMin: number; troopsOutPerMin: number; troopsInPerMin: number; clientId: string }
+    > = {}
     for (const g of games) {
       const d = detailMap.get(g.gameId)
       if (!d) continue
@@ -361,6 +376,9 @@ export async function buildRoster(
       detailByGame[g.gameId] = {
         kills: me.stats.kills?.length ?? 0,
         goldPerMin: goldTotal / minutes,
+        troopsOutPerMin: Number(me.stats.attacks?.[0] ?? 0) / minutes,
+        troopsInPerMin: Number(me.stats.attacks?.[1] ?? 0) / minutes,
+        clientId: me.clientID,
       }
     }
 

@@ -4,6 +4,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
+import ProfileStatsOverview from '../components/ProfileStatsOverview'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
@@ -39,7 +40,7 @@ export default function MemberProfile() {
   const recentGameIds = (m?.cynGames ?? [])
     .filter((g) => g.type !== 'Private')
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
-    .slice(0, 12)
+    .slice(0, 20)
     .map((g) => g.gameId)
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function MemberProfile() {
   const recent = [...m.cynGames]
     .filter((g) => g.type !== 'Private')
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
-    .slice(0, 12)
+    .slice(0, 20)
 
   const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
   const fmtDuration = (s: number) => {
@@ -180,6 +181,11 @@ export default function MemberProfile() {
             <p className="text-xs text-slate-500">{t.common.winsLosses(one.wins, one.losses)}</p>
           </Card>
         </div>
+      </section>
+
+      <section>
+        <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={t.memberProfile.statsOverviewTitle(recent.length)} />
+        <ProfileStatsOverview member={m} games={recent} />
       </section>
 
       <section>

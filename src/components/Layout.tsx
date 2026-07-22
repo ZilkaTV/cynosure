@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import CynLogo from './CynLogo'
+import HelpWidget from './HelpWidget'
 import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
@@ -91,6 +92,11 @@ function AccountMenu() {
           <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.settings}
           </Link>
+          {isAdmin && (
+            <Link to="/admin/help" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              {t.adminHelp.title}
+            </Link>
+          )}
           <button
             onClick={async () => {
               setOpen(false)
@@ -158,6 +164,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         <p className="mt-1 text-xs text-slate-600">{t.footer.statsNotice(CLAN_TAG)}</p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.trackingSince(trackingSince())}</p>
       </footer>
+
+      <HelpWidget />
     </div>
   )
 }

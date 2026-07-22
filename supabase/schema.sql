@@ -398,3 +398,65 @@ create policy "anyone can insert cyn_member_games_cache"
 
 create policy "anyone can update cyn_member_games_cache"
   on public.cyn_member_games_cache for update to public using (true) with check (true);
+
+-- ============================================================
+-- Help / feedback chat widget (bottom-right button on every page). A visitor
+-- chats with a Claude-powered assistant (see api/help-chat.js) that can
+-- explain known site behavior directly; anything that's an actual bug or
+-- feature request is just logged here for a human admin to review and fix
+-- in a real coding session - the assistant never touches site code itself.
+-- ============================================================
+
+create table if not exists public.cyn_help_conversations (
+  id uuid primary key default gen_random_uuid(),
+  visitor_key text not null,
+  display_name text,
+  status text not null default 'open' check (status in ('open', 'resolved')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists cyn_help_conversations_visitor_idx on public.cyn_help_conversations (visitor_key);
+
+alter table public.cyn_help_conversations enable row level security;
+
+create policy "public can read cyn_help_conversations"
+  on public.cyn_help_conversations for select to public using (true);
+
+create policy "anyone can insert cyn_help_conversations"
+  on public.cyn_help_conversations for insert to public with check (true);
+
+create policy "anyone can update cyn_help_conversations"
+  on public.cyn_help_conversations for update to public using (true) with check (true);
+
+create table if not exists public.cyn_help_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.cyn_help_conversations(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  image_url text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists cyn_help_messages_conversation_idx on public.cyn_help_messages (conversation_id, created_at);
+
+alter table public.cyn_help_messages enable row level security;
+
+create policy "public can read cyn_help_messages"
+  on public.cyn_help_messages for select to public using (true);
+
+create policy "anyone can insert cyn_help_messages"
+  on public.cyn_help_messages for insert to public with check (true);
+
+-- Storage bucket for images visitors attach to a help-chat message.
+insert into storage.buckets (id, name, public)
+values ('help-chat-images', 'help-chat-images', true)
+on conflict (id) do nothing;
+
+create policy "public can view help chat images"
+  on storage.objects for select to public
+  using (bucket_id = 'help-chat-images');
+
+create policy "anyone can upload help chat images"
+  on storage.objects for insert to public
+  with check (bucket_id = 'help-chat-images');

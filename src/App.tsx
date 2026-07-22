@@ -7,6 +7,7 @@ import MemberProfile from './pages/MemberProfile'
 import Speedrun from './pages/Speedrun'
 import Events from './pages/Events'
 import Quests from './pages/Quests'
+import AdminHelp from './pages/AdminHelp'
 import { useLanguage } from './i18n/LanguageContext'
 
 function NotFound() {
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/quests" element={<Quests />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/admin/help" element={<AdminHelp />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>

@@ -849,3 +849,69 @@ create policy "admins can remove cyn_supporters"
   on public.cyn_supporters for delete to authenticated using (
     exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
   );
+
+-- ============================================================
+-- Close the "signed in with Discord but never actually verified as a CYN
+-- member" gap for the clan chat. Registering requires clicking "Continue
+-- with Discord" BEFORE the OpenFront clan-tag check ever runs (see
+-- Register.tsx) - that click alone creates a real Supabase auth session, so
+-- `to authenticated` on its own (the bar used elsewhere in this file, e.g.
+-- cyn_bumps/cyn_speedruns) only proves "signed in with some Discord
+-- account", not "is a real, tag-verified [CYN] member". Fine for those
+-- self-reported-stat tables; not fine for a chat real strangers could read
+-- and post in. This ties chat access to an actual completed registration.
+-- ============================================================
+
+alter table public.cyn_members add column if not exists user_id uuid references auth.users(id);
+
+-- Every cyn_members write happens while the member themselves is signed in
+-- (see saveProfile in src/lib/profiles.ts), so this is simpler than the
+-- cyn_event_admins-style trigger below: just stamp the real caller directly,
+-- no name-matching needed.
+create or replace function public.cyn_members_fill_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  new.user_id := auth.uid();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_members_fill_user_id on public.cyn_members;
+create trigger trg_cyn_members_fill_user_id
+  before insert or update on public.cyn_members
+  for each row execute function public.cyn_members_fill_user_id();
+
+-- One-time backfill for members who registered before this column existed -
+-- matches the same way cyn_event_admins/cyn_chat_moderators resolve a
+-- discord_username to a real auth user id. Only fixes rows for someone who
+-- has signed in with Discord at least once (true for every member today,
+-- since registration has always required it) - safe to re-run.
+update public.cyn_members m
+set user_id = u.id
+from auth.users u
+where m.user_id is null
+  and m.discord_username is not null
+  and coalesce(
+    u.raw_user_meta_data ->> 'full_name',
+    u.raw_user_meta_data ->> 'name',
+    u.raw_user_meta_data ->> 'preferred_username',
+    u.raw_user_meta_data ->> 'user_name',
+    u.raw_user_meta_data ->> 'username',
+    u.raw_user_meta_data -> 'custom_claims' ->> 'global_name'
+  ) = m.discord_username;
+
+drop policy if exists "members can read cyn_clan_chat_messages" on public.cyn_clan_chat_messages;
+create policy "members can read cyn_clan_chat_messages"
+  on public.cyn_clan_chat_messages for select to authenticated using (
+    exists (select 1 from public.cyn_members m where m.user_id = auth.uid())
+  );
+
+drop policy if exists "members can post cyn_clan_chat_messages" on public.cyn_clan_chat_messages;
+create policy "members can post cyn_clan_chat_messages"
+  on public.cyn_clan_chat_messages for insert to authenticated with check (
+    exists (select 1 from public.cyn_members m where m.user_id = auth.uid())
+  );

@@ -139,6 +139,10 @@ export default function ClanChatWidget() {
     if (!open) return
     let alive = true
     function load() {
+      // Skip while the tab is in the background - nobody's watching, and
+      // most browsers throttle background timers anyway, but there's no
+      // reason to even try the request instead of just doing nothing.
+      if (document.visibilityState === 'hidden') return
       fetchChatMessages().then((msgs) => {
         if (alive) setMessages(msgs)
       })
@@ -150,9 +154,11 @@ export default function ClanChatWidget() {
       setLoading(false)
     })
     const id = setInterval(load, POLL_MS)
+    document.addEventListener('visibilitychange', load)
     return () => {
       alive = false
       clearInterval(id)
+      document.removeEventListener('visibilitychange', load)
     }
   }, [open])
 

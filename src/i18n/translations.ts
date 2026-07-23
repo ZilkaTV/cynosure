@@ -249,6 +249,10 @@ export const translations = {
       xpLabel: 'XP',
       emptyLabel: 'Not enough data yet - check back in a few days.',
       since: (n: number) => `Last ${n} days`,
+      searchPlaceholder: 'Search members…',
+      noMembersFound: 'No members match your search.',
+      showMore: (n: number) => `Show ${n} more`,
+      showAll: 'Show all',
     },
     register: {
       backToOverview: '← Back to overview',
@@ -735,6 +739,10 @@ export const translations = {
       xpLabel: 'XP',
       emptyLabel: 'Noch nicht genug Daten - schau in ein paar Tagen wieder vorbei.',
       since: (n: number) => `Letzte ${n} Tage`,
+      searchPlaceholder: 'Mitglieder suchen…',
+      noMembersFound: 'Keine Mitglieder gefunden.',
+      showMore: (n: number) => `${n} weitere anzeigen`,
+      showAll: 'Alle anzeigen',
     },
     register: {
       backToOverview: '← Zurück zur Übersicht',
@@ -1222,6 +1230,10 @@ export const translations = {
       xpLabel: 'XP',
       emptyLabel: 'Pas encore assez de données - revenez dans quelques jours.',
       since: (n: number) => `${n} derniers jours`,
+      searchPlaceholder: 'Rechercher des membres…',
+      noMembersFound: 'Aucun membre ne correspond à ta recherche.',
+      showMore: (n: number) => `Afficher ${n} de plus`,
+      showAll: 'Tout afficher',
     },
     register: {
       backToOverview: "← Retour à l'aperçu",

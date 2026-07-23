@@ -875,7 +875,14 @@ security definer
 set search_path = public
 as $$
 begin
-  new.user_id := auth.uid();
+  -- Only stamp it when there's a real caller to stamp - auth.uid() is null
+  -- for anything run outside a genuine authenticated API request (e.g. the
+  -- SQL Editor, or a future admin backfill), and this trigger firing on
+  -- UPDATE as well as INSERT means it would otherwise clobber a correct
+  -- user_id right back to null the moment anyone runs a manual fix-up query.
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
   return new;
 end;
 $$;

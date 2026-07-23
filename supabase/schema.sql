@@ -868,6 +868,18 @@ alter table public.cyn_members add column if not exists user_id uuid references 
 -- (see saveProfile in src/lib/profiles.ts), so this is simpler than the
 -- cyn_event_admins-style trigger below: just stamp the real caller directly,
 -- no name-matching needed.
+--
+-- IMPORTANT on UPDATE: cyn_members' own update policy is `to authenticated
+-- using (true)` - any signed-in member can edit ANY row (an accepted
+-- trade-off when the only stakes were display fields like timezone/name).
+-- Once user_id started gating chat membership, that stopped being safe:
+-- the very first version of this trigger re-stamped user_id on every
+-- update unconditionally, which meant an authenticated non-member could
+-- send a no-op edit to some OTHER member's row and, as a side effect,
+-- silently repoint that row's user_id to their own auth.uid() - hijacking
+-- a real member's verified-membership status to pass the chat gate
+-- without ever registering. Only allowed now if the row is unclaimed or
+-- already belongs to the caller; any other update leaves it untouched.
 create or replace function public.cyn_members_fill_user_id()
 returns trigger
 language plpgsql
@@ -875,13 +887,16 @@ security definer
 set search_path = public
 as $$
 begin
-  -- Only stamp it when there's a real caller to stamp - auth.uid() is null
-  -- for anything run outside a genuine authenticated API request (e.g. the
-  -- SQL Editor, or a future admin backfill), and this trigger firing on
-  -- UPDATE as well as INSERT means it would otherwise clobber a correct
-  -- user_id right back to null the moment anyone runs a manual fix-up query.
-  if auth.uid() is not null then
-    new.user_id := auth.uid();
+  if tg_op = 'INSERT' then
+    if auth.uid() is not null then
+      new.user_id := auth.uid();
+    end if;
+  elsif tg_op = 'UPDATE' then
+    if auth.uid() is not null and (old.user_id is null or old.user_id = auth.uid()) then
+      new.user_id := auth.uid();
+    else
+      new.user_id := old.user_id;
+    end if;
   end if;
   return new;
 end;

@@ -1,0 +1,67 @@
+name: Engine maintenance (auto-vendor + Max Tiles backfill)
+
+# Self-healing pipeline for Max Tiles: OpenFront ships engine updates
+# periodically, and a game only replays correctly against the *exact*
+# commit it was played on (see src/vendor/openfront-core/README.md). When a
+# new commit shows up in real games and nothing's vendored for it yet, Max
+# Tiles silently stays uncomputed for those games until someone notices and
+# runs scripts/detect-engine-commits.mjs + vendor-engine.mjs by hand - which
+# is exactly what kept happening. This runs both steps automatically:
+#
+#   1. scripts/auto-vendor-missing.mjs - finds engine commits real recent
+#      games actually used that we don't have a vendored tree for, and
+#      vendors each one (scripts/vendor-engine.mjs already self-verifies via
+#      `tsc -b` before this workflow trusts the result enough to commit it).
+#   2. scripts/backfill-tile-stats.mjs - computes Max Tiles for any recent
+#      game still missing from the shared cache (with retries - most
+#      failures here are transient, not permanent), whether that's because
+#      step 1 just vendored something new or a fetch simply failed earlier.
+#
+# Runs daily rather than on the site's own 5-minute cron cadence - checking
+# for a new engine version several times an hour would be pure waste, and
+# neither step is time-critical (Max Tiles is a nice-to-have stat, not
+# something that blocks anything else on the site).
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Check for new OpenFront engine commits and vendor them
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: node scripts/auto-vendor-missing.mjs
+
+      - name: Commit any newly-vendored engine tree
+        run: |
+          if [ -n "$(git status --porcelain src/vendor tsconfig.json src/lib/replaySimCore.ts)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add src/vendor tsconfig.json src/lib/replaySimCore.ts
+            git commit -m "Auto-vendor newly detected OpenFront engine commit(s)"
+            git push
+          else
+            echo "No new engine commits to vendor."
+          fi
+
+      - name: Backfill Max Tiles for games still missing from the shared cache
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: node scripts/backfill-tile-stats.mjs

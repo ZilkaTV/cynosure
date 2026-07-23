@@ -12,8 +12,16 @@ export function useSession() {
       setSession(null)
       return
     }
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    supabase.auth.getSession().then(({ data, error }) => {
+      // Temporary - tracking down an intermittent forced-logout bug in the
+      // clan chat. Safe to remove once that's confirmed fixed.
+      console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
+      setSession(data.session)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((e, s) => {
+      console.info('[auth] onAuthStateChange', e, { hasSession: !!s, expiresAt: s?.expires_at })
+      setSession(s)
+    })
     return () => listener.subscription.unsubscribe()
   }, [])
 

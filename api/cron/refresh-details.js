@@ -101,7 +101,7 @@ async function fetchRankedMap() {
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
     let json
     try {
-      json = await fetchJson(`https://api.openfront.io/public/leaderboard/ranked?page=${page}`)
+      json = await fetchJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
     } catch {
       break
     }

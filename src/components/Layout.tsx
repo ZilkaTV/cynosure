@@ -4,7 +4,7 @@ import CynLogo from './CynLogo'
 import HelpWidget from './HelpWidget'
 import ClanChatWidget from './ClanChatWidget'
 import LanguageSwitcher from './LanguageSwitcher'
-import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE, DONATE_URL } from '../config'
+import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
@@ -173,17 +173,14 @@ export default function Layout({ children }: { children: ReactNode }) {
         <p className="mt-1 text-xs text-slate-600">{t.footer.trackingSince(trackingSince())}</p>
       </footer>
 
-      <a
-        href={DONATE_URL}
-        target="_blank"
-        rel="noreferrer"
+      <Link
+        to="/donate"
         aria-label={t.donate.buttonAria}
-        title={t.donate.tooltip}
         className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-base-950 shadow-lg shadow-gold/30 transition-transform hover:scale-105 hover:bg-gold-light"
       >
         <HeartIcon />
         <span className="hidden sm:inline">{t.donate.label}</span>
-      </a>
+      </Link>
 
       <HelpWidget />
       <ClanChatWidget />

@@ -370,7 +370,13 @@ export const translations = {
     donate: {
       buttonAria: 'Donate',
       label: 'Donate',
-      tooltip: 'Support hosting/infrastructure costs (voluntary) - donors 5€+ get a permanent Supporter badge.',
+      title: 'Support Cynosure',
+      body: "Running this site costs a bit of money every month (hosting, the database, the domain). Donating is completely voluntary - the site works exactly the same for everyone whether you donate or not.",
+      badgeTitle: 'Supporter badge',
+      badgeDesc: 'Donate 5€ or more and get a permanent Supporter badge (❤️) on your profile.',
+      instructions: "After donating, send a screenshot or message to a clan admin on Discord so they can add your badge - it isn't automatic.",
+      continueButton: 'Continue to PayPal',
+      backLink: '← Back to overview',
     },
     adminHelp: {
       eyebrow: 'Admin',
@@ -888,7 +894,13 @@ export const translations = {
     donate: {
       buttonAria: 'Spenden',
       label: 'Spenden',
-      tooltip: 'Unterstützt Hosting-/Infrastrukturkosten (freiwillig) - Spender ab 5€ bekommen ein permanentes Unterstützer-Abzeichen.',
+      title: 'Cynosure unterstützen',
+      body: 'Der Betrieb dieser Seite kostet jeden Monat etwas Geld (Hosting, Datenbank, Domain). Spenden sind komplett freiwillig - die Seite funktioniert für alle exakt gleich, egal ob du spendest oder nicht.',
+      badgeTitle: 'Unterstützer-Abzeichen',
+      badgeDesc: 'Spende 5€ oder mehr und bekomme ein permanentes Unterstützer-Abzeichen (❤️) auf deinem Profil.',
+      instructions: 'Schick nach der Spende einen Screenshot oder eine Nachricht an einen Clan-Admin auf Discord, damit er dein Abzeichen freischalten kann - das läuft nicht automatisch.',
+      continueButton: 'Weiter zu PayPal',
+      backLink: '← Zurück zur Übersicht',
     },
     adminHelp: {
       eyebrow: 'Admin',
@@ -1406,7 +1418,13 @@ export const translations = {
     donate: {
       buttonAria: 'Faire un don',
       label: 'Faire un don',
-      tooltip: "Soutient les frais d'hébergement/infrastructure (facultatif) - les donateurs à partir de 5€ reçoivent un badge Supporter permanent.",
+      title: 'Soutenir Cynosure',
+      body: "Faire tourner ce site coûte un peu d'argent chaque mois (hébergement, base de données, nom de domaine). Faire un don est entièrement facultatif - le site fonctionne exactement pareil pour tout le monde, don ou pas.",
+      badgeTitle: 'Badge Supporter',
+      badgeDesc: 'Fais un don de 5€ ou plus et reçois un badge Supporter permanent (❤️) sur ton profil.',
+      instructions: "Après ton don, envoie une capture d'écran ou un message à un admin du clan sur Discord pour qu'il ajoute ton badge - ce n'est pas automatique.",
+      continueButton: 'Continuer vers PayPal',
+      backLink: "← Retour à l'aperçu",
     },
     adminHelp: {
       eyebrow: 'Admin',

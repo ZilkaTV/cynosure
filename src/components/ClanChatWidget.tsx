@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { useSession, useIsAdmin, discordDisplayName } from '../lib/useSession'
+import { fetchEventAdmins } from '../lib/events'
 import { useLanguage } from '../i18n/LanguageContext'
+import { Emoji } from './Emoji'
 import {
   fetchChatMessages,
   postChatMessage,
@@ -17,6 +19,24 @@ import {
 import { hasBackend } from '../lib/supabase'
 
 const POLL_MS = 8000
+
+// A small curated set, not a full picker - matches the rest of the site's
+// hand-rolled-over-heavy-dependency approach (see Emoji.tsx).
+const QUICK_EMOJIS = [
+  '😀', '😂', '😍', '😎', '🥳', '😢', '😭', '😡',
+  '😮', '🤔', '💀', '🔥', '💯', '🎉', '👍', '👎',
+  '👏', '🙏', '🤝', '❤️', '✅', '❌', '⭐', '⚡',
+]
+
+function formatTimestamp(iso: string, language: string): string {
+  return new Date(iso).toLocaleString(language, {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 const ChatIcon = ({ className = 'h-6 w-6' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -43,15 +63,25 @@ const TrashIcon = ({ className = 'h-3.5 w-3.5' }: { className?: string }) => (
   </svg>
 )
 
+const SmileyIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <path d="M9 9h.01M15 9h.01" />
+  </svg>
+)
+
 export default function ClanChatWidget() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { profile } = useProfile()
   const { data } = useRoster(!!profile)
   const session = useSession()
   const viewerIsAdmin = useIsAdmin()
   const [viewerIsModerator, setViewerIsModerator] = useState(false)
   const [moderatorDiscordNames, setModeratorDiscordNames] = useState<string[]>([])
+  const [adminDiscordNames, setAdminDiscordNames] = useState<string[]>([])
   const [open, setOpen] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
@@ -77,9 +107,18 @@ export default function ClanChatWidget() {
   useEffect(() => {
     if (!open) return
     fetchChatModerators().then(setModeratorDiscordNames)
+    fetchEventAdmins().then(setAdminDiscordNames)
   }, [open])
 
   const canModerate = viewerIsAdmin || viewerIsModerator
+
+  const adminOpenfrontIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of data?.members ?? []) {
+      if (m.discord && adminDiscordNames.includes(m.discord)) set.add(m.publicId)
+    }
+    return set
+  }, [data, adminDiscordNames])
 
   const moderatorOpenfrontIds = useMemo(() => {
     const set = new Set<string>()
@@ -122,6 +161,10 @@ export default function ClanChatWidget() {
   }, [open])
 
   if (!hasBackend || !profile) return null
+
+  function insertEmoji(char: string) {
+    setInput((v) => v + char)
+  }
 
   async function handleSend() {
     const text = input.trim()
@@ -171,13 +214,20 @@ export default function ClanChatWidget() {
             {messages.map((m) => (
               <div key={m.id} className="group flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                  <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-400">
                     <span className="truncate text-white">{m.author_name}</span>
-                    {moderatorOpenfrontIds.has(m.author_openfront_id) && (
+                    {adminOpenfrontIds.has(m.author_openfront_id) ? (
                       <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gold-light">
-                        {t.clanChat.moderatorBadge}
+                        {t.accountMenu.adminBadge}
                       </span>
+                    ) : (
+                      moderatorOpenfrontIds.has(m.author_openfront_id) && (
+                        <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-light">
+                          {t.clanChat.moderatorBadge}
+                        </span>
+                      )
                     )}
+                    <span className="font-normal text-slate-500">{formatTimestamp(m.created_at, language)}</span>
                   </p>
                   <p className="whitespace-pre-wrap break-words text-sm text-slate-200">{m.content}</p>
                 </div>
@@ -195,7 +245,29 @@ export default function ClanChatWidget() {
             {error && <p className="text-center text-xs text-signal-red">{error}</p>}
           </div>
 
-          <div className="flex items-end gap-2 p-3">
+          <div className="relative flex items-end gap-2 p-3">
+            {showEmojiPicker && (
+              <div className="absolute bottom-full left-3 mb-2 grid grid-cols-8 gap-1 rounded-lg border border-base-600 bg-base-800 p-2 shadow-2xl">
+                {QUICK_EMOJIS.map((char) => (
+                  <button
+                    key={char}
+                    onClick={() => insertEmoji(char)}
+                    className="flex h-7 w-7 items-center justify-center rounded hover:bg-base-700"
+                  >
+                    <Emoji char={char} className="h-5 w-5" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setShowEmojiPicker((o) => !o)}
+              aria-label={t.clanChat.emojiPickerAria}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-base-600 transition-colors hover:border-accent hover:text-white ${
+                showEmojiPicker ? 'text-white' : 'text-slate-400'
+              }`}
+            >
+              <SmileyIcon />
+            </button>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}

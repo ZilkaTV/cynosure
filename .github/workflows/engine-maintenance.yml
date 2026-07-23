@@ -21,6 +21,14 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 # for a new engine version several times an hour would be pure waste, and
 # neither step is time-critical (Max Tiles is a nice-to-have stat, not
 # something that blocks anything else on the site).
+#
+# A newly-vendored tree is opened as a PULL REQUEST, never pushed straight to
+# master: vendor-engine.mjs's tsc -b check only proves the copied code
+# type-checks, which says nothing about whether it's safe - this pulls real
+# third-party source from openfrontio/OpenFrontIO and ships it straight into
+# every visitor's browser once merged. A compromised upstream commit (or even
+# just a genuine bug) landing here deserves a human looking at the diff
+# before it goes live, the same bar any other change to this site gets.
 
 on:
   schedule:
@@ -29,6 +37,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   maintain:
@@ -48,14 +57,21 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: node scripts/auto-vendor-missing.mjs
 
-      - name: Commit any newly-vendored engine tree
+      - name: Open a PR for any newly-vendored engine tree
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "$(git status --porcelain src/vendor tsconfig.json src/lib/replaySimCore.ts)" ]; then
+            BRANCH="auto-vendor-$(date +%Y%m%d-%H%M%S)"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -b "$BRANCH"
             git add src/vendor tsconfig.json src/lib/replaySimCore.ts
             git commit -m "Auto-vendor newly detected OpenFront engine commit(s)"
-            git push
+            git push origin "$BRANCH"
+            gh pr create --title "Auto-vendor newly detected OpenFront engine commit(s)" \
+              --body "Opened automatically after \`vendor-engine.mjs\`'s own \`tsc -b\` check passed. That only confirms the vendored code type-checks - please review the actual diff (new files under \`src/vendor/\`) before merging, since this pulls new third-party source into the site's own bundle." \
+              --base master --head "$BRANCH"
           else
             echo "No new engine commits to vendor."
           fi

@@ -134,51 +134,57 @@ async function main() {
     return realFetch(rewritten, opts)
   }
 
-  const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
-
   let succeeded = 0
   let noVendoredCommit = 0
   let failed = []
 
-  for (const gameId of missing) {
-    const commit = await core.resolveEngineCommit(gameId)
-    if (!commit) {
-      noVendoredCommit++
-      continue
-    }
-    let ok = false
-    for (let attempt = 1; attempt <= maxRetries && !ok; attempt++) {
-      const stats = await core.computeGameTileStats(gameId, { yieldEveryTicks: 500, onProgress: () => {} }).catch(() => null)
-      if (!stats) continue
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/cyn_game_tile_stats`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
-        },
-        body: JSON.stringify({
-          game_id: gameId,
-          vendored_commit: commit,
-          compute_logic_version: core.COMPUTE_LOGIC_VERSION,
-          max_tiles: stats.maxTiles,
-          max_percent: stats.maxPercent,
-          final_tiles: stats.finalTiles,
-        }),
-      })
-      ok = res.ok
-    }
-    if (ok) {
-      succeeded++
-      console.log(`  ${gameId}: done`)
-    } else {
-      failed.push(gameId)
-      console.log(`  ${gameId}: failed after ${maxRetries} attempt(s)`)
-    }
-  }
+  // Wrapped so a genuinely unexpected error (a thrown fetch, a bad response
+  // body, anything not already caught below) still closes the dev server
+  // instead of leaving the process hanging until CI's own step timeout.
+  try {
+    const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
 
-  await server.close()
+    for (const gameId of missing) {
+      const commit = await core.resolveEngineCommit(gameId).catch(() => null)
+      if (!commit) {
+        noVendoredCommit++
+        continue
+      }
+      let ok = false
+      for (let attempt = 1; attempt <= maxRetries && !ok; attempt++) {
+        const stats = await core.computeGameTileStats(gameId, { yieldEveryTicks: 500, onProgress: () => {} }).catch(() => null)
+        if (!stats) continue
+        ok = await fetch(`${SUPABASE_URL}/rest/v1/cyn_game_tile_stats`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify({
+            game_id: gameId,
+            vendored_commit: commit,
+            compute_logic_version: core.COMPUTE_LOGIC_VERSION,
+            max_tiles: stats.maxTiles,
+            max_percent: stats.maxPercent,
+            final_tiles: stats.finalTiles,
+          }),
+        })
+          .then((res) => res.ok)
+          .catch(() => false)
+      }
+      if (ok) {
+        succeeded++
+        console.log(`  ${gameId}: done`)
+      } else {
+        failed.push(gameId)
+        console.log(`  ${gameId}: failed after ${maxRetries} attempt(s)`)
+      }
+    }
+  } finally {
+    await server.close()
+  }
 
   console.log(`\nDone: ${succeeded} computed, ${noVendoredCommit} need a newer engine commit, ${failed.length} failed after retries.`)
   if (noVendoredCommit > 0) {

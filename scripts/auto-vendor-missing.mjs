@@ -15,7 +15,7 @@
 // new vendor tree is safe to ship is really "did vendor-engine.mjs's own
 // tsc -b check pass", which its own exit code already reports.
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -96,7 +96,13 @@ async function findMissingCommits() {
       continue
     }
     const commit = json.gitCommit
-    if (commit && !KNOWN_COMMITS.includes(commit) && !missing.has(commit)) missing.set(commit, { gameId, member })
+    // Validate the shape before ever trusting it as "a commit" - this value
+    // feeds into a child_process call below (execFileSync, not a shell, but
+    // still - never build any executed command from unvalidated external
+    // data, same rule vendor-engine.mjs's own entry point already enforces).
+    if (commit && /^[0-9a-f]{40}$/i.test(commit) && !KNOWN_COMMITS.includes(commit) && !missing.has(commit)) {
+      missing.set(commit, { gameId, member })
+    }
   }
   return missing
 }
@@ -117,7 +123,10 @@ async function main() {
   for (const commit of missing.keys()) {
     console.log(`\n=== Vendoring ${commit} ===`)
     try {
-      execSync(`node scripts/vendor-engine.mjs ${commit}`, { cwd: ROOT, stdio: 'inherit' })
+      // execFileSync, not execSync - passes the commit as its own argv
+      // entry with no shell involved at all, so even if this value were
+      // ever something unexpected, there's no shell to interpret it.
+      execFileSync('node', ['scripts/vendor-engine.mjs', commit], { cwd: ROOT, stdio: 'inherit' })
     } catch {
       console.error(`Vendoring ${commit} failed - see output above. Left for manual review, not committed.`)
       anyFailed = true

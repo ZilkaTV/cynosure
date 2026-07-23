@@ -61,20 +61,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "$(git status --porcelain src/vendor tsconfig.json src/lib/replaySimCore.ts)" ]; then
-            BRANCH="auto-vendor-$(date +%Y%m%d-%H%M%S)"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git checkout -b "$BRANCH"
-            git add src/vendor tsconfig.json src/lib/replaySimCore.ts
-            git commit -m "Auto-vendor newly detected OpenFront engine commit(s)"
-            git push origin "$BRANCH"
-            gh pr create --title "Auto-vendor newly detected OpenFront engine commit(s)" \
-              --body "Opened automatically after \`vendor-engine.mjs\`'s own \`tsc -b\` check passed. That only confirms the vendored code type-checks - please review the actual diff (new files under \`src/vendor/\`) before merging, since this pulls new third-party source into the site's own bundle." \
-              --base master --head "$BRANCH"
-          else
+          if [ -z "$(git status --porcelain src/vendor tsconfig.json src/lib/replaySimCore.ts)" ]; then
             echo "No new engine commits to vendor."
+            exit 0
           fi
+
+          # Named after the specific short SHA(s) just vendored, not a
+          # timestamp - this makes the branch name deterministic, so if
+          # yesterday's run already opened a PR for this exact commit that's
+          # still awaiting review, today's run recognizes the same branch
+          # already exists remotely and skips instead of opening a duplicate
+          # PR for the same commit every single day until someone merges it.
+          NEW_DIRS=$(git status --porcelain src/vendor | awk '{print $2}' | grep -oE 'openfront-core-[0-9a-f]{7}' | sort -u | tr '\n' '-' | sed 's/-$//')
+          BRANCH="auto-vendor-${NEW_DIRS}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "Branch $BRANCH already exists - a PR for this commit is presumably already open and awaiting review. Not opening a duplicate."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add src/vendor tsconfig.json src/lib/replaySimCore.ts
+          git commit -m "Auto-vendor OpenFront engine commit(s): ${NEW_DIRS}"
+          git push origin "$BRANCH"
+          gh pr create --title "Auto-vendor OpenFront engine commit(s): ${NEW_DIRS}" \
+            --body "Opened automatically after \`vendor-engine.mjs\`'s own \`tsc -b\` check passed. That only confirms the vendored code type-checks - please review the actual diff (new files under \`src/vendor/\`) before merging, since this pulls new third-party source into the site's own bundle." \
+            --base master --head "$BRANCH"
 
       - name: Backfill Max Tiles for games still missing from the shared cache
         env:

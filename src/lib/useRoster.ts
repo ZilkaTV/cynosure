@@ -3,6 +3,7 @@ import { fetchRegistered } from './profiles'
 import { fetchSpeedruns } from './speedruns'
 import { fetchBumps } from './bumps'
 import { fetchXp } from './quests'
+import { fetchAllChatMessageCounts, fetchAllSupporters } from './chat'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
 
@@ -66,13 +67,15 @@ export function useRoster(enabled = true): RosterState {
 
   const load = useCallback(async () => {
     try {
-      const [registered, speedruns, bumps, xpMap] = await Promise.all([
+      const [registered, speedruns, bumps, xpMap, chatCounts, supporters] = await Promise.all([
         fetchRegistered().catch(() => []),
         fetchSpeedruns().catch(() => ({})),
         fetchBumps().catch(() => ({})),
         fetchXp().catch(() => ({})),
+        fetchAllChatMessageCounts().catch(() => ({})),
+        fetchAllSupporters().catch(() => []),
       ])
-      const result = await buildRoster(registered, speedruns, bumps, xpMap)
+      const result = await buildRoster(registered, speedruns, bumps, xpMap, chatCounts, supporters)
       setDeltas(isRefreshRef.current ? computeDeltas(dataRef.current, result) : {})
       dataRef.current = result
       setData(result)

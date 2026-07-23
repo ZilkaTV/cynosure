@@ -612,3 +612,240 @@ create policy "anyone can upsert cyn_member_snapshots"
 
 create policy "anyone can update cyn_member_snapshots"
   on public.cyn_member_snapshots for update to public using (true) with check (true);
+
+-- ============================================================
+-- Clan chat: a public, registered-members-only chat (separate from the
+-- private AI help-chat in cyn_help_conversations). Moderators - appointed by
+-- admins via cyn_chat_moderators below - can delete messages.
+--
+-- Everything that actually matters is enforced server-side by the trigger
+-- further down, not just in src/lib/chat.ts - a client-side check is only
+-- ever UX (instant feedback before the round-trip) and can be bypassed by a
+-- direct API call, same lesson as the RLS hardening pass earlier in this
+-- file. The trigger enforces: real author identity via auth.uid() (never a
+-- client-supplied one), 1-500 char messages, a 60s cooldown per author
+-- (spam protection), and a wordlist-based block on common slurs/hate speech
+-- in English, German and French (the site's three languages). That wordlist
+-- is a baseline, not a complete solution - it can't catch every language or
+-- every evasion attempt, which is why moderator delete exists as a backstop.
+-- ============================================================
+
+create table if not exists public.cyn_chat_moderators (
+  discord_username text primary key,
+  -- Same reasoning as cyn_event_admins.user_id - keyed on the real,
+  -- unforgeable auth user id, never on client-editable user_metadata.
+  user_id uuid references auth.users(id)
+);
+
+alter table public.cyn_chat_moderators enable row level security;
+
+create policy "public can read cyn_chat_moderators"
+  on public.cyn_chat_moderators for select to public using (true);
+
+create policy "admins can add cyn_chat_moderators"
+  on public.cyn_chat_moderators for insert to authenticated with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
+
+create policy "admins can remove cyn_chat_moderators"
+  on public.cyn_chat_moderators for delete to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
+
+-- Same fill-user-id-from-discord_username trigger as cyn_event_admins.
+create or replace function public.cyn_chat_moderators_fill_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.user_id is null then
+    select u.id into new.user_id
+    from auth.users u
+    where coalesce(
+      u.raw_user_meta_data ->> 'full_name',
+      u.raw_user_meta_data ->> 'name',
+      u.raw_user_meta_data ->> 'preferred_username',
+      u.raw_user_meta_data ->> 'user_name',
+      u.raw_user_meta_data ->> 'username',
+      u.raw_user_meta_data -> 'custom_claims' ->> 'global_name'
+    ) = new.discord_username
+    limit 1;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_chat_moderators_fill_user_id on public.cyn_chat_moderators;
+create trigger trg_cyn_chat_moderators_fill_user_id
+  before insert on public.cyn_chat_moderators
+  for each row execute function public.cyn_chat_moderators_fill_user_id();
+
+create table if not exists public.cyn_clan_chat_messages (
+  id bigint generated always as identity primary key,
+  author_user_id uuid not null references auth.users(id),
+  -- Display fields - client-asserted, same trust level as other member-
+  -- entered data already in this file (e.g. cyn_members.in_game_name).
+  -- Only author_user_id (above) is what security/rate-limit checks use.
+  author_openfront_id text not null,
+  author_name text not null,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists cyn_clan_chat_messages_created_idx on public.cyn_clan_chat_messages (created_at);
+create index if not exists cyn_clan_chat_messages_author_idx on public.cyn_clan_chat_messages (author_user_id, created_at);
+
+alter table public.cyn_clan_chat_messages enable row level security;
+
+create policy "members can read cyn_clan_chat_messages"
+  on public.cyn_clan_chat_messages for select to authenticated using (true);
+
+create policy "members can post cyn_clan_chat_messages"
+  on public.cyn_clan_chat_messages for insert to authenticated with check (true);
+
+create policy "moderators and admins can delete cyn_clan_chat_messages"
+  on public.cyn_clan_chat_messages for delete to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+    or exists (select 1 from public.cyn_chat_moderators m where m.user_id = auth.uid())
+  );
+
+-- Normalizes text before the blocklist match: lowercases, maps common
+-- leetspeak digit/symbol substitutions back to letters, then strips
+-- everything that isn't a letter (catches spaced-out or punctuated evasion
+-- like "a r s c h l o c h" or "n1gg3r").
+create or replace function public.cyn_chat_normalize(input text)
+returns text
+language sql
+immutable
+as $$
+  select regexp_replace(
+    translate(lower(input), '431057$@!', 'aeiostsai'),
+    '[^a-z]', '', 'g'
+  )
+$$;
+
+-- Baseline blocklist - common slurs and severe insults in English, German
+-- and French, lowercased and unspaced (matching cyn_chat_normalize's
+-- output). Not exhaustive - extend this list as needed. Kept in sync by
+-- hand with CLIENT_BLOCKLIST in src/lib/chat.ts (that copy is UX-only; this
+-- one is what's actually enforced).
+create or replace function public.cyn_chat_contains_blocked_word(input text)
+returns boolean
+language sql
+immutable
+as $$
+  select public.cyn_chat_normalize(input) ~ (
+    'nigg(er|a)|faggot|retard|chink|spic|kike|coon|tranny|cunt' ||
+    '|hurensohn|schlampe|missgeburt|untermensch|fotze|wichser|arschloch|behindert' ||
+    '|salope|connard|encule|batard|negre|bougnoule|pute'
+  )
+$$;
+
+create or replace function public.cyn_chat_before_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  trimmed text := trim(new.content);
+  last_post timestamptz;
+begin
+  -- Never trust a client-supplied author_user_id - always the real caller.
+  new.author_user_id := auth.uid();
+
+  if char_length(trimmed) = 0 then
+    raise exception 'invalid_length: message is empty';
+  end if;
+  if char_length(trimmed) > 500 then
+    raise exception 'invalid_length: message is too long (max 500 characters)';
+  end if;
+  new.content := trimmed;
+
+  select created_at into last_post
+  from public.cyn_clan_chat_messages
+  where author_user_id = new.author_user_id
+  order by created_at desc
+  limit 1;
+
+  if last_post is not null and now() - last_post < interval '60 seconds' then
+    raise exception 'rate_limited: wait a bit before posting again';
+  end if;
+
+  if public.cyn_chat_contains_blocked_word(new.content) then
+    raise exception 'blocked_content: message contains blocked language';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_chat_before_insert on public.cyn_clan_chat_messages;
+create trigger trg_cyn_chat_before_insert
+  before insert on public.cyn_clan_chat_messages
+  for each row execute function public.cyn_chat_before_insert();
+
+-- Running per-member message count, kept as its own small table (instead of
+-- counting cyn_clan_chat_messages every time) so the Chatter badge is a
+-- cheap lookup instead of an aggregate over a table that only grows.
+create table if not exists public.cyn_chat_message_counts (
+  openfront_id text primary key,
+  count integer not null default 0
+);
+
+alter table public.cyn_chat_message_counts enable row level security;
+
+create policy "public can read cyn_chat_message_counts"
+  on public.cyn_chat_message_counts for select to public using (true);
+
+-- No insert/update policy for anyone - only ever written by the trigger
+-- below, which runs as security definer and bypasses RLS entirely.
+
+create or replace function public.cyn_chat_increment_message_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.cyn_chat_message_counts (openfront_id, count)
+  values (new.author_openfront_id, 1)
+  on conflict (openfront_id) do update set count = cyn_chat_message_counts.count + 1;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_chat_increment_message_count on public.cyn_clan_chat_messages;
+create trigger trg_cyn_chat_increment_message_count
+  after insert on public.cyn_clan_chat_messages
+  for each row execute function public.cyn_chat_increment_message_count();
+
+-- ============================================================
+-- Supporters: members an admin has manually marked as having donated (see
+-- the PayPal.me link in the site footer/floating button - PayPal.me has no
+-- webhook/API integration here, so this is a manual admin toggle after
+-- actually receiving a donation notification, not automatic verification).
+-- Earns the permanent Supporter badge.
+-- ============================================================
+
+create table if not exists public.cyn_supporters (
+  openfront_id text primary key,
+  added_at timestamptz not null default now()
+);
+
+alter table public.cyn_supporters enable row level security;
+
+create policy "public can read cyn_supporters"
+  on public.cyn_supporters for select to public using (true);
+
+create policy "admins can add cyn_supporters"
+  on public.cyn_supporters for insert to authenticated with check (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
+
+create policy "admins can remove cyn_supporters"
+  on public.cyn_supporters for delete to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );

@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import CynLogo from './CynLogo'
 import HelpWidget from './HelpWidget'
+import ClanChatWidget from './ClanChatWidget'
 import LanguageSwitcher from './LanguageSwitcher'
-import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
+import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE, DONATE_URL } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
@@ -27,6 +28,12 @@ function navItems(t: TranslationShape) {
 const DiscordIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.213.38-.462.893-.634 1.301a18.27 18.27 0 0 0-5.5 0A12.6 12.6 0 0 0 9.115 3a19.74 19.74 0 0 0-4.435 1.371C1.4 9.043.65 13.6.925 18.096a19.9 19.9 0 0 0 6.06 3.06c.49-.665.926-1.372 1.302-2.115a12.9 12.9 0 0 1-2.049-.98c.172-.125.34-.256.503-.392a14.19 14.19 0 0 0 12.516 0c.166.14.334.27.503.392-.65.385-1.336.71-2.052.982.377.742.812 1.45 1.303 2.114a19.83 19.83 0 0 0 6.064-3.06c.323-5.218-.552-9.735-2.758-13.727ZM8.68 15.331c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.815 2.081-1.85 2.081Zm6.646 0c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.806 2.081-1.85 2.081Z" />
+  </svg>
+)
+
+const HeartIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 21s-6.7-4.35-9.3-8.1C.9 10.2 1.4 6.6 4.3 5 6.4 3.8 9 4.3 12 7c3-2.7 5.6-3.2 7.7-2 2.9 1.6 3.4 5.2 1.6 7.9C18.7 16.65 12 21 12 21Z" />
   </svg>
 )
 
@@ -166,7 +173,20 @@ export default function Layout({ children }: { children: ReactNode }) {
         <p className="mt-1 text-xs text-slate-600">{t.footer.trackingSince(trackingSince())}</p>
       </footer>
 
+      <a
+        href={DONATE_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={t.donate.buttonAria}
+        title={t.donate.tooltip}
+        className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-base-950 shadow-lg shadow-gold/30 transition-transform hover:scale-105 hover:bg-gold-light"
+      >
+        <HeartIcon />
+        <span className="hidden sm:inline">{t.donate.label}</span>
+      </a>
+
       <HelpWidget />
+      <ClanChatWidget />
     </div>
   )
 }

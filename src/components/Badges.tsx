@@ -30,6 +30,8 @@ const ICON_EMOJI: Record<IconKey, string> = {
   blast: EMOJI.blast,
   wrench: EMOJI.wrench,
   flag: EMOJI.flag,
+  chatBubble: EMOJI.chatBubble,
+  heart: EMOJI.heart,
 }
 
 /** Picks which emoji represents a badge (tiered star/ship badges swap by tier). */

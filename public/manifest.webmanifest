@@ -1,0 +1,18 @@
+{
+  "name": "[CYN] Cynosure - OpenFront Clan",
+  "short_name": "Cynosure",
+  "description": "Live roster, activity and 1v1 / team / FFA stats for the [CYN] OpenFront.io clan.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07060d",
+  "theme_color": "#07060d",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

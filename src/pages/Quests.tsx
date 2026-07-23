@@ -20,7 +20,7 @@ export default function Quests() {
 
   useEffect(() => {
     if (profile) fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
-  }, [profile, data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, data])
 
   if (!profile) return <RegistrationGate />
   if (loading || !me) return <Spinner label={t.common.loadingLiveData} />

@@ -3,6 +3,7 @@ import { Routes, Route, Link } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import { Spinner } from './components/ui'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useLanguage } from './i18n/LanguageContext'
 
 // Home is the most common landing page, so it stays a normal (eager) import -
@@ -34,22 +35,24 @@ function NotFound() {
 export default function App() {
   return (
     <Layout>
-      <Suspense fallback={<Spinner />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
-          <Route path="/monthly/team" element={<Monthly variant="team" />} />
-          <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
-          <Route path="/member/:id" element={<MemberProfile />} />
-          <Route path="/speedrun" element={<Speedrun />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/quests" element={<Quests />} />
-          <Route path="/trends" element={<Trends />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/admin/help" element={<AdminHelp />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<Spinner />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
+            <Route path="/monthly/team" element={<Monthly variant="team" />} />
+            <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
+            <Route path="/member/:id" element={<MemberProfile />} />
+            <Route path="/speedrun" element={<Speedrun />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/quests" element={<Quests />} />
+            <Route path="/trends" element={<Trends />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/admin/help" element={<AdminHelp />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </Layout>
   )
 }

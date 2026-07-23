@@ -156,12 +156,6 @@ export default function Home() {
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
 
-  if (!profile) return <RegistrationGate />
-
-  const totals = data?.totals
-  const columns = makeColumns(data?.members ?? [], deltas, t)
-  const me = data?.members.find((m) => m.publicId === profile.openfront_id)
-
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
   // every member's name (not just whoever was found first) so a shared game
@@ -181,7 +175,12 @@ export default function Home() {
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
-  // instead of waiting on the replay - see prefetchGameTileStats.
+  // instead of waiting on the replay - see prefetchGameTileStats. This has to
+  // stay above the `!profile` early return below - every hook in a component
+  // must run in the same order on every render, and this one used to sit
+  // after that return, so a visitor completing registration mid-session
+  // (profile flips from null to set without a page reload) made Home call
+  // one more hook than the render before, which React flags as a crash.
   useEffect(() => {
     if (recentGames.length === 0) return
     import('../lib/replaySim').then(({ prefetchGameTileStats }) => {
@@ -189,6 +188,12 @@ export default function Home() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentGames.map(({ g }) => g.gameId).join(',')])
+
+  if (!profile) return <RegistrationGate />
+
+  const totals = data?.totals
+  const columns = makeColumns(data?.members ?? [], deltas, t)
+  const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   return (
     <StatsShell>

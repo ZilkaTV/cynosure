@@ -251,7 +251,7 @@ export function monthLabel(key: string): string {
 function eloMonthDelta(publicId: string, currentElo: number | null): number | null {
   if (currentElo == null) return null
   const key = `of:elosnap:${currentMonthKey()}`
-  let snap: Record<string, number> = {}
+  let snap: Record<string, number>
   try {
     snap = JSON.parse(localStorage.getItem(key) ?? '{}')
   } catch {

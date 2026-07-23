@@ -24,7 +24,7 @@ export function Emoji({ char, className = 'h-4 w-4', label }: { char: string; cl
   const cp = toCodepoints(char)
   return (
     <img
-      src={`https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/${cp}.svg`}
+      src={`https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.3/assets/svg/${cp}.svg`}
       alt={label ?? char}
       title={label}
       className={`inline-block select-none align-middle ${className}`}

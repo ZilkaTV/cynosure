@@ -46,6 +46,11 @@ export const translations = {
       body: 'This page drifted off the star chart.',
       button: 'Back to overview',
     },
+    errorBoundary: {
+      title: 'Something broke',
+      body: 'This part of the page hit an unexpected error. Reloading usually fixes it.',
+      reload: 'Reload page',
+    },
     common: {
       loadingLiveData: 'Pulling live data from OpenFront…',
       table: {
@@ -526,6 +531,11 @@ export const translations = {
     notFound: {
       body: 'Diese Seite ist von der Sternenkarte abgekommen.',
       button: 'Zurück zur Übersicht',
+    },
+    errorBoundary: {
+      title: 'Etwas ist kaputtgegangen',
+      body: 'Dieser Teil der Seite hatte einen unerwarteten Fehler. Neu laden hilft meistens.',
+      reload: 'Seite neu laden',
     },
     common: {
       loadingLiveData: 'Live-Daten von OpenFront werden geladen…',
@@ -1008,6 +1018,11 @@ export const translations = {
     notFound: {
       body: 'Cette page a dérivé hors de la carte stellaire.',
       button: "Retour à l'aperçu",
+    },
+    errorBoundary: {
+      title: "Une erreur s'est produite",
+      body: "Cette partie de la page a rencontré une erreur inattendue. Recharger la page résout généralement le problème.",
+      reload: 'Recharger la page',
     },
     common: {
       loadingLiveData: 'Chargement des données en direct depuis OpenFront…',

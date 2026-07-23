@@ -5,10 +5,9 @@
 
 import {
   fetchFfaLeaderboard,
-  fetchGameDetail,
+  fetchGameDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
-  type GameDetail,
   type PlayerGame,
   type RankedEntry,
 } from './openfront'
@@ -333,12 +332,7 @@ export async function buildRoster(
   // reintroduce that bug just by firing a lot of requests - and since a
   // successful detail fetch is now cached forever (not just for an hour),
   // the one-time cost of a large batch like this doesn't recur.
-  const detailMap = new Map<string, GameDetail | null>()
-  await Promise.all(
-    [...wantDetail].map(async (id) => {
-      detailMap.set(id, await fetchGameDetail(id))
-    }),
-  )
+  const detailMap = await fetchGameDetailsBatch([...wantDetail])
 
   // Co-op = another CYN player in the same team-win game.
   const coopByGame: Record<string, boolean> = {}

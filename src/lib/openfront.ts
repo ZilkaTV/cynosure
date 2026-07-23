@@ -465,6 +465,16 @@ async function fetchSharedGameDetail(gameId: string): Promise<GameDetail | null>
   return (data as { detail: GameDetail }).detail
 }
 
+/** Bulk variant of fetchSharedGameDetail - one query for many games instead of one round-trip per game. */
+async function fetchSharedGameDetailsBatch(gameIds: string[]): Promise<Map<string, GameDetail>> {
+  const result = new Map<string, GameDetail>()
+  if (!supabase || gameIds.length === 0) return result
+  const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', gameIds)
+  if (error || !data) return result
+  for (const row of data as { game_id: string; detail: GameDetail }[]) result.set(row.game_id, row.detail)
+  return result
+}
+
 function saveSharedGameDetail(gameId: string, detail: GameDetail): void {
   if (!supabase) return
   supabase
@@ -485,17 +495,13 @@ function saveSharedGameDetail(gameId: string, detail: GameDetail): void {
  * network/rate-limit failure is not, so it's retried on the next call
  * instead of getting stuck.
  */
-export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
+// The actual "go ask OpenFront" path, shared by fetchGameDetail and
+// fetchGameDetailsBatch below - assumes the caller already checked both the
+// local permanent cache and the shared cyn_game_detail_cache table (or its
+// batch equivalent) and found nothing, so it only ever does the expensive
+// live fetch, never a redundant re-check of either cache.
+async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
   const key = `${CACHE_NS}:detail:${gameId}`
-  const cached = cachePermGet<GameDetail | null>(key)
-  if (cached.hit) return cached.data
-
-  const shared = await fetchSharedGameDetail(gameId)
-  if (shared) {
-    cachePermSet(key, shared)
-    return shared
-  }
-
   const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as {
     info?: {
       gameID?: string
@@ -527,6 +533,60 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
   cachePermSet(key, detail)
   if (detail) saveSharedGameDetail(gameId, detail)
   return detail
+}
+
+export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
+  const key = `${CACHE_NS}:detail:${gameId}`
+  const cached = cachePermGet<GameDetail | null>(key)
+  if (cached.hit) return cached.data
+
+  const shared = await fetchSharedGameDetail(gameId)
+  if (shared) {
+    cachePermSet(key, shared)
+    return shared
+  }
+
+  return fetchGameDetailLive(gameId)
+}
+
+/**
+ * Bulk variant of fetchGameDetail for buildRoster's up-front pass: resolves
+ * every game still missing from the browser's own permanent cache with ONE
+ * shared-cache query instead of one Supabase round-trip per game (this used
+ * to be a plain Promise.all of individual fetchGameDetail calls, which meant
+ * a roster with e.g. 150 games needing detail fired 150 separate Supabase
+ * requests just to find out most of them were already sitting in the shared
+ * cache) - falling back to a live fetch only for whoever isn't in either cache.
+ */
+export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<string, GameDetail | null>> {
+  const result = new Map<string, GameDetail | null>()
+  const needsLookup: string[] = []
+  for (const id of gameIds) {
+    const cached = cachePermGet<GameDetail | null>(`${CACHE_NS}:detail:${id}`)
+    if (cached.hit) result.set(id, cached.data)
+    else needsLookup.push(id)
+  }
+  if (needsLookup.length === 0) return result
+
+  const shared = await fetchSharedGameDetailsBatch(needsLookup)
+  const needsLiveFetch: string[] = []
+  for (const id of needsLookup) {
+    const detail = shared.get(id)
+    if (detail) {
+      cachePermSet(`${CACHE_NS}:detail:${id}`, detail)
+      result.set(id, detail)
+    } else {
+      needsLiveFetch.push(id)
+    }
+  }
+  if (needsLiveFetch.length === 0) return result
+
+  await Promise.all(
+    needsLiveFetch.map(async (id) => {
+      result.set(id, await fetchGameDetailLive(id))
+    }),
+  )
+  return result
 }
 
 // OpenFront's server ticks the simulation on a fixed 100ms interval

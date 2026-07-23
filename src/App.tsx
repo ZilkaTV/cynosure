@@ -15,6 +15,7 @@ const MemberProfile = lazy(() => import('./pages/MemberProfile'))
 const Speedrun = lazy(() => import('./pages/Speedrun'))
 const Events = lazy(() => import('./pages/Events'))
 const Quests = lazy(() => import('./pages/Quests'))
+const Trends = lazy(() => import('./pages/Trends'))
 const AdminHelp = lazy(() => import('./pages/AdminHelp'))
 
 function NotFound() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/speedrun" element={<Speedrun />} />
           <Route path="/events" element={<Events />} />
           <Route path="/quests" element={<Quests />} />
+          <Route path="/trends" element={<Trends />} />
           <Route path="/register" element={<Register />} />
           <Route path="/admin/help" element={<AdminHelp />} />
           <Route path="*" element={<NotFound />} />

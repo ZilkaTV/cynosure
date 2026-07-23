@@ -90,6 +90,28 @@ function monthKeyOf(iso) {
   return iso.slice(0, 7)
 }
 
+// Small, duplicated-on-purpose copy of fetchRankedMap (src/lib/openfront.ts) -
+// same reasoning as fetchPlayerGames/fetchGameDetail above: this file can't
+// import from src/. Only 3 pages (LEADERBOARD_SCAN_PAGES in src/config.ts),
+// run once per invocation, not once per member.
+const LEADERBOARD_SCAN_PAGES = 3
+
+async function fetchRankedMap() {
+  const byId = new Map()
+  for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
+    let json
+    try {
+      json = await fetchJson(`https://api.openfront.io/public/leaderboard/ranked?page=${page}`)
+    } catch {
+      break
+    }
+    const entries = json?.['1v1'] ?? []
+    if (entries.length === 0) break
+    for (const e of entries) byId.set(e.public_id, e.elo)
+  }
+  return byId
+}
+
 async function fetchGameDetail(gameId) {
   const json = await fetchJson(`https://api.openfront.io/public/game/${encodeURIComponent(gameId)}?turns=false`)
   const info = json.info
@@ -136,6 +158,16 @@ export default async function handler(req, res) {
   try {
     const { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id')
     if (regError) throw regError
+
+    // Trend-graph data (elo/wins/XP over time - see src/lib/trends.ts): both
+    // fetched once per invocation, not once per member, and cheap either way
+    // (a 3-page leaderboard scan, one table read). A member outside the
+    // ranked top 100 just gets `elo: null` for today, same as the rest of
+    // the site already treats "no live elo" everywhere else.
+    const rankedMap = await fetchRankedMap().catch(() => new Map())
+    const { data: xpRows } = await supabase.from('cyn_xp').select('openfront_id, xp')
+    const xpByMember = new Map((xpRows ?? []).map((r) => [r.openfront_id, r.xp]))
+    const snapshotDate = new Date().toISOString().slice(0, 10)
 
     // Confirmed live: the member scan runs sequentially (one full paginated
     // fetch per member, not in parallel), so whoever Supabase happens to
@@ -211,6 +243,30 @@ export default async function handler(req, res) {
           { onConflict: 'openfront_id' },
         )
         .then(() => {}, () => {})
+
+      // One row per member per day (upsert on conflict), refined every time
+      // this cron touches that member - by end of day it holds the last
+      // values seen, which is all a daily-granularity trend graph needs.
+      // Uses mergedGames too, so a truncated live fetch this run can't make
+      // the win count regress for the day.
+      let allWins = 0
+      for (const g of mergedGames) {
+        if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
+      }
+      await supabase
+        .from('cyn_member_snapshots')
+        .upsert(
+          {
+            openfront_id: r.openfront_id,
+            snapshot_date: snapshotDate,
+            elo: rankedMap.get(r.openfront_id) ?? null,
+            all_wins: allWins,
+            xp: xpByMember.get(r.openfront_id) ?? 0,
+          },
+          { onConflict: 'openfront_id,snapshot_date' },
+        )
+        .then(() => {}, () => {})
+
       // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
       // pass here can't also make wantDetail miss a team win or this
       // month's game that a previous run already knew about.

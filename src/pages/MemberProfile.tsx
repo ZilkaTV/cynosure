@@ -5,6 +5,8 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
+import TrendChart from '../components/TrendChart'
+import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
@@ -34,6 +36,7 @@ export default function MemberProfile() {
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
+  const [trend, setTrend] = useState<SnapshotPoint[]>([])
 
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
@@ -53,6 +56,17 @@ export default function MemberProfile() {
       alive = false
     }
   }, [m?.discord, isOwnProfile])
+
+  useEffect(() => {
+    if (!m?.publicId) return
+    let alive = true
+    fetchMemberTrend(m.publicId).then((points) => {
+      if (alive) setTrend(points)
+    })
+    return () => {
+      alive = false
+    }
+  }, [m?.publicId])
 
   // Warm the Max Tiles cache for the recent games shown below while the
   // visitor is browsing the profile, so opening one's report later is
@@ -179,6 +193,36 @@ export default function MemberProfile() {
               <EloDelta delta={m.eloMonthDelta} />
             </p>
             <p className="text-xs text-slate-500">{t.common.winsLosses(one.wins, one.losses)}</p>
+          </Card>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeading center eyebrow={t.memberProfile.trendsEyebrow} title={t.memberProfile.trendsTitle} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendEloLabel}</p>
+            <TrendChart
+              points={trend.map((p) => ({ date: p.date, value: p.elo }))}
+              color="#eab308"
+              emptyLabel={t.memberProfile.trendEmpty}
+            />
+          </Card>
+          <Card>
+            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendWinsLabel}</p>
+            <TrendChart
+              points={trend.map((p) => ({ date: p.date, value: p.allWins }))}
+              color="#8b5cf6"
+              emptyLabel={t.memberProfile.trendEmpty}
+            />
+          </Card>
+          <Card>
+            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendXpLabel}</p>
+            <TrendChart
+              points={trend.map((p) => ({ date: p.date, value: p.xp }))}
+              color="#38bdf8"
+              emptyLabel={t.memberProfile.trendEmpty}
+            />
           </Card>
         </div>
       </section>

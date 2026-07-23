@@ -567,3 +567,48 @@ update storage.buckets
 set allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     file_size_limit = 8388608 -- 8 MB, matches the client-side cap in HelpWidget.tsx
 where id in ('help-chat-images', 'event-screenshots');
+
+-- ============================================================
+-- Trend graphs (elo / all-time wins / XP over time, per member and
+-- clan-wide - see src/lib/trends.ts). OpenFront itself has no history API,
+-- so this site has to build its own by taking one snapshot a day. The
+-- existing 5-minute cron (api/cron/refresh-details.js) already computes
+-- everything needed per member as a side effect of its normal scan (it
+-- already has each member's full game list in memory, plus one leaderboard
+-- scan and one cyn_xp read per run, both done once, not per member) -
+-- upserting today's row here is nearly free on top of that.
+--
+-- One row per (member, day): later upserts the same day just refine that
+-- day's row as the cron keeps running, so by end of day it holds the last
+-- values seen - all a daily-granularity graph needs. Public read (needed
+-- for the profile + Trends page charts, no login required to view a
+-- public stats site) and public write, same reasoning as the other
+-- OpenFront-derived shared caches in this file (cyn_game_detail_cache
+-- etc.) - this is non-authored, self-correcting background data, not
+-- something a member could fake for personal gain the way a speedrun
+-- leaderboard entry could, so it doesn't need the `to authenticated`
+-- tightening those tables got.
+-- ============================================================
+
+create table if not exists public.cyn_member_snapshots (
+  openfront_id text not null,
+  snapshot_date date not null,
+  elo integer,
+  all_wins integer not null default 0,
+  xp integer not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (openfront_id, snapshot_date)
+);
+
+create index if not exists cyn_member_snapshots_member_idx on public.cyn_member_snapshots (openfront_id, snapshot_date);
+
+alter table public.cyn_member_snapshots enable row level security;
+
+create policy "public can read cyn_member_snapshots"
+  on public.cyn_member_snapshots for select to public using (true);
+
+create policy "anyone can upsert cyn_member_snapshots"
+  on public.cyn_member_snapshots for insert to public with check (true);
+
+create policy "anyone can update cyn_member_snapshots"
+  on public.cyn_member_snapshots for update to public using (true) with check (true);

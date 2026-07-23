@@ -904,14 +904,16 @@ where m.user_id is null
     u.raw_user_meta_data -> 'custom_claims' ->> 'global_name'
   ) = m.discord_username;
 
+-- NOTE: the tightened policies below were rolled back almost immediately -
+-- the backfill UPDATE above matched zero existing rows in production (every
+-- current member's user_id stayed null), which meant this would have locked
+-- every real member out of the chat, including the site admin. Restored to
+-- the simple `to authenticated` bar below until the backfill mismatch is
+-- diagnosed (see the diagnostic query given to the user) and re-verified.
 drop policy if exists "members can read cyn_clan_chat_messages" on public.cyn_clan_chat_messages;
 create policy "members can read cyn_clan_chat_messages"
-  on public.cyn_clan_chat_messages for select to authenticated using (
-    exists (select 1 from public.cyn_members m where m.user_id = auth.uid())
-  );
+  on public.cyn_clan_chat_messages for select to authenticated using (true);
 
 drop policy if exists "members can post cyn_clan_chat_messages" on public.cyn_clan_chat_messages;
 create policy "members can post cyn_clan_chat_messages"
-  on public.cyn_clan_chat_messages for insert to authenticated with check (
-    exists (select 1 from public.cyn_members m where m.user_id = auth.uid())
-  );
+  on public.cyn_clan_chat_messages for insert to authenticated with check (true);

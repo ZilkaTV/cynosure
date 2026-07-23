@@ -169,9 +169,8 @@ export default function Home() {
       else byGameId.set(g.gameId, { g, memberNames: [m.name] })
     }
   }
-  const recentGames = [...byGameId.values()]
-    .sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
-    .slice(0, 5)
+  const sortedRecentGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
+  const recentGames = sortedRecentGames.slice(0, 5)
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
@@ -181,13 +180,24 @@ export default function Home() {
   // after that return, so a visitor completing registration mid-session
   // (profile flips from null to set without a page reload) made Home call
   // one more hook than the render before, which React flags as a crash.
+  //
+  // Prefetches a much wider window than the 5 games actually shown below:
+  // confirmed directly that with only the top-5 prefetched, most members'
+  // recent games never got their Max Tiles computed at all unless someone
+  // happened to open that exact game or visit that member's own profile -
+  // Home is the one page nearly everyone visits regularly, so it's the best
+  // place to make a dent in that backlog. Still bounded (not "every game
+  // ever") and still costs nothing extra for anything already cached - the
+  // sequential queue in prefetchGameTileStats checks that first per game.
+  const PREFETCH_COUNT = 40
+  const prefetchGames = sortedRecentGames.slice(0, PREFETCH_COUNT)
   useEffect(() => {
-    if (recentGames.length === 0) return
+    if (prefetchGames.length === 0) return
     import('../lib/replaySim').then(({ prefetchGameTileStats }) => {
-      prefetchGameTileStats(recentGames.map(({ g }) => g.gameId))
+      prefetchGameTileStats(prefetchGames.map(({ g }) => g.gameId))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentGames.map(({ g }) => g.gameId).join(',')])
+  }, [prefetchGames.map(({ g }) => g.gameId).join(',')])
 
   if (!profile) return <RegistrationGate />
 

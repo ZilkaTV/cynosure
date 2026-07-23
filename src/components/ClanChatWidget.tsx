@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
-import { useRoster } from '../lib/useRoster'
+import { fetchRegistered, type Profile } from '../lib/profiles'
 import { useSession, useIsAdmin, discordDisplayName } from '../lib/useSession'
 import { fetchEventAdmins } from '../lib/events'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -74,12 +74,18 @@ const SmileyIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
 export default function ClanChatWidget() {
   const { t, language } = useLanguage()
   const { profile } = useProfile()
-  const { data } = useRoster(!!profile)
   const session = useSession()
   const viewerIsAdmin = useIsAdmin()
   const [viewerIsModerator, setViewerIsModerator] = useState(false)
   const [moderatorDiscordNames, setModeratorDiscordNames] = useState<string[]>([])
   const [adminDiscordNames, setAdminDiscordNames] = useState<string[]>([])
+  // Just the openfront_id <-> discord_username mapping this badge lookup
+  // actually needs, straight from cyn_members - not the full roster (which
+  // also runs every member's OpenFront game history through buildRoster).
+  // This widget is mounted on every page (see Layout.tsx), so pulling in
+  // that whole pipeline here as well would double it site-wide for no
+  // reason, on top of whatever the current page already fetches itself.
+  const [registered, setRegistered] = useState<Profile[]>([])
   const [open, setOpen] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -108,25 +114,26 @@ export default function ClanChatWidget() {
     if (!open) return
     fetchChatModerators().then(setModeratorDiscordNames)
     fetchEventAdmins().then(setAdminDiscordNames)
+    fetchRegistered().then(setRegistered)
   }, [open])
 
   const canModerate = viewerIsAdmin || viewerIsModerator
 
   const adminOpenfrontIds = useMemo(() => {
     const set = new Set<string>()
-    for (const m of data?.members ?? []) {
-      if (m.discord && adminDiscordNames.includes(m.discord)) set.add(m.publicId)
+    for (const m of registered) {
+      if (m.discord_username && adminDiscordNames.includes(m.discord_username)) set.add(m.openfront_id)
     }
     return set
-  }, [data, adminDiscordNames])
+  }, [registered, adminDiscordNames])
 
   const moderatorOpenfrontIds = useMemo(() => {
     const set = new Set<string>()
-    for (const m of data?.members ?? []) {
-      if (m.discord && moderatorDiscordNames.includes(m.discord)) set.add(m.publicId)
+    for (const m of registered) {
+      if (m.discord_username && moderatorDiscordNames.includes(m.discord_username)) set.add(m.openfront_id)
     }
     return set
-  }, [data, moderatorDiscordNames])
+  }, [registered, moderatorDiscordNames])
 
   useEffect(() => {
     if (!open) return

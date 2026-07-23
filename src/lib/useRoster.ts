@@ -12,6 +12,35 @@ const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'allWins', 'elo', 'bu
 export type DeltaField = (typeof DELTA_FIELDS)[number]
 export type Deltas = Record<string, Partial<Record<DeltaField, number>>>
 
+// Dedupes concurrent calls into the roster-build pipeline: ClanChatWidget is
+// now mounted globally (see Layout.tsx) alongside whatever page-specific
+// component also calls useRoster, so every page view used to kick off the
+// ENTIRE fetch+compute pipeline (OpenFront APIs, Supabase caches, etc.)
+// twice in parallel - once per hook instance - for no benefit, since both
+// calls want the exact same data at the exact same moment. Only the actual
+// fetch is shared here; each hook instance still keeps its own React state
+// (loading/data/deltas), so nothing about the public behavior changes.
+let inFlightRosterLoad: Promise<RosterResult> | null = null
+
+async function loadRosterDeduped(): Promise<RosterResult> {
+  if (!inFlightRosterLoad) {
+    inFlightRosterLoad = (async () => {
+      const [registered, speedruns, bumps, xpMap, chatCounts, supporters] = await Promise.all([
+        fetchRegistered().catch(() => []),
+        fetchSpeedruns().catch(() => ({})),
+        fetchBumps().catch(() => ({})),
+        fetchXp().catch(() => ({})),
+        fetchAllChatMessageCounts().catch(() => ({})),
+        fetchAllSupporters().catch(() => []),
+      ])
+      return buildRoster(registered, speedruns, bumps, xpMap, chatCounts, supporters)
+    })().finally(() => {
+      inFlightRosterLoad = null
+    })
+  }
+  return inFlightRosterLoad
+}
+
 // Win-count fields are cumulative history read back from a *bounded* window
 // of each player's most recent OpenFront games (fetchPlayerGames caps how
 // many pages it fetches) - so for a very active player, an old CYN-tagged
@@ -67,15 +96,7 @@ export function useRoster(enabled = true): RosterState {
 
   const load = useCallback(async () => {
     try {
-      const [registered, speedruns, bumps, xpMap, chatCounts, supporters] = await Promise.all([
-        fetchRegistered().catch(() => []),
-        fetchSpeedruns().catch(() => ({})),
-        fetchBumps().catch(() => ({})),
-        fetchXp().catch(() => ({})),
-        fetchAllChatMessageCounts().catch(() => ({})),
-        fetchAllSupporters().catch(() => []),
-      ])
-      const result = await buildRoster(registered, speedruns, bumps, xpMap, chatCounts, supporters)
+      const result = await loadRosterDeduped()
       setDeltas(isRefreshRef.current ? computeDeltas(dataRef.current, result) : {})
       dataRef.current = result
       setData(result)

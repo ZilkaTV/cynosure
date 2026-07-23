@@ -97,6 +97,7 @@ export const translations = {
     },
     monthly: {
       eyebrowPrefix: 'Monthly',
+      latestModeGamesTitle: (mode: string) => `Latest ${mode} Games`,
       titleFfa: 'FFA',
       titleTeam: 'Team',
       title1v1: '1v1 Ranked',
@@ -621,6 +622,7 @@ export const translations = {
     },
     monthly: {
       eyebrowPrefix: 'Monatlich',
+      latestModeGamesTitle: (mode: string) => `Letzte ${mode}-Spiele`,
       titleFfa: 'FFA',
       titleTeam: 'Team',
       title1v1: '1v1 Ranked',
@@ -1146,6 +1148,7 @@ export const translations = {
     },
     monthly: {
       eyebrowPrefix: 'Mensuel',
+      latestModeGamesTitle: (mode: string) => `Dernières parties ${mode}`,
       titleFfa: 'FFA',
       titleTeam: 'Équipe',
       title1v1: '1v1 Ranked',

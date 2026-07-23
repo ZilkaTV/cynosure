@@ -3,20 +3,49 @@ import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import GameDetailModal from '../components/GameDetailModal'
 import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
+import type { PlayerGame } from '../lib/openfront'
 import {
   availableMonths,
   currentMonthKey,
   ffaMonthly,
+  isFfa,
+  isTeam,
+  is1v1,
+  monthKeyOf,
   monthLabel,
   oneVoneBucket,
   teamMonthly,
   winRate,
   type MemberStats,
 } from '../lib/stats'
+
+function fmtDuration(s: number): string {
+  const m = Math.floor(s / 60)
+  return `${m}m ${String(s % 60).padStart(2, '0')}s`
+}
+
+const LATEST_GAMES_COUNT = 10
+
+/** Latest N distinct clan games of one mode within a given month, deduped across members (same pattern as Home.tsx's recent-games list). */
+function latestModeGames(members: MemberStats[], month: string, isMode: (g: PlayerGame) => boolean) {
+  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
+  for (const m of members) {
+    for (const g of m.cynGames) {
+      if (g.type === 'Private' || !isMode(g) || monthKeyOf(g.start) !== month) continue
+      const existing = byGameId.get(g.gameId)
+      if (existing) existing.memberNames.push(m.name)
+      else byGameId.set(g.gameId, { g, memberNames: [m.name] })
+    }
+  }
+  return [...byGameId.values()]
+    .sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
+    .slice(0, LATEST_GAMES_COUNT)
+}
 
 type Variant = 'ffa' | 'team' | '1v1'
 
@@ -122,6 +151,64 @@ function TitleCard({
   )
 }
 
+/** Latest N games of one mode, clan-wide (same table shape as Home.tsx's own recent-games list). */
+function LatestGamesSection({
+  eyebrow,
+  title,
+  games,
+  onOpenGame,
+  t,
+}: {
+  eyebrow: string
+  title: string
+  games: { g: PlayerGame; memberNames: string[] }[]
+  onOpenGame: (gameId: string) => void
+  t: TranslationShape
+}) {
+  if (games.length === 0) return null
+  return (
+    <section className="space-y-4">
+      <SectionHeading center eyebrow={eyebrow} title={title} />
+      <div className="panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {games.map(({ g, memberNames }) => (
+                <tr
+                  key={g.gameId}
+                  onClick={() => onOpenGame(g.gameId)}
+                  className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                >
+                  <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                  <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
+                  <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                  <td
+                    className={`px-4 py-2.5 text-right font-medium ${
+                      g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'
+                    }`}
+                  >
+                    {g.result}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function Monthly({ variant }: { variant: Variant }) {
   const { profile } = useProfile()
   const { t } = useLanguage()
@@ -129,6 +216,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const [month, setMonth] = useState<string>(currentMonthKey())
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
+  const [openGame, setOpenGame] = useState<string | null>(null)
 
   useEffect(() => {
     setSortKey(null)
@@ -361,6 +449,18 @@ export default function Monthly({ variant }: { variant: Variant }) {
           </>
         )}
       </section>
+
+      {data && (
+        <LatestGamesSection
+          eyebrow={t.monthly.eyebrowPrefix}
+          title={t.monthly.latestModeGamesTitle(variant === 'ffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : '1v1')}
+          games={latestModeGames(members, month, variant === 'ffa' ? isFfa : variant === 'team' ? isTeam : is1v1)}
+          onOpenGame={setOpenGame}
+          t={t}
+        />
+      )}
+
+      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
     </StatsShell>
   )
 }

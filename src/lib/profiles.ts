@@ -47,17 +47,25 @@ export function getLocalProfile(): Profile | null {
 }
 
 export function saveLocalProfile(p: Profile) {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
-  // Remember id + name so a later sign-in can pre-fill them.
-  localStorage.setItem(
-    REMEMBER_KEY,
-    JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
-  )
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
+    // Remember id + name so a later sign-in can pre-fill them.
+    localStorage.setItem(
+      REMEMBER_KEY,
+      JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
+    )
+  } catch {
+    /* private-mode/quota - profile still works for this session via Supabase, just won't persist locally */
+  }
   notifyProfileChange()
 }
 
 export function clearLocalProfile() {
-  localStorage.removeItem(LOCAL_KEY)
+  try {
+    localStorage.removeItem(LOCAL_KEY)
+  } catch {
+    /* ignore */
+  }
   notifyProfileChange()
 }
 

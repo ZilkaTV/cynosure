@@ -12,8 +12,12 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 const STORAGE_KEY = 'cyn-language'
 
 function getInitialLanguage(): Language {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored === 'en' || stored === 'de' || stored === 'fr') return stored
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === 'en' || stored === 'de' || stored === 'fr') return stored
+  } catch {
+    /* private-mode/quota - fall back to browser language below */
+  }
   const browserLang = navigator.language.slice(0, 2)
   if (browserLang === 'de' || browserLang === 'fr') return browserLang
   return 'en'
@@ -27,7 +31,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language])
 
   const setLanguage = (lang: Language) => {
-    localStorage.setItem(STORAGE_KEY, lang)
+    try {
+      localStorage.setItem(STORAGE_KEY, lang)
+    } catch {
+      /* private-mode/quota - language still switches, just won't persist */
+    }
     setLanguageState(lang)
   }
 

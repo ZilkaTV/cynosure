@@ -215,7 +215,6 @@ export default function ClanChatWidget() {
               <div key={m.id} className="group flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-400">
-                    <span className="truncate text-white">{m.author_name}</span>
                     {adminOpenfrontIds.has(m.author_openfront_id) ? (
                       <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gold-light">
                         {t.accountMenu.adminBadge}
@@ -227,9 +226,12 @@ export default function ClanChatWidget() {
                         </span>
                       )
                     )}
-                    <span className="font-normal text-slate-500">{formatTimestamp(m.created_at, language)}</span>
+                    <span className="truncate text-white">{m.author_name}</span>
                   </p>
-                  <p className="whitespace-pre-wrap break-words text-sm text-slate-200">{m.content}</p>
+                  <p className="flex items-baseline gap-2">
+                    <span className="shrink-0 text-[11px] text-slate-500">{formatTimestamp(m.created_at, language)}</span>
+                    <span className="whitespace-pre-wrap break-words text-sm text-slate-200">{m.content}</span>
+                  </p>
                 </div>
                 {canModerate && (
                   <button

@@ -368,6 +368,7 @@ export const translations = {
       errorBlockedContent: "That message can't be sent - please rephrase it.",
       errorTooLong: 'Message is too long (max 500 characters).',
       cooldownNote: (s: number) => `Wait ${s}s`,
+      sessionExpired: 'Your sign-in expired - sign out and sign in with Discord again to see and send messages.',
     },
     donate: {
       buttonAria: 'Donate',
@@ -894,6 +895,7 @@ export const translations = {
       errorBlockedContent: 'Diese Nachricht kann nicht gesendet werden - bitte formuliere sie anders.',
       errorTooLong: 'Nachricht ist zu lang (max. 500 Zeichen).',
       cooldownNote: (s: number) => `Warte ${s}s`,
+      sessionExpired: 'Deine Anmeldung ist abgelaufen - melde dich ab und wieder mit Discord an, um Nachrichten zu sehen und zu schreiben.',
     },
     donate: {
       buttonAria: 'Spenden',
@@ -1420,6 +1422,7 @@ export const translations = {
       errorBlockedContent: 'Ce message ne peut pas être envoyé - merci de le reformuler.',
       errorTooLong: 'Message trop long (500 caractères max).',
       cooldownNote: (s: number) => `Attends ${s}s`,
+      sessionExpired: 'Ta connexion a expiré - déconnecte-toi et reconnecte-toi avec Discord pour voir et envoyer des messages.',
     },
     donate: {
       buttonAria: 'Faire un don',

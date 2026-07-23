@@ -173,6 +173,14 @@ export default function ClanChatWidget() {
     return () => clearInterval(id)
   }, [open])
 
+  // profile is a plain localStorage cache (see useProfile.ts) - it survives a
+  // dead or expired Supabase Auth session, so the widget can end up fully
+  // rendered for a "still logged in" visitor whose actual session is gone.
+  // Every read/write here is gated `to authenticated` at the RLS layer, so
+  // that combination silently looked like "chat history is gone" (an empty
+  // fetch, no error) instead of the real problem: sign back in.
+  const sessionExpired = session === null
+
   if (!hasBackend || !profile) return null
 
   function insertEmoji(char: string) {
@@ -222,9 +230,10 @@ export default function ClanChatWidget() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {loading && <p className="text-center text-xs text-slate-500">{t.clanChat.loading}</p>}
-            {!loading && messages.length === 0 && <p className="text-center text-xs text-slate-500">{t.clanChat.intro}</p>}
-            {messages.map((m) => (
+            {loading && !sessionExpired && <p className="text-center text-xs text-slate-500">{t.clanChat.loading}</p>}
+            {sessionExpired && <p className="text-center text-xs text-signal-red">{t.clanChat.sessionExpired}</p>}
+            {!loading && !sessionExpired && messages.length === 0 && <p className="text-center text-xs text-slate-500">{t.clanChat.intro}</p>}
+            {!sessionExpired && messages.map((m) => (
               <div key={m.id} className="group flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-400">
@@ -292,13 +301,14 @@ export default function ClanChatWidget() {
                   handleSend()
                 }
               }}
-              placeholder={cooldown > 0 ? t.clanChat.cooldownNote(cooldown) : t.clanChat.placeholder}
+              disabled={sessionExpired}
+              placeholder={sessionExpired ? t.clanChat.sessionExpired : cooldown > 0 ? t.clanChat.cooldownNote(cooldown) : t.clanChat.placeholder}
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-base-600 bg-base-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+              className="flex-1 resize-none rounded-lg border border-base-600 bg-base-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={sending || cooldown > 0 || !input.trim()}
+              disabled={sessionExpired || sending || cooldown > 0 || !input.trim()}
               aria-label={t.clanChat.send}
               className="btn-accent flex h-10 w-10 shrink-0 !p-0 disabled:opacity-50"
             >

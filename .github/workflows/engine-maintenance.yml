@@ -17,10 +17,13 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 #      failures here are transient, not permanent), whether that's because
 #      step 1 just vendored something new or a fetch simply failed earlier.
 #
-# Runs daily rather than on the site's own 5-minute cron cadence - checking
-# for a new engine version several times an hour would be pure waste, and
-# neither step is time-critical (Max Tiles is a nice-to-have stat, not
-# something that blocks anything else on the site).
+# Runs every 30 minutes rather than daily - OpenFront can ship more than one
+# engine update in a day, and a daily check meant games played any time after
+# that morning's run showed no Max Tiles until the following day (confirmed
+# directly: a game played the same afternoon a new commit shipped sat with a
+# missing/uncomputed Max Tiles for hours). 30 minutes bounds that gap to
+# something reasonable without hammering the OpenFront API or re-cloning
+# OpenFrontIO from scratch every run (see the cache step below).
 #
 # A newly-vendored tree is opened as a PULL REQUEST, never pushed straight to
 # master: vendor-engine.mjs's tsc -b check only proves the copied code
@@ -28,11 +31,13 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 # third-party source from openfrontio/OpenFrontIO and ships it straight into
 # every visitor's browser once merged. A compromised upstream commit (or even
 # just a genuine bug) landing here deserves a human looking at the diff
-# before it goes live, the same bar any other change to this site gets.
+# before it goes live, the same bar any other change to this site gets. This
+# was a deliberate trade-off (confirmed with the site owner): faster
+# detection, but merging a newly-vendored PR is still a manual step.
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -50,6 +55,15 @@ jobs:
           node-version: 22
 
       - run: npm ci
+
+      # vendor-engine.mjs clones the full OpenFrontIO repo into .vendor-cache
+      # (gitignored, ~1GB) and just `fetch`es it on later calls - without this
+      # cache, running every 30 minutes would re-clone that from scratch on
+      # every single run, which is both slow and wasteful.
+      - uses: actions/cache@v4
+        with:
+          path: .vendor-cache
+          key: vendor-cache-openfrontio
 
       - name: Check for new OpenFront engine commits and vendor them
         env:

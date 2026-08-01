@@ -13,9 +13,9 @@
 //   2. Computes the reachable import closure from core/GameRunner.ts.
 //   3. Copies the needed files into src/vendor/openfront-core-<shortsha>/.
 //   4. Applies the known mechanical trims (union-view types, renderNumber/
-//      renderTroops repointing, QuickChat.json repointing, GameUpdateUtils'
-//      applyStateUpdate removal) - each one verified against this specific
-//      commit's actual code, not assumed from a prior pass.
+//      renderTroops repointing, resources/*.json path-alias repointing,
+//      GameUpdateUtils' applyStateUpdate removal) - each one verified against
+//      this specific commit's actual code, not assumed from a prior pass.
 //   5. Recomputes the closure on the trimmed tree and deletes any file that
 //      turned out to be unreachable (e.g. core/worker/* once the client/view
 //      dependency chain that pulled it in is gone).
@@ -40,6 +40,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 const CACHE_DIR = path.join(ROOT, '.vendor-cache', 'openfront-src')
 const REPO_URL = 'https://github.com/openfrontio/OpenFrontIO.git'
+
+// Core files sometimes import a JSON resource via a bare `resources/<name>`
+// path alias (webpack/vite path mapping upstream, not a relative import our
+// closure walker can follow). Each one needs its own copy + repoint, same
+// treatment - add to this list when tsc -b reports a new one (surfaces as
+// "Cannot find module 'resources/X.json'").
+const KNOWN_RESOURCE_FILES = ['QuickChat.json', 'tribeNameThemes.json']
+
+// client/* files that are safe to vendor unmodified because they're plain
+// data/logic with no actual browser/DOM/rendering dependency, despite living
+// under client/ - confirmed by hand for each one before adding it here.
+const KNOWN_SAFE_CLIENT_FILES = ['client/hud/NameBoxCalculator.ts', 'client/graphics/NameBoxCalculator.ts', 'client/render/gl/GraphicsOverrides.ts', 'client/StatsConstants.ts']
 
 const commit = process.argv[2]
 if (!commit || !/^[0-9a-f]{40}$/i.test(commit)) {
@@ -139,10 +151,11 @@ for (const rel of rawClosure) {
   fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replace(/\r\n/g, '\n'))
 }
 fs.mkdirSync(path.join(destDir, 'resources'), { recursive: true })
-fs.writeFileSync(
-  path.join(destDir, 'resources', 'QuickChat.json'),
-  fs.readFileSync(path.join(CACHE_DIR, 'resources', 'QuickChat.json'), 'utf8').replace(/\r\n/g, '\n'),
-)
+for (const name of KNOWN_RESOURCE_FILES) {
+  const from = path.join(CACHE_DIR, 'resources', name)
+  if (!fs.existsSync(from)) continue // doesn't exist yet at this commit
+  fs.writeFileSync(path.join(destDir, 'resources', name), fs.readFileSync(from, 'utf8').replace(/\r\n/g, '\n'))
+}
 
 // ── 4. Mechanical trims ───────────────────────────────────────────────────
 
@@ -167,7 +180,7 @@ function walkTsFiles(dir) {
 const destSrc = path.join(destDir, 'src')
 let trimmedUnionCount = 0
 let trimmedRenderNumberCount = 0
-let trimmedQuickChatCount = 0
+let trimmedResourceRepointCount = 0
 let trimmedGameUpdateUtils = false
 
 for (const file of walkTsFiles(destSrc)) {
@@ -210,13 +223,16 @@ for (const file of walkTsFiles(destSrc)) {
     addNote(rel, 'repointed the renderNumber/renderTroops import at the local, non-upstream RenderNumber.ts extract instead of client/Utils.ts')
   }
 
-  // 4c. resources/QuickChat.json path-alias import.
-  if (content.includes('resources/QuickChat.json')) {
-    const relToResources = path.relative(path.dirname(file), path.join(destDir, 'resources', 'QuickChat.json')).split(path.sep).join('/')
-    content = content.replace(/["']resources\/QuickChat\.json["']/, `"${relToResources.startsWith('.') ? relToResources : `./${relToResources}`}"`)
+  // 4c. resources/<name>.json path-alias imports.
+  for (const name of KNOWN_RESOURCE_FILES) {
+    const marker = `resources/${name}`
+    if (!content.includes(marker)) continue
+    const relToResources = path.relative(path.dirname(file), path.join(destDir, 'resources', name)).split(path.sep).join('/')
+    const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    content = content.replace(new RegExp(`["']${escapedMarker}["']`), `"${relToResources.startsWith('.') ? relToResources : `./${relToResources}`}"`)
     changed = true
-    trimmedQuickChatCount++
-    addNote(rel, 'repointed the resources/QuickChat.json path-alias import at the vendored copy with a relative import')
+    trimmedResourceRepointCount++
+    addNote(rel, `repointed the ${marker} path-alias import at the vendored copy with a relative import`)
   }
 
   // 4d. GameUpdateUtils.ts's applyStateUpdate (client-only helper) - the
@@ -236,18 +252,25 @@ for (const file of walkTsFiles(destSrc)) {
   if (changed) fs.writeFileSync(file, content)
 }
 
-console.log(`  union-type trims: ${trimmedUnionCount}, renderNumber repoints: ${trimmedRenderNumberCount}, QuickChat repoints: ${trimmedQuickChatCount}`)
+console.log(`  union-type trims: ${trimmedUnionCount}, renderNumber repoints: ${trimmedRenderNumberCount}, QuickChat repoints: ${trimmedResourceRepointCount}`)
 
 // Canonical RenderNumber.ts - copy from an existing tree, but verify the
 // actual renderNumber/renderTroops bodies at this commit still match first.
+// If upstream genuinely changed the behavior (it has - see 3fa1a8e0, which
+// added billions-scale formatting), reusing the old extract would silently
+// ship the WRONG, out-of-date formatting for this commit - so on a real
+// mismatch this writes what THIS commit's client/Utils.ts actually contains
+// instead, not the canonical file (which stays as-is; it reflects dcc18d5's
+// own historical behavior and updating it would misrepresent that tree).
 const existingRenderNumber = fs.readFileSync(path.join(ROOT, 'src/vendor/openfront-core/src/core/utilities/RenderNumber.ts'), 'utf8')
 const clientUtilsPath = path.join(srcRoot, 'client/Utils.ts')
+let renderNumberBody = existingRenderNumber.replace(/commit [0-9a-f]{40}/, `commit ${commit}`).replace(/README\.md/, `openfront-core-${shortSha}/README.md`)
+let renderNumberDiffers = false
 if (fs.existsSync(clientUtilsPath)) {
   const clientUtils = fs.readFileSync(clientUtilsPath, 'utf8')
   const rnMatch = clientUtils.match(/export function renderNumber\([\s\S]*?\n\}/)
   const rtMatch = clientUtils.match(/export function renderTroops\([\s\S]*?\n\}/)
   const canonicalBody = existingRenderNumber.slice(existingRenderNumber.indexOf('export function renderNumber'))
-  const thisBody = `${rnMatch ? rnMatch[0] : ''}\n\n${rtMatch ? rtMatch[0] : ''}\n`
   // Strips ALL whitespace (not just collapsing runs) and trailing commas -
   // this is a behavior check, not a formatting check, so a multi-line vs
   // single-line parameter list (trailing comma either way) shouldn't count
@@ -255,17 +278,25 @@ if (fs.existsSync(clientUtilsPath)) {
   const normalize = (s) => s.replace(/\s+/g, '').replace(/,\)/g, ')')
   if (rnMatch && rtMatch && normalize(canonicalBody).includes(normalize(rnMatch[0])) && normalize(canonicalBody).includes(normalize(rtMatch[0]))) {
     console.log('  renderNumber/renderTroops body confirmed unchanged from the existing extract - reusing it verbatim')
+  } else if (rnMatch && rtMatch) {
+    renderNumberDiffers = true
+    renderNumberBody =
+      `// Locally authored for Cynosure - not an upstream OpenFrontIO file.\n` +
+      `// Extracted from OpenFrontIO's src/client/Utils.ts (renderNumber/renderTroops\n` +
+      `// only) at commit ${commit} - this commit's body differs from the shared\n` +
+      `// canonical extract (src/vendor/openfront-core/.../RenderNumber.ts), so this\n` +
+      `// tree gets its OWN copy instead of reusing that one.\n` +
+      `// Licensed AGPL-3.0-or-later - see openfront-core-${shortSha}/README.md.\n\n` +
+      `${rnMatch[0]}\n\n${rtMatch[0]}\n`
+    console.warn('  WARNING: renderNumber/renderTroops body differs at this commit - wrote a commit-specific extract instead of reusing the canonical one. Review it by hand before trusting it.')
   } else {
-    console.warn('  WARNING: renderNumber/renderTroops body differs at this commit! Wrote the OLD extract anyway - diff and fix src/vendor/' + `openfront-core-${shortSha}/src/core/utilities/RenderNumber.ts` + ' by hand before trusting it.')
+    console.warn('  WARNING: renderNumber/renderTroops not found in the expected shape at this commit - wrote the OLD canonical extract as a fallback. Review src/vendor/' + `openfront-core-${shortSha}/src/core/utilities/RenderNumber.ts` + ' by hand.')
   }
 } else {
   console.warn('  WARNING: client/Utils.ts not found at this commit - could not verify renderNumber/renderTroops body, wrote the old extract as-is.')
 }
 fs.mkdirSync(path.join(destSrc, 'core/utilities'), { recursive: true })
-fs.writeFileSync(
-  path.join(destSrc, 'core/utilities/RenderNumber.ts'),
-  existingRenderNumber.replace(/commit [0-9a-f]{40}/, `commit ${commit}`).replace(/README\.md/, `openfront-core-${shortSha}/README.md`),
-)
+fs.writeFileSync(path.join(destSrc, 'core/utilities/RenderNumber.ts'), renderNumberBody)
 
 // ── 5. Recompute closure on the trimmed tree, prune orphans ──────────────
 
@@ -368,7 +399,7 @@ console.log(`  GameUpdateUtils trimmed: ${trimmedGameUpdateUtils}`)
 
 // Sanity check: nothing outside the known-allowed client/* files should remain.
 const remainingClientFiles = [...trimmedClosure].filter((f) => f.startsWith('client/'))
-const unexpectedClient = remainingClientFiles.filter((f) => !['client/hud/NameBoxCalculator.ts', 'client/graphics/NameBoxCalculator.ts', 'client/render/gl/GraphicsOverrides.ts'].includes(f))
+const unexpectedClient = remainingClientFiles.filter((f) => !KNOWN_SAFE_CLIENT_FILES.includes(f))
 if (unexpectedClient.length) {
   console.warn('  WARNING: unexpected client/* files still in the closure - this commit likely needs a NEW trim this script doesn\'t know about:', unexpectedClient)
 }
@@ -437,8 +468,11 @@ fs.writeFileSync(
     `## What this script trimmed automatically\n\n` +
     `- Union-type arms (\`Xxx | XxxView\`) + their \`client/view\` imports: ${trimmedUnionCount} file(s).\n` +
     `- \`renderNumber\`/\`renderTroops\` repointed off \`client/Utils.ts\`: ${trimmedRenderNumberCount} file(s).\n` +
-    `- \`resources/QuickChat.json\` path-alias import repointed: ${trimmedQuickChatCount} file(s).\n` +
+    `- \`resources/*.json\` path-alias imports repointed: ${trimmedResourceRepointCount} file(s).\n` +
     `- \`GameUpdateUtils.ts\`'s \`applyStateUpdate\`: ${trimmedGameUpdateUtils === true ? 'dropped (no in-closure caller)' : trimmedGameUpdateUtils === false ? 'KEPT - found an in-closure caller, review needed' : 'not present at this commit'}.\n` +
+    (renderNumberDiffers
+      ? `\n**Note**: this commit's \`renderNumber\`/\`renderTroops\` differ from the shared canonical extract - this tree got its own commit-specific copy of \`core/utilities/RenderNumber.ts\` instead. Worth a manual diff review.\n`
+      : '') +
     (unexpectedClient.length
       ? `\n**Needs manual review**: unexpected client/* files remained reachable after trimming (${unexpectedClient.join(', ')}) - this commit likely introduced a new pattern this script doesn't know how to trim yet.\n`
       : '') +

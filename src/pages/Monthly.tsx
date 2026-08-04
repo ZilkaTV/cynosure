@@ -16,9 +16,11 @@ import {
   isFfa,
   isTeam,
   is1v1,
+  is2v2,
   monthKeyOf,
   monthLabel,
   oneVoneBucket,
+  twoVTwoBucket,
   teamMonthly,
   winRate,
   type MemberStats,
@@ -47,7 +49,7 @@ function latestModeGames(members: MemberStats[], month: string, isMode: (g: Play
     .slice(0, LATEST_GAMES_COUNT)
 }
 
-type Variant = 'ffa' | 'team' | '1v1'
+type Variant = 'ffa' | 'team' | '1v1' | '2v2'
 
 function fmtGold(n: number | null): string {
   if (n == null) return '-'
@@ -246,7 +248,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
     return best ? { name: best.m.name, value: best.v } : null
   }
 
-  const title = variant === 'ffa' ? t.monthly.titleFfa : variant === 'team' ? t.monthly.titleTeam : t.monthly.title1v1
+  const title =
+    variant === 'ffa' ? t.monthly.titleFfa : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? t.monthly.title1v1 : t.monthly.title2v2
   const rules = rulesFor(variant, t)
 
   return (
@@ -440,6 +443,51 @@ export default function Monthly({ variant }: { variant: Variant }) {
           )
         })()}
 
+        {data && variant === '2v2' && (() => {
+          const rows = members
+            .map((m) => ({ m, b: twoVTwoBucket(m.cynGames, month), wr: winRate(twoVTwoBucket(m.cynGames, month).wins, twoVTwoBucket(m.cynGames, month).losses) }))
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.b.wins, b.b.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.b.losses, b.b.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.wr, b.wr, sortDir)
+              if (sortKey === 'elo') return compareNullable(a.m.elo2v2, b.m.elo2v2, sortDir)
+              if (sortKey === 'eloDelta') return compareNullable(a.m.eloMonthDelta2v2, b.m.eloMonthDelta2v2, sortDir)
+              return (b.m.eloMonthDelta2v2 ?? -9999) - (a.m.eloMonthDelta2v2 ?? -9999) || b.b.wins - a.b.wins
+            })
+          return (
+            <div className="panel overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px] text-sm">
+                  <thead>
+                    <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                      <th className="px-4 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colCurrentElo} sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colEloDelta} sortKey="eloDelta" active={sortKey === 'eloDelta'} dir={sortDir} onClick={onSortClick} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(({ m, b, wr }, i) => (
+                      <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                        <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                        <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo2v2 ?? <span className="text-slate-600">-</span>}</td>
+                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta2v2} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
+
         {data && (
           <>
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
@@ -453,8 +501,14 @@ export default function Monthly({ variant }: { variant: Variant }) {
       {data && (
         <LatestGamesSection
           eyebrow={t.monthly.eyebrowPrefix}
-          title={t.monthly.latestModeGamesTitle(variant === 'ffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : '1v1')}
-          games={latestModeGames(members, month, variant === 'ffa' ? isFfa : variant === 'team' ? isTeam : is1v1)}
+          title={t.monthly.latestModeGamesTitle(
+            variant === 'ffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? '1v1' : '2v2',
+          )}
+          games={latestModeGames(
+            members,
+            month,
+            variant === 'ffa' ? isFfa : variant === 'team' ? isTeam : variant === '1v1' ? is1v1 : is2v2,
+          )}
           onOpenGame={setOpenGame}
           t={t}
         />

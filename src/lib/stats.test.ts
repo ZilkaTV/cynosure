@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isFfa, isTeam, is1v1, ffaBucket, teamBucket, oneVoneBucket, winRate, monthKeyOf } from './stats'
+import { isFfa, isTeam, is1v1, is2v2, ffaBucket, teamBucket, oneVoneBucket, winRate, monthKeyOf } from './stats'
 import type { PlayerGame } from './openfront'
 
 function makeGame(overrides: Partial<PlayerGame> = {}): PlayerGame {
@@ -39,6 +39,14 @@ describe('game mode classification', () => {
     const g = makeGame({ mode: 'Free For All', rankedType: '1v1' })
     expect(is1v1(g)).toBe(true)
     expect(isFfa(g)).toBe(false)
+  })
+
+  it('classifies ranked 2v2 as its own mode, not Team', () => {
+    const g = makeGame({ mode: 'Team', rankedType: '2v2' })
+    expect(is2v2(g)).toBe(true)
+    expect(isTeam(g)).toBe(false)
+    expect(isFfa(g)).toBe(false)
+    expect(is1v1(g)).toBe(false)
   })
 })
 

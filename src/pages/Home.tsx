@@ -5,7 +5,7 @@ import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
-import { isFfa, isTeam, is1v1 } from '../lib/stats'
+import { isFfa, isTeam, is1v1, is2v2 } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
@@ -100,6 +100,40 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.peakElo ?? -1,
     },
     {
+      key: 'twovtwo',
+      label: t.home.col2v2,
+      align: 'right',
+      render: (m) => (
+        <>
+          {m.twoVTwoWins}
+          <RefreshDelta value={deltas[m.publicId]?.twoVTwoWins} />
+        </>
+      ),
+      sortValue: (m) => m.twoVTwoWins,
+    },
+    {
+      key: 'elo2v2',
+      label: t.home.col2v2Elo,
+      align: 'right',
+      render: (m) =>
+        m.elo2v2 == null ? (
+          <span className="text-slate-600">-</span>
+        ) : (
+          <span className="font-display font-bold tabular-nums text-gold-light">
+            {m.elo2v2}
+            <RefreshDelta value={deltas[m.publicId]?.elo2v2} />
+          </span>
+        ),
+      sortValue: (m) => m.elo2v2 ?? -1,
+    },
+    {
+      key: 'peak2v2',
+      label: t.home.colPeak,
+      align: 'right',
+      render: (m) => (m.peakElo2v2 == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo2v2}</span>),
+      sortValue: (m) => m.peakElo2v2 ?? -1,
+    },
+    {
       key: 'speedrun',
       label: t.home.colSpeedrun,
       align: 'right',
@@ -142,7 +176,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
 }
 
 function modeLabel(g: PlayerGame): string {
-  return is1v1(g) ? '1v1' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
+  return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
 }
 
 function fmtDuration(s: number): string {
@@ -209,10 +243,11 @@ export default function Home() {
     <StatsShell>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <StatCard label={t.home.statMembers} value={totals ? totals.members : '…'} accent="plain" />
           <StatCard label={t.home.statTopElo} value={totals?.topElo ?? '…'} accent="gold" />
           <StatCard label={t.home.stat1v1Wins} value={totals ? totals.rankedWins : '…'} accent="purple" />
+          <StatCard label={t.home.stat2v2Wins} value={totals ? totals.twoVTwoWins : '…'} accent="purple" />
           <StatCard label={t.home.statTeamWins} value={totals ? totals.teamWins : '…'} accent="purple" />
           <StatCard className="col-span-2 sm:col-span-1" label={t.home.statAllWins} value={totals ? totals.allWins : '…'} accent="gold" />
         </div>

@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { MemberStats } from '../lib/stats'
-import { isFfa, isTeam, is1v1 } from '../lib/stats'
+import { isFfa, isTeam, is1v1, is2v2 } from '../lib/stats'
 import type { PlayerGame } from '../lib/openfront'
 import { useLanguage } from '../i18n/LanguageContext'
 
-type Mode = 'ffa' | 'team' | 'one'
+type Mode = 'ffa' | 'team' | 'one' | 'twovtwo'
 
 const MODE_STYLE: Record<Mode, { text: string; bg: string; hex: string }> = {
   ffa: { text: 'text-signal-red', bg: 'bg-signal-red/10', hex: '#f0556b' },
   team: { text: 'text-signal-blue', bg: 'bg-signal-blue/10', hex: '#5b9dff' },
   one: { text: 'text-signal-green', bg: 'bg-signal-green/10', hex: '#33d17a' },
+  twovtwo: { text: 'text-gold-light', bg: 'bg-gold/10', hex: '#e8c46c' },
 }
 
 function modeOf(g: PlayerGame): Mode | null {
   if (is1v1(g)) return 'one'
+  if (is2v2(g)) return 'twovtwo'
   if (isTeam(g)) return 'team'
   if (isFfa(g)) return 'ffa'
   return null
@@ -97,11 +99,12 @@ export default function ProfileStatsOverview({ member, games }: { member: Member
   const wins = decided.filter((g) => g.result === 'victory').length
   const losses = decided.filter((g) => g.result === 'defeat').length
 
-  const modes: Mode[] = ['ffa', 'team', 'one']
+  const modes: Mode[] = ['ffa', 'team', 'one', 'twovtwo']
   const modeLabel: Record<Mode, string> = {
     ffa: t.memberProfile.statsModeFfa,
     team: t.memberProfile.statsModeTeam,
     one: t.memberProfile.statsMode1v1,
+    twovtwo: t.memberProfile.statsMode2v2,
   }
 
   const byMode = modes.map((mode) => {
@@ -140,7 +143,7 @@ export default function ProfileStatsOverview({ member, games }: { member: Member
           </span>
         </div>
       </div>
-      <div className="grid w-full flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid w-full flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {byMode.map(({ mode, count, avgKills, avgTroopsOut, avgTroopsIn, avgGold, avgMaxTiles }) => (
           <div key={mode} className={`rounded-xl border border-base-700 ${MODE_STYLE[mode].bg} p-3`}>
             <p className={`mb-2 text-xs font-bold uppercase tracking-wide ${MODE_STYLE[mode].text}`}>

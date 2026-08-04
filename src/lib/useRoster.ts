@@ -8,7 +8,7 @@ import { buildRoster, type RosterResult, type MemberStats } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
 
 // Numeric fields worth showing a "+N" delta for after a manual refresh.
-const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'allWins', 'elo', 'bumpCount'] as const
+const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2', 'bumpCount'] as const
 export type DeltaField = (typeof DELTA_FIELDS)[number]
 export type Deltas = Record<string, Partial<Record<DeltaField, number>>>
 
@@ -50,7 +50,7 @@ async function loadRosterDeduped(): Promise<RosterResult> {
 // surface a positive delta (a real new win) and silently drop a decrease.
 // Elo isn't a monotonic counter - it genuinely goes up and down with real
 // results - so it keeps showing deltas in both directions.
-const MONOTONIC_FIELDS = new Set<DeltaField>(['ffaWins', 'teamWins', 'rankedWins', 'allWins', 'bumpCount'])
+const MONOTONIC_FIELDS = new Set<DeltaField>(['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'bumpCount'])
 
 function computeDeltas(before: RosterResult | null, after: RosterResult): Deltas {
   if (!before) return {}

@@ -18,6 +18,7 @@ function navItems(t: TranslationShape) {
     { to: '/monthly/ffa', label: t.nav.monthlyFfa, shortLabel: t.nav.shortFfa },
     { to: '/monthly/team', label: t.nav.monthlyTeam, shortLabel: t.nav.shortTeam },
     { to: '/monthly/1v1', label: t.nav.monthly1v1, shortLabel: t.nav.short1v1 },
+    { to: '/monthly/2v2', label: t.nav.monthly2v2, shortLabel: t.nav.short2v2 },
     { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },

@@ -18,8 +18,10 @@ import {
   isFfa,
   isTeam,
   is1v1,
+  is2v2,
   monthLabel,
   oneVoneBucket,
+  twoVTwoBucket,
   teamBucket,
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
@@ -126,13 +128,14 @@ export default function MemberProfile() {
   const ffa = ffaBucket(m.cynGames, mk)
   const team = teamBucket(m.cynGames, mk, coop)
   const one = oneVoneBucket(m.cynGames, mk)
+  const twoVTwo = twoVTwoBucket(m.cynGames, mk)
 
   const recent = [...m.cynGames]
     .filter((g) => g.type !== 'Private')
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 20)
 
-  const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
+  const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60)
     return `${m}m ${String(s % 60).padStart(2, '0')}s`
@@ -201,11 +204,13 @@ export default function MemberProfile() {
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.lifetimeEyebrow} title={t.memberProfile.careerTitle(CLAN_TAG)} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
           <StatCard label={t.memberProfile.stat1v1Elo} value={m.elo ?? '-'} accent="gold" sub={m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined} />
+          <StatCard label={t.memberProfile.stat2v2Elo} value={m.elo2v2 ?? '-'} accent="gold" sub={m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined} />
           <StatCard label={t.memberProfile.statFfaWins} value={m.ffaWins} accent="purple" />
           <StatCard label={t.memberProfile.statTeamWins} value={m.teamWins} accent="purple" />
           <StatCard label={t.memberProfile.stat1v1Wins} value={m.rankedWins} accent="purple" />
+          <StatCard label={t.memberProfile.stat2v2Wins} value={m.twoVTwoWins} accent="purple" />
           <StatCard label={t.memberProfile.statAllWins} value={m.allWins} accent="gold" />
           <StatCard label={t.memberProfile.statGames30d} value={m.gamesLast30d} accent="plain" />
         </div>
@@ -221,7 +226,7 @@ export default function MemberProfile() {
 
       <section>
         <SectionHeading center eyebrow={monthLabel(mk)} title={t.memberProfile.thisMonthTitle} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="text-center">
             <p className="text-xs uppercase tracking-wide text-slate-400">{t.monthly.titleFfa}</p>
             <p className="mt-1 font-display text-2xl font-bold text-accent-light">{t.common.pts(ffa.points)}</p>
@@ -238,6 +243,13 @@ export default function MemberProfile() {
               <EloDelta delta={m.eloMonthDelta} />
             </p>
             <p className="text-xs text-slate-500">{t.common.winsLosses(one.wins, one.losses)}</p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-xs uppercase tracking-wide text-slate-400">{t.home.col2v2}</p>
+            <p className="mt-1 font-display text-2xl font-bold text-gold-light">
+              <EloDelta delta={m.eloMonthDelta2v2} />
+            </p>
+            <p className="text-xs text-slate-500">{t.common.winsLosses(twoVTwo.wins, twoVTwo.losses)}</p>
           </Card>
         </div>
       </section>

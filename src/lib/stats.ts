@@ -37,11 +37,16 @@ export interface MemberStats {
   ffaWins: number
   teamWins: number
   rankedWins: number
+  twoVTwoWins: number
   allWins: number
   elo: number | null
   peakElo: number | null
   eloInTop100: boolean
   eloMonthDelta: number | null
+  elo2v2: number | null
+  peakElo2v2: number | null
+  eloInTop100_2v2: boolean
+  eloMonthDelta2v2: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
@@ -74,6 +79,7 @@ export interface RosterResult {
     ffaWins: number
     teamWins: number
     rankedWins: number
+    twoVTwoWins: number
     allWins: number
     topElo: number | null
   }
@@ -85,7 +91,11 @@ const isCyn = (g: PlayerGame) => g.clanTag === CLAN_TAG && g.type !== 'Singlepla
 const isVictory = (g: PlayerGame) => g.result === 'victory'
 const isDefeat = (g: PlayerGame) => g.result === 'defeat'
 export const isFfa = (g: PlayerGame) => g.mode === 'Free For All' && g.rankedType !== '1v1'
-export const isTeam = (g: PlayerGame) => g.mode === 'Team'
+export const is2v2 = (g: PlayerGame) => g.rankedType === '2v2'
+// mode === 'Team' also covers 2v2 ranked games (OpenFront doesn't give 2v2 its
+// own `mode` value) - excluded here the same way isFfa already excludes 1v1,
+// so 2v2 gets tracked as its own thing instead of silently folding into Team.
+export const isTeam = (g: PlayerGame) => g.mode === 'Team' && !is2v2(g)
 export const is1v1 = (g: PlayerGame) => g.rankedType === '1v1'
 
 export function monthKeyOf(iso: string): string {
@@ -155,6 +165,14 @@ export function teamBucket(
 
 export function oneVoneBucket(games: PlayerGame[], monthKey: string): { wins: number; losses: number } {
   const inMonth = games.filter((g) => is1v1(g) && monthKeyOf(g.start) === monthKey)
+  return {
+    wins: inMonth.filter(isVictory).length,
+    losses: inMonth.filter(isDefeat).length,
+  }
+}
+
+export function twoVTwoBucket(games: PlayerGame[], monthKey: string): { wins: number; losses: number } {
+  const inMonth = games.filter((g) => is2v2(g) && monthKeyOf(g.start) === monthKey)
   return {
     wins: inMonth.filter(isVictory).length,
     losses: inMonth.filter(isDefeat).length,
@@ -249,9 +267,9 @@ export function monthLabel(key: string): string {
 
 // ── monthly elo snapshots (OpenFront has no elo history) ─────────────────────
 
-function eloMonthDelta(publicId: string, currentElo: number | null): number | null {
+function eloMonthDelta(publicId: string, currentElo: number | null, mode: '1v1' | '2v2' = '1v1'): number | null {
   if (currentElo == null) return null
-  const key = `of:elosnap:${currentMonthKey()}`
+  const key = mode === '1v1' ? `of:elosnap:${currentMonthKey()}` : `of:elosnap:${mode}:${currentMonthKey()}`
   let snap: Record<string, number>
   try {
     snap = JSON.parse(localStorage.getItem(key) ?? '{}')
@@ -284,7 +302,7 @@ export async function buildRoster(
   supporters: string[] = [],
 ): Promise<RosterResult> {
   const registeredWithId = registered.filter((r) => r.openfront_id)
-  const [ranked, ffaLb, gamesById] = await Promise.all([
+  const [{ oneVOne: ranked, twoVTwo: ranked2v2 }, ffaLb, gamesById] = await Promise.all([
     fetchRankedMap(),
     fetchFfaLeaderboard(),
     fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
@@ -343,10 +361,13 @@ export async function buildRoster(
 
   const members: MemberStats[] = raw.map(({ input, games }) => {
     const r: RankedEntry | undefined = ranked[input.openfront_id]
+    const r2: RankedEntry | undefined = ranked2v2[input.openfront_id]
     const ffaWins = games.filter((g) => isFfa(g) && isVictory(g)).length
     const teamWins = games.filter((g) => isTeam(g) && isVictory(g)).length
     const rankedWins = games.filter((g) => is1v1(g) && isVictory(g)).length
+    const twoVTwoWins = games.filter((g) => is2v2(g) && isVictory(g)).length
     const elo = r?.elo ?? null
+    const elo2v2 = r2?.elo ?? null
     const lastGame = games.reduce<string | null>(
       (acc, g) => (!acc || new Date(g.start) > new Date(acc) ? g.start : acc),
       null,
@@ -390,11 +411,16 @@ export async function buildRoster(
       ffaWins,
       teamWins,
       rankedWins,
-      allWins: ffaWins + teamWins + rankedWins,
+      twoVTwoWins,
+      allWins: ffaWins + teamWins + rankedWins + twoVTwoWins,
       elo,
       peakElo: r?.peakElo ?? null,
       eloInTop100: !!r,
       eloMonthDelta: eloMonthDelta(input.openfront_id, elo),
+      elo2v2,
+      peakElo2v2: r2?.peakElo ?? null,
+      eloInTop100_2v2: !!r2,
+      eloMonthDelta2v2: eloMonthDelta(input.openfront_id, elo2v2, '2v2'),
       rank1v1: r?.rank ?? null,
       ffaRank:
         ffaLb[input.in_game_name?.trim() ?? ''] ??
@@ -426,6 +452,7 @@ export async function buildRoster(
     ffaWins: members.reduce((s, m) => s + m.ffaWins, 0),
     teamWins: members.reduce((s, m) => s + m.teamWins, 0),
     rankedWins: members.reduce((s, m) => s + m.rankedWins, 0),
+    twoVTwoWins: members.reduce((s, m) => s + m.twoVTwoWins, 0),
     allWins: members.reduce((s, m) => s + m.allWins, 0),
     topElo: members.reduce<number | null>((mx, m) => (m.elo != null && (mx == null || m.elo > mx) ? m.elo : mx), null),
   }

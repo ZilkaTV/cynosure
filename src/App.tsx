@@ -43,6 +43,7 @@ export default function App() {
             <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
             <Route path="/monthly/team" element={<Monthly variant="team" />} />
             <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
+            <Route path="/monthly/2v2" element={<Monthly variant="2v2" />} />
             <Route path="/member/:id" element={<MemberProfile />} />
             <Route path="/speedrun" element={<Speedrun />} />
             <Route path="/events" element={<Events />} />

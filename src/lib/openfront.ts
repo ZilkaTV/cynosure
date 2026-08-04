@@ -31,7 +31,7 @@ export interface PlayerGame {
   mode: 'Free For All' | 'Team' | string
   type: 'Public' | 'Private' | 'Singleplayer' | string
   playerTeams: string | null
-  rankedType: 'unranked' | '1v1' | string
+  rankedType: 'unranked' | '1v1' | '2v2' | string
   result: 'victory' | 'defeat' | 'incomplete'
   totalPlayers: number | null
   username: string
@@ -192,31 +192,36 @@ async function getJson(url: string): Promise<unknown> {
 }
 
 // ── Ranked leaderboard (the only source of elo - top 100 players) ───────────
+// One response carries both ladders (1v1 and 2v2), so both maps are built
+// from the same page requests instead of scanning the leaderboard twice.
 
-async function fetchRankedPage(page: number): Promise<RankedEntry[]> {
-  const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as { '1v1'?: RankedEntry[] }
-  return json?.['1v1'] ?? []
+async function fetchRankedPage(page: number): Promise<{ oneVOne: RankedEntry[]; twoVTwo: RankedEntry[] }> {
+  const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as { '1v1'?: RankedEntry[]; '2v2'?: RankedEntry[] }
+  return { oneVOne: json?.['1v1'] ?? [], twoVTwo: json?.['2v2'] ?? [] }
 }
 
-/** Map of public_id → ranked entry for everyone on the ladder (top 100). */
-export async function fetchRankedMap(): Promise<Record<string, RankedEntry>> {
-  const key = `${CACHE_NS}:rankedmap`
-  const cached = cacheGet<Record<string, RankedEntry>>(key)
+/** Map of public_id → ranked entry for everyone on each ladder (top 100). */
+export async function fetchRankedMap(): Promise<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry> }> {
+  const key = `${CACHE_NS}:rankedmap2`
+  const cached = cacheGet<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry> }>(key)
   if (cached) return cached
 
-  const byId: Record<string, RankedEntry> = {}
+  const oneVOne: Record<string, RankedEntry> = {}
+  const twoVTwo: Record<string, RankedEntry> = {}
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
-    let entries: RankedEntry[]
+    let entries: { oneVOne: RankedEntry[]; twoVTwo: RankedEntry[] }
     try {
       entries = await fetchRankedPage(page)
     } catch {
       break
     }
-    if (entries.length === 0) break
-    for (const e of entries) byId[e.public_id] = e
+    if (entries.oneVOne.length === 0 && entries.twoVTwo.length === 0) break
+    for (const e of entries.oneVOne) oneVOne[e.public_id] = e
+    for (const e of entries.twoVTwo) twoVTwo[e.public_id] = e
   }
-  cacheSet(key, byId)
-  return byId
+  const result = { oneVOne, twoVTwo }
+  cacheSet(key, result)
+  return result
 }
 
 // ── trackerfront FFA leaderboard (for FFA ship badges) ──────────────────────

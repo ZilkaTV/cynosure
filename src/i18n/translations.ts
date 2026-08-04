@@ -412,6 +412,11 @@ export const translations = {
         earnedDesc: (n: number) => `Top ${n} 1v1 Ranked`,
         notEarnedDesc: 'Reach the top 100 1v1 Ranked ladder',
       },
+      star2v2: {
+        name: '2v2 Ladder',
+        earnedDesc: (n: number) => `Top ${n} 2v2 Ranked`,
+        notEarnedDesc: 'Reach the top 100 2v2 Ranked ladder',
+      },
       ship: {
         name: 'FFA Ladder',
         earnedDesc: (n: number) => `Top ${n} FFA Ranked`,
@@ -421,6 +426,11 @@ export const translations = {
         name: 'Most Wins in CYN',
         descWithLeader: (name: string, v: number) => `Most total wins in the clan - ${name}, currently ${v}`,
         descNoLeader: 'Most total wins in the clan',
+      },
+      mostTwoVTwoWins: {
+        name: 'Most 2v2 Wins in CYN',
+        descWithLeader: (name: string, v: number) => `Most 2v2 wins in the clan - ${name}, currently ${v}`,
+        descNoLeader: 'Most 2v2 wins in the clan',
       },
       fastest: {
         name: 'Fastest Speedrun in CYN',
@@ -948,6 +958,11 @@ export const translations = {
         earnedDesc: (n: number) => `Top ${n} 1v1 Ranked`,
         notEarnedDesc: 'Erreiche die Top 100 der 1v1-Ranked-Ladder',
       },
+      star2v2: {
+        name: '2v2-Ladder',
+        earnedDesc: (n: number) => `Top ${n} 2v2 Ranked`,
+        notEarnedDesc: 'Erreiche die Top 100 der 2v2-Ranked-Ladder',
+      },
       ship: {
         name: 'FFA-Ladder',
         earnedDesc: (n: number) => `Top ${n} FFA Ranked`,
@@ -957,6 +972,11 @@ export const translations = {
         name: 'Meiste Siege in CYN',
         descWithLeader: (name: string, v: number) => `Meiste Gesamtsiege im Clan - ${name}, aktuell ${v}`,
         descNoLeader: 'Meiste Gesamtsiege im Clan',
+      },
+      mostTwoVTwoWins: {
+        name: 'Meiste 2v2-Siege in CYN',
+        descWithLeader: (name: string, v: number) => `Meiste 2v2-Siege im Clan - ${name}, aktuell ${v}`,
+        descNoLeader: 'Meiste 2v2-Siege im Clan',
       },
       fastest: {
         name: 'Schnellster Speedrun in CYN',
@@ -1484,6 +1504,11 @@ export const translations = {
         earnedDesc: (n: number) => `Top ${n} 1v1 Ranked`,
         notEarnedDesc: 'Atteins le top 100 du ladder 1v1 Ranked',
       },
+      star2v2: {
+        name: 'Ladder 2v2',
+        earnedDesc: (n: number) => `Top ${n} 2v2 Ranked`,
+        notEarnedDesc: 'Atteins le top 100 du ladder 2v2 Ranked',
+      },
       ship: {
         name: 'Ladder FFA',
         earnedDesc: (n: number) => `Top ${n} FFA Ranked`,
@@ -1493,6 +1518,11 @@ export const translations = {
         name: 'Plus de victoires en CYN',
         descWithLeader: (name: string, v: number) => `Le plus de victoires totales dans le clan - ${name}, actuellement ${v}`,
         descNoLeader: 'Le plus de victoires totales dans le clan',
+      },
+      mostTwoVTwoWins: {
+        name: 'Plus de victoires 2v2 en CYN',
+        descWithLeader: (name: string, v: number) => `Le plus de victoires 2v2 dans le clan - ${name}, actuellement ${v}`,
+        descNoLeader: 'Le plus de victoires 2v2 dans le clan',
       },
       fastest: {
         name: 'Speedrun le plus rapide en CYN',

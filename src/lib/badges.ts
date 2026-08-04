@@ -35,6 +35,7 @@ export type IconKey =
   | 'flag'
   | 'chatBubble'
   | 'heart'
+  | 'handshake'
 
 export interface Badge {
   id: string
@@ -126,6 +127,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
   const b = t.badges
 
   const mostWins = leader(all, (x) => x.allWins)
+  const mostTwoVTwoWins = leader(all, (x) => x.twoVTwoWins)
   const predator = leader(all, (x) => ffa(x).avgKills ?? 0)
   const pro = leader(all, (x) => ffa(x).winstreak)
   const grinder = leader(all, (x) => ffa(x).points)
@@ -135,10 +137,12 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
   const fastest = fastestSpeedrunner(all)
 
   const starTier = tierFromRank(m.rank1v1)
+  const star2v2Tier = tierFromRank(m.rank2v2)
   const shipTier = tierFromRank(m.ffaRank)
   const streak = loyalStreak(m)
 
   const starLabel = starTier ? b.star.earnedDesc(tierLimit(starTier)) : b.star.notEarnedDesc
+  const star2v2Label = star2v2Tier ? b.star2v2.earnedDesc(tierLimit(star2v2Tier)) : b.star2v2.notEarnedDesc
   const shipLabel = shipTier ? b.ship.earnedDesc(tierLimit(shipTier)) : b.ship.notEarnedDesc
 
   const level = levelFromXp(m.xp)
@@ -148,6 +152,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
     // ── rank (tiered) ──
     { id: 'level', name: levelTitle, kind: 'level', level, earned: true, group: 'rank', desc: b.levelDesc(level, m.xp) },
     { id: 'star', name: b.star.name, kind: 'star', tier: starTier ?? undefined, earned: !!starTier, group: 'rank', desc: starLabel },
+    { id: 'star2v2', name: b.star2v2.name, kind: 'star', tier: star2v2Tier ?? undefined, earned: !!star2v2Tier, group: 'rank', desc: star2v2Label },
     { id: 'ship', name: b.ship.name, kind: 'ship', tier: shipTier ?? undefined, earned: !!shipTier, group: 'rank', desc: shipLabel },
     {
       id: 'mostWins',
@@ -157,6 +162,15 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       earned: mostWins?.id === m.publicId,
       group: 'rank',
       desc: mostWins ? b.mostWins.descWithLeader(mostWins.name, mostWins.v) : b.mostWins.descNoLeader,
+    },
+    {
+      id: 'mostTwoVTwoWins',
+      name: b.mostTwoVTwoWins.name,
+      kind: 'icon',
+      icon: 'handshake',
+      earned: mostTwoVTwoWins?.id === m.publicId,
+      group: 'rank',
+      desc: mostTwoVTwoWins ? b.mostTwoVTwoWins.descWithLeader(mostTwoVTwoWins.name, mostTwoVTwoWins.v) : b.mostTwoVTwoWins.descNoLeader,
     },
     {
       id: 'fastest',

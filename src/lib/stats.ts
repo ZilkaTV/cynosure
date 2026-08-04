@@ -48,6 +48,7 @@ export interface MemberStats {
   eloInTop100_2v2: boolean
   eloMonthDelta2v2: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
+  rank2v2: number | null // global 2v2 ladder position (top 100), for star badges
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   speedrunAttempts: number // how many valid runs this member has submitted
@@ -422,6 +423,7 @@ export async function buildRoster(
       eloInTop100_2v2: !!r2,
       eloMonthDelta2v2: eloMonthDelta(input.openfront_id, elo2v2, '2v2'),
       rank1v1: r?.rank ?? null,
+      rank2v2: r2?.rank ?? null,
       ffaRank:
         ffaLb[input.in_game_name?.trim() ?? ''] ??
         (r?.username ? ffaLb[r.username] : undefined) ??

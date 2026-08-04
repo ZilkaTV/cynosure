@@ -63,6 +63,7 @@ export const EMOJI = {
   globeAfrica: '🌍',
   chatBubble: '💬',
   heart: '❤️',
+  handshake: '🤝',
 } as const
 
 /** A member's nationality flag (ISO alpha-2 code), for showing next to their name in tables. */

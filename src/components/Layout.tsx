@@ -172,6 +172,13 @@ export default function Layout({ children }: { children: ReactNode }) {
         </p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.statsNotice(CLAN_TAG)}</p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.trackingSince(trackingSince())}</p>
+        <p className="mt-1 text-xs text-slate-600">
+          {t.footer.badgeIconsCredit}{' '}
+          <a href="https://game-icons.net" target="_blank" rel="noreferrer" className="underline hover:text-slate-400">
+            game-icons.net
+          </a>{' '}
+          (CC BY 3.0)
+        </p>
       </footer>
 
       <Link

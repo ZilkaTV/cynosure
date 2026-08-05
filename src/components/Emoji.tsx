@@ -37,8 +37,6 @@ export function Emoji({ char, className = 'h-4 w-4', label }: { char: string; cl
 // clearly (e.g. <BadgeEmoji.trophy />) instead of passing raw unicode around.
 export const EMOJI = {
   trophy: '🏆',
-  medal: '🎖️',
-  crown: '👑',
   flame: '🔥',
   bell: '🔔',
   bow: '🏹',
@@ -57,13 +55,9 @@ export const EMOJI = {
   skull: '💀',
   map: '🗺️',
   star: '⭐',
-  ship: '⛵',
   cross: '✝️',
   globe: '🌐',
   globeAfrica: '🌍',
-  chatBubble: '💬',
-  heart: '❤️',
-  handshake: '🤝',
 } as const
 
 /** A member's nationality flag (ISO alpha-2 code), for showing next to their name in tables. */

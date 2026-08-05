@@ -1,6 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import type { Badge, BadgeTier, IconKey } from '../lib/badges'
-import { Emoji, EMOJI } from './Emoji'
+import {
+  TrophyIcon,
+  MedalIcon,
+  CrownIcon,
+  FlameIcon,
+  BellIcon,
+  BowIcon,
+  BoltIcon,
+  PickaxeIcon,
+  AnchorIcon,
+  BlastIcon,
+  WrenchIcon,
+  FlagIcon,
+  ChatBubbleIcon,
+  HeartIcon,
+  HandshakeIcon,
+  StarIcon,
+  ShipIcon,
+} from './BadgeIcons'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const TIER_RING: Record<BadgeTier, string> = {
@@ -10,39 +29,36 @@ const TIER_RING: Record<BadgeTier, string> = {
   diamond: 'ring-2 ring-[#7fe3f0]/70',
 }
 
-const TIER_EMOJI: Record<BadgeTier, string> = {
-  bronze: EMOJI.bronze,
-  silver: EMOJI.silver,
-  gold: EMOJI.gold,
-  diamond: '💎',
+// Same hex values as TIER_RING, applied to the icon itself via `text-` (the
+// icons use fill="currentColor") - a single star/ship shape recolored by
+// tier reads clearer at small sizes than swapping in a different medal shape
+// per tier ever did.
+const TIER_ICON_COLOR: Record<BadgeTier, string> = {
+  bronze: 'text-[#cd7f32]',
+  silver: 'text-[#c0c0c0]',
+  gold: 'text-[#f2c14e]',
+  diamond: 'text-[#7fe3f0]',
 }
 
-const ICON_EMOJI: Record<IconKey, string> = {
-  trophy: EMOJI.trophy,
-  medal: EMOJI.medal,
-  crown: EMOJI.crown,
-  flame: EMOJI.flame,
-  bell: EMOJI.bell,
-  bow: EMOJI.bow,
-  bolt: EMOJI.bolt,
-  pickaxe: EMOJI.pickaxe,
-  anchor: EMOJI.anchor,
-  blast: EMOJI.blast,
-  wrench: EMOJI.wrench,
-  flag: EMOJI.flag,
-  chatBubble: EMOJI.chatBubble,
-  heart: EMOJI.heart,
-  handshake: EMOJI.handshake,
+const ICON_COMPONENT: Record<IconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
+  trophy: TrophyIcon,
+  medal: MedalIcon,
+  crown: CrownIcon,
+  flame: FlameIcon,
+  bell: BellIcon,
+  bow: BowIcon,
+  bolt: BoltIcon,
+  pickaxe: PickaxeIcon,
+  anchor: AnchorIcon,
+  blast: BlastIcon,
+  wrench: WrenchIcon,
+  flag: FlagIcon,
+  chatBubble: ChatBubbleIcon,
+  heart: HeartIcon,
+  handshake: HandshakeIcon,
 }
 
-/** Picks which emoji represents a badge (tiered star/ship badges swap by tier). */
-function emojiFor(badge: Badge): string {
-  if (badge.kind === 'star') return badge.tier ? TIER_EMOJI[badge.tier] : EMOJI.star
-  if (badge.kind === 'ship') return EMOJI.ship
-  return badge.icon ? ICON_EMOJI[badge.icon] : '❔'
-}
-
-/** Renders a badge's visual: the level number for the level badge, an emoji otherwise. */
+/** Renders a badge's visual: the level number for the level badge, an icon otherwise. */
 function BadgeVisual({ badge, className }: { badge: Badge; className?: string }) {
   if (badge.kind === 'level') {
     return (
@@ -51,7 +67,11 @@ function BadgeVisual({ badge, className }: { badge: Badge; className?: string })
       </span>
     )
   }
-  return <Emoji char={emojiFor(badge)} label={badge.name} className={className} />
+  const tierColor = badge.tier ? TIER_ICON_COLOR[badge.tier] : ''
+  if (badge.kind === 'star') return <StarIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
+  if (badge.kind === 'ship') return <ShipIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
+  const Icon = badge.icon ? ICON_COMPONENT[badge.icon] : null
+  return Icon ? <Icon className={className} aria-label={badge.name} /> : null
 }
 
 /** Compact earned-only badges (for the roster / overview). */
@@ -79,9 +99,9 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
             onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
             onMouseEnter={() => setOpenId(b.id)}
             onMouseLeave={() => setOpenId((id) => (id === b.id ? null : id))}
-            className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 ${b.tier ? TIER_RING[b.tier] : ''}`}
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
           >
-            <BadgeVisual badge={b} className="h-4 w-4 text-xs" />
+            <BadgeVisual badge={b} className="h-3.5 w-3.5" />
           </button>
           {openId === b.id && (
             <div className="absolute left-1/2 top-full z-50 mt-1.5 w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">
@@ -118,8 +138,10 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                     b.earned ? 'border-gold/30 bg-gold/5' : 'border-base-700 bg-base-850/40 opacity-55'
                   }`}
                 >
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.tier && b.earned ? TIER_RING[b.tier] : ''}`}>
-                    <BadgeVisual badge={b} className="h-5 w-5 text-sm" />
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.earned ? 'text-gold-light' : 'text-slate-500'} ${b.tier && b.earned ? TIER_RING[b.tier] : ''}`}
+                  >
+                    <BadgeVisual badge={b} className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
                     <p className={`text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>

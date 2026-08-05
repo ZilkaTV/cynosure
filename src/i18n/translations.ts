@@ -43,6 +43,7 @@ export const translations = {
       statsNotice: (tag: string) =>
         `Stats pulled live from the OpenFront public API. Only games played with the [${tag}] tag are counted.`,
       trackingSince: (date: string) => `Tracking data since ${date}.`,
+      badgeIconsCredit: 'Badge icons by Lorc, Delapouite and Carl Olsen on',
     },
     notFound: {
       body: 'This page drifted off the star chart.',
@@ -588,6 +589,7 @@ export const translations = {
       statsNotice: (tag: string) =>
         `Stats werden live über die öffentliche OpenFront-API geladen. Nur Spiele mit dem [${tag}]-Tag zählen.`,
       trackingSince: (date: string) => `Erfasst Daten seit ${date}.`,
+      badgeIconsCredit: 'Badge-Icons von Lorc, Delapouite und Carl Olsen auf',
     },
     notFound: {
       body: 'Diese Seite ist von der Sternenkarte abgekommen.',
@@ -1134,6 +1136,7 @@ export const translations = {
       statsNotice: (tag: string) =>
         `Les stats sont chargées en direct depuis l'API publique d'OpenFront. Seules les parties jouées avec le tag [${tag}] sont comptées.`,
       trackingSince: (date: string) => `Suivi des données depuis le ${date}.`,
+      badgeIconsCredit: "Icônes de badge par Lorc, Delapouite et Carl Olsen sur",
     },
     notFound: {
       body: 'Cette page a dérivé hors de la carte stellaire.',

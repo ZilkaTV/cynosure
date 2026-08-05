@@ -104,9 +104,9 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
             onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
             onMouseEnter={() => setOpenId(b.id)}
             onMouseLeave={() => setOpenId((id) => (id === b.id ? null : id))}
-            className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
           >
-            <BadgeVisual badge={b} className="h-3.5 w-3.5" />
+            <BadgeVisual badge={b} className="h-5 w-5 text-xs" />
           </button>
           {openId === b.id && (
             <div className="absolute left-1/2 top-full z-50 mt-1.5 w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">
@@ -144,9 +144,9 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                   }`}
                 >
                   <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.earned ? 'text-gold-light' : 'text-slate-500'} ${b.tier && b.earned ? TIER_RING[b.tier] : ''}`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-base-800 ${b.earned ? 'text-gold-light' : 'text-slate-500'} ${b.tier && b.earned ? TIER_RING[b.tier] : ''}`}
                   >
-                    <BadgeVisual badge={b} className="h-5 w-5" />
+                    <BadgeVisual badge={b} className="h-7 w-7 text-base" />
                   </span>
                   <div className="min-w-0">
                     <p className={`text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>

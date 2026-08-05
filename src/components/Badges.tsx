@@ -19,6 +19,7 @@ import {
   HandshakeIcon,
   StarIcon,
   ShipIcon,
+  ShieldIcon,
 } from './BadgeIcons'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -68,7 +69,11 @@ function BadgeVisual({ badge, className }: { badge: Badge; className?: string })
     )
   }
   const tierColor = badge.tier ? TIER_ICON_COLOR[badge.tier] : ''
+  // 1v1 (star) and 2v2 (shield) use deliberately different shapes, not just
+  // different tier colors, so the two ladders read as distinct at a glance
+  // instead of only differing by hover-text.
   if (badge.kind === 'star') return <StarIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
+  if (badge.kind === 'shield') return <ShieldIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
   if (badge.kind === 'ship') return <ShipIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
   const Icon = badge.icon ? ICON_COMPONENT[badge.icon] : null
   return Icon ? <Icon className={className} aria-label={badge.name} /> : null

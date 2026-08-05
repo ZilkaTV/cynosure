@@ -40,7 +40,7 @@ export type IconKey =
 export interface Badge {
   id: string
   name: string
-  kind: 'star' | 'ship' | 'icon' | 'level'
+  kind: 'star' | 'shield' | 'ship' | 'icon' | 'level'
   icon?: IconKey
   tier?: BadgeTier
   level?: number
@@ -152,7 +152,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
     // ── rank (tiered) ──
     { id: 'level', name: levelTitle, kind: 'level', level, earned: true, group: 'rank', desc: b.levelDesc(level, m.xp) },
     { id: 'star', name: b.star.name, kind: 'star', tier: starTier ?? undefined, earned: !!starTier, group: 'rank', desc: starLabel },
-    { id: 'star2v2', name: b.star2v2.name, kind: 'star', tier: star2v2Tier ?? undefined, earned: !!star2v2Tier, group: 'rank', desc: star2v2Label },
+    { id: 'star2v2', name: b.star2v2.name, kind: 'shield', tier: star2v2Tier ?? undefined, earned: !!star2v2Tier, group: 'rank', desc: star2v2Label },
     { id: 'ship', name: b.ship.name, kind: 'ship', tier: shipTier ?? undefined, earned: !!shipTier, group: 'rank', desc: shipLabel },
     {
       id: 'mostWins',

@@ -137,3 +137,11 @@ export function ShipIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ShieldIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M64 94l64-38 64 38c0 32-48 108-64 108-16 .25-64-76-64-108z" />
+    </svg>
+  )
+}

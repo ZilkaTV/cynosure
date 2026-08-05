@@ -95,30 +95,30 @@ async function fetchRecentGameIds() {
   return [...ids]
 }
 
-async function fetchCoveredGameIds(ids) {
+// Only a row at the CURRENT compute_logic_version counts as covered - a row
+// left over from an older version (a since-fixed bug in the math, not the
+// vendored engine) is exactly as stale as a missing row, but a plain
+// game_id existence check can't tell the difference. This is what the
+// client's own read path already does (see fetchShared in replaySim.ts);
+// this script just wasn't following the same rule, so games nobody
+// happened to reopen in a browser stayed stuck showing numbers from a
+// logic version the site itself no longer trusts (confirmed directly: 18
+// of 461 sampled rows were still on an older version).
+async function fetchCoveredGameIds(ids, computeLogicVersion) {
   const covered = new Set()
   for (let i = 0; i < ids.length; i += 40) {
     const chunk = ids.slice(i, i + 40)
     const filter = chunk.map((id) => `"${id}"`).join(',')
-    const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_game_tile_stats?select=game_id&game_id=in.(${filter})`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-    })
+    const rows = await fetchJson(
+      `${SUPABASE_URL}/rest/v1/cyn_game_tile_stats?select=game_id&game_id=in.(${filter})&compute_logic_version=eq.${computeLogicVersion}`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+    )
     for (const r of rows) covered.add(r.game_id)
   }
   return covered
 }
 
 async function main() {
-  console.log(`Finding recent (last ${daysBack}d) real CYN games missing from cyn_game_tile_stats...`)
-  const recentIds = await fetchRecentGameIds()
-  const covered = await fetchCoveredGameIds(recentIds)
-  const missing = recentIds.filter((id) => !covered.has(id))
-  console.log(`${recentIds.length} recent game(s), ${missing.length} missing.\n`)
-  if (missing.length === 0) {
-    console.log('Nothing to backfill.')
-    return
-  }
-
   const server = await createServer({ root: ROOT, server: { middlewareMode: false, port: 0 } })
   await server.listen()
   const origin = `http://localhost:${server.httpServer.address().port}`
@@ -143,6 +143,16 @@ async function main() {
   // instead of leaving the process hanging until CI's own step timeout.
   try {
     const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
+
+    console.log(`Finding recent (last ${daysBack}d) real CYN games missing from cyn_game_tile_stats at logic version ${core.COMPUTE_LOGIC_VERSION}...`)
+    const recentIds = await fetchRecentGameIds()
+    const covered = await fetchCoveredGameIds(recentIds, core.COMPUTE_LOGIC_VERSION)
+    const missing = recentIds.filter((id) => !covered.has(id))
+    console.log(`${recentIds.length} recent game(s), ${missing.length} missing.\n`)
+    if (missing.length === 0) {
+      console.log('Nothing to backfill.')
+      return
+    }
 
     for (const gameId of missing) {
       const commit = await core.resolveEngineCommit(gameId).catch(() => null)

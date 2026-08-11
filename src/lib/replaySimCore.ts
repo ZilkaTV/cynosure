@@ -140,6 +140,10 @@ interface RawPlayer {
   clientID: string
   username: string
   clanTag: string | null
+  // OpenFront's own recorded tile count for this player when the game ended
+  // (a bigint-as-string, like the rest of that stats block) - used only to
+  // sanity-check our simulated result against, not otherwise consumed.
+  stats?: { finalTiles?: string }
 }
 
 interface RawGameConfig {
@@ -505,6 +509,30 @@ export async function computeGameTileStats(gameId: string, opts: ComputeOptions)
         `Replay simulation for ${gameId} only covered ${Object.keys(maxPercent).length}/${raw.players.length} players - treating as failed`,
       )
       return null
+    }
+
+    // Cross-check against OpenFront's own recorded finalTiles (available per
+    // player straight from the same public API call this replay already
+    // used) - a player's simulated PEAK can never be lower than their real
+    // recorded end-of-game count, so a wide gap means this replay diverged
+    // from the real game somewhere and produced numbers nobody should trust.
+    // Confirmed directly: a real divergence undercounted by 5-50x on
+    // multiple games while completing "successfully" with no thrown error -
+    // this is the only signal that catches that class of bug. Generous
+    // tolerance (half the real value) for legitimate small differences in
+    // exactly which tick the winner gets declared on; still easily catches
+    // an order-of-magnitude undercount.
+    const MIN_PLAUSIBLE_FRACTION = 0.5
+    for (const p of raw.players) {
+      const reported = Number(p.stats?.finalTiles ?? 0)
+      if (!(reported > 0)) continue
+      const ours = maxTiles[p.clientID] ?? 0
+      if (ours < reported * MIN_PLAUSIBLE_FRACTION) {
+        console.error(
+          `Replay simulation for ${gameId} diverged: ${p.clientID} peaked at ${ours} tiles in our sim vs ${reported} reported by OpenFront - treating as failed`,
+        )
+        return null
+      }
     }
 
     return { maxTiles, maxPercent, finalTiles }

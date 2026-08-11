@@ -14,13 +14,15 @@ export interface ClanEvent {
   reward: string
   /** Optional external image URL for the reward skin preview (any hosted link works). */
   skinImageUrl?: string
+  /** Set once status is 'ended' - the winning team's name, exactly as registered in cyn_event_teams. */
+  winner?: string
 }
 
 export const EVENTS: ClanEvent[] = [
   {
     id: 'trio-challenge-2026',
     name: 'CYN Trio Challenge',
-    status: 'live',
+    status: 'ended',
     start: '2026-06-07',
     end: '2026-09-07',
     description:
@@ -31,5 +33,6 @@ export const EVENTS: ClanEvent[] = [
     // root as-is) - unlike the old Discord CDN attachment link, this never
     // expires. Drop/replace the actual PNG at public/events/trio-challenge-2026.png.
     skinImageUrl: '/events/trio-challenge-2026.png',
+    winner: 'Team CYN',
   },
 ]

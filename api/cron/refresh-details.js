@@ -98,6 +98,7 @@ const LEADERBOARD_SCAN_PAGES = 3
 
 async function fetchRankedMap() {
   const byId = new Map()
+  const byId2v2 = new Map()
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
     let json
     try {
@@ -106,10 +107,12 @@ async function fetchRankedMap() {
       break
     }
     const entries = json?.['1v1'] ?? []
-    if (entries.length === 0) break
+    const entries2v2 = json?.['2v2'] ?? []
+    if (entries.length === 0 && entries2v2.length === 0) break
     for (const e of entries) byId.set(e.public_id, e.elo)
+    for (const e of entries2v2) byId2v2.set(e.public_id, e.elo)
   }
-  return byId
+  return { byId, byId2v2 }
 }
 
 async function fetchGameDetail(gameId) {
@@ -164,7 +167,7 @@ export default async function handler(req, res) {
     // (a 3-page leaderboard scan, one table read). A member outside the
     // ranked top 100 just gets `elo: null` for today, same as the rest of
     // the site already treats "no live elo" everywhere else.
-    const rankedMap = await fetchRankedMap().catch(() => new Map())
+    const { byId: rankedMap, byId2v2: rankedMap2v2 } = await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
     const { data: xpRows } = await supabase.from('cyn_xp').select('openfront_id, xp')
     const xpByMember = new Map((xpRows ?? []).map((r) => [r.openfront_id, r.xp]))
     const snapshotDate = new Date().toISOString().slice(0, 10)
@@ -260,6 +263,7 @@ export default async function handler(req, res) {
             openfront_id: r.openfront_id,
             snapshot_date: snapshotDate,
             elo: rankedMap.get(r.openfront_id) ?? null,
+            elo_2v2: rankedMap2v2.get(r.openfront_id) ?? null,
             all_wins: allWins,
             xp: xpByMember.get(r.openfront_id) ?? 0,
           },

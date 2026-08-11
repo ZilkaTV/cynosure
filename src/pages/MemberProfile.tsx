@@ -274,9 +274,9 @@ export default function MemberProfile() {
             />
           </Card>
           <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendXpLabel}</p>
+            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendElo2v2Label}</p>
             <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.xp }))}
+              points={trend.map((p) => ({ date: p.date, value: p.elo2v2 }))}
               color="#38bdf8"
               emptyLabel={t.memberProfile.trendEmpty}
             />

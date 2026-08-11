@@ -941,3 +941,11 @@ create policy "members can post cyn_clan_chat_messages"
   on public.cyn_clan_chat_messages for insert to authenticated with check (
     exists (select 1 from public.cyn_members m where m.user_id = auth.uid())
   );
+
+-- ============================================================
+-- 2v2 elo trend history: cyn_member_snapshots already tracks 1v1 elo/wins/xp
+-- daily (see the table above) - this adds the same for 2v2 so the profile
+-- page's trend chart can show it instead of XP.
+-- ============================================================
+
+alter table public.cyn_member_snapshots add column if not exists elo_2v2 integer;

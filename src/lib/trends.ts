@@ -11,6 +11,7 @@ import { supabase } from './supabase'
 export interface SnapshotPoint {
   date: string // YYYY-MM-DD
   elo: number | null
+  elo2v2: number | null
   allWins: number
   xp: number
 }
@@ -23,12 +24,12 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
   if (!supabase) return []
   const { data, error } = await supabase
     .from('cyn_member_snapshots')
-    .select('snapshot_date, elo, all_wins, xp')
+    .select('snapshot_date, elo, elo_2v2, all_wins, xp')
     .eq('openfront_id', openfrontId)
     .gte('snapshot_date', sinceDate(days))
     .order('snapshot_date', { ascending: true })
   if (error) return []
-  return (data ?? []).map((r) => ({ date: r.snapshot_date, elo: r.elo, allWins: r.all_wins, xp: r.xp }))
+  return (data ?? []).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, allWins: r.all_wins, xp: r.xp }))
 }
 
 /** Every registered member's trend at once, keyed by openfront_id - one query instead of N. */
@@ -36,14 +37,14 @@ export async function fetchAllMemberTrends(days = 30): Promise<Record<string, Sn
   if (!supabase) return {}
   const { data, error } = await supabase
     .from('cyn_member_snapshots')
-    .select('openfront_id, snapshot_date, elo, all_wins, xp')
+    .select('openfront_id, snapshot_date, elo, elo_2v2, all_wins, xp')
     .gte('snapshot_date', sinceDate(days))
     .order('snapshot_date', { ascending: true })
   if (error) return {}
   const byMember: Record<string, SnapshotPoint[]> = {}
-  for (const row of (data ?? []) as { openfront_id: string; snapshot_date: string; elo: number | null; all_wins: number; xp: number }[]) {
+  for (const row of (data ?? []) as { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null; all_wins: number; xp: number }[]) {
     const arr = byMember[row.openfront_id] ?? (byMember[row.openfront_id] = [])
-    arr.push({ date: row.snapshot_date, elo: row.elo, allWins: row.all_wins, xp: row.xp })
+    arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, allWins: row.all_wins, xp: row.xp })
   }
   return byMember
 }

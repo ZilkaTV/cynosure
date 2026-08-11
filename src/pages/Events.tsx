@@ -210,6 +210,11 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
         <p className="mt-1 text-sm text-slate-500">
           {fmtDate(event.start)} - {fmtDate(event.end)}
         </p>
+        {event.status === 'ended' && event.winner && (
+          <p className="mt-3 rounded-xl border border-gold/40 bg-gold/10 px-4 py-2.5 text-center font-display text-sm font-bold text-gold-light">
+            🏆 {t.events.winner}: {event.winner}
+          </p>
+        )}
       </div>
 
       {/* rules */}
@@ -290,7 +295,7 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
       </div>
 
       {/* submit */}
-      {profile && teams.length > 0 && (
+      {profile && teams.length > 0 && event.status !== 'ended' && (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{t.events.submitAWin}</p>
           <Card>

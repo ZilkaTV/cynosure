@@ -25,15 +25,17 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 # something reasonable without hammering the OpenFront API or re-cloning
 # OpenFrontIO from scratch every run (see the cache step below).
 #
-# A newly-vendored tree is opened as a PULL REQUEST, never pushed straight to
-# master: vendor-engine.mjs's tsc -b check only proves the copied code
-# type-checks, which says nothing about whether it's safe - this pulls real
-# third-party source from openfrontio/OpenFrontIO and ships it straight into
-# every visitor's browser once merged. A compromised upstream commit (or even
-# just a genuine bug) landing here deserves a human looking at the diff
-# before it goes live, the same bar any other change to this site gets. This
-# was a deliberate trade-off (confirmed with the site owner): faster
-# detection, but merging a newly-vendored PR is still a manual step.
+# A newly-vendored tree is pushed straight to master (guarded only by
+# vendor-engine.mjs's own `tsc -b` self-check). This used to open a PR
+# instead so a human could review the diff before third-party source went
+# live - safer in theory, but GitHub Actions' default token isn't permitted
+# to create PRs in this repo (org/repo setting, off by default), so that
+# step failed outright on every run that found a new commit to vendor and
+# skipped the Backfill Max Tiles step right after it - the pipeline was
+# silently not backfilling on exactly the runs that mattered most. Pushing
+# directly also just matches what already happens in practice: vendoring
+# commits already land straight on master via manual runs, so the PR gate
+# wasn't actually being exercised as a review step anyway.
 
 on:
   schedule:
@@ -42,7 +44,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   maintain:
@@ -71,38 +72,20 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: node scripts/auto-vendor-missing.mjs
 
-      - name: Open a PR for any newly-vendored engine tree
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Commit and push any newly-vendored engine tree
         run: |
           if [ -z "$(git status --porcelain src/vendor tsconfig.json src/lib/replaySimCore.ts)" ]; then
             echo "No new engine commits to vendor."
             exit 0
           fi
 
-          # Named after the specific short SHA(s) just vendored, not a
-          # timestamp - this makes the branch name deterministic, so if
-          # yesterday's run already opened a PR for this exact commit that's
-          # still awaiting review, today's run recognizes the same branch
-          # already exists remotely and skips instead of opening a duplicate
-          # PR for the same commit every single day until someone merges it.
           NEW_DIRS=$(git status --porcelain src/vendor | awk '{print $2}' | grep -oE 'openfront-core-[0-9a-f]{7}' | sort -u | tr '\n' '-' | sed 's/-$//')
-          BRANCH="auto-vendor-${NEW_DIRS}"
-
-          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
-            echo "Branch $BRANCH already exists - a PR for this commit is presumably already open and awaiting review. Not opening a duplicate."
-            exit 0
-          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
           git add src/vendor tsconfig.json src/lib/replaySimCore.ts
           git commit -m "Auto-vendor OpenFront engine commit(s): ${NEW_DIRS}"
-          git push origin "$BRANCH"
-          gh pr create --title "Auto-vendor OpenFront engine commit(s): ${NEW_DIRS}" \
-            --body "Opened automatically after \`vendor-engine.mjs\`'s own \`tsc -b\` check passed. That only confirms the vendored code type-checks - please review the actual diff (new files under \`src/vendor/\`) before merging, since this pulls new third-party source into the site's own bundle." \
-            --base master --head "$BRANCH"
+          git push origin HEAD:master
 
       - name: Backfill Max Tiles for games still missing from the shared cache
         env:

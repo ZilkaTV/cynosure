@@ -128,7 +128,15 @@ async function loadCreateGameRunner(commit: EngineCommit) {
 // resolved engine commit (see resolveEngineCommit), so a bump invalidates
 // every previously cached result (local AND shared) at once, no manual
 // per-visitor cache-clearing needed.
-export const COMPUTE_LOGIC_VERSION = 3
+//
+// 3 -> 4: buildGameStartInfo now populates GameStartInfo.tribes from
+// OpenFront's own `info.tribes` (purchased bot-tribe names), which it never
+// did before - see buildGameStartInfo's own comment for why that's not a
+// no-op (it changes how many PRNG draws TribeSpawner consumes on any game
+// with purchased tribes, shifting every bot spawned after the first one).
+// Every previously cached result was computed without this, so all of them
+// need to be treated as stale, not just newly-failing ones.
+export const COMPUTE_LOGIC_VERSION = 4
 
 /** "Nile Delta" -> "niledelta", matching OpenFront's resources/maps/<slug> folder names. */
 function mapSlug(gameMapName: string): string {
@@ -173,6 +181,10 @@ interface RawGameInfo {
   num_turns: number
   config: RawGameConfig
   players: RawPlayer[]
+  // Purchased bot-tribe names for this game (a monetization feature) - fed
+  // into the real server's GameStartInfo.tribes and consumed by
+  // TribeSpawner.spawnTribes's `purchasedNames` param. See buildGameStartInfo.
+  tribes?: { name: string }[]
 }
 
 interface RawGameRecord {
@@ -254,7 +266,29 @@ function buildFullPlayerRoster(raw: RawGameInfo, turn0: Turn | undefined): RawPl
  * off gameStart.gameID (simpleHash), so bot spawn placement/behaviour only
  * reproduces deterministically if this id matches the real game id exactly
  * AND `players` is the complete, correctly-ordered initial roster (see
- * buildFullPlayerRoster above).
+ * buildFullPlayerRoster above) AND `tribes` carries every purchased bot-tribe
+ * name the real game had (see below) - all three feed the same PRNG-draw-
+ * count chain that TribeSpawner/NationCreation rely on being bit-for-bit
+ * identical to the real game.
+ *
+ * `raw.tribes` (present directly on OpenFront's own `?turns=false` summary,
+ * confirmed on real game zYgvvy1A: `info.tribes` = 10 purchased names) is
+ * OpenFront's own purchased-tribe-name list for the game - exactly what the
+ * real server would have put in GameStartInfo.tribes. Leaving this unset
+ * (as this code did until now) isn't a no-op: TribeSpawner.spawnTribes only
+ * runs its `purchasedNames`-assignment shuffle (a `random.shuffleArray` over
+ * every remaining bot slot) when `purchasedNames.length > 0`, and every slot
+ * that WOULD have received a purchased name instead falls through to
+ * `randomTribeName()`, which draws extra `nextInt()` calls the real game
+ * never did. Either difference shifts every subsequent `nextID()`/spawn
+ * draw for every bot spawned after the divergence point on that (separately
+ * seeded, `simpleHash(gameID) + 2`) PRNG stream - i.e. every bot in a
+ * heavily-bots game potentially ends up in a different spot with a
+ * different name than the real game, which cascades into wrong tile
+ * ownership for any human player whose early game played out near one.
+ * Confirmed directly on zYgvvy1A (400 bots, 10 purchased tribe names): two
+ * players' simulated peak tiles were undercounted 10x-100x vs OpenFront's
+ * own recorded finalTiles before this fix.
  */
 function buildGameStartInfo(raw: RawGameInfo, turn0: Turn | undefined): GameStartInfo {
   const config = {
@@ -288,6 +322,7 @@ function buildGameStartInfo(raw: RawGameInfo, turn0: Turn | undefined): GameStar
       isLobbyCreator: true,
       friends: [],
     })),
+    tribes: raw.tribes ?? [],
   } as unknown as GameStartInfo
 }
 

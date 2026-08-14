@@ -416,11 +416,41 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
   }
 }
 
+// Map binaries/manifests are fetched straight from raw.githubusercontent.com
+// (see makeMapLoader) - a plain CDN fetch with no retry of its own. A single
+// transient blip (a dropped connection, a momentary rate-limit) used to burn
+// an entire multi-minute replay for nothing: the fetch throws, the outer
+// try/catch in computeGameTileStats logs it and returns null, and that null
+// is indistinguishable from a genuine replay divergence to every caller
+// (including scripts/backfill-tile-stats.mjs's own retry loop, which then
+// re-runs the *whole* replay from scratch rather than just the one flaky
+// fetch). Retrying a handful of times here, only at the point of failure, is
+// far cheaper and fixes exactly the transient case without masking a real
+// divergence (a persistently-failing fetch - a genuinely missing map file -
+// still throws after exhausting retries, same as before).
+async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return res
+      lastErr = new Error(`Failed to fetch ${url}: ${res.status}`)
+      // A 4xx (e.g. 404 - the map genuinely doesn't exist at this commit)
+      // won't succeed on retry - only back off and retry on likely-transient
+      // failures (5xx, rate limiting).
+      if (res.status < 500 && res.status !== 429) throw lastErr
+    } catch (err) {
+      lastErr = err
+    }
+    if (attempt < retries) await new Promise((r) => setTimeout(r, 300 * attempt))
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
+}
+
 async function cachedArrayBuffer(url: string, key: string): Promise<Uint8Array> {
   const cached = await idbGet<ArrayBuffer>(key)
   if (cached) return new Uint8Array(cached)
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  const res = await fetchWithRetry(url)
   const buf = await res.arrayBuffer()
   await idbSet(key, buf)
   return new Uint8Array(buf)
@@ -429,8 +459,7 @@ async function cachedArrayBuffer(url: string, key: string): Promise<Uint8Array> 
 async function cachedManifest(slug: string, base: string): Promise<MapManifest> {
   const cached = await idbGet<MapManifest>(`${slug}:manifest`)
   if (cached) return cached
-  const res = await fetch(`${base}/manifest.json`)
-  if (!res.ok) throw new Error(`Failed to fetch manifest.json: ${res.status}`)
+  const res = await fetchWithRetry(`${base}/manifest.json`)
   const manifest = (await res.json()) as MapManifest
   await idbSet(`${slug}:manifest`, manifest)
   return manifest

@@ -228,16 +228,36 @@ async function fetchRawRecord(gameId: string): Promise<RawGameRecord | null> {
 
 /**
  * Which vendored engine tree (if any) matches the exact commit a game was
- * played on. Cheap (one turns=false fetch) - meant to be called before
- * deciding a cache key, so a caller never has to check a cache under the
- * wrong commit or run a doomed-to-be-wrong replay against a commit we don't
- * have vendored at all.
+ * played on - meant to be called before deciding a cache key, so a caller
+ * never has to check a cache under the wrong commit or run a
+ * doomed-to-be-wrong replay against a commit we don't have vendored at all.
+ *
+ * Cached in IndexedDB forever once resolved: a finished game's gitCommit
+ * never changes, but every caller here (getGameTileStats AND every prefetch
+ * queue entry - see prefetchGameTileStats in replaySim.ts, which resolves
+ * up to 40 games per Home page load) used to pay a fresh, uncached
+ * `?turns=false` fetch every single time, even for a game whose Max Tiles
+ * result was already fully cached downstream. Confirmed directly: on
+ * Cynosure's live site this showed up as a ~30s tail of sequential
+ * `/api/of/public/game/<id>` requests after every page load, the actual
+ * source of visitors' "over 10 seconds to load" complaints even though the
+ * visible stats table itself rendered in under a second. Only a *resolved*
+ * commit is cached - a null result (fetch failure, or a commit we haven't
+ * vendored yet) must stay uncached, since the auto-vendor pipeline adds new
+ * commits over time and a permanently-cached null would keep a game stuck
+ * "unavailable" even after we start supporting its commit.
  */
 export async function resolveEngineCommit(gameId: string): Promise<EngineCommit | null> {
+  const cacheKey = `commit:${gameId}`
+  const cached = await idbGet<EngineCommit>(cacheKey)
+  if (cached) return cached
+
   const record = await fetchRawRecord(gameId)
   const commit = record?.gitCommit
   if (!commit) return null
-  return (KNOWN_ENGINE_COMMITS as readonly string[]).includes(commit) ? (commit as EngineCommit) : null
+  const resolved = (KNOWN_ENGINE_COMMITS as readonly string[]).includes(commit) ? (commit as EngineCommit) : null
+  if (resolved) await idbSet(cacheKey, resolved)
+  return resolved
 }
 
 async function fetchRawTurns(gameId: string): Promise<Turn[]> {

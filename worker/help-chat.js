@@ -246,6 +246,12 @@ export async function handleHelpChat(request, env) {
     return jsonResponse({ conversationId: convId, reply })
   } catch (err) {
     console.error('help-chat failed:', err)
-    return jsonResponse({ error: 'help_chat_failed', message: String(err) }, 500)
+    // TEMPORARY: String(err) collapses to "[object Object]" for plain error
+    // shapes (e.g. Supabase's PostgrestError, which isn't an Error
+    // instance) - report enough detail to actually diagnose instead.
+    return jsonResponse(
+      { error: 'help_chat_failed', message: err?.message ?? String(err), name: err?.name, code: err?.code, details: err?.details, hint: err?.hint, stack: err?.stack },
+      500,
+    )
   }
 }

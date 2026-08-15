@@ -129,15 +129,7 @@ export async function handleHelpChat(request, env) {
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
   const anthropicKey = env.ANTHROPIC_API_KEY
   if (!supabaseUrl || !serviceRoleKey) {
-    // TEMPORARY diagnostic - env var wiring kept failing silently during
-    // Cloudflare setup (keep_vars fix, dashboard promotion, etc. all looked
-    // right but the Worker still couldn't see the secrets), so report
-    // exactly which keys the Worker can actually see instead of guessing
-    // from dashboard screenshots. Remove once confirmed working.
-    return jsonResponse(
-      { error: 'supabase_not_configured', hasUrl: !!supabaseUrl, hasServiceKey: !!serviceRoleKey, hasAnthropicKey: !!anthropicKey, envKeys: Object.keys(env) },
-      500,
-    )
+    return jsonResponse({ error: 'supabase_not_configured' }, 500)
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey)
@@ -246,12 +238,8 @@ export async function handleHelpChat(request, env) {
     return jsonResponse({ conversationId: convId, reply })
   } catch (err) {
     console.error('help-chat failed:', err)
-    // TEMPORARY: String(err) collapses to "[object Object]" for plain error
-    // shapes (e.g. Supabase's PostgrestError, which isn't an Error
-    // instance) - report enough detail to actually diagnose instead.
-    return jsonResponse(
-      { error: 'help_chat_failed', message: err?.message ?? String(err), name: err?.name, code: err?.code, details: err?.details, hint: err?.hint, stack: err?.stack },
-      500,
-    )
+    // err?.message first: Supabase's PostgrestError isn't an Error instance,
+    // so String(err) alone collapses it to the useless "[object Object]".
+    return jsonResponse({ error: 'help_chat_failed', message: err?.message ?? String(err) }, 500)
   }
 }

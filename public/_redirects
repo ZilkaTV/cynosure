@@ -1,0 +1,7 @@
+# SPA fallback: any route not matched by a static file or a Pages Function
+# under /api/* (those are matched first, before this file is consulted) gets
+# index.html, so React Router can handle it client-side. Explicit rather
+# than relying on Cloudflare Pages' implicit framework-preset behavior,
+# which is tied to recognizing specific presets and isn't something to trust
+# silently applying to this custom Vite setup.
+/*    /index.html   200

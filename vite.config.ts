@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 
 // In dev, the browser can't call api.openfront.io directly (CORS), so the Vite
 // dev server proxies /api/of/* → https://api.openfront.io/* server-side. In
-// production the same path is served by the Vercel function in api/of/.
+// production the same path is served by the Cloudflare Pages Function in
+// functions/api/of/.
 export default defineConfig({
   plugins: [react()],
   // replaySim.worker.ts (a module worker - see replaySim.ts) now dynamically

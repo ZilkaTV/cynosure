@@ -1,17 +1,14 @@
 name: Refresh game-detail cache
 
-# Vercel's free Hobby plan caps native Cron Jobs at once/day (see the
-# "crons" entry in vercel.json, kept as a daily fallback in case this
-# workflow itself is ever paused/disabled). GitHub Actions has no such
-# limit on scheduled workflows, so this is what actually gives
-# api/cron/refresh-details.js its real ~5-minute cadence - matching the
-# reference bot (github.com/deshack/openfront-discord-bot) this whole
-# design was modeled on.
-#
-# The endpoint checks a CRON_SECRET (same one Vercel's own Cron Jobs send
-# automatically) so randoms can't trigger it and burn rate-limit budget /
-# Supabase writes for no reason - stored here as a GitHub Actions repo
-# secret of the same name, never committed.
+# Runs scripts/refresh-details.mjs every ~5 minutes - matching the reference
+# bot (github.com/deshack/openfront-discord-bot) this whole design was
+# modeled on. Used to curl a Vercel serverless function instead; moved to a
+# plain Node script run right here because Cloudflare Pages Functions (the
+# replacement hosting) cap outbound fetch() calls at 50 per invocation on
+# the free tier, and a single member's paginated game-history scan alone can
+# issue 30-40+ sequential fetches - a GitHub Actions runner has no such
+# limit, and this repo is public so Actions minutes are free regardless of
+# frequency.
 #
 # Note: GitHub only guarantees scheduled workflows run at LEAST this often,
 # not exactly on the dot - during high GitHub Actions load, a run can be
@@ -27,10 +24,16 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Call refresh-details endpoint
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Run refresh-details
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl -sS -o - -w "\nHTTP %{http_code}\n" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "https://cynosure-khaki.vercel.app/api/cron/refresh-details"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: node scripts/refresh-details.mjs

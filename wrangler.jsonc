@@ -7,6 +7,16 @@
   // etc.) that only Workers' Node compat layer provides.
   "compatibility_flags": ["nodejs_compat"],
   "main": "worker/index.js",
+  // Without this, every `wrangler deploy` (run by the dashboard's
+  // git-connected build on each push) wipes out whatever environment
+  // variables/secrets were set via the dashboard, since this file has no
+  // `vars` section of its own and Wrangler treats it as authoritative -
+  // confirmed directly: help-chat kept reporting "supabase_not_configured"
+  // after every redeploy even though the dashboard showed all 4 variables
+  // present and correctly named. The secrets (SUPABASE_SERVICE_ROLE_KEY,
+  // ANTHROPIC_API_KEY) stay dashboard-only rather than moving into this
+  // committed file - they must never end up in git.
+  "keep_vars": true,
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

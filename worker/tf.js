@@ -1,14 +1,13 @@
-// Cloudflare Pages Function: /api/tf/<anything> → https://trackerfront.com/<anything>
+// Worker route: /api/tf/<anything> → https://trackerfront.com/<anything>
 // trackerfront's FFA leaderboard has no CORS headers, so browser calls must go
-// through here. Same shape as functions/api/of/[[path]].js, including the
-// path allowlist - see that file's comment for why an open proxy without one
-// is a real abuse risk.
+// through here. Same shape as worker/of.js, including the path allowlist -
+// see that file's comment for why an open proxy without one is a real abuse
+// risk.
 const ALLOWED_PATHS = [/^api\/public\/leaderboard$/]
 
-export async function onRequestGet(context) {
-  const { request, params } = context
+export async function handleTf(request) {
   const url = new URL(request.url)
-  const path = (params.path || []).join('/')
+  const path = url.pathname.replace(/^\/api\/tf\//, '')
 
   if (!ALLOWED_PATHS.some((re) => re.test(path))) {
     return new Response(JSON.stringify({ error: 'path_not_allowed' }), {

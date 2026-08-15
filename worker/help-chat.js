@@ -1,5 +1,5 @@
-// Cloudflare Pages Function backing the bottom-right help/feedback chat
-// widget (src/components/HelpWidget.tsx). A visitor's message (plus optional
+// Worker route backing the bottom-right help/feedback chat widget
+// (src/components/HelpWidget.tsx). A visitor's message (plus optional
 // image, already uploaded to Supabase Storage client-side) is stored, sent
 // to Claude for a live reply, and the reply is stored too - so every
 // conversation is both answered in real time AND kept in
@@ -120,8 +120,10 @@ async function handleHistory(body, supabase) {
   return jsonResponse({ messages: data ?? [] })
 }
 
-export async function onRequestPost(context) {
-  const { request, env } = context
+export async function handleHelpChat(request, env) {
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'method_not_allowed' }, 405)
+  }
 
   const supabaseUrl = env.VITE_SUPABASE_URL
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY

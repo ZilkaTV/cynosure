@@ -1,9 +1,4 @@
-// Cloudflare Pages Function: /api/of/<anything> → https://api.openfront.io/<anything>
-//
-// The subpath arrives via Cloudflare's own catch-all file routing ([[path]] -
-// see this file's location) as context.params.path, a string array of the
-// matched segments - no query-param rewrite trick needed here, unlike the
-// old Vercel version this replaces.
+// Worker route: /api/of/<anything> → https://api.openfront.io/<anything>
 //
 // Why this exists:
 //  • CORS - the OpenFront API refuses direct browser calls.
@@ -12,14 +7,13 @@
 //
 // Only forwards the exact paths this site actually calls (see API_BASE usages
 // in src/lib/openfront.ts and src/lib/replaySimCore.ts) - without this,
-// anyone could use this function as a free, unauthenticated open proxy to
-// any path on api.openfront.io.
+// anyone could use this Worker as a free, unauthenticated open proxy to any
+// path on api.openfront.io.
 const ALLOWED_PATHS = [/^leaderboard\/ranked$/, /^public\/player\/[^/]+\/games$/, /^public\/game\/[^/]+$/]
 
-export async function onRequestGet(context) {
-  const { request, params } = context
+export async function handleOf(request) {
   const url = new URL(request.url)
-  const path = (params.path || []).join('/')
+  const path = url.pathname.replace(/^\/api\/of\//, '')
 
   if (!ALLOWED_PATHS.some((re) => re.test(path))) {
     return new Response(JSON.stringify({ error: 'path_not_allowed' }), {

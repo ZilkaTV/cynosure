@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cynosure",
+  "compatibility_date": "2026-08-15",
+  // @supabase/supabase-js and @anthropic-ai/sdk (used by worker/help-chat.js)
+  // have historically needed Node built-in shims (node:crypto, node:stream,
+  // etc.) that only Workers' Node compat layer provides.
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "worker/index.js",
+  "assets": {
+    // Vite's build output (npm run build) - this is the "Build-Befehl" the
+    // Cloudflare dashboard runs before `wrangler deploy` picks this file up.
+    "directory": "./dist/",
+    // SPA fallback: any path that isn't a static file and isn't matched by
+    // run_worker_first below gets index.html, so React Router can handle it
+    // client-side (replaces public/_redirects' old Pages-specific role for
+    // routing purposes - _headers still applies to static asset responses,
+    // see public/_headers).
+    "not_found_handling": "single-page-application",
+    // Every /api/* request is routed to the Worker (worker/index.js)
+    // instead of being looked up as a static file - everything else never
+    // invokes the Worker at all.
+    "run_worker_first": ["/api/*"]
+  }
+}

@@ -65,5 +65,7 @@ To make registrations **shared** and add real Discord verification:
 
 ## Deploy
 
-Any static host works. `vercel.json` is included for SPA routing on Vercel —
-`npm run build` and deploy `dist/`.
+Deployed on Cloudflare Workers (static assets + a small Worker for the
+`/api/*` routes - see `worker/` and `wrangler.jsonc`). `npm run build` then
+`npx wrangler deploy`, or connect the repo in the Cloudflare dashboard for
+git-triggered deploys.

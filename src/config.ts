@@ -1,6 +1,5 @@
 // ── Cynosure site configuration ─────────────────────────────────────────────
 // Everything the site needs to know about the clan lives here.
-// (build marker: force a fresh Vercel build so env vars are baked in)
 
 /** The in-game clan tag. Only games where a player used this tag are counted. */
 export const CLAN_TAG = 'CYN'

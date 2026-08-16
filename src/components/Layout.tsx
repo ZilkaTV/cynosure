@@ -23,6 +23,7 @@ function navItems(t: TranslationShape) {
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
+    { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
   ]
 }
 

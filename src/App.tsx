@@ -17,6 +17,7 @@ const Speedrun = lazy(() => import('./pages/Speedrun'))
 const Events = lazy(() => import('./pages/Events'))
 const Quests = lazy(() => import('./pages/Quests'))
 const Trends = lazy(() => import('./pages/Trends'))
+const History = lazy(() => import('./pages/History'))
 const Donate = lazy(() => import('./pages/Donate'))
 const AdminHelp = lazy(() => import('./pages/AdminHelp'))
 
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/events" element={<Events />} />
             <Route path="/quests" element={<Quests />} />
             <Route path="/trends" element={<Trends />} />
+            <Route path="/history" element={<History />} />
             <Route path="/donate" element={<Donate />} />
             <Route path="/register" element={<Register />} />
             <Route path="/admin/help" element={<AdminHelp />} />

@@ -20,7 +20,24 @@ export interface RankedEntry {
   total: number
   public_id: string
   username: string
+  // OpenFront's newer account-username system: `base.dddd` where the 4-digit
+  // suffix marks an unverified/unclaimed account (verified accounts render
+  // bare, no suffix). `null` on older/never-set accounts. See
+  // splitAccountUsername below for parsing it into base + discriminator.
+  accountUsername: string | null
   clanTag: string | null
+}
+
+// Mirrors OpenFront's own src/client/components/ui/UsernameText.ts: the
+// suffix is always exactly 4 digits and a base can never itself contain a
+// dot, so a trailing ".dddd" is unambiguous.
+const ACCOUNT_USERNAME_DISCRIMINATOR = /^(.+)\.(\d{4})$/
+
+/** Splits an OpenFront account username into its base name and 4-digit unverified-account suffix, if any. */
+export function splitAccountUsername(accountUsername: string): { base: string; discriminator: string | null } {
+  const match = ACCOUNT_USERNAME_DISCRIMINATOR.exec(accountUsername)
+  if (!match) return { base: accountUsername, discriminator: null }
+  return { base: match[1], discriminator: match[2] }
 }
 
 export interface PlayerGame {

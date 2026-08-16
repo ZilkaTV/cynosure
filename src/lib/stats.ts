@@ -33,6 +33,10 @@ export interface MemberStats {
   timezone?: string
   discord?: string
   nationality?: string
+  // OpenFront's account-username system (see splitAccountUsername in
+  // openfront.ts) - only known when the member is on a ranked leaderboard
+  // (that's the only endpoint that returns it), null otherwise.
+  accountUsername: string | null
   // lifetime, CYN-tagged only
   ffaWins: number
   teamWins: number
@@ -409,6 +413,7 @@ export async function buildRoster(
       timezone: input.timezone,
       discord: input.discord_username,
       nationality: input.nationality,
+      accountUsername: r?.accountUsername ?? r2?.accountUsername ?? null,
       ffaWins,
       teamWins,
       rankedWins,

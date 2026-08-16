@@ -11,6 +11,7 @@ import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
 import { Flag } from '../components/Emoji'
+import { splitAccountUsername } from '../lib/openfront'
 import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   currentMonthKey,
@@ -159,6 +160,21 @@ export default function MemberProfile() {
         <p className="mt-1 text-sm text-slate-500">
           {m.timezone && <span>{m.timezone}</span>}
           {m.discord && <span> · {t.memberProfile.discordPrefix} {m.discord}</span>}
+          {m.accountUsername && (
+            <span>
+              {' '}
+              · {t.memberProfile.accountUsernamePrefix}{' '}
+              {(() => {
+                const { base, discriminator } = splitAccountUsername(m.accountUsername)
+                return (
+                  <>
+                    {base}
+                    {discriminator && <span className="text-slate-600">#{discriminator}</span>}
+                  </>
+                )
+              })()}
+            </span>
+          )}
         </p>
         {isOwnProfile ? (
           <div className="mx-auto mt-4 max-w-xs">

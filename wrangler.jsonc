@@ -28,6 +28,30 @@
     "VITE_SUPABASE_URL": "https://mynrwxjtqmcyubeyryge.supabase.co",
     "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15bnJ3eGp0cW1jeXViZXlyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NDk1MzUsImV4cCI6MjA5OTQyNTUzNX0.O2HrmGSN_XnNF2AsWUv7tA5JPIiLV2dQQ24Zxg1V-a8"
   },
+  // cynclan.com's Custom Domain was originally added via the dashboard
+  // (Domänen tab), which worked fine there. www.cynclan.com's dashboard
+  // "Custom Domain hinzufügen" dialog repeatedly closed silently on
+  // "Weiter" without creating anything (no error, no new entry in the
+  // domains list - confirmed directly, including after clearing an old
+  // conflicting wildcard DNS record and retrying in a fresh browser
+  // session), so it was added via `wrangler deploy` from this config
+  // instead - `custom_domain: true` is the exact equivalent of that
+  // dashboard button, just not dependent on a UI that wasn't working.
+  // cynclan.com is listed here too, even though the dashboard already had
+  // it: a `wrangler deploy` with `routes` declared but missing a domain
+  // the dashboard previously created removes that domain's binding rather
+  // than leaving it alone (confirmed the hard way - cynclan.com went down
+  // with a 522 for a few minutes after a routes-with-only-www deploy,
+  // fixed by adding it back here). Whatever custom domains this Worker
+  // should have now needs to be the complete list, every deploy.
+  "routes": [
+    { "pattern": "cynclan.com", "custom_domain": true },
+    { "pattern": "www.cynclan.com", "custom_domain": true }
+  ],
+  // Declaring `routes` otherwise disables the workers.dev URL by default on
+  // deploy - keep it explicitly on, it's still useful as a direct
+  // test/rollback endpoint independent of DNS.
+  "workers_dev": true,
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

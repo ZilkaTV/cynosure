@@ -83,6 +83,13 @@ export default function TrendChart({
         className="overflow-visible cursor-crosshair"
         onMouseMove={(e) => setHoverIdx(indexFromClientX(e.clientX))}
         onMouseLeave={() => setHoverIdx(null)}
+        // Touch devices never fire mousemove - onTouchStart/Move fills the
+        // same role for a finger drag across the chart. No preventDefault:
+        // this chart is much narrower than the page is tall, so letting the
+        // page keep scrolling under a touch here does more good than harm.
+        onTouchStart={(e) => setHoverIdx(indexFromClientX(e.touches[0].clientX))}
+        onTouchMove={(e) => setHoverIdx(indexFromClientX(e.touches[0].clientX))}
+        onTouchEnd={() => setHoverIdx(null)}
       >
         <path d={pathD} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
 

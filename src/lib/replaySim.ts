@@ -223,23 +223,57 @@ export function getGameTileStats(gameId: string): Promise<GameTileStats | null> 
   return p
 }
 
+/**
+ * Cache-only lookup for prefetching: checks IndexedDB then the shared
+ * Supabase cache, but - unlike getGameTileStats - never falls through to an
+ * actual replay. Deliberately not registered in `inFlight`/progress
+ * tracking (those are for real, user-visible replays only), so a prefetch
+ * call for a game can never shortcut or interfere with a genuine
+ * getGameTileStats call for that same game happening at the same time (e.g.
+ * the visitor opens that exact game's report while it's mid-prefetch).
+ */
+async function checkCachedTileStats(gameId: string): Promise<GameTileStats | null> {
+  const commit = await resolveEngineCommit(gameId)
+  if (!commit) return null
+  const cached = await idbGet<GameTileStats>(statsKey(gameId, commit))
+  if (cached) return cached
+  const shared = await fetchShared(gameId, commit)
+  if (shared) {
+    await idbSet(statsKey(gameId, commit), shared)
+    return shared
+  }
+  return null
+}
+
 let prefetchChain: Promise<unknown> = Promise.resolve()
 
 /**
- * Queues Max Tiles computations for games a visitor is likely to open soon
- * (e.g. the games listed on the Overview/profile pages), so by the time
- * they actually click into one, it's often already cached instead of
- * making them wait. Fire-and-forget - callers don't await this.
+ * Warms already-computed Max Tiles results into this visitor's local cache
+ * for games they're likely to open soon (e.g. the games listed on the
+ * Overview/profile pages), so by the time they actually click into one,
+ * it's often already there instead of making them wait. Fire-and-forget -
+ * callers don't await this.
  *
- * Deliberately sequential, not one Promise.all: OpenFront's public API is
- * strictly rate-limited, and firing off a full game+turns fetch for every
- * visible row at once would compete with (and could break) every other
- * live fetch on the page. Each already-cached game resolves near-instantly
- * anyway, so the queue only actually pays the full cost for genuinely new
- * games.
+ * Deliberately cache-only (see checkCachedTileStats): this used to call the
+ * same getGameTileStats a game detail modal does, which falls through to a
+ * real tick-by-tick replay on a cache miss - fine for one game a visitor
+ * actually opened, but confirmed directly to make an ordinary page load
+ * background-compute up to 40 real replays in a row (every game not yet
+ * covered by the shared cache, e.g. because a COMPUTE_LOGIC_VERSION bump
+ * just invalidated it clan-wide) - 30+ seconds of it, on real production
+ * traffic. Actually computing a still-missing game is exactly what the
+ * scheduled backfill (.github/workflows/engine-maintenance.yml) is for;
+ * this prefetch only needs to catch what's already there.
+ *
+ * Still sequential, not one Promise.all: even cache-only, this is one
+ * OpenFront `?turns=false` fetch per game (to resolve its engine commit)
+ * plus a Supabase read, and firing all of them at once would compete with
+ * (and could break) every other live fetch on the page for no benefit -
+ * cache checks are cheap enough one at a time that the queue drains fast
+ * regardless.
  */
 export function prefetchGameTileStats(gameIds: string[]): void {
   for (const gameId of gameIds) {
-    prefetchChain = prefetchChain.then(() => getGameTileStats(gameId)).catch(() => {})
+    prefetchChain = prefetchChain.then(() => checkCachedTileStats(gameId)).catch(() => {})
   }
 }

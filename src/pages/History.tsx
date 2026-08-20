@@ -36,11 +36,14 @@ function matchesFilter(g: PlayerGame, filter: Filter): boolean {
   return is2v2(g)
 }
 
+const ALL_PLAYERS = 'all'
+
 export default function History() {
   const { profile } = useProfile()
   const { t } = useLanguage()
   const { data, loading } = useRoster(!!profile)
   const [filter, setFilter] = useState<Filter>('all')
+  const [playerFilter, setPlayerFilter] = useState<string>(ALL_PLAYERS)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [openGame, setOpenGame] = useState<string | null>(null)
 
@@ -48,22 +51,28 @@ export default function History() {
   if (loading) return <Spinner label={t.common.loadingLiveData} />
 
   // Same game can show up under multiple members if several CYN players were
-  // in it together - dedupe by gameId, keeping every member's name (not just
-  // whoever was found first) so a shared game credits everyone who played.
-  // Unlike Home's recent-games list, private games are kept here (they're
-  // one of the filter buckets), so this is Every CYN game, not a subset.
-  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
+  // in it together - dedupe by gameId, keeping every member (publicId, not
+  // just the name) so a shared game both credits everyone who played AND can
+  // be filtered down to one registered member's own games exactly (matching
+  // by name alone could collide - see MemberNameLink's own use of publicId
+  // as the real identity everywhere else on the site). Unlike Home's
+  // recent-games list, private games are kept here (they're one of the
+  // filter buckets), so this is Every CYN game, not a subset.
+  const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string }[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
       const existing = byGameId.get(g.gameId)
-      if (existing) existing.memberNames.push(m.name)
-      else byGameId.set(g.gameId, { g, memberNames: [m.name] })
+      if (existing) existing.members.push({ publicId: m.publicId, name: m.name })
+      else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name }] })
     }
   }
   const allGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
-  const filteredGames = allGames.filter(({ g }) => matchesFilter(g, filter))
+  const filteredGames = allGames.filter(
+    ({ g, members }) => matchesFilter(g, filter) && (playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)),
+  )
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
+  const sortedMembers = [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name))
 
   const filters: { key: Filter; label: string }[] = [
     { key: 'all', label: t.history.filterAll },
@@ -96,6 +105,24 @@ export default function History() {
           ))}
         </div>
 
+        <div className="flex justify-center">
+          <select
+            value={playerFilter}
+            onChange={(e) => {
+              setPlayerFilter(e.target.value)
+              setVisibleCount(PAGE_SIZE)
+            }}
+            className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+          >
+            <option value={ALL_PLAYERS}>{t.history.allPlayers}</option>
+            {sortedMembers.map((m) => (
+              <option key={m.publicId} value={m.publicId}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {filteredGames.length === 0 ? (
           <p className="text-center text-sm text-slate-500">{t.history.noGames}</p>
         ) : (
@@ -113,7 +140,7 @@ export default function History() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleGames.map(({ g, memberNames }) => (
+                  {visibleGames.map(({ g, members }) => (
                     <tr
                       key={g.gameId}
                       onClick={() => setOpenGame(g.gameId)}
@@ -121,7 +148,7 @@ export default function History() {
                       title={t.home.clickForReportTitle}
                     >
                       <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
+                      <td className="px-4 py-2.5 text-white">{members.map((m) => m.name).join(', ')}</td>
                       <td className="px-4 py-2.5 text-slate-300">
                         {modeLabel(g)}
                         {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}

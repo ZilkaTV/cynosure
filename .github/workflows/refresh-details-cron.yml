@@ -20,6 +20,19 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
+# Without this, a manually-dispatched run (workflow_dispatch) overlapping
+# the next scheduled tick - or two scheduled ticks overlapping if one runs
+# long - lets two invocations of refresh-details.mjs race: each reads
+# cyn_member_snapshots' historical max once at its own start, so a run that
+# started before another run's write can clamp against a stale (too low)
+# max and undo it. Confirmed directly: a manual dispatch overlapping the
+# schedule dropped one member's persisted all_wins from 72 to 33 despite
+# the same-run clamp meant to prevent exactly that. cancel-in-progress:
+# false queues the next run instead of killing real in-flight writes.
+concurrency:
+  group: refresh-details-cron
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest

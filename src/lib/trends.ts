@@ -63,14 +63,41 @@ export async function fetchClanTrend(days = 30): Promise<ClanTrendPoint[]> {
     .select('snapshot_date, openfront_id, all_wins')
     .gte('snapshot_date', sinceDate(days))
   if (error) return []
-  const byDate = new Map<string, { members: Set<string>; totalWins: number }>()
-  for (const row of (data ?? []) as { snapshot_date: string; openfront_id: string; all_wins: number }[]) {
-    const entry = byDate.get(row.snapshot_date) ?? { members: new Set<string>(), totalWins: 0 }
-    entry.members.add(row.openfront_id)
-    entry.totalWins += row.all_wins
-    byDate.set(row.snapshot_date, entry)
+  const rows = (data ?? []) as { snapshot_date: string; openfront_id: string; all_wins: number }[]
+
+  const byMember = new Map<string, { snapshot_date: string; all_wins: number }[]>()
+  for (const row of rows) {
+    const arr = byMember.get(row.openfront_id) ?? []
+    arr.push(row)
+    byMember.set(row.openfront_id, arr)
   }
-  return [...byDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, v]) => ({ date, members: v.members.size, totalWins: v.totalWins }))
+  for (const arr of byMember.values()) arr.sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
+
+  const allDates = [...new Set(rows.map((r) => r.snapshot_date))].sort()
+
+  // Forward-filled: a member missing a row on a given day (a coverage gap
+  // in the ~5-minute cron scan - see refresh-details.mjs's own
+  // SCAN_TIME_BUDGET_MS, not a real event) still counts at their last known
+  // value instead of dropping out of the sum entirely, which used to make
+  // the clan-wide total visibly dip on any day fewer members happened to
+  // get scanned - confirmed directly against real data. `cursor` is a
+  // per-member pointer into their own sorted snapshot list, advanced
+  // forward as `date` increases across this single ascending pass (not
+  // reset per date), so this whole function stays O(rows), not O(dates ×
+  // members).
+  const cursor = new Map<string, number>()
+  return allDates.map((date) => {
+    let totalWins = 0
+    let members = 0
+    for (const [id, snaps] of byMember) {
+      let idx = cursor.get(id) ?? 0
+      while (idx + 1 < snaps.length && snaps[idx + 1].snapshot_date <= date) idx++
+      if (snaps[idx].snapshot_date <= date) {
+        cursor.set(id, idx)
+        totalWins += snaps[idx].all_wins
+        members++
+      }
+    }
+    return { date, members, totalWins }
+  })
 }

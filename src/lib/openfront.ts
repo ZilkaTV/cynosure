@@ -353,12 +353,30 @@ async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<str
   return result
 }
 
-function saveSharedPlayerGames(publicId: string, games: PlayerGame[]): void {
+// Unions with whatever's currently in the shared row before overwriting -
+// without this, a browser whose own view of a player's history is narrower
+// than what's already shared (its local cache is stale, or this pass's own
+// live-fetch pagination cap came up short) would silently shrink the shared
+// cache on write, making previously-counted wins disappear clan-wide.
+// Confirmed directly against real data: cyn_member_snapshots' clan-wide
+// all_wins total dropped on multiple real days, including one with the
+// exact same member count both days - not a missing-coverage artifact, an
+// actual shrink. mergeAndCacheGames's own local "lastGood" merge (see
+// above) only protects THIS browser's local cache from this; the shared
+// Supabase row needs its own read-before-write for the same guarantee.
+async function saveSharedPlayerGames(publicId: string, games: PlayerGame[]): Promise<void> {
   if (!supabase) return
-  supabase
-    .from('cyn_member_games_cache')
-    .upsert({ openfront_id: publicId, games, updated_at: new Date().toISOString() }, { onConflict: 'openfront_id' })
-    .then(() => {}, () => {}) // best-effort - a failed upload just means the next fetch (by anyone) tries again
+  try {
+    const { data } = await supabase.from('cyn_member_games_cache').select('games').eq('openfront_id', publicId).maybeSingle()
+    const existing = ((data as { games?: PlayerGame[] } | null)?.games ?? []) as PlayerGame[]
+    const byGame = new Map(games.map((g) => [g.gameId, g] as const))
+    for (const g of existing) if (!byGame.has(g.gameId)) byGame.set(g.gameId, g)
+    await supabase
+      .from('cyn_member_games_cache')
+      .upsert({ openfront_id: publicId, games: [...byGame.values()], updated_at: new Date().toISOString() }, { onConflict: 'openfront_id' })
+  } catch {
+    // best-effort - a failed upload just means the next fetch (by anyone) tries again
+  }
 }
 
 // Layers in every game this player has ever had successfully fetched before

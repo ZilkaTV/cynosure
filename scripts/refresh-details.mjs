@@ -182,6 +182,23 @@ async function main() {
   const { data: existingGamesRows } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
   const existingGamesByMember = new Map((existingGamesRows ?? []).map((r) => [r.openfront_id, r.games]))
 
+  // Historical high-water mark per member, so a snapshot's own all_wins can
+  // never regress below what's already on record even if this run's
+  // mergedGames is somehow thinner than a past run's (e.g. a shared-cache
+  // write from elsewhere lost games before the fix in src/lib/openfront.ts's
+  // saveSharedPlayerGames - this is the persisted-history-side half of that
+  // same guarantee, confirmed necessary against real data: the clan-wide
+  // all_wins trend had visible drops day to day, including one with the
+  // exact same member count both days). A handful of hundred rows total, so
+  // fetching everything and reducing client-side is simpler than a
+  // per-member query loop.
+  const { data: allSnapshotRows } = await supabase.from('cyn_member_snapshots').select('openfront_id, all_wins')
+  const priorMaxWinsByMember = new Map()
+  for (const row of allSnapshotRows ?? []) {
+    const prev = priorMaxWinsByMember.get(row.openfront_id) ?? 0
+    if (row.all_wins > prev) priorMaxWinsByMember.set(row.openfront_id, row.all_wins)
+  }
+
   const mk = currentMonthKey()
   const wantDetail = new Set()
   let membersScanFailed = 0
@@ -233,11 +250,15 @@ async function main() {
     // this job touches that member - by end of day it holds the last
     // values seen, which is all a daily-granularity trend graph needs.
     // Uses mergedGames too, so a truncated live fetch this run can't make
-    // the win count regress for the day.
+    // the win count regress for the day. Clamped against this member's own
+    // historical max as a second, independent floor (see
+    // priorMaxWinsByMember above) - belt and suspenders against the win
+    // count ever visibly dropping in the trend chart.
     let allWins = 0
     for (const g of mergedGames) {
       if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
     }
+    allWins = Math.max(allWins, priorMaxWinsByMember.get(r.openfront_id) ?? 0)
     await supabase
       .from('cyn_member_snapshots')
       .upsert(

@@ -15,6 +15,7 @@ export interface Profile {
   in_game_name: string
   timezone: string
   discord_username?: string
+  discord_user_id?: string
   nationality?: string
 }
 
@@ -79,6 +80,7 @@ export async function saveProfile(p: Profile): Promise<void> {
         in_game_name: p.in_game_name,
         timezone: p.timezone,
         discord_username: p.discord_username ?? null,
+        discord_user_id: p.discord_user_id ?? null,
         nationality: p.nationality ?? null,
       },
       { onConflict: 'openfront_id' },
@@ -95,7 +97,7 @@ export async function fetchByDiscord(discordUsername: string): Promise<Profile |
   if (!supabase || !discordUsername) return null
   const { data, error } = await supabase
     .from('cyn_members')
-    .select('openfront_id, in_game_name, timezone, discord_username, nationality')
+    .select('openfront_id, in_game_name, timezone, discord_username, discord_user_id, nationality')
     .eq('discord_username', discordUsername)
     .maybeSingle()
   if (error) return null
@@ -107,7 +109,7 @@ export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {
     const { data, error } = await supabase
       .from('cyn_members')
-      .select('openfront_id, in_game_name, timezone, discord_username, nationality')
+      .select('openfront_id, in_game_name, timezone, discord_username, discord_user_id, nationality')
     if (error) throw error
     return (data as Profile[]) ?? []
   }

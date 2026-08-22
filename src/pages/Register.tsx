@@ -4,7 +4,7 @@ import { CLAN_TAG } from '../config'
 import { hasBackend, saveProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
-import { useSession, discordDisplayName } from '../lib/useSession'
+import { useSession, discordDisplayName, discordUserId } from '../lib/useSession'
 import { fetchPlayerGames } from '../lib/openfront'
 import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
@@ -79,6 +79,14 @@ export default function Register() {
         setOpenfrontId((v) => v || existing.openfront_id)
         if (existing.timezone) setTimezone((tz) => tz || existing.timezone)
         if (existing.nationality) setNationality((nat) => nat || existing.nationality!)
+        // Backfills discord_user_id for members who registered before it was
+        // tracked (needed by the Discord role-sync bot) - silent and
+        // automatic the next time they sign in here, no re-registration
+        // needed. Best-effort: a failure here shouldn't block the page.
+        if (!existing.discord_user_id) {
+          const id = discordUserId(session)
+          if (id) saveProfile({ ...existing, discord_user_id: id }).catch(() => {})
+        }
       } else {
         setName((n) => n || discordDisplayName(session))
       }
@@ -121,6 +129,11 @@ export default function Register() {
         timezone,
         openfront_id: id,
         discord_username: session ? discordDisplayName(session) : undefined,
+        // Falls back to whatever was already known (profile.discord_user_id)
+        // if this particular session lookup comes up empty - a submit here
+        // must never erase an ID the earlier sign-in backfill already
+        // captured just because this specific read failed.
+        discord_user_id: (session ? discordUserId(session) : null) ?? profile?.discord_user_id ?? undefined,
         nationality: nationality || undefined,
       })
       refresh()

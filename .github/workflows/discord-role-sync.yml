@@ -1,0 +1,36 @@
+name: Discord role sync
+
+# Assigns each registered CYN member the Discord role matching their
+# highest all-time-wins tier (see scripts/discord-role-sync.mjs and the 9
+# wins badges in src/lib/badges.ts). Every run recomputes the intended role
+# from scratch and reconciles toward it - stateless, so no concurrency guard
+# is needed (unlike refresh-details-cron.yml, which clamps against
+# accumulating history and can race).
+#
+# 30-minute cadence matches engine-maintenance.yml - role updates aren't as
+# time-sensitive as the stats cron's 5-minute cycle.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Sync Discord wins-tier roles
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_WINS_ROLE_IDS: ${{ vars.DISCORD_WINS_ROLE_IDS }}
+        run: node scripts/discord-role-sync.mjs

@@ -56,6 +56,24 @@ export function discordDisplayName(session: Session): string {
   )
 }
 
+/**
+ * Discord's real snowflake user ID - needed only for the Discord role-sync
+ * bot (scripts/discord-role-sync.mjs), which has to call
+ * `.../guilds/{guild}/members/{user_id}/roles/{role_id}` and cannot use the
+ * free-text display name discordDisplayName() returns. `identities[].id` is
+ * Supabase's documented provider-supplied identity ID (the most reliable
+ * source); user_metadata.provider_id/sub are defensive fallbacks in case
+ * `identities` isn't populated on this particular session object. Returns
+ * null rather than throwing, same defensive style as discordDisplayName -
+ * a member simply doesn't get Discord roles synced until this succeeds.
+ */
+export function discordUserId(session: Session): string | null {
+  const identity = session.user.identities?.find((i) => i.provider === 'discord')
+  if (identity?.id) return identity.id
+  const m = session.user.user_metadata ?? {}
+  return (m.provider_id as string | undefined) || (m.sub as string | undefined) || null
+}
+
 /** Whether the signed-in visitor is a whitelisted site admin (cyn_event_admins). */
 export function useIsAdmin(): boolean {
   const session = useSession()

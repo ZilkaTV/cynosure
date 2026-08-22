@@ -949,3 +949,16 @@ create policy "members can post cyn_clan_chat_messages"
 -- ============================================================
 
 alter table public.cyn_member_snapshots add column if not exists elo_2v2 integer;
+
+-- ============================================================
+-- Discord role-sync bot: cyn_members.discord_username is free-text display
+-- name only, never Discord's real snowflake user ID - the one thing the
+-- Discord REST API actually needs to grant/remove a role
+-- (.../guilds/{guild}/members/{user_id}/roles/{role_id}). Populated
+-- client-side (see discordUserId() in src/lib/useSession.ts) the next time a
+-- member's session is available on /register, either on a fresh
+-- registration or automatically the next time an existing member signs back
+-- in there - no re-registration required.
+-- ============================================================
+
+alter table public.cyn_members add column if not exists discord_user_id text;

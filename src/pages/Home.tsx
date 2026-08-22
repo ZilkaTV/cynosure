@@ -222,7 +222,8 @@ export default function Home() {
   // Home is the one page nearly everyone visits regularly, so it's the best
   // place to make a dent in that backlog. Still bounded (not "every game
   // ever") and still costs nothing extra for anything already cached - the
-  // sequential queue in prefetchGameTileStats checks that first per game.
+  // bounded-concurrency pool in prefetchGameTileStats checks that first per
+  // game, cache-only (see checkCachedTileStats), never a real replay.
   const PREFETCH_COUNT = 40
   const prefetchGames = sortedRecentGames.slice(0, PREFETCH_COUNT)
   useEffect(() => {

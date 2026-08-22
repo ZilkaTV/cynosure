@@ -245,7 +245,12 @@ async function checkCachedTileStats(gameId: string): Promise<GameTileStats | nul
   return null
 }
 
-let prefetchChain: Promise<unknown> = Promise.resolve()
+// How many checkCachedTileStats calls run at once. Matches MAX_CONCURRENT_REQUESTS
+// in openfront.ts (the app-wide concurrency gate for OpenFront API calls) -
+// this prefetch bypasses that gate (it goes through replaySimCore.ts's own
+// direct fetch, not openfront.ts's getJson), so it needs its own equivalent
+// limit rather than none at all.
+const PREFETCH_CONCURRENCY = 6
 
 /**
  * Warms already-computed Max Tiles results into this visitor's local cache
@@ -265,15 +270,22 @@ let prefetchChain: Promise<unknown> = Promise.resolve()
  * scheduled backfill (.github/workflows/engine-maintenance.yml) is for;
  * this prefetch only needs to catch what's already there.
  *
- * Still sequential, not one Promise.all: even cache-only, this is one
- * OpenFront `?turns=false` fetch per game (to resolve its engine commit)
- * plus a Supabase read, and firing all of them at once would compete with
- * (and could break) every other live fetch on the page for no benefit -
- * cache checks are cheap enough one at a time that the queue drains fast
- * regardless.
+ * Runs PREFETCH_CONCURRENCY at a time, not fully sequential (as this used
+ * to be) and not unbounded either: confirmed directly that even purely
+ * cache-only checks, run one at a time, still took ~16s end-to-end for 40
+ * games on a cold visitor (no IndexedDB history yet) - each one is only a
+ * single lightweight `?turns=false` fetch plus a Supabase read, so a bounded
+ * pool cuts that by roughly PREFETCH_CONCURRENCY-fold without the
+ * all-at-once burst a plain Promise.all would send at OpenFront's strict
+ * rate limits.
  */
 export function prefetchGameTileStats(gameIds: string[]): void {
-  for (const gameId of gameIds) {
-    prefetchChain = prefetchChain.then(() => checkCachedTileStats(gameId)).catch(() => {})
+  let next = 0
+  const worker = async () => {
+    while (next < gameIds.length) {
+      const gameId = gameIds[next++]
+      await checkCachedTileStats(gameId).catch(() => {})
+    }
   }
+  for (let i = 0; i < Math.min(PREFETCH_CONCURRENCY, gameIds.length); i++) worker()
 }

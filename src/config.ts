@@ -49,5 +49,6 @@ export const USEFUL_LINKS: { label: string; url: string; note: string }[] = [
   { label: 'Replay Tool', url: 'https://openfront-tools.frozenpenguin.media', note: 'Replays for old versions' },
   { label: '1v1 Leaderboard', url: 'https://op-leaderboard.netlify.app', note: 'Ranked 1v1 rankings' },
   { label: 'ofstats.io', url: 'https://ofstats.io/?mode=Ranked+1v1', note: 'Live ranked queue' },
+  { label: 'ofstats.io maps', url: 'https://ofstats.io/maps', note: 'Winner spawn heat maps' },
   { label: 'trackerfront', url: 'https://trackerfront.com', note: 'FFA leaderboard' },
 ]

@@ -32,5 +32,5 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_WINS_ROLE_IDS: ${{ vars.DISCORD_WINS_ROLE_IDS }}
+          DISCORD_WINS_ROLE_IDS: ${{ vars.DISCORD_WINS_ROLES_IDS }}
         run: node scripts/discord-role-sync.mjs

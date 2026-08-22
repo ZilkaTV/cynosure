@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ComponentType, SVGProps } from 'react'
-import type { Badge, BadgeTier, IconKey } from '../lib/badges'
+import type { Badge, BadgeTier, IconKey, WinsTier } from '../lib/badges'
 import {
   TrophyIcon,
   MedalIcon,
@@ -23,22 +23,42 @@ import {
 } from './BadgeIcons'
 import { useLanguage } from '../i18n/LanguageContext'
 
-const TIER_RING: Record<BadgeTier, string> = {
+const TIER_RING: Record<BadgeTier | WinsTier, string> = {
   bronze: 'ring-2 ring-[#cd7f32]/70',
   silver: 'ring-2 ring-[#c0c0c0]/70',
   gold: 'ring-2 ring-[#f2c14e]/70',
   diamond: 'ring-2 ring-[#7fe3f0]/70',
+  winsBronze: 'ring-2 ring-[#cd7f32]/70',
+  winsSilver: 'ring-2 ring-[#c0c0c0]/70',
+  winsGold: 'ring-2 ring-[#f2c14e]/70',
+  winsDiamond: 'ring-2 ring-[#7fe3f0]/70',
+  winsMaster: 'ring-2 ring-[#a78bfa]/70',
+  winsChampion: 'ring-2 ring-[#fb7185]/70',
+  winsChallenger: 'ring-2 ring-[#fb923c]/70',
+  winsImmortal: 'ring-2 ring-[#e879f9]/70',
+  winsGodTier: 'ring-2 ring-[#fbbf24]/70',
 }
 
 // Same hex values as TIER_RING, applied to the icon itself via `text-` (the
 // icons use fill="currentColor") - a single star/ship shape recolored by
 // tier reads clearer at small sizes than swapping in a different medal shape
-// per tier ever did.
-const TIER_ICON_COLOR: Record<BadgeTier, string> = {
+// per tier ever did. The wins* entries drive the 9-rank CYN wins-milestone
+// badge the same way, escalating past the 4 rank-ladder colors once a
+// member's wins outgrow them.
+const TIER_ICON_COLOR: Record<BadgeTier | WinsTier, string> = {
   bronze: 'text-[#cd7f32]',
   silver: 'text-[#c0c0c0]',
   gold: 'text-[#f2c14e]',
   diamond: 'text-[#7fe3f0]',
+  winsBronze: 'text-[#cd7f32]',
+  winsSilver: 'text-[#c0c0c0]',
+  winsGold: 'text-[#f2c14e]',
+  winsDiamond: 'text-[#7fe3f0]',
+  winsMaster: 'text-[#a78bfa]',
+  winsChampion: 'text-[#fb7185]',
+  winsChallenger: 'text-[#fb923c]',
+  winsImmortal: 'text-[#e879f9]',
+  winsGodTier: 'text-[#fbbf24]',
 }
 
 const ICON_COMPONENT: Record<IconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -76,7 +96,7 @@ function BadgeVisual({ badge, className }: { badge: Badge; className?: string })
   if (badge.kind === 'shield') return <ShieldIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
   if (badge.kind === 'ship') return <ShipIcon className={`${className} ${tierColor}`} aria-label={badge.name} />
   const Icon = badge.icon ? ICON_COMPONENT[badge.icon] : null
-  return Icon ? <Icon className={className} aria-label={badge.name} /> : null
+  return Icon ? <Icon className={`${className} ${tierColor}`} aria-label={badge.name} /> : null
 }
 
 /** Compact earned-only badges (for the roster / overview). */
@@ -151,7 +171,7 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
                   <div className="min-w-0">
                     <p className={`text-sm font-semibold ${b.earned ? 'text-white' : 'text-slate-400'}`}>
                       {b.name}
-                      {b.tier && b.earned && <span className="ml-1 text-xs capitalize text-slate-400">{b.tier}</span>}
+                      {b.tier && b.earned && b.id !== 'wins' && <span className="ml-1 text-xs capitalize text-slate-400">{b.tier}</span>}
                     </p>
                     <p className="text-[11px] text-slate-500">{b.desc}</p>
                   </div>

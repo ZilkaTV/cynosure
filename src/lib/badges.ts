@@ -20,6 +20,18 @@ function fmtCompact(n: number): string {
 
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'diamond'
 
+/** The 9 CYN wins-milestone ranks, lowest to highest. */
+export type WinsTier =
+  | 'winsBronze'
+  | 'winsSilver'
+  | 'winsGold'
+  | 'winsDiamond'
+  | 'winsMaster'
+  | 'winsChampion'
+  | 'winsChallenger'
+  | 'winsImmortal'
+  | 'winsGodTier'
+
 export type IconKey =
   | 'trophy'
   | 'medal'
@@ -42,7 +54,7 @@ export interface Badge {
   name: string
   kind: 'star' | 'shield' | 'ship' | 'icon' | 'level'
   icon?: IconKey
-  tier?: BadgeTier
+  tier?: BadgeTier | WinsTier
   level?: number
   earned: boolean
   desc: string
@@ -64,6 +76,35 @@ function tierFromRank(rank: number | null): BadgeTier | null {
 /** Tier -> the top-N cutoff, for short badge labels like "Top 50". */
 function tierLimit(tier: BadgeTier): number {
   return { diamond: 3, gold: 10, silver: 50, bronze: 100 }[tier]
+}
+
+/** The 9 CYN wins ranks, highest threshold first, and their fixed display name. */
+const WINS_TIERS: { threshold: number; tier: WinsTier; name: string }[] = [
+  { threshold: 10000, tier: 'winsGodTier', name: 'God of OpenFront' },
+  { threshold: 5000, tier: 'winsImmortal', name: 'Supreme Immortal' },
+  { threshold: 2000, tier: 'winsChallenger', name: 'Challenger Hero' },
+  { threshold: 1000, tier: 'winsChampion', name: 'Grand Champion' },
+  { threshold: 750, tier: 'winsMaster', name: 'Master Elite' },
+  { threshold: 500, tier: 'winsDiamond', name: 'Diamond Veteran' },
+  { threshold: 250, tier: 'winsGold', name: 'Gold Legionnaire' },
+  { threshold: 100, tier: 'winsSilver', name: 'Silver Recruit' },
+  { threshold: 50, tier: 'winsBronze', name: 'CYN Bronze Initiate' },
+]
+
+/** All-time wins -> the highest rank reached, if any. These names are fixed titles, not translated. */
+function winsTierFromWins(allWins: number): { tier: WinsTier; name: string } | null {
+  for (const entry of WINS_TIERS) {
+    if (allWins >= entry.threshold) return entry
+  }
+  return null
+}
+
+/** The next rank's threshold above the current all-time wins, if any rank remains to be earned. */
+function nextWinsThreshold(allWins: number): number | null {
+  for (let i = WINS_TIERS.length - 1; i >= 0; i--) {
+    if (allWins < WINS_TIERS[i].threshold) return WINS_TIERS[i].threshold
+  }
+  return null
 }
 
 /**
@@ -139,6 +180,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
   const starTier = tierFromRank(m.rank1v1)
   const star2v2Tier = tierFromRank(m.rank2v2)
   const shipTier = tierFromRank(m.ffaRank)
+  const winsTier = winsTierFromWins(m.allWins)
   const streak = loyalStreak(m)
 
   const starLabel = starTier ? b.star.earnedDesc(tierLimit(starTier)) : b.star.notEarnedDesc
@@ -182,8 +224,16 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: fastest ? b.fastest.descWithLeader(fastest.name, fmtTime(fastest.v)) : b.fastest.descNoLeader,
     },
     // ── milestones (permanent) ──
-    { id: 'good', name: b.good.name, kind: 'icon', icon: 'medal', earned: m.allWins >= 100, group: 'milestone', desc: b.good.desc },
-    { id: 'god', name: b.god.name, kind: 'icon', icon: 'crown', earned: m.allWins >= 1000, group: 'milestone', desc: b.god.desc },
+    {
+      id: 'wins',
+      name: winsTier ? winsTier.name : b.wins.notEarnedName,
+      kind: 'icon',
+      icon: 'medal',
+      tier: winsTier?.tier,
+      earned: !!winsTier,
+      group: 'milestone',
+      desc: winsTier ? b.wins.earnedDesc(m.allWins) : b.wins.notEarnedDesc(nextWinsThreshold(m.allWins) ?? 50),
+    },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
     { id: 'pusher', name: b.pusher.name, kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: b.pusher.desc },
     { id: 'chatter', name: b.chatter.name, kind: 'icon', icon: 'chatBubble', earned: m.chatMessageCount >= 100, group: 'milestone', desc: b.chatter.desc },

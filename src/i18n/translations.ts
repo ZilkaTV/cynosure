@@ -456,8 +456,11 @@ export const translations = {
         descWithLeader: (name: string, v: string) => `Fastest speedrun time in the clan - ${name}, currently ${v}`,
         descNoLeader: 'Fastest speedrun time in the clan',
       },
-      good: { name: 'Good Player', desc: '100 wins earned in CYN' },
-      god: { name: 'God Player', desc: '1000 wins earned in CYN' },
+      wins: {
+        notEarnedName: 'Wins Rank',
+        earnedDesc: (n: number) => `${n} wins earned in CYN`,
+        notEarnedDesc: (next: number) => `Reach ${next} wins in CYN to earn this rank`,
+      },
       loyal: {
         name: 'Loyal Player',
         desc: (threshold: number, current: number) => `${threshold}+ day win streak in a row (currently ${current})`,
@@ -1021,8 +1024,11 @@ export const translations = {
         descWithLeader: (name: string, v: string) => `Schnellste Speedrun-Zeit im Clan - ${name}, aktuell ${v}`,
         descNoLeader: 'Schnellste Speedrun-Zeit im Clan',
       },
-      good: { name: 'Guter Spieler', desc: '100 Siege im Clan erzielt' },
-      god: { name: 'Gott-Spieler', desc: '1000 Siege im Clan erzielt' },
+      wins: {
+        notEarnedName: 'Sieges-Rang',
+        earnedDesc: (n: number) => `${n} Siege im Clan erzielt`,
+        notEarnedDesc: (next: number) => `Erreiche ${next} Siege im Clan, um diesen Rang freizuschalten`,
+      },
       loyal: {
         name: 'Treuer Spieler',
         desc: (threshold: number, current: number) => `${threshold}+ Tage Siegesserie in Folge (aktuell ${current})`,
@@ -1586,8 +1592,11 @@ export const translations = {
         descWithLeader: (name: string, v: string) => `Temps de speedrun le plus rapide du clan - ${name}, actuellement ${v}`,
         descNoLeader: 'Temps de speedrun le plus rapide du clan',
       },
-      good: { name: 'Bon joueur', desc: '100 victoires obtenues en CYN' },
-      god: { name: 'Joueur divin', desc: '1000 victoires obtenues en CYN' },
+      wins: {
+        notEarnedName: 'Rang de victoires',
+        earnedDesc: (n: number) => `${n} victoires obtenues en CYN`,
+        notEarnedDesc: (next: number) => `Atteins ${next} victoires en CYN pour débloquer ce rang`,
+      },
       loyal: {
         name: 'Joueur fidèle',
         desc: (threshold: number, current: number) => `${threshold}+ jours de série de victoires d'affilée (actuellement ${current})`,

@@ -51,4 +51,5 @@ export const USEFUL_LINKS: { label: string; url: string; note: string }[] = [
   { label: 'ofstats.io', url: 'https://ofstats.io/?mode=Ranked+1v1', note: 'Live ranked queue' },
   { label: 'ofstats.io maps', url: 'https://ofstats.io/maps', note: 'Winner spawn heat maps' },
   { label: 'trackerfront', url: 'https://trackerfront.com', note: 'FFA leaderboard' },
+  { label: 'CYN Skin Shop', url: 'https://openfront.io/#modal=store&affiliateCode=cyn', note: 'OpenFront skin store' },
 ]

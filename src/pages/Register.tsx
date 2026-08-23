@@ -11,12 +11,13 @@ import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
-const TIMEZONES = ['EU', 'America', 'Asia']
+const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia']
 
 function guessTz(): string {
   const off = -new Date().getTimezoneOffset() / 60
   if (off <= -1) return 'America'
   if (off >= 5) return 'Asia'
+  if (off >= 2) return 'Middle East'
   return 'EU'
 }
 

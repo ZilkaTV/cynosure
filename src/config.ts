@@ -44,6 +44,7 @@ export const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour (OpenFront elo updates hour
 
 /** Useful OpenFront community sites, shown in the links panel next to the table. */
 export const USEFUL_LINKS: { label: string; url: string; note: string }[] = [
+  { label: 'CYN Skin Shop', url: 'https://openfront.io/#modal=store&affiliateCode=cyn', note: 'OpenFront skin store' },
   { label: 'OpenFront', url: 'https://openfront.io', note: 'Main website' },
   { label: 'OpenFront Lobbies', url: 'https://minhkarl.github.io', note: 'Browse open public lobbies' },
   { label: 'Replay Tool', url: 'https://openfront-tools.frozenpenguin.media', note: 'Replays for old versions' },
@@ -51,5 +52,4 @@ export const USEFUL_LINKS: { label: string; url: string; note: string }[] = [
   { label: 'ofstats.io', url: 'https://ofstats.io/?mode=Ranked+1v1', note: 'Live ranked queue' },
   { label: 'ofstats.io maps', url: 'https://ofstats.io/maps', note: 'Winner spawn heat maps' },
   { label: 'trackerfront', url: 'https://trackerfront.com', note: 'FFA leaderboard' },
-  { label: 'CYN Skin Shop', url: 'https://openfront.io/#modal=store&affiliateCode=cyn', note: 'OpenFront skin store' },
 ]

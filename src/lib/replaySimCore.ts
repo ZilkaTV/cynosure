@@ -75,6 +75,7 @@ export const KNOWN_ENGINE_COMMITS = [
   'd53d6c339fefe0291782e1530242a771a44c9e91',
   '3229956f09a0307c7ed1d31e07aed9a9f9356cbd',
   '90513c0bffeb8e74a83e76c7a99e3b136f433f87',
+  '0cb90ccb74787e8384f030517423826fe9f607a9',
 ] as const
 export type EngineCommit = (typeof KNOWN_ENGINE_COMMITS)[number]
 
@@ -134,6 +135,8 @@ async function loadCreateGameRunner(commit: EngineCommit) {
       return (await import('../vendor/openfront-core-3229956/src/core/GameRunner')).createGameRunner
     case '90513c0bffeb8e74a83e76c7a99e3b136f433f87':
       return (await import('../vendor/openfront-core-90513c0/src/core/GameRunner')).createGameRunner
+    case '0cb90ccb74787e8384f030517423826fe9f607a9':
+      return (await import('../vendor/openfront-core-0cb90cc/src/core/GameRunner')).createGameRunner
   }
 }
 

@@ -334,48 +334,39 @@ const GAMES_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 // load: about half of OpenFront's own paginated `/games` responses came back
 // 429 under that load, each one paying getJson's retry backoff before
 // eventually succeeding, for a combined ~25-35s just to list everyone's
-// games. The Cron (api/cron/refresh-details.js) already fetches every
-// member's game list every ~5 minutes anyway (to know which games need
-// detail caching) - it now writes that list here too, so a visitor's
-// browser can read it back in one query instead of repeating the same
-// rate-limited pagination itself. Unlike cyn_game_detail_cache, a game LIST
-// isn't immutable (it grows over time), so a row is only trusted while
-// reasonably fresh; past that it's treated as a miss and re-fetched live
-// (which then re-uploads it here too, so the next visitor doesn't have to
-// wait for the next Cron tick either).
-//
-// Confirmed live that 20 minutes was too tight a leash: under sustained
-// OpenFront rate limiting the Cron's own scan can't always get through every
-// member in one run (see SCAN_TIME_BUDGET_MS in api/cron/refresh-details.js),
-// so a member can legitimately go without a fresh write for longer than that
-// even with the Cron firing every ~5 minutes - and every visitor who then
-// hits that one "stale" row pays the full live-pagination cost again,
-// regressing right back toward the original slow-load problem. A player's
-// game list only grows by a handful of entries a day at most, so there's
-// nothing time-sensitive being traded away by trusting it much longer - this
-// matches the general CACHE_TTL_MS used for similarly slow-changing data
-// (elo, rankings).
-const GAMES_SHARED_STALE_AFTER_MS = CACHE_TTL_MS // 1 hour
-
+// games. scripts/refresh-details.mjs (a GitHub Actions cron, "every ~5
+// minutes" but only guaranteed to run "at least this often" - real gaps of
+// 50-90+ minutes have been observed) fetches every member's game list anyway
+// (to know which games need detail caching) and writes that list here, so a
+// visitor's browser can read it back in one query instead of repeating the
+// same rate-limited pagination itself. Trusted regardless of how old the row
+// is - see fetchSharedPlayerGamesBatch's own comment for why an age check
+// here caused more harm than it prevented.
 interface SharedGamesRow {
   openfront_id: string
   games: PlayerGame[]
-  updated_at: string
 }
 
+// No staleness check on this row (there used to be one, 1 hour): this used
+// to make sense when a "too old" row fell back to a live fetch, getting
+// fresher data as a consequence - but fetchPlayerGamesBatch/fetchPlayerGames
+// no longer live-fetch at all (see their own comments), so discarding a
+// stale-but-real row just replaced it with NOTHING instead of something
+// fresher. Confirmed directly to cause exactly that in production: the
+// 5-minute cron (refresh-details-cron.yml) is only GUARANTEED to run "at
+// least this often" by GitHub Actions, and real gaps of 50-90+ minutes
+// between runs were observed - past the old 1-hour cutoff, every member's
+// row was being discarded at once, showing 0 wins clan-wide. Since this
+// table only ever grows (see saveSharedPlayerGames/refresh-details.mjs's own
+// union-before-upsert), trusting it regardless of age is always at least as
+// correct as the alternative, and the cron still keeps it fresh whenever it
+// does manage to run.
 async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<string, PlayerGame[]>> {
   const result = new Map<string, PlayerGame[]>()
   if (!supabase || publicIds.length === 0) return result
-  const { data, error } = await supabase
-    .from('cyn_member_games_cache')
-    .select('openfront_id, games, updated_at')
-    .in('openfront_id', publicIds)
+  const { data, error } = await supabase.from('cyn_member_games_cache').select('openfront_id, games').in('openfront_id', publicIds)
   if (error || !data) return result
-  const cutoff = Date.now() - GAMES_SHARED_STALE_AFTER_MS
-  for (const row of data as SharedGamesRow[]) {
-    if (new Date(row.updated_at).getTime() < cutoff) continue
-    result.set(row.openfront_id, row.games)
-  }
+  for (const row of data as SharedGamesRow[]) result.set(row.openfront_id, row.games)
   return result
 }
 

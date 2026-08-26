@@ -962,3 +962,38 @@ alter table public.cyn_member_snapshots add column if not exists elo_2v2 integer
 -- ============================================================
 
 alter table public.cyn_members add column if not exists discord_user_id text;
+
+-- ============================================================
+-- Permanent fix for slow cold page loads: buildRoster (src/lib/stats.ts)
+-- used to fall back to a LIVE, rate-limited OpenFront/trackerfront fetch
+-- straight from the visitor's own browser whenever the ranked leaderboard
+-- or FFA leaderboard wasn't already in this browser's local cache. The
+-- 5-minute cron (scripts/refresh-details.mjs) already scans both every run
+-- anyway (for elo snapshots) - it now writes the result here too, so the
+-- browser's fetchRankedMap/fetchFfaLeaderboard (src/lib/openfront.ts) can
+-- read it back instead of ever calling OpenFront/trackerfront directly.
+-- Single row (id always 1), same reasoning as every other OpenFront-derived
+-- shared cache in this file for the RLS policy shape: non-authored,
+-- self-correcting background data, not something a member could fake for
+-- personal gain.
+-- ============================================================
+
+create table if not exists public.cyn_roster_cache (
+  id int primary key default 1,
+  ranked_1v1 jsonb not null default '{}',
+  ranked_2v2 jsonb not null default '{}',
+  ffa_leaderboard jsonb not null default '{}',
+  updated_at timestamptz not null default now(),
+  constraint cyn_roster_cache_singleton check (id = 1)
+);
+
+alter table public.cyn_roster_cache enable row level security;
+
+create policy "public can read cyn_roster_cache"
+  on public.cyn_roster_cache for select to public using (true);
+
+create policy "anyone can insert cyn_roster_cache"
+  on public.cyn_roster_cache for insert to public with check (true);
+
+create policy "anyone can update cyn_roster_cache"
+  on public.cyn_roster_cache for update to public using (true) with check (true);

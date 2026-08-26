@@ -4,7 +4,7 @@
 // localStorage. The proxy also shares one CDN cache across visitors, which
 // keeps us under OpenFront's strict rate limits.
 
-import { CACHE_TTL_MS, LEADERBOARD_SCAN_PAGES } from '../config'
+import { CACHE_TTL_MS } from '../config'
 import { supabase } from './supabase'
 
 const API_BASE = '/api/of'
@@ -209,12 +209,36 @@ async function getJson(url: string): Promise<unknown> {
 }
 
 // ── Ranked leaderboard (the only source of elo - top 100 players) ───────────
-// One response carries both ladders (1v1 and 2v2), so both maps are built
-// from the same page requests instead of scanning the leaderboard twice.
 
-async function fetchRankedPage(page: number): Promise<{ oneVOne: RankedEntry[]; twoVTwo: RankedEntry[] }> {
-  const json = (await getJson(`${API_BASE}/leaderboard/ranked?page=${page}`)) as { '1v1'?: RankedEntry[]; '2v2'?: RankedEntry[] }
-  return { oneVOne: json?.['1v1'] ?? [], twoVTwo: json?.['2v2'] ?? [] }
+interface RosterCacheRow {
+  ranked_1v1: Record<string, RankedEntry>
+  ranked_2v2: Record<string, RankedEntry>
+  ffa_leaderboard: Record<string, number>
+}
+
+// Both leaderboard maps below now come from ONE shared row (see
+// cyn_roster_cache in supabase/schema.sql) instead of scanning
+// OpenFront/trackerfront live on a cache miss - the 5-minute cron
+// (scripts/refresh-details.mjs) already does that scan every run anyway (for
+// elo snapshots) and writes the result here, so the browser never needs to.
+// Fetched once and reused by both fetchRankedMap and fetchFfaLeaderboard
+// below rather than one query each.
+let rosterCacheRow: Promise<RosterCacheRow | null> | null = null
+
+async function fetchRosterCacheRow(): Promise<RosterCacheRow | null> {
+  if (!rosterCacheRow) {
+    rosterCacheRow = (async () => {
+      if (!supabase) return null
+      const { data, error } = await supabase
+        .from('cyn_roster_cache')
+        .select('ranked_1v1, ranked_2v2, ffa_leaderboard')
+        .eq('id', 1)
+        .maybeSingle()
+      if (error || !data) return null
+      return data as RosterCacheRow
+    })()
+  }
+  return rosterCacheRow
 }
 
 /** Map of public_id → ranked entry for everyone on each ladder (top 100). */
@@ -223,20 +247,8 @@ export async function fetchRankedMap(): Promise<{ oneVOne: Record<string, Ranked
   const cached = cacheGet<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry> }>(key)
   if (cached) return cached
 
-  const oneVOne: Record<string, RankedEntry> = {}
-  const twoVTwo: Record<string, RankedEntry> = {}
-  for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
-    let entries: { oneVOne: RankedEntry[]; twoVTwo: RankedEntry[] }
-    try {
-      entries = await fetchRankedPage(page)
-    } catch {
-      break
-    }
-    if (entries.oneVOne.length === 0 && entries.twoVTwo.length === 0) break
-    for (const e of entries.oneVOne) oneVOne[e.public_id] = e
-    for (const e of entries.twoVTwo) twoVTwo[e.public_id] = e
-  }
-  const result = { oneVOne, twoVTwo }
+  const row = await fetchRosterCacheRow()
+  const result = { oneVOne: row?.ranked_1v1 ?? {}, twoVTwo: row?.ranked_2v2 ?? {} }
   cacheSet(key, result)
   return result
 }
@@ -249,13 +261,8 @@ export async function fetchFfaLeaderboard(): Promise<Record<string, number>> {
   const cached = cacheGet<Record<string, number>>(key)
   if (cached) return cached
 
-  const byName: Record<string, number> = {}
-  try {
-    const json = (await getJson('/api/tf/api/public/leaderboard')) as Array<{ position: number; display_name: string }>
-    for (const e of json ?? []) if (e.display_name) byName[e.display_name] = e.position
-  } catch {
-    /* leave empty - ship badges just stay unearned */
-  }
+  const row = await fetchRosterCacheRow()
+  const byName = row?.ffa_leaderboard ?? {}
   cacheSet(key, byName)
   return byName
 }
@@ -431,11 +438,19 @@ export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise
 /**
  * Bulk variant of fetchPlayerGames for buildRoster's up-front pass: resolves
  * every member still missing from their own local cache in ONE shared-cache
- * query instead of one live, rate-limited OpenFront pagination per member,
- * falling back to a live fetch (same as fetchPlayerGames) only for whoever
- * isn't in the shared cache or has an entry too stale to trust.
+ * query instead of one live, rate-limited OpenFront pagination per member.
+ *
+ * Deliberately never falls back to a live fetch (unlike fetchPlayerGames,
+ * used only for the single-member registration check) - this is the roster
+ * page's hot path, hit by every visitor on every load. A member still
+ * missing from the shared cache (brand new, or the 5-minute cron just
+ * hasn't reached them yet) simply contributes no games THIS load; the cron
+ * fills them in shortly after and the next load picks it up. That trade
+ * (occasionally slightly stale over never live-fetching) is what actually
+ * bounds page load time - see supabase/schema.sql's cyn_roster_cache notes
+ * for the matching fix on the leaderboard side.
  */
-export async function fetchPlayerGamesBatch(publicIds: string[], maxPages = 25): Promise<Record<string, PlayerGame[]>> {
+export async function fetchPlayerGamesBatch(publicIds: string[]): Promise<Record<string, PlayerGame[]>> {
   const result: Record<string, PlayerGame[]> = {}
   const stillNeeded: string[] = []
   for (const id of publicIds) {
@@ -446,18 +461,9 @@ export async function fetchPlayerGamesBatch(publicIds: string[], maxPages = 25):
   if (stillNeeded.length === 0) return result
 
   const shared = await fetchSharedPlayerGamesBatch(stillNeeded)
-  const liveNeeded: string[] = []
   for (const id of stillNeeded) {
     const games = shared.get(id)
     if (games) result[id] = mergeAndCacheGames(id, games)
-    else liveNeeded.push(id)
-  }
-  if (liveNeeded.length > 0) {
-    await Promise.all(
-      liveNeeded.map(async (id) => {
-        result[id] = await fetchPlayerGamesLive(id, maxPages)
-      }),
-    )
   }
   return result
 }
@@ -596,7 +602,17 @@ export async function fetchGameDetail(gameId: string): Promise<GameDetail | null
  * to be a plain Promise.all of individual fetchGameDetail calls, which meant
  * a roster with e.g. 150 games needing detail fired 150 separate Supabase
  * requests just to find out most of them were already sitting in the shared
- * cache) - falling back to a live fetch only for whoever isn't in either cache.
+ * cache).
+ *
+ * Deliberately never falls back to a live fetch (unlike single-item
+ * fetchGameDetail, used only when a visitor clicks one specific game) - same
+ * reasoning as fetchPlayerGamesBatch above: this is the roster hot path, and
+ * every caller already treats a missing entry in the returned map as "no
+ * detail available" (renders "-" for kills/gold) rather than an error, so
+ * this degrades gracefully. scripts/refresh-details.mjs's wantDetail
+ * selection mirrors buildRoster's own (see RECENT_DETAIL_COUNT in
+ * src/lib/stats.ts) so a game missing here should only ever be a brief,
+ * self-healing gap until the next cron tick.
  */
 export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<string, GameDetail | null>> {
   const result = new Map<string, GameDetail | null>()
@@ -609,23 +625,13 @@ export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<stri
   if (needsLookup.length === 0) return result
 
   const shared = await fetchSharedGameDetailsBatch(needsLookup)
-  const needsLiveFetch: string[] = []
   for (const id of needsLookup) {
     const detail = shared.get(id)
     if (detail) {
       cachePermSet(`${CACHE_NS}:detail:${id}`, detail)
       result.set(id, detail)
-    } else {
-      needsLiveFetch.push(id)
     }
   }
-  if (needsLiveFetch.length === 0) return result
-
-  await Promise.all(
-    needsLiveFetch.map(async (id) => {
-      result.set(id, await fetchGameDetailLive(id))
-    }),
-  )
   return result
 }
 

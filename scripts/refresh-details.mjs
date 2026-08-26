@@ -19,15 +19,19 @@
 //
 // Deliberately processes a bounded batch per run rather than trying to do
 // everything at once: whatever it doesn't get to this run, it picks up next
-// run, and the client's own fetchGameDetail (src/lib/openfront.ts) still
-// falls back to a live fetch (and writes back to this same shared table) for
-// anything this job hasn't caught yet - so nothing is ever permanently stuck
-// behind this job's own pace.
+// run. The roster page's bulk fetchGameDetailsBatch (src/lib/openfront.ts)
+// deliberately does NOT fall back to a live fetch for whatever this job
+// hasn't caught yet (see that function's own comment) - that's the point,
+// it's what makes page load time bounded. Only the single-game
+// fetchGameDetail (used when a visitor clicks one specific game) still has a
+// live fallback, and writes back to this same shared table when it does.
 
 import { createClient } from '@supabase/supabase-js'
 
 const CLAN_TAG = 'CYN'
 const MAX_GAMES_PER_RUN = 60
+// Matches RECENT_DETAIL_COUNT in src/lib/stats.ts's buildRoster.
+const RECENT_DETAIL_COUNT = 20
 const TIME_BUDGET_MS = 50_000
 // Leaves headroom under TIME_BUDGET_MS for the detail-fetch loop and the
 // summary log itself - both share the same startedAt clock, so this isn't
@@ -96,6 +100,11 @@ function monthKeyOf(iso) {
 // src/config.ts), run once per invocation, not once per member.
 const LEADERBOARD_SCAN_PAGES = 3
 
+// Keeps the FULL entry object per member (rank/elo/peakElo/username/
+// accountUsername/clanTag), not just elo - this is now also written whole to
+// cyn_roster_cache (see below) so the browser's fetchRankedMap
+// (src/lib/openfront.ts) never has to scan the leaderboard live itself; elo
+// alone used to be enough here when this only fed cyn_member_snapshots.
 async function fetchRankedMap() {
   const byId = new Map()
   const byId2v2 = new Map()
@@ -109,10 +118,24 @@ async function fetchRankedMap() {
     const entries = json?.['1v1'] ?? []
     const entries2v2 = json?.['2v2'] ?? []
     if (entries.length === 0 && entries2v2.length === 0) break
-    for (const e of entries) byId.set(e.public_id, e.elo)
-    for (const e of entries2v2) byId2v2.set(e.public_id, e.elo)
+    for (const e of entries) byId.set(e.public_id, e)
+    for (const e of entries2v2) byId2v2.set(e.public_id, e)
   }
   return { byId, byId2v2 }
+}
+
+// Small, duplicated-on-purpose copy of fetchFfaLeaderboard (src/lib/openfront.ts) -
+// calls trackerfront's API directly (this script bypasses worker/tf.js the
+// same way it bypasses worker/of.js for OpenFront calls above).
+async function fetchFfaLeaderboard() {
+  const byName = {}
+  try {
+    const json = await fetchJson('https://trackerfront.com/api/public/leaderboard')
+    for (const e of json ?? []) if (e.display_name) byName[e.display_name] = e.position
+  } catch {
+    // leave empty - ship badges just stay unearned until the next run
+  }
+  return byName
 }
 
 async function fetchGameDetail(gameId) {
@@ -148,12 +171,34 @@ async function main() {
   const { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id')
   if (regError) throw regError
 
-  // Trend-graph data (elo/wins/XP over time - see src/lib/trends.ts): both
-  // fetched once per invocation, not once per member, and cheap either way
-  // (a 3-page leaderboard scan, one table read). A member outside the
-  // ranked top 100 just gets `elo: null` for today, same as the rest of
-  // the site already treats "no live elo" everywhere else.
+  // Trend-graph data (elo/wins/XP over time - see src/lib/trends.ts) plus the
+  // roster page's own leaderboard needs: both fetched once per invocation,
+  // not once per member, and cheap either way (a 3-page leaderboard scan +
+  // one trackerfront call, one table read). A member outside the ranked top
+  // 100 just gets `elo: null` for today, same as the rest of the site
+  // already treats "no live elo" everywhere else.
   const { byId: rankedMap, byId2v2: rankedMap2v2 } = await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
+  const ffaLeaderboard = await fetchFfaLeaderboard()
+
+  // Written whole to cyn_roster_cache (see supabase/schema.sql) so browsers
+  // building the roster (src/lib/openfront.ts's fetchRankedMap/
+  // fetchFfaLeaderboard) read this back instead of ever scanning
+  // OpenFront/trackerfront live themselves - the permanent fix for page
+  // loads blocking on a live external fetch.
+  await supabase
+    .from('cyn_roster_cache')
+    .upsert(
+      {
+        id: 1,
+        ranked_1v1: Object.fromEntries(rankedMap),
+        ranked_2v2: Object.fromEntries(rankedMap2v2),
+        ffa_leaderboard: ffaLeaderboard,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    )
+    .then(() => {}, () => {})
+
   const { data: xpRows } = await supabase.from('cyn_xp').select('openfront_id, xp')
   const xpByMember = new Map((xpRows ?? []).map((r) => [r.openfront_id, r.xp]))
   const snapshotDate = new Date().toISOString().slice(0, 10)
@@ -265,8 +310,8 @@ async function main() {
         {
           openfront_id: r.openfront_id,
           snapshot_date: snapshotDate,
-          elo: rankedMap.get(r.openfront_id) ?? null,
-          elo_2v2: rankedMap2v2.get(r.openfront_id) ?? null,
+          elo: rankedMap.get(r.openfront_id)?.elo ?? null,
+          elo_2v2: rankedMap2v2.get(r.openfront_id)?.elo ?? null,
           all_wins: allWins,
           xp: xpByMember.get(r.openfront_id) ?? 0,
         },
@@ -277,13 +322,21 @@ async function main() {
     // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
     // pass here can't also make wantDetail miss a team win or this
     // month's game that a previous run already knew about.
-    for (const g of mergedGames) {
-      if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer') continue
+    const cynGames = mergedGames.filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
+    for (const g of cynGames) {
       const isTeam = g.mode === 'Team'
       const isFfa = g.mode === 'Free For All'
       if (isTeam && g.result === 'victory') wantDetail.add(g.gameId)
       if (monthKeyOf(g.start) === mk && (isFfa || isTeam)) wantDetail.add(g.gameId)
     }
+    // Mirrors buildRoster's own RECENT_DETAIL_COUNT selection (src/lib/stats.ts)
+    // exactly: each member's most recent 20 CYN games of ANY mode/result, not
+    // just team-wins/this-month - the profile page's last-N-games stats card
+    // needs kills/gold/troops across FFA/Team/1v1 alike. Without this, that
+    // detail wasn't pre-cached anywhere, forcing a live OpenFront fetch on
+    // every cold roster load just to fill it in.
+    const recentSorted = [...cynGames].sort((a, b) => new Date(b.start) - new Date(a.start))
+    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) wantDetail.add(g.gameId)
   }
   // A member scan failing (still-rate-limited despite the retries above)
   // silently shrinks wantDetail, not "nothing to do" - surfaced explicitly

@@ -13,7 +13,11 @@ import type { RosterResult } from './stats'
 
 const IDB_NAME = 'cyn-roster-cache'
 const IDB_STORE = 'snapshot'
-const KEY = 'latest'
+// Bumped once alongside CACHE_NS in openfront.ts: a since-fixed bug could
+// have persisted an undercounted snapshot here during the window it was
+// live, and that snapshot is exactly what renders instantly on load - so it
+// needs to be orphaned too, not just the short-TTL caches feeding it.
+const KEY = 'latest-v2'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

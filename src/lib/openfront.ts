@@ -57,7 +57,14 @@ export interface PlayerGame {
 
 // ── Cache ─────────────────────────────────────────────────────────────────
 
-const CACHE_NS = 'of:v3'
+// Bumped v3 -> v4: a since-fixed bug (clearOpenFrontCache wiping the
+// permanent :lastgood:/:detail: caches it should never have touched) could
+// have poisoned any browser's locally-cached game counts during the window
+// it was live. Every key here is namespaced under CACHE_NS, so bumping this
+// orphans every old entry at once - a plain reload self-heals for everyone,
+// no manual cache-clearing or Refresh-button click needed. Safe to bump
+// again in the same situation in the future.
+const CACHE_NS = 'of:v4'
 const LAST_FETCH_KEY = `${CACHE_NS}:lastFetch`
 
 interface CacheEnvelope<T> {

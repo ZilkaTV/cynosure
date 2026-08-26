@@ -113,6 +113,21 @@ export function useRoster(enabled = true): RosterState {
     }
   }, [])
 
+  // Silent background reload after rendering from the persisted snapshot
+  // (see below) - deliberately does NOT clear the short-TTL local caches
+  // first (unlike the manual Refresh button's `refresh()`), so a repeat
+  // visit within their TTL window resolves from those instantly instead of
+  // repeating the full Supabase round-trip (per-member game history alone
+  // can be a multi-MB payload for an active roster) on every single page
+  // view - confirmed directly to be the cause of load times regressing to
+  // minutes once this effect started auto-triggering a full forced refresh
+  // on every visit.
+  const backgroundReload = useCallback(() => {
+    isRefreshRef.current = true
+    setRefreshing(true)
+    load()
+  }, [load])
+
   const refresh = useCallback(() => {
     isRefreshRef.current = true
     setRefreshing(true)
@@ -122,10 +137,10 @@ export function useRoster(enabled = true): RosterState {
 
   // Renders instantly from whatever was last successfully built (see
   // rosterCache.ts) instead of blocking behind a spinner on every visit -
-  // then silently refreshes in the background, same as clicking "Refresh"
-  // manually. Only a genuinely first-ever visit (nothing persisted yet)
-  // falls back to the blocking spinner, and even that no longer touches
-  // OpenFront/trackerfront live (see openfront.ts).
+  // then quietly reloads in the background. Only a genuinely first-ever
+  // visit (nothing persisted yet) falls back to the blocking spinner, and
+  // even that no longer touches OpenFront/trackerfront live (see
+  // openfront.ts).
   useEffect(() => {
     if (!enabled) return
     let alive = true
@@ -137,7 +152,7 @@ export function useRoster(enabled = true): RosterState {
         setData(cached)
         setLastUpdated(getLastUpdated())
         setLoading(false)
-        refresh()
+        backgroundReload()
       } else {
         setLoading(true)
         load()
@@ -146,7 +161,7 @@ export function useRoster(enabled = true): RosterState {
     return () => {
       alive = false
     }
-  }, [enabled, load, refresh])
+  }, [enabled, load, backgroundReload])
 
   return { data, loading, refreshing, error, lastUpdated, deltas, refresh }
 }

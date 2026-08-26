@@ -140,10 +140,22 @@ export function getLastUpdated(): number | null {
   }
 }
 
+// Clears only the short-TTL freshness caches (games/rankedmap/ffalb/roster-
+// cache-row), never the PERMANENT per-browser safety nets (`:lastgood:` -
+// mergeAndCacheGames's own union of every game this browser has ever seen
+// for a member, and `:detail:` - cached game details). Those two are
+// designed to only ever grow, never shrink; wiping them here (as this used
+// to do unconditionally) combined with fetchPlayerGamesBatch/
+// fetchGameDetailsBatch no longer live-fetching to refill them was a real
+// bug - confirmed directly against production data that a member's own
+// browser-local history (accumulated from past live fetches, sometimes
+// ahead of the shared cyn_member_games_cache row) got permanently discarded
+// on every automatic background refresh, visibly undercounting wins that
+// were never actually lost anywhere else.
 export function clearOpenFrontCache() {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith(CACHE_NS))
+      .filter((k) => k.startsWith(CACHE_NS) && !k.includes(':lastgood:') && !k.includes(':detail:'))
       .forEach((k) => localStorage.removeItem(k))
   } catch {
     /* ignore */

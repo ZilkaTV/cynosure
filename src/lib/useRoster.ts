@@ -6,6 +6,7 @@ import { fetchXp } from './quests'
 import { fetchAllChatMessageCounts, fetchAllSupporters } from './chat'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
+import { loadPersistedRoster, savePersistedRoster } from './rosterCache'
 
 // Numeric fields worth showing a "+N" delta for after a manual refresh.
 const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2', 'bumpCount'] as const
@@ -101,6 +102,7 @@ export function useRoster(enabled = true): RosterState {
       dataRef.current = result
       setData(result)
       setError(null)
+      savePersistedRoster(result).catch(() => {})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load stats')
     } finally {
@@ -111,18 +113,40 @@ export function useRoster(enabled = true): RosterState {
     }
   }, [])
 
-  useEffect(() => {
-    if (!enabled) return
-    setLoading(true)
-    load()
-  }, [enabled, load])
-
   const refresh = useCallback(() => {
     isRefreshRef.current = true
     setRefreshing(true)
     clearOpenFrontCache()
     load()
   }, [load])
+
+  // Renders instantly from whatever was last successfully built (see
+  // rosterCache.ts) instead of blocking behind a spinner on every visit -
+  // then silently refreshes in the background, same as clicking "Refresh"
+  // manually. Only a genuinely first-ever visit (nothing persisted yet)
+  // falls back to the blocking spinner, and even that no longer touches
+  // OpenFront/trackerfront live (see openfront.ts).
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    ;(async () => {
+      const cached = await loadPersistedRoster()
+      if (!alive) return
+      if (cached) {
+        dataRef.current = cached
+        setData(cached)
+        setLastUpdated(getLastUpdated())
+        setLoading(false)
+        refresh()
+      } else {
+        setLoading(true)
+        load()
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [enabled, load, refresh])
 
   return { data, loading, refreshing, error, lastUpdated, deltas, refresh }
 }

@@ -60,6 +60,7 @@ if (!commit || !/^[0-9a-f]{40}$/i.test(commit)) {
 }
 const shortSha = commit.slice(0, 7)
 const destDir = path.join(ROOT, 'src', 'vendor', `openfront-core-${shortSha}`)
+const destSrc = path.join(destDir, 'src')
 
 if (fs.existsSync(destDir)) {
   console.error(`${destDir} already exists - remove it first if you want to re-vendor this commit.`)
@@ -136,13 +137,54 @@ if (missing.length) {
 }
 console.log(`  ${rawClosure.size} files in the raw (untrimmed) closure`)
 
+// Upstream has occasionally added a whole new top-level module living as a
+// SIBLING of src/ (not nested inside it) - e.g. a `zbin/` binary-encoding
+// helper imported from core/ via a relative `../../zbin` path. computeClosure
+// doesn't care whether a resolved file lives inside srcRoot or not (it just
+// follows relative imports wherever they point), so such a file already
+// shows up here with a `rel` like `../zbin/index.ts`.
+//
+// `resources/*.json` (see KNOWN_RESOURCE_FILES/step 4c) is excluded even
+// though it's also outside srcRoot: at THIS point (before any trims) it's
+// still reached upstream via a bare path-alias import (`resources/X.json`,
+// not `.`-prefixed), which resolveImport already ignores - it only becomes a
+// relative, closure-walkable import after step 4c's trim rewrites it, and by
+// then it has its own working copy mechanism already. Checked here (on the
+// pre-trim closure) rather than not at all, specifically so a real new
+// top-level dir isn't confused with that already-solved case.
+//
+// Placed one level INSIDE destSrc (`destSrc/<dir>/...`) rather than mirrored
+// as a sibling of destSrc, matching upstream's own directory shape one level
+// down: a sibling-of-src placement needs the vendor tree's tsconfig rootDir
+// widened past `./src`, which - confirmed directly - breaks the existing
+// resources/*.json handling under composite-project mode (TS6307) in a way
+// it never hit when resources stayed unlisted outside a narrow rootDir.
+// Nesting it under src instead needs no tsconfig change at all, just
+// shifting every crossing import by exactly one `../` level (see the
+// rewrite pass right after the copy below).
+const extraTopLevelDirs = new Set()
+for (const rel of rawClosure) {
+  if (!rel.startsWith('..')) continue
+  const parts = rel.split('/').filter((p) => p !== '..')
+  if (parts.length && parts[0] !== 'resources') extraTopLevelDirs.add(parts[0])
+}
+if (extraTopLevelDirs.size) {
+  console.log(`  found file(s) outside src/ reachable from the closure - extra top-level dir(s): ${[...extraTopLevelDirs].join(', ')}`)
+}
+
 // ── 3. Copy files into the new vendor tree ───────────────────────────────
 
 console.log('[3/8] Copying files...')
 fs.mkdirSync(destDir, { recursive: true })
 for (const rel of rawClosure) {
   const from = path.join(srcRoot, rel)
-  const to = path.join(destDir, 'src', rel)
+  // A file outside srcRoot (rel starts with '../...') is nested one level
+  // inside destSrc instead of mirrored as a sibling - see extraTopLevelDirs
+  // above. Stripping every leading '../' group and keeping the rest gives
+  // the path relative to the ORIGINAL repo root (e.g. '../../zbin/zb.ts'
+  // -> 'zbin/zb.ts'), which is exactly where it belongs one level under
+  // destSrc, regardless of how deeply nested the importing file was.
+  const to = rel.startsWith('..') ? path.join(destSrc, rel.replace(/^(\.\.\/)+/, '')) : path.join(destSrc, rel)
   fs.mkdirSync(path.dirname(to), { recursive: true })
   // Normalize to LF: a local git checkout on Windows commonly applies
   // core.autocrlf and rewrites LF -> CRLF, which every \n-based regex below
@@ -155,6 +197,30 @@ for (const name of KNOWN_RESOURCE_FILES) {
   const from = path.join(CACHE_DIR, 'resources', name)
   if (!fs.existsSync(from)) continue // doesn't exist yet at this commit
   fs.writeFileSync(path.join(destDir, 'resources', name), fs.readFileSync(from, 'utf8').replace(/\r\n/g, '\n'))
+}
+
+// Import specifiers crossing INTO a moved extra-top-level-dir need exactly
+// one '../' removed - the target moved exactly one directory level
+// shallower (sibling-of-src -> child-of-src), and that shift is the same
+// regardless of how deeply nested the importing file itself is (each '../'
+// in the original specifier accounted for exactly one level of the OLD
+// distance, which is uniformly one level less now). Done before the trims
+// below so the mechanical-trim regexes and the closure recompute both see
+// already-correct, resolvable paths.
+if (extraTopLevelDirs.size) {
+  for (const file of walkTsFiles(destSrc)) {
+    let content = fs.readFileSync(file, 'utf8')
+    let changed = false
+    for (const dir of extraTopLevelDirs) {
+      const re = new RegExp(`(["'])((?:\\.\\./)+)(${dir}(?:/[^"']*)?)\\1`, 'g')
+      content = content.replace(re, (_m, quote, dots, rest) => {
+        changed = true
+        const shifted = dots.slice(3) || './'
+        return `${quote}${shifted}${rest}${quote}`
+      })
+    }
+    if (changed) fs.writeFileSync(file, content)
+  }
 }
 
 // ── 4. Mechanical trims ───────────────────────────────────────────────────
@@ -177,7 +243,6 @@ function walkTsFiles(dir) {
   return out
 }
 
-const destSrc = path.join(destDir, 'src')
 let trimmedUnionCount = 0
 let trimmedRenderNumberCount = 0
 let trimmedResourceRepointCount = 0
@@ -411,14 +476,23 @@ for (const file of walkTsFiles(destSrc)) {
   const rel = path.relative(destSrc, file).split(path.sep).join('/')
   const content = fs.readFileSync(file, 'utf8')
   const fileNotes = notes.get(rel)
+  // A file that came from an extra top-level dir (e.g. zbin/, nested into
+  // destSrc one level shallower than upstream keeps it - see the
+  // extraTopLevelDirs detection near step 3) has no `src/` prefix in its
+  // OWN upstream URL, since it isn't under src/ there either.
+  const topDir = rel.split('/')[0]
+  const upstreamPath = extraTopLevelDirs.has(topDir) ? rel : `src/${rel}`
   const header = fileNotes
     ? `// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit ${commit}.\n` +
-      `// Source: https://github.com/openfrontio/OpenFrontIO/blob/${commit}/src/${rel}\n` +
+      `// Source: https://github.com/openfrontio/OpenFrontIO/blob/${commit}/${upstreamPath}\n` +
       `// Modified for this vendor build (auto-trimmed by scripts/vendor-engine.mjs) -\n` +
       `// ${fileNotes.join('; ')}.\n`
     : `// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit ${commit}.\n` +
-      `// Source: https://github.com/openfrontio/OpenFrontIO/blob/${commit}/src/${rel}\n` +
-      `// Unmodified copy - see src/vendor/openfront-core-${shortSha}/README.md.\n`
+      `// Source: https://github.com/openfrontio/OpenFrontIO/blob/${commit}/${upstreamPath}\n` +
+      (extraTopLevelDirs.has(topDir)
+        ? `// Unmodified copy - lives outside src/ upstream too (a top-level sibling module,\n` +
+          `// nested one level into this vendor tree instead - see this tree's README.md).\n`
+        : `// Unmodified copy - see src/vendor/openfront-core-${shortSha}/README.md.\n`)
   fs.writeFileSync(file, header + content)
 }
 
@@ -475,6 +549,9 @@ fs.writeFileSync(
       : '') +
     (unexpectedClient.length
       ? `\n**Needs manual review**: unexpected client/* files remained reachable after trimming (${unexpectedClient.join(', ')}) - this commit likely introduced a new pattern this script doesn't know how to trim yet.\n`
+      : '') +
+    (extraTopLevelDirs.size
+      ? `\n## Extra top-level module(s)\n\nThis commit's closure reaches into ${[...extraTopLevelDirs].map((d) => `\`${d}/\``).join(', ')} - a sibling of \`src/\` upstream, not nested inside it (e.g. a new binary-encoding helper). Nested into \`src/${[...extraTopLevelDirs].join('/, src/')}/\` here instead of mirrored as a sibling of this tree's own \`src/\` (a sibling placement needs \`tsconfig.json\`'s \`rootDir\` widened past \`src/\`, which breaks the existing \`resources/*.json\` handling under composite-project mode) - every import crossing into it was shifted by exactly one \`../\` level to match.\n`
       : '') +
     `\nSee \`src/vendor/openfront-core/README.md\` for the general "Why vendored" /\n` +
     `"Why this specific commit" background - unchanged across every pin.\n`,

@@ -11,6 +11,8 @@ import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
 import { handleHelpChat } from './help-chat.js'
 
+const GITHUB_REPO = 'ZilkaTV/cynosure'
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url)
@@ -23,5 +25,32 @@ export default {
       status: 404,
       headers: { 'Content-Type': 'application/json' },
     })
+  },
+
+  // Fired every 5 minutes by the Cron Trigger declared in wrangler.jsonc -
+  // see that file's comment for why this exists (GitHub's own `schedule:`
+  // trigger for refresh-details-cron.yml proved unreliable in production).
+  // This ONLY pokes GitHub's repository_dispatch API - the actual scan work
+  // stays on GitHub Actions, since Workers cap outbound fetch() at
+  // 50/invocation on the free tier and that work needs far more than one
+  // request.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_PAT}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'cynosure-cron-trigger',
+        },
+        body: JSON.stringify({ event_type: 'refresh-details' }),
+      }).then(
+        async (res) => {
+          if (!res.ok) console.error(`GitHub dispatch failed: ${res.status} ${await res.text()}`)
+        },
+        (err) => console.error('GitHub dispatch request failed:', err),
+      ),
+    )
   },
 }

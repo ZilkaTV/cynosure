@@ -52,6 +52,23 @@
   // deploy - keep it explicitly on, it's still useful as a direct
   // test/rollback endpoint independent of DNS.
   "workers_dev": true,
+  // GitHub's own `schedule:` trigger for refresh-details-cron.yml proved
+  // unreliable in practice - confirmed directly via the Actions run history:
+  // gaps of 25-90+ minutes were common, and a 7.5-hour total gap with zero
+  // runs happened despite the workflow being "active" and each individual
+  // run completing in ~1 minute (not a stuck/queued job blocking anything -
+  // GitHub's own scheduler simply didn't fire it). Cloudflare Cron Triggers
+  // are a first-class, reliably-scheduled Workers feature (not a "best
+  // effort" queue like GitHub's), so this Worker now uses one purely as a
+  // dependable clock: every 5 minutes it fires `scheduled()` in
+  // worker/index.js, which does ONE lightweight fetch to GitHub's
+  // repository_dispatch API to kick the Action - the actual member-scanning
+  // work still runs on GitHub Actions (unchanged), since Workers cap
+  // outbound fetch() at 50/invocation on the free tier and that work needs
+  // far more than that.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

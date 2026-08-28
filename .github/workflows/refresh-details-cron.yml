@@ -12,12 +12,21 @@ name: Refresh game-detail cache
 #
 # Note: GitHub only guarantees scheduled workflows run at LEAST this often,
 # not exactly on the dot - during high GitHub Actions load, a run can be
-# delayed by a few minutes. That's fine here; the job is idempotent and
-# self-catches-up next time regardless.
-
+# delayed by a few minutes. In practice this went well beyond "a few minutes"
+# - confirmed directly via the Actions run history, real gaps of 25-90+
+# minutes were routine and a 7.5-hour total gap (zero runs) happened once,
+# despite the workflow staying "active" and each run completing in ~1
+# minute (not a stuck job blocking the queue - GitHub's own scheduler simply
+# didn't fire it). `schedule` is kept as a fallback, but the primary trigger
+# is now `repository_dispatch`, poked every 5 minutes by a Cloudflare Cron
+# Trigger (see wrangler.jsonc / worker/index.js's `scheduled()`) - a
+# first-class, reliably-scheduled Workers feature rather than a best-effort
+# queue.
 on:
   schedule:
     - cron: "*/5 * * * *"
+  repository_dispatch:
+    types: [refresh-details]
   workflow_dispatch: {}
 
 # Without this, a manually-dispatched run (workflow_dispatch) overlapping

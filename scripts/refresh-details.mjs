@@ -279,6 +279,26 @@ async function main() {
       membersScanFailed++
       return
     }
+    const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
+
+    // fetchJson's per-page catch{break} means a page-0 fetch that exhausts
+    // all its own retries (heavy rate-limiting under the parallel scan pool
+    // below) silently returns an EMPTY list rather than throwing - games=[]
+    // for a member who already has real history is virtually always that,
+    // not "genuinely zero games since last run". Upserting anyway used to
+    // stamp a fresh updated_at despite fetching nothing new, which made a
+    // silently-failed member look up to date instead of stale - confirmed
+    // directly in production: a member's cache sat 5 days behind their real
+    // history while updated_at kept refreshing every run. Skipping the
+    // write here (existing row, including its updated_at, is left exactly
+    // as-is) means the next run's shuffle just retries this member normally
+    // instead of a false "already current" reading.
+    if (games.length === 0 && existingGames.length > 0) {
+      console.warn(`Suspicious empty fetch for ${r.openfront_id} (has ${existingGames.length} cached games) - likely a transient failure, skipping this run's write`)
+      membersScanFailed++
+      return
+    }
+
     // Shared with the client's own fetchPlayerGamesBatch (src/lib/openfront.ts)
     // via cyn_member_games_cache - this scan is the same rate-limited,
     // paginated OpenFront fetch every visitor's browser would otherwise have
@@ -287,7 +307,6 @@ async function main() {
     // every run means a visitor's browser can read it back in one query
     // instead. Unioned against whatever's already cached (see above) so
     // this write can only grow the list, never shrink it.
-    const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
     const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
     for (const g of games) byGameId.set(g.gameId, g)
     const mergedGames = [...byGameId.values()]

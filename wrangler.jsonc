@@ -66,8 +66,17 @@
   // work still runs on GitHub Actions (unchanged), since Workers cap
   // outbound fetch() at 50/invocation on the free tier and that work needs
   // far more than that.
+  //
+  // Widened 5 -> 10 minutes: confirmed directly that reliably running every
+  // 5 minutes (versus GitHub's old erratic 25-90+ minute gaps) pushed total
+  // sustained request volume to OpenFront's API high enough that every
+  // member started getting rate-limited on every run for over an hour
+  // straight - reliability alone wasn't the whole fix, the new cadence also
+  // needed to not be MORE aggressive than what OpenFront actually tolerates
+  // (see SCAN_CONCURRENCY's own note in scripts/refresh-details.mjs, dropped
+  // 5 -> 2 at the same time).
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/10 * * * *"]
   },
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the

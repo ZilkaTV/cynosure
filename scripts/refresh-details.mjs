@@ -49,11 +49,15 @@ const SCAN_TIME_BUDGET_MS = 240_000
 // How many members are scanned concurrently (see the worker-pool loop
 // below) - previously fully sequential, one full paginated fetch at a time,
 // which meant the SAME budget only ever covered a fraction of the roster.
-// Matches the spirit of MAX_CONCURRENT_REQUESTS in src/lib/openfront.ts
-// (kept slightly lower since each member here already fires multiple
-// sequential page-requests of its own, so the real concurrent request count
-// is higher than this number alone suggests).
-const SCAN_CONCURRENCY = 5
+// Started at 5 (matching the spirit of MAX_CONCURRENT_REQUESTS in
+// src/lib/openfront.ts), but confirmed directly this was too aggressive once
+// the Cloudflare Cron Trigger (see wrangler.jsonc) made this run reliably
+// every 5 minutes instead of GitHub's old erratic 25-90+ minute gaps: total
+// sustained request volume to OpenFront rose enough that EVERY member
+// started getting rate-limited on EVERY run for over an hour straight, not
+// just an occasional one. Dropped to 2 to ease off; raise again only with
+// direct confirmation it's actually safe at the new, reliable cadence.
+const SCAN_CONCURRENCY = 2
 
 // Confirmed directly (this job's own logs, before this fix): a plain
 // unretried 429 anywhere in a member's game-list scan makes that whole

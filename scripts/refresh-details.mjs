@@ -89,7 +89,20 @@ async function fetchPlayerGames(publicId) {
       let json
       try {
         json = await fetchJson(url.toString())
-      } catch {
+      } catch (err) {
+        // Losing page 0 (the newest page of this feed) is far costlier than
+        // losing a later one - it's exactly the page most likely to hold a
+        // game not yet in the shared cache. Confirmed directly in
+        // production: silently breaking on ANY page failure let one
+        // member's data sit 5 days stale while every other member refreshed
+        // fine each run, because a rate-limit hit on their page 0
+        // specifically kept recurring under the parallel scan pool below -
+        // and the caller couldn't tell "genuinely no more pages" apart from
+        // "the one page that mattered just failed". Re-thrown instead, so
+        // scanOneMember's own catch (and its suspicious-empty-fetch guard)
+        // treats this member as failed-this-run rather than accepting a
+        // falsely-quiet result.
+        if (page === 0) throw err
         break
       }
       all.push(...(json.results ?? []))

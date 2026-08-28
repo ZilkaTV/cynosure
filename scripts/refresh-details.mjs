@@ -32,11 +32,28 @@ const CLAN_TAG = 'CYN'
 const MAX_GAMES_PER_RUN = 60
 // Matches RECENT_DETAIL_COUNT in src/lib/stats.ts's buildRoster.
 const RECENT_DETAIL_COUNT = 20
-const TIME_BUDGET_MS = 50_000
+// Both budgets were sized around Vercel's old serverless maxDuration (60s) -
+// a constraint that hasn't applied since this moved to GitHub Actions (jobs
+// default to a 6-hour timeout). Confirmed directly this was actively
+// harmful: with 30 registered members and a scan that only got through a
+// handful before hitting the old 35s cutoff, most members went un-scanned
+// for hours at a time (real games missing from the roster/history pages
+// that a member's own browser could see fine on OpenFront directly).
+// Widened substantially now that there's no real ceiling to respect other
+// than "don't run forever" - still finite, just no longer the bottleneck.
+const TIME_BUDGET_MS = 300_000
 // Leaves headroom under TIME_BUDGET_MS for the detail-fetch loop and the
 // summary log itself - both share the same startedAt clock, so this isn't
-// "35s on top of" the detail budget, it's a checkpoint partway through it.
-const SCAN_TIME_BUDGET_MS = 35_000
+// "on top of" the detail budget, it's a checkpoint partway through it.
+const SCAN_TIME_BUDGET_MS = 240_000
+// How many members are scanned concurrently (see the worker-pool loop
+// below) - previously fully sequential, one full paginated fetch at a time,
+// which meant the SAME budget only ever covered a fraction of the roster.
+// Matches the spirit of MAX_CONCURRENT_REQUESTS in src/lib/openfront.ts
+// (kept slightly lower since each member here already fires multiple
+// sequential page-requests of its own, so the real concurrent request count
+// is higher than this number alone suggests).
+const SCAN_CONCURRENCY = 5
 
 // Confirmed directly (this job's own logs, before this fix): a plain
 // unretried 429 anywhere in a member's game-list scan makes that whole
@@ -249,36 +266,27 @@ async function main() {
   let membersScanFailed = 0
   let scanTimedOut = false
   const members = registered
-  for (let i = 0; i < members.length; i++) {
-    // The scan loop below had no time budget of its own on Vercel - only
-    // the detail-fetch loop further down did. Under heavy rate-limiting
-    // this let the scan alone run past the function's own maxDuration,
-    // killing the whole invocation before it ever returned a response
-    // instead of degrading to a partial result like every other failure
-    // mode here does. Kept here even though a GitHub Actions job has a far
-    // longer default budget - still a sane self-throttle.
-    if (Date.now() - startedAt > SCAN_TIME_BUDGET_MS) {
-      membersScanFailed += members.length - i
-      scanTimedOut = true
-      break
-    }
-    const r = members[i]
+
+  // One member's full scan (fetch + 2 upserts + wantDetail bookkeeping) -
+  // pulled out so the worker pool below can run several of these
+  // concurrently instead of one full paginated fetch at a time.
+  async function scanOneMember(r) {
     let games
     try {
       games = await fetchPlayerGames(r.openfront_id)
     } catch (err) {
       console.error(`Failed to fetch games for ${r.openfront_id}:`, err)
       membersScanFailed++
-      continue
+      return
     }
     // Shared with the client's own fetchPlayerGamesBatch (src/lib/openfront.ts)
     // via cyn_member_games_cache - this scan is the same rate-limited,
     // paginated OpenFront fetch every visitor's browser would otherwise have
     // to repeat itself, which profiling found to be the actual dominant cost
     // of a cold page load (not game-detail lookups). Writing it here once
-    // every ~5 minutes means a visitor's browser can read it back in one
-    // query instead. Unioned against whatever's already cached (see above)
-    // so this write can only grow the list, never shrink it.
+    // every run means a visitor's browser can read it back in one query
+    // instead. Unioned against whatever's already cached (see above) so
+    // this write can only grow the list, never shrink it.
     const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
     const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
     for (const g of games) byGameId.set(g.gameId, g)
@@ -338,6 +346,31 @@ async function main() {
     const recentSorted = [...cynGames].sort((a, b) => new Date(b.start) - new Date(a.start))
     for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) wantDetail.add(g.gameId)
   }
+
+  // Bounded-concurrency worker pool (same shared-index pattern as
+  // prefetchGameTileStats in src/lib/replaySim.ts): SCAN_CONCURRENCY workers
+  // pull the next member off `members` until either the queue is empty or
+  // the time budget runs out. `nextIndex` is only ever read+incremented in
+  // a synchronous stretch (no `await` in between), so this is race-free
+  // without a real mutex despite running several workers concurrently.
+  let nextIndex = 0
+  async function scanWorker() {
+    for (;;) {
+      if (Date.now() - startedAt > SCAN_TIME_BUDGET_MS) {
+        scanTimedOut = true
+        return
+      }
+      if (nextIndex >= members.length) return
+      const r = members[nextIndex++]
+      await scanOneMember(r)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, members.length) }, scanWorker))
+  // Whatever never even got claimed by a worker before time ran out -
+  // computed once here (not inside a worker) so concurrent workers hitting
+  // the timeout at nearly the same moment can't double-count the remainder.
+  if (scanTimedOut) membersScanFailed += members.length - nextIndex
+
   // A member scan failing (still-rate-limited despite the retries above)
   // silently shrinks wantDetail, not "nothing to do" - surfaced explicitly
   // below instead of a confusing/negative remaining count.

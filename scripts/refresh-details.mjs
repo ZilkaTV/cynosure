@@ -47,30 +47,39 @@ const TIME_BUDGET_MS = 300_000
 // "on top of" the detail budget, it's a checkpoint partway through it.
 const SCAN_TIME_BUDGET_MS = 240_000
 // How many members are scanned concurrently (see the worker-pool loop
-// below) - previously fully sequential, one full paginated fetch at a time,
-// which meant the SAME budget only ever covered a fraction of the roster.
-// Started at 5 (matching the spirit of MAX_CONCURRENT_REQUESTS in
-// src/lib/openfront.ts), but confirmed directly this was too aggressive once
-// the Cloudflare Cron Trigger (see wrangler.jsonc) made this run reliably
-// every 5 minutes instead of GitHub's old erratic 25-90+ minute gaps: total
-// sustained request volume to OpenFront rose enough that EVERY member
-// started getting rate-limited on EVERY run for over an hour straight, not
-// just an occasional one. Dropped to 2 to ease off; raise again only with
-// direct confirmation it's actually safe at the new, reliable cadence.
-const SCAN_CONCURRENCY = 2
+// below). Dropped 5 -> 2 -> 1 (fully sequential) after confirming directly,
+// twice: this isn't actually about total sustained volume or which IP is
+// making the requests (a manual run from a completely different machine
+// reproduced the identical ~28/30-failure pattern seconds after starting) -
+// OpenFront's rate limiter trips almost immediately on ANY short burst of
+// concurrent/rapid requests, from anywhere, and then stays tripped for
+// noticeably longer than this script's old retry budget (a few seconds)
+// ever waited out. Slower and gentler throughput beats a fast burst that
+// mostly just fails.
+const SCAN_CONCURRENCY = 1
 
-// Confirmed directly (this job's own logs, before this fix): a plain
-// unretried 429 anywhere in a member's game-list scan makes that whole
-// member silently contribute zero games for the run - not "nothing new to
-// do", just a rate-limited request masquerading as one. Same retry-with-
-// backoff the main app's getJson uses (src/lib/openfront.ts) - this script
-// runs standalone and can't import that module, so it's duplicated here
-// rather than shared.
-const RATE_LIMIT_RETRIES = 4
-const RATE_LIMIT_BASE_DELAY_MS = 500
+// A 429 masquerading as "nothing new to do" (see below) already burned us
+// once - same reasoning as ever, just tuned for what got directly confirmed
+// this time: OpenFront's limiter needs noticeably more than a few seconds to
+// release once tripped. Backoff delays now run 1s/2s/4s/8s/16s (5 retries)
+// instead of 500ms/1s/2s/4s (4 retries) - a genuinely transient dip clears
+// within that; a real trip needs the pacing below to avoid entirely.
+const RATE_LIMIT_RETRIES = 5
+const RATE_LIMIT_BASE_DELAY_MS = 1000
+
+// Deliberate pacing INDEPENDENT of retries - the previous version fired
+// every page of every member back-to-back as fast as the event loop would
+// allow, which is exactly the shape of burst that trips OpenFront's limiter
+// almost instantly (confirmed directly: the very first couple of requests
+// in a run succeed, then everything after fails). A fixed gap before every
+// single request, no exceptions, keeps our own request RATE low regardless
+// of how many members/pages there are to get through - slower per run, but
+// actually completes instead of mostly failing.
+const REQUEST_PACING_MS = 1200
 
 async function fetchJson(url) {
   for (let attempt = 0; ; attempt++) {
+    await new Promise((r) => setTimeout(r, REQUEST_PACING_MS))
     const res = await fetch(url, { headers: { Accept: 'application/json' } })
     if (res.status === 429) {
       if (attempt >= RATE_LIMIT_RETRIES) throw new Error(`rate-limited: ${url}`)
@@ -82,7 +91,17 @@ async function fetchJson(url) {
   }
 }
 
-async function fetchPlayerGames(publicId) {
+// knownGameIds (this member's already-cached gameIds, from
+// cyn_member_games_cache) lets an incremental run stop early: pages come
+// back newest-first, so once an entire page's games are already known, every
+// OLDER page behind it is guaranteed already-known too - no need to keep
+// paying REQUEST_PACING_MS per page just to re-confirm history we already
+// have. A brand-new member (empty knownGameIds) still walks every page, same
+// as before. This is what makes the new, much gentler per-request pacing
+// affordable time-budget-wise: most runs are re-checking members who've only
+// played a handful of new games since the last pass, not re-walking their
+// entire history every single time.
+async function fetchPlayerGames(publicId, knownGameIds) {
   const all = []
   for (const filter of [null, 'ranked']) {
     let cursor = null
@@ -109,7 +128,9 @@ async function fetchPlayerGames(publicId) {
         if (page === 0) throw err
         break
       }
-      all.push(...(json.results ?? []))
+      const results = json.results ?? []
+      all.push(...results)
+      if (results.length > 0 && results.every((g) => knownGameIds.has(g.gameId))) break
       cursor = json.nextCursor ?? null
       if (!cursor) break
     }
@@ -288,15 +309,16 @@ async function main() {
   // pulled out so the worker pool below can run several of these
   // concurrently instead of one full paginated fetch at a time.
   async function scanOneMember(r) {
+    const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
+    const knownGameIds = new Set(existingGames.map((g) => g.gameId))
     let games
     try {
-      games = await fetchPlayerGames(r.openfront_id)
+      games = await fetchPlayerGames(r.openfront_id, knownGameIds)
     } catch (err) {
       console.error(`Failed to fetch games for ${r.openfront_id}:`, err)
       membersScanFailed++
       return
     }
-    const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
 
     // fetchJson's per-page catch{break} means a page-0 fetch that exhausts
     // all its own retries (heavy rate-limiting under the parallel scan pool

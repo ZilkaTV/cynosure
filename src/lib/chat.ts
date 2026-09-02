@@ -32,7 +32,7 @@ export async function fetchChatMessages(): Promise<ChatMessage[]> {
 
 export interface PostMessageResult {
   ok: boolean
-  kind?: 'rate_limited' | 'blocked_content' | 'invalid_length' | 'generic'
+  kind?: 'rate_limited' | 'blocked_content' | 'invalid_length' | 'auth_expired' | 'generic'
   message: string
 }
 
@@ -40,17 +40,35 @@ function classifyError(message: string): PostMessageResult['kind'] {
   if (message.includes('rate_limited')) return 'rate_limited'
   if (message.includes('blocked_content')) return 'blocked_content'
   if (message.includes('invalid_length')) return 'invalid_length'
+  // RLS rejection (42501, or the raw message when not mapped to that code) -
+  // this table requires `to authenticated`, so this means the session
+  // Supabase has right now isn't recognized as signed in, not a real
+  // moderation/rate-limit rejection from the trigger.
+  if (message.includes('row-level security')) return 'auth_expired'
   return 'generic'
 }
 
 export async function postChatMessage(profile: Profile, content: string): Promise<PostMessageResult> {
   if (!supabase) return { ok: false, kind: 'generic', message: 'Backend not connected.' }
+  // Proactively nudges the client to refresh an expired-but-still-
+  // refreshable session before attempting the write below - a tab left
+  // open/backgrounded for hours (a known recurring cause here - see
+  // useSession.ts's own tracking comment) otherwise surfaces as a confusing
+  // raw "row-level security policy" Postgres error instead of the actual
+  // "you got signed out" cause. getSession() already triggers supabase-js's
+  // internal refresh when the stored session is expired but its refresh
+  // token is still valid.
+  await supabase.auth.getSession()
   const { error } = await supabase.from('cyn_clan_chat_messages').insert({
     author_openfront_id: profile.openfront_id,
     author_name: profile.in_game_name,
     content,
   })
-  if (error) return { ok: false, kind: classifyError(error.message), message: error.message }
+  if (error) {
+    const kind = classifyError(error.message)
+    if (kind === 'auth_expired') return { ok: false, kind, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+    return { ok: false, kind, message: error.message }
+  }
   return { ok: true, message: 'Sent.' }
 }
 

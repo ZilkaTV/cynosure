@@ -202,6 +202,7 @@ export default function ClanChatWidget() {
       if (result.kind === 'rate_limited') setError(t.clanChat.errorRateLimited(60))
       else if (result.kind === 'blocked_content') setError(t.clanChat.errorBlockedContent)
       else if (result.kind === 'invalid_length') setError(t.clanChat.errorTooLong)
+      else if (result.kind === 'auth_expired') setError(t.clanChat.sessionExpired)
       else setError(t.clanChat.errorGeneric)
       return
     }

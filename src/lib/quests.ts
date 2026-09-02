@@ -118,6 +118,16 @@ export async function claimQuest(
     return { ok: false, message: "Not completed yet today - come back once you've done it." }
   }
 
+  // Proactively nudges the client to refresh an expired-but-still-
+  // refreshable session before attempting the write below - a stale access
+  // token (e.g. a tab left open/backgrounded for hours, a known recurring
+  // issue here - see useSession.ts's own tracking comment) otherwise
+  // surfaces as a confusing raw "row-level security policy" Postgres error
+  // instead of the actual "you got signed out" cause. getSession() already
+  // triggers supabase-js's internal refresh when the stored session is
+  // expired but its refresh token is still valid.
+  await supabase.auth.getSession()
+
   const { error: claimError } = await supabase.from('cyn_quest_claims').insert({
     openfront_id: openfrontId,
     quest_id: quest.id,
@@ -126,6 +136,14 @@ export async function claimQuest(
   if (claimError) {
     // Unique violation = already claimed today (e.g. a second tab beat us to it).
     if (claimError.code === '23505') return { ok: false, message: 'Already claimed today.' }
+    // RLS rejection (42501) means Supabase doesn't consider this session
+    // authenticated - the getSession() call above already tried to quietly
+    // fix that; if it still fails, the refresh token itself is gone too and
+    // only a real re-login clears it. Reported plainly instead of the raw
+    // Postgres message, which gives no hint that signing back in helps.
+    if (claimError.code === '42501' || claimError.message.includes('row-level security')) {
+      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+    }
     return { ok: false, message: `Couldn't claim: ${claimError.message}` }
   }
 

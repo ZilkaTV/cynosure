@@ -304,6 +304,8 @@ export const translations = {
       findIdHelp: "Find your public id in OpenFront under your profile - it's the code in your player URL.",
       notClanMember: (tag: string) =>
         `Couldn't find a recent game played with the [${tag}] tag on this id - only current clan members can register. Play at least one game with the tag first.`,
+      storageBlocked:
+        "Your browser is blocking this site's local storage, so it can't remember that you're registered. Check your browser's site settings for cynclan.com (cookies/site data) and allow storage, then try again.",
       somethingWrong: 'Something went wrong',
       saving: 'Saving…',
       updateRegistration: 'Update registration',
@@ -872,6 +874,8 @@ export const translations = {
       findIdHelp: 'Du findest deine öffentliche ID in OpenFront in deinem Profil - es ist der Code in deiner Spieler-URL.',
       notClanMember: (tag: string) =>
         `Auf dieser ID wurde kein aktuelles Spiel mit dem [${tag}]-Tag gefunden - nur aktuelle Clanmitglieder können sich registrieren. Spiel erst ein Spiel mit dem Tag.`,
+      storageBlocked:
+        'Dein Browser blockiert den lokalen Speicher dieser Seite, deshalb kann sie sich nicht merken, dass du registriert bist. Prüfe die Website-Einstellungen deines Browsers für cynclan.com (Cookies/Website-Daten) und erlaube den Speicher, dann versuch es erneut.',
       somethingWrong: 'Etwas ist schiefgelaufen',
       saving: 'Wird gespeichert…',
       updateRegistration: 'Registrierung aktualisieren',
@@ -1440,6 +1444,8 @@ export const translations = {
       findIdHelp: "Trouve ton ID public dans OpenFront sous ton profil - c'est le code dans l'URL de ton joueur.",
       notClanMember: (tag: string) =>
         `Aucune partie récente avec le tag [${tag}] trouvée pour cet ID - seuls les membres actuels du clan peuvent s'inscrire. Joue d'abord une partie avec le tag.`,
+      storageBlocked:
+        "Ton navigateur bloque le stockage local de ce site, il ne peut donc pas se souvenir que tu es inscrit. Vérifie les paramètres de site de ton navigateur pour cynclan.com (cookies/données de site) et autorise le stockage, puis réessaie.",
       somethingWrong: "Une erreur s'est produite",
       saving: 'Enregistrement…',
       updateRegistration: "Mettre à jour l'inscription",

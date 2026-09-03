@@ -96,9 +96,15 @@ export default function Register() {
         // Registration" themselves. Local-only (no Supabase round-trip) -
         // nothing about their registration actually changed, just restoring
         // what sign-out cleared.
-        saveLocalProfile(existing)
+        const savedOk = saveLocalProfile(existing)
         refresh()
-        console.info('[register] restored local profile', existing)
+        console.info('[register] restored local profile', { existing, savedOk })
+        // A blocked/restricted browser storage setting (confirmed directly:
+        // Opera GX) means this can silently fail every single time, with
+        // the visible symptom being "stuck on RegistrationGate no matter
+        // what" and nothing in the UI ever explaining why - surfaced here
+        // instead of only in the console.
+        if (!savedOk) setError(t.register.storageBlocked)
         // Backfills discord_user_id for members who registered before it was
         // tracked (needed by the Discord role-sync bot) - silent and
         // automatic the next time they sign in here, no re-registration
@@ -114,7 +120,7 @@ export default function Register() {
     return () => {
       alive = false
     }
-  }, [session, refresh])
+  }, [session, refresh, t])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -144,7 +150,7 @@ export default function Register() {
           return
         }
       }
-      await saveProfile({
+      const { localSaveOk } = await saveProfile({
         in_game_name: name.trim(),
         timezone,
         openfront_id: id,
@@ -157,6 +163,15 @@ export default function Register() {
         nationality: nationality || undefined,
       })
       refresh()
+      // Navigating away when the local save failed would just bounce the
+      // member straight back to this same RegistrationGate with nothing
+      // explaining why (their registration DID save to Supabase - this is
+      // purely about THIS browser remembering it) - shown as an error
+      // instead of silently proceeding. See saveLocalProfile's own comment.
+      if (!localSaveOk) {
+        setError(t.register.storageBlocked)
+        return
+      }
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : t.register.somethingWrong)

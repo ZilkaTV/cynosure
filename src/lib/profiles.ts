@@ -47,7 +47,17 @@ export function getLocalProfile(): Profile | null {
   }
 }
 
-export function saveLocalProfile(p: Profile) {
+/**
+ * Returns whether the write actually succeeded. The "are you registered"
+ * gate on every page (see useProfile.ts) is entirely localStorage-based -
+ * there's no in-memory fallback - so a browser that blocks or restricts
+ * site storage (confirmed directly: Opera GX, with strict cookie/site-data
+ * blocking for this site) can never stay "registered" across a page load
+ * no matter how many times the form is submitted, with nothing visible
+ * ever telling the member why. Callers use the return value to show an
+ * actionable message instead of failing silently like this used to.
+ */
+export function saveLocalProfile(p: Profile): boolean {
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
     // Remember id + name so a later sign-in can pre-fill them.
@@ -55,10 +65,11 @@ export function saveLocalProfile(p: Profile) {
       REMEMBER_KEY,
       JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
     )
+    notifyProfileChange()
+    return true
   } catch {
-    /* private-mode/quota - profile still works for this session via Supabase, just won't persist locally */
+    return false
   }
-  notifyProfileChange()
 }
 
 export function clearLocalProfile() {
@@ -70,9 +81,15 @@ export function clearLocalProfile() {
   notifyProfileChange()
 }
 
-/** Persist a registration. Uses Supabase when available, else localStorage. */
-export async function saveProfile(p: Profile): Promise<void> {
-  saveLocalProfile(p)
+/**
+ * Persist a registration. Uses Supabase when available, else localStorage.
+ * Still throws on a Supabase failure same as before; the local-storage
+ * write's own success is returned instead of silently swallowed (see
+ * saveLocalProfile's own comment for why that matters) since a caller
+ * needs to know even when the Supabase half succeeded fine.
+ */
+export async function saveProfile(p: Profile): Promise<{ localSaveOk: boolean }> {
+  const localSaveOk = saveLocalProfile(p)
   if (supabase) {
     const { error } = await supabase.from('cyn_members').upsert(
       {
@@ -87,6 +104,7 @@ export async function saveProfile(p: Profile): Promise<void> {
     )
     if (error) throw error
   }
+  return { localSaveOk }
 }
 
 /**

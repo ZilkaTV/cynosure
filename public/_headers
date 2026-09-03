@@ -5,3 +5,30 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+# The SPA shell (index.html, served for `/` and every client-side route via
+# assets.not_found_handling in wrangler.jsonc) must never be cached anywhere
+# between a deploy and a visitor's browser - it's the ONLY thing that points
+# at that deploy's hashed JS/CSS bundle names, so a stale copy of just this
+# one file is enough to keep serving old, already-fixed bugs indefinitely.
+# The previous setup relied on `max-age=0, must-revalidate` (a conditional-
+# GET request) - confirmed directly to not be reliably honored end-to-end
+# for at least one real browser (a private/incognito window on the same
+# machine got the current deploy instantly; that visitor's normal browser
+# profile kept serving a bundle from a full day earlier even after an
+# explicit reload). `no-store` forbids caching outright, everywhere, so
+# there's no conditional-request behavior left to get wrong - every load
+# goes all the way back to origin. The file itself is tiny (a few KB), so
+# the cost of never caching it is negligible next to the alternative.
+/
+  Cache-Control: no-store
+
+/index.html
+  Cache-Control: no-store
+
+# The inverse: every OTHER build output file has a content hash baked into
+# its filename (Vite's default) - a given URL's content can never change
+# without the URL itself changing too, so these are safe to cache as long
+# as browsers/CDNs will keep them, forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

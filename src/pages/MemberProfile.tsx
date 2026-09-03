@@ -229,6 +229,7 @@ export default function MemberProfile() {
           <StatCard label={t.memberProfile.stat2v2Wins} value={m.twoVTwoWins} accent="purple" />
           <StatCard label={t.memberProfile.statAllWins} value={m.allWins} accent="gold" />
           <StatCard label={t.memberProfile.statGames30d} value={m.gamesLast30d} accent="plain" />
+          <StatCard label={t.memberProfile.statGamesTotal} value={m.clanGamesTotal} accent="plain" />
         </div>
         {m.elo == null && (
           <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>

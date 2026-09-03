@@ -3,10 +3,15 @@
 // highest wins-tier they've reached (see WINS_TIERS in src/lib/badges.ts,
 // which this duplicates - this script can't import src/, same reasoning as
 // every other duplicated constant in refresh-details.mjs, e.g. CLAN_TAG).
-// A member holds exactly one of the 9 configured roles at a time, mirroring
+// A member holds exactly one of the 9 wins-tier roles at a time, mirroring
 // how the website's own badges only ever display the single best tier
 // reached, not every one ever crossed - reaching a new tier removes the
 // previous role rather than stacking it.
+//
+// Also assigns a separate, independent "100 games played" role (GAMES_100_*
+// below) purely on total CYN-tagged games (any result) crossing that
+// threshold - held alongside whichever wins-tier role applies, not instead
+// of it.
 //
 // Runs on a schedule via .github/workflows/discord-role-sync.yml. Stateless
 // on every run: it always recomputes the intended role from scratch and
@@ -17,6 +22,14 @@
 import { createClient } from '@supabase/supabase-js'
 
 const DISCORD_GUILD_ID = '1367283444823883776' // same value as DISCORD_GUILD_ID in src/config.ts
+const CLAN_TAG = 'CYN'
+
+// Independent of the wins-tier roles below - held ALONGSIDE whichever wins
+// tier a member has, not instead of it. "100 games" means total CYN-tagged
+// games played (any result), matching MemberStats.clanGamesTotal in
+// src/lib/stats.ts.
+const GAMES_100_THRESHOLD = 100
+const GAMES_100_ROLE_ID = '1545145526649884802'
 
 // Highest threshold first - same 9 tiers/thresholds as WINS_TIERS in
 // src/lib/badges.ts. Keep these two lists in sync by hand if the tiers ever
@@ -95,6 +108,21 @@ async function main() {
     if (row.all_wins > prev) maxWinsByMember.set(row.openfront_id, row.all_wins)
   }
 
+  // Total CYN-tagged games played (any result) per member, for the
+  // independent "100 games" role - mirrors clanGamesTotal in
+  // src/lib/stats.ts's buildRoster (games.length after filtering to CYN,
+  // non-Singleplayer). This table's own games arrays only ever grow (see
+  // refresh-details.mjs's union-before-upsert), so a plain count here is
+  // always at least as fresh as what the site itself shows.
+  const { data: gamesRows, error: gamesError } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
+  if (gamesError) throw gamesError
+  const totalGamesByMember = new Map(
+    (gamesRows ?? []).map((r) => [
+      r.openfront_id,
+      (r.games ?? []).filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer').length,
+    ]),
+  )
+
   let checked = 0
   let skippedNoDiscordId = 0
   let updated = 0
@@ -111,6 +139,7 @@ async function main() {
       const allWins = maxWinsByMember.get(m.openfront_id) ?? 0
       const targetTier = tierFromWins(allWins)
       const targetRoleId = targetTier ? roleIdByTier[targetTier] : null
+      const wants100GamesRole = (totalGamesByMember.get(m.openfront_id) ?? 0) >= GAMES_100_THRESHOLD
 
       const memberRes = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${m.discord_user_id}`)
       if (memberRes.status === 404) {
@@ -121,10 +150,16 @@ async function main() {
       const memberData = await memberRes.json()
       const currentRoles = new Set(memberData.roles ?? [])
 
+      // Wins-tier roles are mutually exclusive (only the target tier is
+      // kept); the 100-games role is independent - added/removed purely on
+      // its own threshold, alongside whichever wins tier applies.
       const toRemove = [...allConfiguredRoleIds].filter((id) => id !== targetRoleId && currentRoles.has(id))
-      const needsAdd = targetRoleId != null && !currentRoles.has(targetRoleId)
+      const toAdd = []
+      if (targetRoleId != null && !currentRoles.has(targetRoleId)) toAdd.push(targetRoleId)
+      if (wants100GamesRole && !currentRoles.has(GAMES_100_ROLE_ID)) toAdd.push(GAMES_100_ROLE_ID)
+      else if (!wants100GamesRole && currentRoles.has(GAMES_100_ROLE_ID)) toRemove.push(GAMES_100_ROLE_ID)
 
-      if (toRemove.length === 0 && !needsAdd) {
+      if (toRemove.length === 0 && toAdd.length === 0) {
         unchanged++
         continue
       }
@@ -135,11 +170,11 @@ async function main() {
         })
         if (!res.ok && res.status !== 404) throw new Error(`DELETE role ${roleId} for ${m.discord_user_id}: ${res.status}`)
       }
-      if (needsAdd) {
-        const res = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${m.discord_user_id}/roles/${targetRoleId}`, {
+      for (const roleId of toAdd) {
+        const res = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${m.discord_user_id}/roles/${roleId}`, {
           method: 'PUT',
         })
-        if (!res.ok) throw new Error(`PUT role ${targetRoleId} for ${m.discord_user_id}: ${res.status}`)
+        if (!res.ok) throw new Error(`PUT role ${roleId} for ${m.discord_user_id}: ${res.status}`)
       }
       updated++
     } catch (err) {

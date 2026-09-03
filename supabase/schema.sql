@@ -1048,9 +1048,20 @@ create policy "inner circle can read cyn_metrics_daily"
     )
   );
 
+-- Written by scripts/collect-metrics.mjs using the anon key (no login) -
+-- same as every other cron-written cache table in this file
+-- (cyn_roster_cache etc.), an explicit policy is required or RLS blocks the
+-- write entirely even with no session at all.
+create policy "anyone can insert cyn_metrics_daily"
+  on public.cyn_metrics_daily for insert to public with check (true);
+
+create policy "anyone can update cyn_metrics_daily"
+  on public.cyn_metrics_daily for update to public using (true) with check (true);
+
 -- Tracks each polled channel's newest seen message id, so
 -- scripts/collect-metrics.mjs only ever counts each message once. Pure
--- cron-internal bookkeeping - never read by the site, no client policy.
+-- cron-internal bookkeeping - never read by the site, but still needs an
+-- explicit write policy for the same reason as cyn_metrics_daily above.
 create table if not exists public.cyn_metrics_channel_state (
   channel_id text primary key,
   last_message_id text,
@@ -1058,6 +1069,12 @@ create table if not exists public.cyn_metrics_channel_state (
 );
 
 alter table public.cyn_metrics_channel_state enable row level security;
+
+create policy "anyone can insert cyn_metrics_channel_state"
+  on public.cyn_metrics_channel_state for insert to public with check (true);
+
+create policy "anyone can update cyn_metrics_channel_state"
+  on public.cyn_metrics_channel_state for update to public using (true) with check (true);
 
 -- Raw page-view log (append-only), aggregated into today's counts on the
 -- Metrics page. Anyone can log a visit; only inner-circle members can read

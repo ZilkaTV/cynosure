@@ -158,9 +158,13 @@ async function main() {
 
       const wantsInnerCircle = currentRoles.has(INNER_CIRCLE_ROLE_ID)
       if (wantsInnerCircle) {
-        await supabase.from('cyn_inner_circle').upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+        const { error: innerCircleError } = await supabase
+          .from('cyn_inner_circle')
+          .upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+        if (innerCircleError) throw new Error(`cyn_inner_circle upsert for ${m.openfront_id}: ${innerCircleError.message}`)
       } else {
-        await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
+        const { error: innerCircleError } = await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
+        if (innerCircleError) throw new Error(`cyn_inner_circle delete for ${m.openfront_id}: ${innerCircleError.message}`)
       }
 
       // Wins-tier roles are mutually exclusive (only the target tier is

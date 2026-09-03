@@ -1076,6 +1076,117 @@ create policy "anyone can insert cyn_metrics_channel_state"
 create policy "anyone can update cyn_metrics_channel_state"
   on public.cyn_metrics_channel_state for update to public using (true) with check (true);
 
+-- ============================================================
+-- RPC helpers for scripts/collect-metrics.mjs. Confirmed directly:
+-- Postgres's `INSERT ... ON CONFLICT DO UPDATE` (what supabase-js's
+-- .upsert() compiles to) requires a SELECT policy to succeed too - it has
+-- to be able to read the pre-existing row to detect the conflict, even
+-- though nothing is ever returned to the caller. cyn_metrics_daily and
+-- cyn_metrics_channel_state are deliberately NOT publicly readable (the
+-- whole point of gating "Metrics" to inner-circle members), so the plain
+-- anon-key cron trips on that even with a correct INSERT/UPDATE policy -
+-- reproduced live: an upsert failed with "violates row-level security
+-- policy" purely from the conflict-detection step, while a plain
+-- SELECT-free INSERT or UPDATE on the same table succeeded fine. These
+-- `security definer` functions do the merge INSIDE Postgres as the
+-- function's owner (same trick cyn_chat_increment_message_count already
+-- uses), which naturally bypasses RLS the same way table ownership does,
+-- without ever opening SELECT to the anon role.
+-- ============================================================
+
+create or replace function public.cyn_upsert_metrics_daily(
+  p_day date,
+  p_member_count integer,
+  p_presence_count integer,
+  p_new_vc_member_ids jsonb,
+  p_vc_minutes_delta integer,
+  p_public_messages_delta integer,
+  p_private_messages_delta integer,
+  p_discord_joins_today integer,
+  p_clan_registrations_today integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  existing_vc_ids jsonb;
+  merged_vc_ids jsonb;
+  rows_updated integer;
+begin
+  select vc_active_member_ids into existing_vc_ids
+  from public.cyn_metrics_daily
+  where day = p_day;
+
+  select coalesce(jsonb_agg(distinct id), '[]'::jsonb) into merged_vc_ids
+  from (
+    select jsonb_array_elements_text(coalesce(existing_vc_ids, '[]'::jsonb)) as id
+    union
+    select jsonb_array_elements_text(p_new_vc_member_ids) as id
+  ) ids;
+
+  update public.cyn_metrics_daily set
+    member_count = p_member_count,
+    presence_count = p_presence_count,
+    vc_active_member_ids = merged_vc_ids,
+    vc_total_minutes = vc_total_minutes + p_vc_minutes_delta,
+    public_messages = public_messages + p_public_messages_delta,
+    private_messages = private_messages + p_private_messages_delta,
+    discord_joins_today = p_discord_joins_today,
+    clan_registrations_today = p_clan_registrations_today,
+    updated_at = now()
+  where day = p_day;
+
+  get diagnostics rows_updated = row_count;
+
+  if rows_updated = 0 then
+    insert into public.cyn_metrics_daily (
+      day, member_count, presence_count, vc_active_member_ids, vc_total_minutes,
+      public_messages, private_messages, discord_joins_today, clan_registrations_today, updated_at
+    ) values (
+      p_day, p_member_count, p_presence_count, p_new_vc_member_ids, p_vc_minutes_delta,
+      p_public_messages_delta, p_private_messages_delta, p_discord_joins_today, p_clan_registrations_today, now()
+    )
+    on conflict (day) do nothing;
+  end if;
+end;
+$$;
+
+grant execute on function public.cyn_upsert_metrics_daily(date, integer, integer, jsonb, integer, integer, integer, integer, integer) to anon, authenticated;
+
+create or replace function public.cyn_get_metrics_channel_state(p_channel_id text)
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select last_message_id from public.cyn_metrics_channel_state where channel_id = p_channel_id;
+$$;
+
+grant execute on function public.cyn_get_metrics_channel_state(text) to anon, authenticated;
+
+create or replace function public.cyn_upsert_metrics_channel_state(p_channel_id text, p_last_message_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.cyn_metrics_channel_state
+  set last_message_id = p_last_message_id, updated_at = now()
+  where channel_id = p_channel_id;
+
+  if not found then
+    insert into public.cyn_metrics_channel_state (channel_id, last_message_id)
+    values (p_channel_id, p_last_message_id)
+    on conflict (channel_id) do nothing;
+  end if;
+end;
+$$;
+
+grant execute on function public.cyn_upsert_metrics_channel_state(text, text) to anon, authenticated;
+
 -- Raw page-view log (append-only), aggregated into today's counts on the
 -- Metrics page. Anyone can log a visit; only inner-circle members can read
 -- it back.

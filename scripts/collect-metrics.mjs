@@ -8,11 +8,18 @@
 // Discord Gateway bot (same choice already made for VC-hour tracking,
 // applied here to message counts too).
 //
-// Runs on a schedule via .github/workflows/collect-metrics.yml. Reads
-// today's existing cyn_metrics_daily row and merges into it every run
-// (accumulating fields add on top; snapshot fields overwrite) so a run
-// that's late or occasionally skipped just means slightly coarser numbers,
-// never wrong ones.
+// Runs on a schedule via .github/workflows/collect-metrics.yml. Only ever
+// sends THIS poll's deltas (new VC member ids seen, minutes/messages since
+// last run) - the actual merge into today's row happens server-side via
+// the cyn_upsert_metrics_daily/cyn_upsert_metrics_channel_state RPC
+// functions (see supabase/schema.sql), which run as security definer to
+// bypass RLS. A plain client-side upsert can't do this merge itself:
+// cyn_metrics_daily/cyn_metrics_channel_state are deliberately not
+// publicly readable (the whole point of gating "Metrics" to inner-circle
+// members), and Postgres's INSERT ... ON CONFLICT DO UPDATE requires a
+// SELECT policy to even detect the conflict, which the anon-key cron
+// doesn't have here - confirmed directly, a plain .upsert() failed with
+// "violates row-level security policy" purely from that conflict check.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -123,30 +130,30 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseKey)
   const today = todayUtcDateString()
 
-  const { data: existing } = await supabase.from('cyn_metrics_daily').select('*').eq('day', today).maybeSingle()
-  const vcActiveIds = new Set(existing?.vc_active_member_ids ?? [])
-  let vcTotalMinutes = existing?.vc_total_minutes ?? 0
-  let publicMessages = existing?.public_messages ?? 0
-  let privateMessages = existing?.private_messages ?? 0
-
   const { memberCount, presenceCount } = await fetchGuildCounts(botToken)
 
+  // This poll's deltas only - cyn_upsert_metrics_daily merges them into
+  // today's running totals server-side.
   const vcNow = await fetchVoiceMemberIds()
-  for (const id of vcNow) vcActiveIds.add(id)
-  vcTotalMinutes += vcNow.length * POLL_INTERVAL_MINUTES
+  const vcMinutesDelta = vcNow.length * POLL_INTERVAL_MINUTES
 
+  let publicMessagesDelta = 0
+  let privateMessagesDelta = 0
   for (const [kind, ids] of [['public', channels.public ?? []], ['private', channels.private ?? []]]) {
     for (const channelId of ids) {
-      const { data: state } = await supabase
-        .from('cyn_metrics_channel_state')
-        .select('last_message_id')
-        .eq('channel_id', channelId)
-        .maybeSingle()
-      const { count, newestId } = await countNewMessages(botToken, channelId, state?.last_message_id ?? null)
-      if (kind === 'public') publicMessages += count
-      else privateMessages += count
+      const { data: lastMessageId, error: stateError } = await supabase.rpc('cyn_get_metrics_channel_state', {
+        p_channel_id: channelId,
+      })
+      if (stateError) throw stateError
+      const { count, newestId } = await countNewMessages(botToken, channelId, lastMessageId ?? null)
+      if (kind === 'public') publicMessagesDelta += count
+      else privateMessagesDelta += count
       if (newestId) {
-        await supabase.from('cyn_metrics_channel_state').upsert({ channel_id: channelId, last_message_id: newestId }, { onConflict: 'channel_id' })
+        const { error: stateWriteError } = await supabase.rpc('cyn_upsert_metrics_channel_state', {
+          p_channel_id: channelId,
+          p_last_message_id: newestId,
+        })
+        if (stateWriteError) throw stateWriteError
       }
     }
   }
@@ -159,22 +166,18 @@ async function main() {
     .select('openfront_id', { count: 'exact', head: true })
     .gte('created_at', todayStart)
 
-  const { error } = await supabase.from('cyn_metrics_daily').upsert(
-    {
-      day: today,
-      member_count: memberCount,
-      presence_count: presenceCount,
-      vc_active_member_ids: [...vcActiveIds],
-      vc_total_minutes: vcTotalMinutes,
-      public_messages: publicMessages,
-      private_messages: privateMessages,
-      discord_joins_today: discordJoinsToday,
-      clan_registrations_today: clanRegistrationsToday ?? 0,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'day' },
-  )
-  if (error) throw error
+  const { error: dailyError } = await supabase.rpc('cyn_upsert_metrics_daily', {
+    p_day: today,
+    p_member_count: memberCount,
+    p_presence_count: presenceCount,
+    p_new_vc_member_ids: vcNow,
+    p_vc_minutes_delta: vcMinutesDelta,
+    p_public_messages_delta: publicMessagesDelta,
+    p_private_messages_delta: privateMessagesDelta,
+    p_discord_joins_today: discordJoinsToday,
+    p_clan_registrations_today: clanRegistrationsToday ?? 0,
+  })
+  if (dailyError) throw dailyError
 
   console.log(
     JSON.stringify(
@@ -182,10 +185,10 @@ async function main() {
         day: today,
         memberCount,
         presenceCount,
-        vcActiveToday: vcActiveIds.size,
-        vcTotalMinutes,
-        publicMessages,
-        privateMessages,
+        vcActiveThisPoll: vcNow.length,
+        vcMinutesDelta,
+        publicMessagesDelta,
+        privateMessagesDelta,
         discordJoinsToday,
         clanRegistrationsToday: clanRegistrationsToday ?? 0,
       },

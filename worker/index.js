@@ -27,30 +27,36 @@ export default {
     })
   },
 
-  // Fired every 5 minutes by the Cron Trigger declared in wrangler.jsonc -
+  // Fired every 10 minutes by the Cron Trigger declared in wrangler.jsonc -
   // see that file's comment for why this exists (GitHub's own `schedule:`
   // trigger for refresh-details-cron.yml proved unreliable in production).
   // This ONLY pokes GitHub's repository_dispatch API - the actual scan work
   // stays on GitHub Actions, since Workers cap outbound fetch() at
   // 50/invocation on the free tier and that work needs far more than one
-  // request.
+  // request. Dispatches two independent workflows off the same tick:
+  // refresh-details (stats/roster cache) and collect-metrics (the "Metrics"
+  // admin dashboard) - each fires its own repository_dispatch so one
+  // workflow being slow/failing never blocks the other.
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(
-      fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.GITHUB_PAT}`,
-          Accept: 'application/vnd.github+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'cynosure-cron-trigger',
-        },
-        body: JSON.stringify({ event_type: 'refresh-details' }),
-      }).then(
-        async (res) => {
-          if (!res.ok) console.error(`GitHub dispatch failed: ${res.status} ${await res.text()}`)
-        },
-        (err) => console.error('GitHub dispatch request failed:', err),
-      ),
-    )
+    ctx.waitUntil(dispatch(env, 'refresh-details'))
+    ctx.waitUntil(dispatch(env, 'collect-metrics'))
   },
+}
+
+async function dispatch(env, eventType) {
+  return fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_PAT}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'cynosure-cron-trigger',
+    },
+    body: JSON.stringify({ event_type: eventType }),
+  }).then(
+    async (res) => {
+      if (!res.ok) console.error(`GitHub dispatch (${eventType}) failed: ${res.status} ${await res.text()}`)
+    },
+    (err) => console.error(`GitHub dispatch (${eventType}) request failed:`, err),
+  )
 }

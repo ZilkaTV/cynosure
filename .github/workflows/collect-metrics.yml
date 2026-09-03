@@ -1,0 +1,42 @@
+name: Collect metrics
+
+# Runs scripts/collect-metrics.mjs every ~10 minutes, feeding the "Metrics"
+# admin dashboard (src/pages/Metrics.tsx). Same reliability reasoning as
+# refresh-details-cron.yml: `schedule` is kept as a fallback, but the
+# primary trigger is `repository_dispatch`, poked by the same Cloudflare
+# Cron Trigger tick that already drives refresh-details (see
+# worker/index.js's scheduled()).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  repository_dispatch:
+    types: [collect-metrics]
+  workflow_dispatch: {}
+
+# Same reasoning as refresh-details-cron.yml's concurrency guard: this
+# script reads-merges-writes today's cyn_metrics_daily row, so two
+# overlapping runs could race and drop an accumulated count (vc minutes,
+# message counts). Queue instead of running in parallel.
+concurrency:
+  group: collect-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Run collect-metrics
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_METRICS_CHANNELS: ${{ vars.DISCORD_METRICS_CHANNELS }}
+        run: node scripts/collect-metrics.mjs

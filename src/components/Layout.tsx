@@ -9,6 +9,7 @@ import { useProfile } from '../lib/useProfile'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
+import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 
@@ -36,6 +37,13 @@ const DiscordIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
 const HeartIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 21s-6.7-4.35-9.3-8.1C.9 10.2 1.4 6.6 4.3 5 6.4 3.8 9 4.3 12 7c3-2.7 5.6-3.2 7.7-2 2.9 1.6 3.4 5.2 1.6 7.9C18.7 16.65 12 21 12 21Z" />
+  </svg>
+)
+
+const ChartIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" />
+    <path d="M18 17V9M13 17V5M8 17v-4" />
   </svg>
 )
 
@@ -126,6 +134,16 @@ function AccountMenu() {
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { t } = useLanguage()
+  const { profile } = useProfile()
+  const isInnerCircle = useIsInnerCircle()
+
+  useEffect(() => {
+    logSiteVisit(!!profile)
+    // Only ever needs to fire once per tab session (logSiteVisit's own
+    // sessionStorage guard enforces that) - re-running on later profile
+    // changes would just be a no-op, so no dependency on profile here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="min-h-screen">
@@ -133,6 +151,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
         <div className="mx-auto flex max-w-7xl items-center justify-end gap-2 px-4 pt-3 sm:px-6">
           <LanguageSwitcher />
+          {isInnerCircle && (
+            <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.metrics.navLabel}>
+              <ChartIcon />
+              <span className="hidden sm:inline">{t.metrics.navLabel}</span>
+            </Link>
+          )}
           <AccountMenu />
         </div>
 

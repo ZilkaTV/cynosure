@@ -20,6 +20,7 @@ const Trends = lazy(() => import('./pages/Trends'))
 const History = lazy(() => import('./pages/History'))
 const Donate = lazy(() => import('./pages/Donate'))
 const AdminHelp = lazy(() => import('./pages/AdminHelp'))
+const Metrics = lazy(() => import('./pages/Metrics'))
 
 function NotFound() {
   const { t } = useLanguage()
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="/donate" element={<Donate />} />
             <Route path="/register" element={<Register />} />
             <Route path="/admin/help" element={<AdminHelp />} />
+            <Route path="/metrics" element={<Metrics />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

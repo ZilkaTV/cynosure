@@ -31,6 +31,12 @@ const CLAN_TAG = 'CYN'
 const GAMES_100_THRESHOLD = 100
 const GAMES_100_ROLE_ID = '1545145526649884802'
 
+// Drives the "Metrics" admin dashboard's visibility gate (see
+// src/lib/metrics.ts's useIsInnerCircle()) - mirrored into cyn_inner_circle
+// below purely as a byproduct of the per-member roles fetch this script
+// already does for the wins/games roles, no extra Discord call needed.
+const INNER_CIRCLE_ROLE_ID = '1367284321270108280'
+
 // Highest threshold first - same 9 tiers/thresholds as WINS_TIERS in
 // src/lib/badges.ts. Keep these two lists in sync by hand if the tiers ever
 // change.
@@ -149,6 +155,13 @@ async function main() {
       if (!memberRes.ok) throw new Error(`GET member ${m.discord_user_id}: ${memberRes.status}`)
       const memberData = await memberRes.json()
       const currentRoles = new Set(memberData.roles ?? [])
+
+      const wantsInnerCircle = currentRoles.has(INNER_CIRCLE_ROLE_ID)
+      if (wantsInnerCircle) {
+        await supabase.from('cyn_inner_circle').upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+      } else {
+        await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
+      }
 
       // Wins-tier roles are mutually exclusive (only the target tier is
       // kept); the 100-games role is independent - added/removed purely on

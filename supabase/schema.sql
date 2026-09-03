@@ -997,3 +997,89 @@ create policy "anyone can insert cyn_roster_cache"
 
 create policy "anyone can update cyn_roster_cache"
   on public.cyn_roster_cache for update to public using (true) with check (true);
+
+-- ============================================================
+-- "Metrics" admin dashboard, visible only to holders of the Discord "inner
+-- circle" role (1367284321270108280). Four new tables:
+--   - cyn_inner_circle: who currently holds that role (the UI-gating flag).
+--   - cyn_metrics_daily: one row per UTC day with the actual numbers.
+--   - cyn_metrics_channel_state: cron-internal bookkeeping only.
+--   - cyn_site_visits: raw page-view log, aggregated on the Metrics page.
+-- ============================================================
+
+-- Populated by scripts/discord-role-sync.mjs, which already fetches every
+-- registered member's current Discord roles every run for the wins/games
+-- roles - this just also checks that same currentRoles set, no extra
+-- Discord call needed. Public-readable: it's just a UI-gating flag, not
+-- sensitive data (the metrics tables below are the ones that need real RLS).
+create table if not exists public.cyn_inner_circle (
+  openfront_id text primary key references public.cyn_members(openfront_id) on delete cascade
+);
+
+alter table public.cyn_inner_circle enable row level security;
+
+create policy "public can read cyn_inner_circle"
+  on public.cyn_inner_circle for select
+  to public
+  using (true);
+
+-- One row per UTC day, upserted incrementally by scripts/collect-metrics.mjs.
+create table if not exists public.cyn_metrics_daily (
+  day date primary key,
+  member_count integer,
+  presence_count integer,
+  vc_active_member_ids jsonb not null default '[]',
+  vc_total_minutes integer not null default 0,
+  public_messages integer not null default 0,
+  private_messages integer not null default 0,
+  discord_joins_today integer not null default 0,
+  clan_registrations_today integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cyn_metrics_daily enable row level security;
+
+create policy "inner circle can read cyn_metrics_daily"
+  on public.cyn_metrics_daily for select to authenticated using (
+    exists (
+      select 1 from public.cyn_members m
+      join public.cyn_inner_circle ic on ic.openfront_id = m.openfront_id
+      where m.user_id = auth.uid()
+    )
+  );
+
+-- Tracks each polled channel's newest seen message id, so
+-- scripts/collect-metrics.mjs only ever counts each message once. Pure
+-- cron-internal bookkeeping - never read by the site, no client policy.
+create table if not exists public.cyn_metrics_channel_state (
+  channel_id text primary key,
+  last_message_id text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cyn_metrics_channel_state enable row level security;
+
+-- Raw page-view log (append-only), aggregated into today's counts on the
+-- Metrics page. Anyone can log a visit; only inner-circle members can read
+-- it back.
+create table if not exists public.cyn_site_visits (
+  id bigint generated always as identity primary key,
+  visited_at timestamptz not null default now(),
+  is_member boolean not null
+);
+
+alter table public.cyn_site_visits enable row level security;
+
+create policy "anyone can log cyn_site_visits"
+  on public.cyn_site_visits for insert
+  to public
+  with check (true);
+
+create policy "inner circle can read cyn_site_visits"
+  on public.cyn_site_visits for select to authenticated using (
+    exists (
+      select 1 from public.cyn_members m
+      join public.cyn_inner_circle ic on ic.openfront_id = m.openfront_id
+      where m.user_id = auth.uid()
+    )
+  );

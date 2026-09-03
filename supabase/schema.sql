@@ -1023,6 +1023,15 @@ create policy "public can read cyn_inner_circle"
   to public
   using (true);
 
+-- Written by scripts/discord-role-sync.mjs using the anon key (no login) -
+-- same reasoning as every other cron-written cache table in this file,
+-- an explicit policy is required or RLS blocks the write entirely.
+create policy "anyone can insert cyn_inner_circle"
+  on public.cyn_inner_circle for insert to public with check (true);
+
+create policy "anyone can delete cyn_inner_circle"
+  on public.cyn_inner_circle for delete to public using (true);
+
 -- One row per UTC day, upserted incrementally by scripts/collect-metrics.mjs.
 create table if not exists public.cyn_metrics_daily (
   day date primary key,

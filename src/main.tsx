@@ -15,8 +15,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-  })
-}
+// No longer registering a service worker for new visitors - see
+// public/sw.js's own comment for why (its fetch() proxying broke page
+// loads outright for a real visitor, in a way no HTTP Cache-Control header
+// could fix or even see). That file still ships as a self-unregistering
+// kill switch for browsers that already have the old version installed.

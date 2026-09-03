@@ -26,6 +26,17 @@
 /index.html
   Cache-Control: no-store
 
+# The service worker script needs the same treatment as index.html, for the
+# same reason - see public/sw.js's own comment: it's now a self-unregistering
+# kill switch for a real bug (its old fetch() proxying broke page loads
+# outright for a real visitor), and every browser still running the old
+# version needs to fetch THIS exact version to clean itself up. Browsers do
+# already bound how long they'll go without re-checking a controlling SW's
+# script, but that can still be up to 24 hours by spec - no reason to leave
+# any caching latitude here at all.
+/sw.js
+  Cache-Control: no-store
+
 # The inverse: every OTHER build output file has a content hash baked into
 # its filename (Vite's default) - a given URL's content can never change
 # without the URL itself changing too, so these are safe to cache as long

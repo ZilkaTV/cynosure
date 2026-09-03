@@ -69,11 +69,17 @@ export default function Register() {
       // Falls back to the Discord name unconditionally on any failure here
       // (a bad/missing lookup should never leave the field silently empty).
       let existing = null
+      const lookupName = discordDisplayName(session)
       try {
-        existing = await fetchByDiscord(discordDisplayName(session))
-      } catch {
+        existing = await fetchByDiscord(lookupName)
+      } catch (err) {
+        // Temporary - tracking down a report of staying stuck on
+        // RegistrationGate after a fresh Discord sign-in despite an
+        // existing registration. Safe to remove once confirmed fixed.
+        console.info('[register] fetchByDiscord threw', { lookupName, err })
         existing = null
       }
+      console.info('[register] recovery effect', { lookupName, found: !!existing, alive })
       if (!alive) return
       if (existing) {
         setName((n) => n || existing.in_game_name)
@@ -92,6 +98,7 @@ export default function Register() {
         // what sign-out cleared.
         saveLocalProfile(existing)
         refresh()
+        console.info('[register] restored local profile', existing)
         // Backfills discord_user_id for members who registered before it was
         // tracked (needed by the Discord role-sync bot) - silent and
         // automatic the next time they sign in here, no re-registration

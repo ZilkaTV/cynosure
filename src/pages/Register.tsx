@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
-import { hasBackend, saveProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
+import { hasBackend, saveProfile, saveLocalProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName, discordUserId } from '../lib/useSession'
@@ -80,6 +80,18 @@ export default function Register() {
         setOpenfrontId((v) => v || existing.openfront_id)
         if (existing.timezone) setTimezone((tz) => tz || existing.timezone)
         if (existing.nationality) setNationality((nat) => nat || existing.nationality!)
+        // Restores the LOCAL profile immediately on a successful sign-in for
+        // an already-registered member, without waiting for them to submit
+        // the form again - this used to only pre-fill the form fields above,
+        // which meant signing out (clears the local profile - see the
+        // sign-out button below) and back in with Discord left an existing
+        // member stuck on every other page's RegistrationGate ("Members
+        // only - one quick step") until they noticed and clicked "Update
+        // Registration" themselves. Local-only (no Supabase round-trip) -
+        // nothing about their registration actually changed, just restoring
+        // what sign-out cleared.
+        saveLocalProfile(existing)
+        refresh()
         // Backfills discord_user_id for members who registered before it was
         // tracked (needed by the Discord role-sync bot) - silent and
         // automatic the next time they sign in here, no re-registration
@@ -95,7 +107,7 @@ export default function Register() {
     return () => {
       alive = false
     }
-  }, [session])
+  }, [session, refresh])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()

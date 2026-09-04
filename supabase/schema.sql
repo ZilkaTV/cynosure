@@ -1032,6 +1032,13 @@ create policy "anyone can insert cyn_inner_circle"
 create policy "anyone can delete cyn_inner_circle"
   on public.cyn_inner_circle for delete to public using (true);
 
+-- The upsert in discord-role-sync.mjs compiles to INSERT ... ON CONFLICT DO
+-- UPDATE - confirmed live, that UPDATE branch needs its own policy too, even
+-- though the update itself is a same-value no-op (this table has no other
+-- column to change).
+create policy "anyone can update cyn_inner_circle"
+  on public.cyn_inner_circle for update to public using (true) with check (true);
+
 -- One row per UTC day, upserted incrementally by scripts/collect-metrics.mjs.
 create table if not exists public.cyn_metrics_daily (
   day date primary key,

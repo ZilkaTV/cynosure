@@ -9,6 +9,7 @@
 //                            localStorage so the site is fully usable today.
 
 import { supabase, hasBackend } from './supabase'
+import { clearOpenFrontCache } from './openfront'
 
 export interface Profile {
   openfront_id: string
@@ -47,27 +48,50 @@ export function getLocalProfile(): Profile | null {
   }
 }
 
+function writeLocalProfile(p: Profile) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
+  // Remember id + name so a later sign-in can pre-fill them.
+  localStorage.setItem(
+    REMEMBER_KEY,
+    JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
+  )
+}
+
 /**
  * Returns whether the write actually succeeded. The "are you registered"
  * gate on every page (see useProfile.ts) is entirely localStorage-based -
  * there's no in-memory fallback - so a browser that blocks or restricts
- * site storage (confirmed directly: Opera GX, with strict cookie/site-data
- * blocking for this site) can never stay "registered" across a page load
- * no matter how many times the form is submitted, with nothing visible
- * ever telling the member why. Callers use the return value to show an
- * actionable message instead of failing silently like this used to.
+ * site storage can never stay "registered" across a page load no matter how
+ * many times the form is submitted, with nothing visible ever telling the
+ * member why. Callers use the return value to show an actionable message
+ * instead of failing silently like this used to.
+ *
+ * A genuine `QuotaExceededError` (confirmed directly: this site's own
+ * OpenFront API cache in localStorage - src/lib/openfront.ts's `:lastgood:`/
+ * `:detail:` entries, DESIGNED to only ever grow - had quietly filled a
+ * browser's entire per-origin storage quota, leaving zero room for even
+ * this tiny profile write) gets one automatic recovery attempt: clear that
+ * cache (safe to regenerate from the shared Supabase caches, see
+ * clearOpenFrontCache's own comment) and retry once, before ever bothering
+ * the member with a "storage blocked" message that isn't really about their
+ * browser's settings at all.
  */
 export function saveLocalProfile(p: Profile): boolean {
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(p))
-    // Remember id + name so a later sign-in can pre-fill them.
-    localStorage.setItem(
-      REMEMBER_KEY,
-      JSON.stringify({ openfront_id: p.openfront_id, in_game_name: p.in_game_name, timezone: p.timezone, nationality: p.nationality }),
-    )
+    writeLocalProfile(p)
     notifyProfileChange()
     return true
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+      try {
+        clearOpenFrontCache(true)
+        writeLocalProfile(p)
+        notifyProfileChange()
+        return true
+      } catch {
+        return false
+      }
+    }
     return false
   }
 }

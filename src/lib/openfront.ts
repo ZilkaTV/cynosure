@@ -159,10 +159,22 @@ export function getLastUpdated(): number | null {
 // ahead of the shared cyn_member_games_cache row) got permanently discarded
 // on every automatic background refresh, visibly undercounting wins that
 // were never actually lost anywhere else.
-export function clearOpenFrontCache() {
+/**
+ * `includePermanent` also wipes the `:lastgood:`/`:detail:` caches described
+ * above - normally never done (see that comment for why), but this is the
+ * one legitimate exception: a last-resort recovery from `QuotaExceededError`
+ * (see profiles.ts's saveLocalProfile) where the browser's per-origin
+ * storage is genuinely full and something has to give. Safe specifically
+ * now (unlike when that comment was written) because buildRoster no longer
+ * depends on this browser's own local history catching OpenFront up live -
+ * it reads cyn_roster_cache/cyn_member_games_cache/cyn_game_detail_cache
+ * instead, so wiping this local copy just means re-fetching from those
+ * shared caches, not losing data.
+ */
+export function clearOpenFrontCache(includePermanent = false) {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith(CACHE_NS) && !k.includes(':lastgood:') && !k.includes(':detail:'))
+      .filter((k) => k.startsWith(CACHE_NS) && (includePermanent || (!k.includes(':lastgood:') && !k.includes(':detail:'))))
       .forEach((k) => localStorage.removeItem(k))
   } catch {
     /* ignore */

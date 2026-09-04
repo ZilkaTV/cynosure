@@ -3,6 +3,43 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Duplicates openfront.ts's CACHE_NS ('of:v4') rather than importing it -
+// openfront.ts itself imports `supabase` from this module, so importing the
+// other way here would be circular.
+const OPENFRONT_CACHE_NS = 'of:v4'
+
+/**
+ * Proactively guards against `QuotaExceededError` BEFORE Supabase's own
+ * client is even constructed below, so its session write always has
+ * headroom. Confirmed live: this site's own OpenFront API cache in
+ * localStorage (src/lib/openfront.ts's `:lastgood:`/`:detail:` entries,
+ * which grow forever by design) had filled a member's entire per-origin
+ * storage quota - first surfaced as our own tiny `cyn:profile` write
+ * failing (fixed reactively in profiles.ts), then AGAIN as Supabase's own
+ * session persistence silently failing/getting lost mid-use, since it
+ * writes to the exact same quota-limited pool and has no fallback of its
+ * own. Pruning here, before anything else touches storage, means neither
+ * failure mode can happen in the first place.
+ */
+function ensureStorageHeadroom() {
+  try {
+    const probeKey = '__quota_probe__'
+    localStorage.setItem(probeKey, '1')
+    localStorage.removeItem(probeKey)
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+      try {
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith(OPENFRONT_CACHE_NS))
+          .forEach((k) => localStorage.removeItem(k))
+      } catch {
+        /* nothing more we can do */
+      }
+    }
+  }
+}
+ensureStorageHeadroom()
+
 /**
  * Supabase is OPTIONAL. When the env vars are absent the whole site still runs
  * (stats come from the OpenFront API directly); only the persistent, shared

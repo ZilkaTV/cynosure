@@ -24,3 +24,23 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key, { auth: { flowType: 'pkce' } }) : null
 
 export const hasBackend = !!supabase
+
+// Temporary - tracking down a report where supabase-js's own automatic PKCE
+// callback detection (_initialize() -> _isPKCECallback()) never seems to
+// fire at all, despite a real ?code=... from Discord/Supabase's own
+// redirect being present in the URL and a matching code-verifier
+// confirmed present in localStorage. This manually forces the exchange and
+// logs whatever error actually comes back, since the automatic path fails
+// completely silently (getSession() just reports hasSession: false with no
+// error at all). Safe to remove once the real cause is found.
+if (supabase && typeof window !== 'undefined' && window.location.search.includes('code=')) {
+  const href = window.location.href
+  supabase.auth
+    .exchangeCodeForSession(href)
+    .then((result) => {
+      console.info('[auth] manual exchangeCodeForSession', { href, result })
+    })
+    .catch((err) => {
+      console.info('[auth] manual exchangeCodeForSession threw', { href, err })
+    })
+}

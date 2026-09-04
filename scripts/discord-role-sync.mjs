@@ -156,15 +156,24 @@ async function main() {
       const memberData = await memberRes.json()
       const currentRoles = new Set(memberData.roles ?? [])
 
+      // Isolated in its own try/catch - a cyn_inner_circle write failure
+      // (e.g. a missing RLS policy, confirmed to happen live once already)
+      // must never abort the wins-tier/games-role sync below for this
+      // member just because the unrelated Metrics-dashboard gating flag
+      // couldn't be updated this run.
       const wantsInnerCircle = currentRoles.has(INNER_CIRCLE_ROLE_ID)
-      if (wantsInnerCircle) {
-        const { error: innerCircleError } = await supabase
-          .from('cyn_inner_circle')
-          .upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
-        if (innerCircleError) throw new Error(`cyn_inner_circle upsert for ${m.openfront_id}: ${innerCircleError.message}`)
-      } else {
-        const { error: innerCircleError } = await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
-        if (innerCircleError) throw new Error(`cyn_inner_circle delete for ${m.openfront_id}: ${innerCircleError.message}`)
+      try {
+        if (wantsInnerCircle) {
+          const { error: innerCircleError } = await supabase
+            .from('cyn_inner_circle')
+            .upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+          if (innerCircleError) throw new Error(`cyn_inner_circle upsert for ${m.openfront_id}: ${innerCircleError.message}`)
+        } else {
+          const { error: innerCircleError } = await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
+          if (innerCircleError) throw new Error(`cyn_inner_circle delete for ${m.openfront_id}: ${innerCircleError.message}`)
+        }
+      } catch (innerCircleErr) {
+        console.error(`cyn_inner_circle sync failed for ${m.openfront_id} (non-fatal):`, innerCircleErr)
       }
 
       // Wins-tier roles are mutually exclusive (only the target tier is

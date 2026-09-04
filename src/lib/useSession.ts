@@ -3,26 +3,61 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { isEventAdmin } from './events'
 
+// ── Shared session singleton ────────────────────────────────────────────────
+// useSession() is called from many places at once on a single page (Layout's
+// AccountMenu, useProfile()'s own recovery effect, and directly by pages like
+// Register.tsx) - each call used to set up its OWN independent
+// supabase.auth.getSession() call + its OWN onAuthStateChange subscription.
+// Confirmed as a real bug, not just redundant: right after completing the
+// Discord OAuth redirect, several of these concurrent getSession() calls can
+// resolve in a different order than the auth state actually settles in, and
+// whichever one's setState happens to land LAST wins for that component -
+// intermittently leaving Register.tsx showing "session === null" (the signed-
+// out verify-with-Discord card) moments after a real, successful sign-in. A
+// single shared subscription removes the race entirely: exactly one
+// getSession() call and one onAuthStateChange listener for the whole page,
+// no matter how many components call useSession().
+let cachedSession: Session | null | undefined = undefined
+let initStarted = false
+const listeners = new Set<(s: Session | null | undefined) => void>()
+
+function notifyAll(s: Session | null | undefined) {
+  cachedSession = s
+  for (const l of listeners) l(s)
+}
+
+function ensureInitialized() {
+  if (initStarted || !supabase) return
+  initStarted = true
+  supabase.auth.getSession().then(({ data, error }) => {
+    // Temporary - tracking down an intermittent forced-logout bug. Safe to
+    // remove once that's confirmed fixed.
+    console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
+    notifyAll(data.session)
+  })
+  supabase.auth.onAuthStateChange((e, s) => {
+    console.info('[auth] onAuthStateChange', e, { hasSession: !!s, expiresAt: s?.expires_at })
+    notifyAll(s)
+  })
+}
+
 /** undefined while the initial session loads, null when signed out. */
 export function useSession() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [session, setSession] = useState<Session | null | undefined>(cachedSession)
 
   useEffect(() => {
     if (!supabase) {
       setSession(null)
       return
     }
-    supabase.auth.getSession().then(({ data, error }) => {
-      // Temporary - tracking down an intermittent forced-logout bug in the
-      // clan chat. Safe to remove once that's confirmed fixed.
-      console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
-      setSession(data.session)
-    })
-    const { data: listener } = supabase.auth.onAuthStateChange((e, s) => {
-      console.info('[auth] onAuthStateChange', e, { hasSession: !!s, expiresAt: s?.expires_at })
-      setSession(s)
-    })
-    return () => listener.subscription.unsubscribe()
+    ensureInitialized()
+    // Catches up if cachedSession already resolved before this component
+    // mounted (e.g. a page navigated to after the very first load).
+    setSession(cachedSession)
+    listeners.add(setSession)
+    return () => {
+      listeners.delete(setSession)
+    }
   }, [])
 
   return session

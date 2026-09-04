@@ -6,7 +6,7 @@
 // both by checking cyn_quest_claims first and by its DB primary key.
 
 import { supabase } from './supabase'
-import { isFfa, isTeam, is1v1, type MemberStats } from './stats'
+import { isFfa, isTeam, is1v1, is2v2, type MemberStats } from './stats'
 
 const MIN_LOBBY_SIZE = 10
 
@@ -71,6 +71,13 @@ export const QUESTS: QuestDef[] = [
     description: 'Win 1 ranked 1v1',
     xp: 20,
     check: (m) => m.cynGames.some((g) => is1v1(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
+  },
+  {
+    id: 'ranked_2v2_win',
+    name: 'Tag Team',
+    description: 'Win 1 ranked 2v2',
+    xp: 20,
+    check: (m) => m.cynGames.some((g) => is2v2(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
   },
   {
     id: 'speedrun_post',

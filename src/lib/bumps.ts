@@ -46,6 +46,15 @@ export async function recordBump(openfrontId: string): Promise<BumpResult> {
     }
   }
 
+  // Proactively nudges the client to refresh an expired-but-still-refreshable
+  // session before writing - same fix already applied to claimQuest/
+  // postChatMessage for the same underlying issue (see useSession.ts's own
+  // tracking comment). Confirmed directly: a member's bump attempt left
+  // NO row at all in cyn_bumps despite the button appearing to work,
+  // because the write silently failed RLS and the raw Postgres error never
+  // made clear that signing back in would fix it.
+  await supabase.auth.getSession()
+
   const { error } = await supabase.from('cyn_bumps').upsert(
     {
       openfront_id: openfrontId,
@@ -54,7 +63,12 @@ export async function recordBump(openfrontId: string): Promise<BumpResult> {
     },
     { onConflict: 'openfront_id' },
   )
-  if (error) return { ok: false, message: `Couldn't save: ${error.message}` }
+  if (error) {
+    if (error.code === '42501' || error.message.includes('row-level security')) {
+      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+    }
+    return { ok: false, message: `Couldn't save: ${error.message}` }
+  }
 
   return { ok: true, message: 'Thanks for bumping!' }
 }

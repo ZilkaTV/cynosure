@@ -56,6 +56,14 @@ export async function getTodayMetrics(): Promise<TodayMetrics | null> {
   const today = todayUtcDateString()
   const todayStart = `${today}T00:00:00.000Z`
 
+  // cyn_metrics_daily/cyn_site_visits are readable only `to authenticated`
+  // (see supabase/schema.sql) - a stale-but-refreshable session would
+  // otherwise silently read back as the anon role, which RLS just filters
+  // to zero rows (no error), showing misleadingly "empty" metrics instead
+  // of a clear reason. Same proactive-refresh fix already applied to
+  // claimQuest/postChatMessage for the same underlying session bug.
+  await supabase.auth.getSession()
+
   const [{ data: daily }, membersCount, anonCount] = await Promise.all([
     supabase.from('cyn_metrics_daily').select('*').eq('day', today).maybeSingle(),
     supabase.from('cyn_site_visits').select('id', { count: 'exact', head: true }).eq('is_member', true).gte('visited_at', todayStart),

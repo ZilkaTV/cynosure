@@ -441,6 +441,7 @@ export const translations = {
       siteVisitsMembers: 'Site visits today (members)',
       siteVisitsAnon: 'Site visits today (non-members)',
       approximationNotice: 'Voice-chat and message counts are approximations from periodic polling, not exact live tracking.',
+      sessionExpired: 'Your sign-in expired - sign out and sign in with Discord again to see the metrics.',
     },
     badges: {
       groupRank: 'Rank & Records',
@@ -1030,6 +1031,7 @@ export const translations = {
       siteVisitsMembers: 'Website-Aufrufe heute (Mitglieder)',
       siteVisitsAnon: 'Website-Aufrufe heute (Nicht-Mitglieder)',
       approximationNotice: 'Voice-Chat- und Nachrichtenzahlen sind Annäherungen durch regelmäßiges Abfragen, kein exaktes Live-Tracking.',
+      sessionExpired: 'Deine Anmeldung ist abgelaufen - melde dich ab und wieder mit Discord an, um die Metriken zu sehen.',
     },
     badges: {
       groupRank: 'Rang & Rekorde',
@@ -1619,6 +1621,7 @@ export const translations = {
       siteVisitsMembers: "Visites du site aujourd'hui (membres)",
       siteVisitsAnon: "Visites du site aujourd'hui (non-membres)",
       approximationNotice: 'Les chiffres de vocal et de messages sont des approximations par sondage périodique, pas un suivi en direct exact.',
+      sessionExpired: 'Ta connexion a expiré - déconnecte-toi et reconnecte-toi avec Discord pour voir les métriques.',
     },
     badges: {
       groupRank: 'Rang & Records',

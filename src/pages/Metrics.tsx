@@ -2,21 +2,39 @@ import { useEffect, useState } from 'react'
 import { SectionHeading, StatCard, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useIsInnerCircle, getTodayMetrics, type TodayMetrics } from '../lib/metrics'
+import { useSession } from '../lib/useSession'
 
 export default function Metrics() {
   const { t } = useLanguage()
   const isInnerCircle = useIsInnerCircle()
+  // cyn_metrics_daily/cyn_site_visits are readable only `to authenticated` -
+  // useIsInnerCircle() alone can't tell a real signed-in session apart from
+  // a locally-persisted profile with a stale/expired Supabase auth session
+  // (the same underlying bug fixed for quest claims/chat), which would
+  // otherwise read back as misleading all-zero metrics instead of a clear
+  // reason. Checked separately here so that case gets its own message.
+  const session = useSession()
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
 
   useEffect(() => {
-    if (!isInnerCircle) return
+    if (!isInnerCircle || !session) return
     getTodayMetrics().then(setMetrics)
-  }, [isInnerCircle])
+  }, [isInnerCircle, session])
 
   if (!isInnerCircle) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
         <p className="text-slate-400">{t.metrics.innerCircleOnly}</p>
+      </div>
+    )
+  }
+
+  if (session === undefined) return <Spinner label={t.metrics.loading} />
+
+  if (session === null) {
+    return (
+      <div className="mx-auto max-w-lg py-16 text-center">
+        <p className="text-slate-400">{t.metrics.sessionExpired}</p>
       </div>
     )
   }

@@ -84,6 +84,70 @@ export async function getTodayMetrics(): Promise<TodayMetrics | null> {
   }
 }
 
+export interface DailyMetricsRow {
+  day: string
+  memberCount: number | null
+  presenceCount: number | null
+  vcActiveCount: number
+  vcHours: number
+  publicMessages: number
+  privateMessages: number
+  discordJoinsToday: number
+  clanRegistrationsToday: number
+}
+
+/** Daily history straight from cyn_metrics_daily - one real row per UTC day, oldest first. */
+export async function getMetricsHistory(days = 30): Promise<DailyMetricsRow[]> {
+  if (!supabase) return []
+  await supabase.auth.getSession()
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const { data, error } = await supabase.from('cyn_metrics_daily').select('*').gte('day', since).order('day', { ascending: true })
+  if (error || !data) return []
+  return data.map((row) => ({
+    day: row.day as string,
+    memberCount: row.member_count as number | null,
+    presenceCount: row.presence_count as number | null,
+    vcActiveCount: ((row.vc_active_member_ids as string[] | null) ?? []).length,
+    vcHours: Math.round(((row.vc_total_minutes as number | null ?? 0) / 60) * 10) / 10,
+    publicMessages: (row.public_messages as number | null) ?? 0,
+    privateMessages: (row.private_messages as number | null) ?? 0,
+    discordJoinsToday: (row.discord_joins_today as number | null) ?? 0,
+    clanRegistrationsToday: (row.clan_registrations_today as number | null) ?? 0,
+  }))
+}
+
+/** Plain CSV (openable directly in Excel) for the "download and make your own charts" request. */
+export function metricsHistoryToCsv(rows: DailyMetricsRow[]): string {
+  const headers = [
+    'day',
+    'member_count',
+    'presence_count',
+    'vc_active_count',
+    'vc_hours',
+    'public_messages',
+    'private_messages',
+    'discord_joins',
+    'clan_registrations',
+  ]
+  const lines = [headers.join(',')]
+  for (const r of rows) {
+    lines.push(
+      [
+        r.day,
+        r.memberCount ?? '',
+        r.presenceCount ?? '',
+        r.vcActiveCount,
+        r.vcHours,
+        r.publicMessages,
+        r.privateMessages,
+        r.discordJoinsToday,
+        r.clanRegistrationsToday,
+      ].join(','),
+    )
+  }
+  return lines.join('\n')
+}
+
 const VISIT_LOGGED_KEY = 'cyn:visitLogged'
 
 /** Logs one page-view for today's site-visit metric, at most once per browser tab session. */

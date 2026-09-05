@@ -1,8 +1,31 @@
 import { useEffect, useState } from 'react'
-import { SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, SectionHeading, StatCard, Spinner } from '../components/ui'
+import TrendChart from '../components/TrendChart'
 import { useLanguage } from '../i18n/LanguageContext'
-import { useIsInnerCircle, getTodayMetrics, type TodayMetrics } from '../lib/metrics'
+import {
+  useIsInnerCircle,
+  getTodayMetrics,
+  getMetricsHistory,
+  metricsHistoryToCsv,
+  type TodayMetrics,
+  type DailyMetricsRow,
+} from '../lib/metrics'
 import { useSession } from '../lib/useSession'
+
+const HISTORY_DAYS = 30
+
+function downloadCsv(rows: DailyMetricsRow[]) {
+  const csv = metricsHistoryToCsv(rows)
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `cyn-metrics-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 export default function Metrics() {
   const { t } = useLanguage()
@@ -15,10 +38,12 @@ export default function Metrics() {
   // reason. Checked separately here so that case gets its own message.
   const session = useSession()
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
+  const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
 
   useEffect(() => {
     if (!isInnerCircle || !session) return
     getTodayMetrics().then(setMetrics)
+    getMetricsHistory(HISTORY_DAYS).then(setHistory)
   }, [isInnerCircle, session])
 
   if (!isInnerCircle) {
@@ -63,6 +88,62 @@ export default function Metrics() {
         <StatCard label={t.metrics.siteVisitsAnon} value={metrics.siteVisitsAnon} />
       </div>
       <p className="mt-6 text-center text-xs text-slate-500">{t.metrics.approximationNotice}</p>
+
+      <div className="mt-10">
+        <SectionHeading
+          eyebrow={t.metrics.trendEyebrow}
+          title={t.metrics.trendTitle(HISTORY_DAYS)}
+          action={
+            <button
+              onClick={() => history && downloadCsv(history)}
+              disabled={!history || history.length === 0}
+              className="btn-ghost text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t.metrics.downloadCsv}
+            </button>
+          }
+        />
+        {!history ? (
+          <Spinner label={t.metrics.loading} />
+        ) : history.length < 2 ? (
+          <p className="py-6 text-center text-sm text-slate-500">{t.metrics.trendEmpty}</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.memberCount}</p>
+              <TrendChart points={history.map((r) => ({ date: r.day, value: r.memberCount }))} color="#38bdf8" emptyLabel={t.trends.emptyLabel} />
+            </Card>
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.presenceCount}</p>
+              <TrendChart points={history.map((r) => ({ date: r.day, value: r.presenceCount }))} color="#22c55e" emptyLabel={t.trends.emptyLabel} />
+            </Card>
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.vcHoursToday}</p>
+              <TrendChart points={history.map((r) => ({ date: r.day, value: r.vcHours }))} color="#8b5cf6" emptyLabel={t.trends.emptyLabel} />
+            </Card>
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.publicMessages}</p>
+              <TrendChart points={history.map((r) => ({ date: r.day, value: r.publicMessages }))} color="#f59e0b" emptyLabel={t.trends.emptyLabel} />
+            </Card>
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.privateMessages}</p>
+              <TrendChart points={history.map((r) => ({ date: r.day, value: r.privateMessages }))} color="#ec4899" emptyLabel={t.trends.emptyLabel} />
+            </Card>
+            <Card>
+              <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.metrics.joinConversion}</p>
+              <TrendChart
+                points={history.map((r) => ({
+                  date: r.day,
+                  value: r.discordJoinsToday > 0 ? Math.round((r.clanRegistrationsToday / r.discordJoinsToday) * 100) : null,
+                }))}
+                color="#eab308"
+                formatValue={(v) => `${Math.round(v)}%`}
+                emptyLabel={t.trends.emptyLabel}
+              />
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -443,6 +443,10 @@ export const translations = {
       siteVisitsAnon: 'Site visits today (non-members)',
       approximationNotice: 'Voice-chat and message counts are approximations from periodic polling, not exact live tracking.',
       sessionExpired: 'Your sign-in expired - sign out and sign in with Discord again to see the metrics.',
+      trendEyebrow: 'History',
+      trendTitle: (days: number) => `Last ${days} days`,
+      trendEmpty: 'Not enough history yet - check back after a few more days.',
+      downloadCsv: 'Download as CSV',
     },
     badges: {
       groupRank: 'Rank & Records',
@@ -1034,6 +1038,10 @@ export const translations = {
       siteVisitsAnon: 'Website-Aufrufe heute (Nicht-Mitglieder)',
       approximationNotice: 'Voice-Chat- und Nachrichtenzahlen sind Annäherungen durch regelmäßiges Abfragen, kein exaktes Live-Tracking.',
       sessionExpired: 'Deine Anmeldung ist abgelaufen - melde dich ab und wieder mit Discord an, um die Metriken zu sehen.',
+      trendEyebrow: 'Verlauf',
+      trendTitle: (days: number) => `Letzte ${days} Tage`,
+      trendEmpty: 'Noch nicht genug Verlauf - schau in ein paar Tagen nochmal vorbei.',
+      downloadCsv: 'Als CSV herunterladen',
     },
     badges: {
       groupRank: 'Rang & Rekorde',
@@ -1625,6 +1633,10 @@ export const translations = {
       siteVisitsAnon: "Visites du site aujourd'hui (non-membres)",
       approximationNotice: 'Les chiffres de vocal et de messages sont des approximations par sondage périodique, pas un suivi en direct exact.',
       sessionExpired: 'Ta connexion a expiré - déconnecte-toi et reconnecte-toi avec Discord pour voir les métriques.',
+      trendEyebrow: 'Historique',
+      trendTitle: (days: number) => `${days} derniers jours`,
+      trendEmpty: "Pas encore assez d'historique - reviens dans quelques jours.",
+      downloadCsv: 'Télécharger en CSV',
     },
     badges: {
       groupRank: 'Rang & Records',

@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -45,17 +46,24 @@ ensureStorageHeadroom()
  * (stats come from the OpenFront API directly); only the persistent, shared
  * registration/roster is disabled. `supabase` is null in that case.
  *
- * Back on the default "implicit" flow (a `#access_token=...` hash instead of
- * PKCE's `?code=...` query param) - PKCE was tried first for a real "stuck on
- * Members Only after signing in" report, but confirmed directly (via a forced
- * manual exchangeCodeForSession() call and its logged error) that PKCE's own
- * code-verifier goes missing from localStorage by the time the app reloads
- * after the full Discord -> Supabase -> site redirect round-trip, even though
- * plain localStorage reads/writes work fine outside that round-trip - this
- * matches Chromium's "bounce tracking mitigation" privacy feature, which
- * clears storage for a site it thinks is being used to "bounce" through
- * third parties, a false positive for exactly this kind of OAuth flow.
+ * Session persisted via COOKIES (createBrowserClient from @supabase/ssr),
+ * not localStorage (plain createClient's default). Both the implicit
+ * (`#access_token=...`) and PKCE (`?code=...` + a stored code-verifier) flows
+ * were confirmed, live, to silently lose whatever they'd written to
+ * localStorage by the time the app reloads after the full
+ * Discord -> Supabase -> site redirect round-trip - reproduced with a forced
+ * manual exchangeCodeForSession() call logging the real
+ * AuthPKCECodeVerifierMissingError, and separately via the Network tab
+ * showing a correct #access_token in the redirect's Location header that
+ * was already gone by the time our JS read window.location.hash. Matches a
+ * browser anti-tracking "bounce" mitigation that clears storage for a site
+ * it thinks bounced through a third party and back - even from inside a
+ * popup window, ruling out "which tab does the navigation" as the fix.
+ * Directly confirmed a plain `document.cookie` write survives that exact
+ * same round-trip untouched, so cookies (chunked automatically by
+ * @supabase/ssr to stay under the per-cookie size limit) are the actual
+ * fix, not the flow type or which window does the redirect.
  */
-export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null
+export const supabase: SupabaseClient | null = url && key ? createBrowserClient(url, key) : null
 
 export const hasBackend = !!supabase

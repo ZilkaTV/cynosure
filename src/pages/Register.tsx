@@ -53,15 +53,6 @@ export default function Register() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [natOpen])
 
-  // This page also loads inside the Discord-login popup opened above (same
-  // redirectTo). Once a session lands here, its own Supabase client has
-  // already broadcast it to the main tab (same-origin BroadcastChannel, see
-  // the popup comment above) - nothing left for this window to do but get
-  // out of the way so the member lands back on the main tab they started on.
-  useEffect(() => {
-    if (window.opener && session) window.close()
-  }, [session])
-
   const natMatches = natQuery.trim()
     ? COUNTRIES.filter(
         (c) => c.code.toLowerCase().startsWith(natQuery.trim().toLowerCase()) || c.name.toLowerCase().includes(natQuery.trim().toLowerCase()),
@@ -217,34 +208,12 @@ export default function Register() {
           <h2 className="mb-1 text-lg font-semibold text-white">{t.register.verifyWithDiscord}</h2>
           <p className="mx-auto mb-6 max-w-sm text-sm text-slate-400">{t.register.discordIntro}</p>
           <button
-            onClick={async () => {
-              if (!supabase) return
-              // Popup instead of navigating this tab away to Discord and back -
-              // confirmed live to be necessary, not just nicer UX: a full-page
-              // redirect through Discord -> Supabase -> back to this exact URL
-              // is a textbook "bounce" pattern (leave the site, brief stay
-              // elsewhere, return within seconds) that some browsers'
-              // anti-tracking storage protections treat as suspicious and
-              // silently wipe storage for, discarding a perfectly valid login -
-              // reproduced directly (both the PKCE code-verifier and, later,
-              // Supabase's own session itself going missing right after this
-              // exact redirect chain, on a browser where it worked fine outside
-              // that pattern). Keeping THIS tab on cynclan.com the whole time
-              // and running the Discord round-trip in a separate popup avoids
-              // the pattern entirely - Supabase's own BroadcastChannel-based
-              // cross-tab session sync (same origin, so it reaches the popup
-              // too) picks up the popup's session automatically once it signs
-              // in, no manual message-passing needed.
-              const { data, error } = await supabase.auth.signInWithOAuth({
+            onClick={() =>
+              supabase?.auth.signInWithOAuth({
                 provider: 'discord',
-                options: { redirectTo: `${window.location.origin}/register`, scopes: 'identify', skipBrowserRedirect: true },
+                options: { redirectTo: `${window.location.origin}/register`, scopes: 'identify' },
               })
-              if (error || !data?.url) return
-              const popup = window.open(data.url, 'discord-oauth', 'width=480,height=720')
-              // Popup blocked (rare for a direct click handler, but possible) -
-              // fall back to the old full-tab redirect rather than doing nothing.
-              if (!popup) window.location.href = data.url
-            }}
+            }
             className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"
           >
             <DiscordIcon className="h-4 w-4" /> {t.register.continueWithDiscord}

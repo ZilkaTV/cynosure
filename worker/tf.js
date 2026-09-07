@@ -25,7 +25,10 @@ export async function handleTf(request) {
       status: upstream.status,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 's-maxage=1800, stale-while-revalidate=86400',
+        // Same fix as worker/of.js: never cache a non-2xx upstream response
+        // at the edge, or a transient hiccup gets frozen in as a "failure"
+        // for everyone for up to 30 minutes (a day if served stale).
+        'Cache-Control': upstream.ok ? 's-maxage=1800, stale-while-revalidate=86400' : 'no-store',
       },
     })
   } catch (e) {

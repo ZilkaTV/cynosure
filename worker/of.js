@@ -31,8 +31,16 @@ export async function handleOf(request) {
       status: upstream.status,
       headers: {
         'Content-Type': 'application/json',
-        // Cache at the edge for 30 min, serve stale for a day while revalidating.
-        'Cache-Control': 's-maxage=1800, stale-while-revalidate=86400',
+        // Only cache a genuinely successful response at the edge - caching
+        // this unconditionally (regardless of upstream.status) meant a
+        // transient OpenFront hiccup (their own Cloudflare bot challenge,
+        // a 429, a 5xx) got frozen in as a cached "failure" for 30 minutes
+        // (and served stale for up to a day after that), actively
+        // prolonging a real-world outage that may have already cleared by
+        // the very next request. Confirmed live: a single blocked request
+        // to OpenFront made every visitor's "Post Game Report" for that
+        // exact game keep failing long after OpenFront itself recovered.
+        'Cache-Control': upstream.ok ? 's-maxage=1800, stale-while-revalidate=86400' : 'no-store',
       },
     })
   } catch (e) {

@@ -19,7 +19,14 @@ export async function handleTf(request) {
   const target = `https://trackerfront.com/${path}${url.search}`
 
   try {
-    const upstream = await fetch(target, { headers: { Accept: 'application/json' } })
+    // Same fix as worker/of.js - a realistic User-Agent avoids the target's
+    // own Cloudflare bot heuristics flagging this as automated traffic.
+    const upstream = await fetch(target, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      },
+    })
     const body = await upstream.text()
     return new Response(body, {
       status: upstream.status,

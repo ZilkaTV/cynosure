@@ -25,7 +25,19 @@ export async function handleOf(request) {
   const target = `https://api.openfront.io/${path}${url.search}`
 
   try {
-    const upstream = await fetch(target, { headers: { Accept: 'application/json' } })
+    // A missing/generic User-Agent is a common trigger for a Cloudflare-
+    // fronted origin's own bot heuristics to flag server-to-server traffic
+    // (like Worker-to-Worker/Cloudflare-to-Cloudflare requests) as
+    // automated - confirmed live: OpenFront's own Cloudflare challenge page
+    // ("Just a moment...") started coming back for every request through
+    // this proxy, while the same API worked fine called directly from
+    // GitHub Actions runners (scripts/refresh-details.mjs) the whole time.
+    const upstream = await fetch(target, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      },
+    })
     const body = await upstream.text()
     return new Response(body, {
       status: upstream.status,

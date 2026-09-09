@@ -235,6 +235,20 @@ async function main() {
   const { byId: rankedMap, byId2v2: rankedMap2v2 } = await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
   const ffaLeaderboard = await fetchFfaLeaderboard()
 
+  // A transient OpenFront/trackerfront hiccup (confirmed live: the ranked
+  // leaderboard scan came back completely empty for one run, no thrown
+  // error - fetchRankedMap's own per-page try/catch just breaks the loop
+  // early) must never overwrite the shared cache with garbage - every
+  // browser reads this table directly with no live fallback of its own, so
+  // an empty write here instantly wiped Elo/badges site-wide until the
+  // next successful run. Read the existing row first and only replace each
+  // field where this run's result is actually non-empty; otherwise keep
+  // whatever was already cached.
+  const { data: existingRosterCache } = await supabase.from('cyn_roster_cache').select('*').eq('id', 1).maybeSingle()
+  const nextRanked1v1 = rankedMap.size > 0 ? Object.fromEntries(rankedMap) : (existingRosterCache?.ranked_1v1 ?? {})
+  const nextRanked2v2 = rankedMap2v2.size > 0 ? Object.fromEntries(rankedMap2v2) : (existingRosterCache?.ranked_2v2 ?? {})
+  const nextFfaLeaderboard = Object.keys(ffaLeaderboard).length > 0 ? ffaLeaderboard : (existingRosterCache?.ffa_leaderboard ?? {})
+
   // Written whole to cyn_roster_cache (see supabase/schema.sql) so browsers
   // building the roster (src/lib/openfront.ts's fetchRankedMap/
   // fetchFfaLeaderboard) read this back instead of ever scanning
@@ -245,9 +259,9 @@ async function main() {
     .upsert(
       {
         id: 1,
-        ranked_1v1: Object.fromEntries(rankedMap),
-        ranked_2v2: Object.fromEntries(rankedMap2v2),
-        ffa_leaderboard: ffaLeaderboard,
+        ranked_1v1: nextRanked1v1,
+        ranked_2v2: nextRanked2v2,
+        ffa_leaderboard: nextFfaLeaderboard,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },

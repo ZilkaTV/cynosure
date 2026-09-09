@@ -80,7 +80,20 @@ const REQUEST_PACING_MS = 1200
 async function fetchJson(url) {
   for (let attempt = 0; ; attempt++) {
     await new Promise((r) => setTimeout(r, REQUEST_PACING_MS))
-    const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    // A missing/generic User-Agent is a common trigger for a Cloudflare-
+    // fronted origin's own bot heuristics - confirmed live for this exact
+    // symptom on worker/of.js (same api.openfront.io origin, called from
+    // Cloudflare Workers instead of GitHub Actions runners here), and
+    // apparently OpenFront's leaderboard endpoint specifically applies
+    // stricter checks than /public/game or /public/player: the member-scan
+    // calls below this function kept succeeding (0 failures) the whole
+    // time fetchRankedMap()'s leaderboard call was silently failing.
+    const res = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      },
+    })
     if (res.status === 429) {
       if (attempt >= RATE_LIMIT_RETRIES) throw new Error(`rate-limited: ${url}`)
       await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
@@ -167,7 +180,12 @@ async function fetchRankedMap() {
     let json
     try {
       json = await fetchJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
-    } catch {
+    } catch (err) {
+      // Confirmed live: this failed silently for days with nothing in the
+      // run log to explain why cyn_roster_cache went empty - logged (not
+      // thrown) so a future recurrence is diagnosable from the Action's
+      // own output instead of needing a fresh investigation each time.
+      console.error(`fetchRankedMap page ${page} failed:`, err)
       break
     }
     const entries = json?.['1v1'] ?? []

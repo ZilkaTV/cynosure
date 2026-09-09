@@ -43,6 +43,16 @@ async function discordFetch(botToken, path, init = {}) {
       await new Promise((r) => setTimeout(r, Math.max(retryAfter * 1000, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt)))
       continue
     }
+    // Confirmed live: a single transient Discord 503 on one channel's fetch
+    // aborted the entire run (every other channel's message deltas for
+    // this cycle lost too), even though the very next scheduled run 10
+    // minutes later succeeded fine on its own. Retry transient 5xx the
+    // same way as 429, instead of only handling rate limits.
+    if (res.status >= 500 && res.status < 600) {
+      if (attempt >= RATE_LIMIT_RETRIES) return res
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
+      continue
+    }
     return res
   }
 }

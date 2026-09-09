@@ -173,13 +173,23 @@ const LEADERBOARD_SCAN_PAGES = 3
 // cyn_roster_cache (see below) so the browser's fetchRankedMap
 // (src/lib/openfront.ts) never has to scan the leaderboard live itself; elo
 // alone used to be enough here when this only fed cyn_member_snapshots.
+// Routed through our own Worker proxy (cynclan.com/api/of/...), unlike
+// every other OpenFront call in this script - confirmed live: OpenFront's
+// leaderboard endpoint specifically 403s every request from GitHub Actions
+// runner IPs (while /public/game and /public/player from those same IPs
+// keep working fine), but the identical endpoint through our Worker (a
+// different IP range, already allowlisted in worker/of.js) returns 200
+// with real data. A path-specific block on GH Actions' well-known IP
+// ranges, not a general OpenFront outage.
+const RANKED_LEADERBOARD_BASE = 'https://cynclan.com/api/of'
+
 async function fetchRankedMap() {
   const byId = new Map()
   const byId2v2 = new Map()
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
     let json
     try {
-      json = await fetchJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
+      json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/leaderboard/ranked?page=${page}`)
     } catch (err) {
       // Confirmed live: this failed silently for days with nothing in the
       // run log to explain why cyn_roster_cache went empty - logged (not

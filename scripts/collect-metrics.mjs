@@ -208,7 +208,21 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error('collect-metrics failed:', err)
-  process.exitCode = 1
+// One retry for the whole run before actually failing the job. Confirmed
+// live twice: an isolated single-run failure (a transient Discord 5xx, a
+// transient Supabase "Gateway Timeout") with every surrounding run
+// succeeding fine - main() is already safe to re-invoke from scratch (each
+// run only ever computes THIS poll's deltas from freshly-read state, same
+// as two consecutive real cron ticks would), so retrying once here absorbs
+// that class of blip without needing a failure notification/investigation
+// each time it happens.
+main().catch(async (err) => {
+  console.error('collect-metrics failed, retrying once:', err)
+  await new Promise((r) => setTimeout(r, 5000))
+  try {
+    await main()
+  } catch (retryErr) {
+    console.error('collect-metrics failed on retry:', retryErr)
+    process.exitCode = 1
+  }
 })

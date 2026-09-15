@@ -33,16 +33,29 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // A missing/generic User-Agent is a confirmed trigger for OpenFront's
+      // own Cloudflare bot protection on requests from GitHub Actions
+      // runner IPs specifically (already fixed the same way in worker/of.js
+      // and scripts/refresh-details.mjs) - this dev proxy is also used by
+      // scripts/backfill-tile-stats.mjs's throwaway Vite server in CI, which
+      // hit the exact same silent failure (resolveEngineCommit's fetch
+      // always failing, misreported as "needs a newer engine commit").
       '/api/of': {
         target: 'https://api.openfront.io',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/of/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        },
       },
       // trackerfront FFA leaderboard (no CORS) — used for the FFA ship badges.
       '/api/tf': {
         target: 'https://trackerfront.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/tf/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        },
       },
     },
   },

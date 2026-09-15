@@ -155,7 +155,18 @@ async function main() {
     }
 
     for (const gameId of missing) {
-      const commit = await core.resolveEngineCommit(gameId).catch(() => null)
+      // Retried the same way computeGameTileStats below already is -
+      // confirmed live: resolveEngineCommit's own fetch failing transiently
+      // (a rate limit, a brief OpenFront hiccup) was indistinguishable from
+      // a genuinely-unvendored commit, both collapsing to null here with no
+      // retry at all, so a handful of games got permanently misreported as
+      // "needs a newer engine commit" for this run even though
+      // scripts/auto-vendor-missing.mjs (run just before this) confirmed
+      // every recent game's commit was already vendored.
+      let commit = null
+      for (let attempt = 1; attempt <= maxRetries && !commit; attempt++) {
+        commit = await core.resolveEngineCommit(gameId).catch(() => null)
+      }
       if (!commit) {
         noVendoredCommit++
         continue

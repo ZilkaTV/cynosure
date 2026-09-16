@@ -185,6 +185,21 @@ async function main() {
       if (wants100GamesRole && !currentRoles.has(GAMES_100_ROLE_ID)) toAdd.push(GAMES_100_ROLE_ID)
       else if (!wants100GamesRole && currentRoles.has(GAMES_100_ROLE_ID)) toRemove.push(GAMES_100_ROLE_ID)
 
+      // Temporary - tracking down a report of new wins-tier thresholds not
+      // resulting in a role change despite "updated: 0" across many
+      // consecutive runs. Safe to remove once confirmed fixed.
+      console.log(
+        JSON.stringify({
+          openfront_id: m.openfront_id,
+          allWins,
+          targetTier,
+          targetRoleId,
+          currentRoles: [...currentRoles],
+          toAdd,
+          toRemove,
+        }),
+      )
+
       if (toRemove.length === 0 && toAdd.length === 0) {
         unchanged++
         continue

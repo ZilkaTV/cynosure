@@ -124,3 +124,86 @@ export async function fetchClanTrend(days = 30): Promise<ClanTrendPoint[]> {
     return { date, members, totalWins }
   })
 }
+
+// ── Per-month elo (Monthly 1v1/2v2 pages) ───────────────────────────────────
+// "Current Elo"/"Elo Gain" on those pages used to always show LIVE, TODAY's
+// elo and a running "since the real current month started" delta seeded in
+// localStorage - regardless of which month tab was actually selected.
+// Confirmed live as a real bug (reported as "every player shows the exact
+// same Elo Gain when I look at an earlier month"): those two fields never
+// varied with the `month` prop at all, so switching to an archived month
+// kept showing that same current/live snapshot for every row. This
+// computes the real thing instead, straight from cyn_member_snapshots' now
+// multi-month daily history.
+
+export interface MonthlyEloPoint {
+  elo: number | null
+  eloDelta: number | null
+  elo2v2: number | null
+  eloDelta2v2: number | null
+}
+
+function monthBounds(monthKey: string): { start: string; end: string } {
+  const [y, m] = monthKey.split('-').map(Number)
+  const start = new Date(Date.UTC(y, m - 1, 1))
+  const end = new Date(Date.UTC(y, m, 0)) // day 0 of next month = last day of this one
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) }
+}
+
+/**
+ * Every registered member's elo (as of the last tracked day at-or-before
+ * the month's end) and elo delta (vs. the last tracked day before the
+ * month started, or their first tracked day within it if there's no
+ * earlier history) for one specific month - works the same way whether
+ * `monthKey` is the current month or an archived one, so callers don't
+ * need two code paths.
+ */
+export async function fetchMonthlyEloForAllMembers(monthKey: string): Promise<Record<string, MonthlyEloPoint>> {
+  if (!supabase) return {}
+  const { start, end } = monthBounds(monthKey)
+  // 40 days of buffer before the month starts is enough to find a "last
+  // snapshot before this month" baseline even across a short tracking gap,
+  // without fetching the site's entire history just to compute one month.
+  const bufferStart = new Date(new Date(`${start}T00:00:00Z`).getTime() - 40 * 86_400_000).toISOString().slice(0, 10)
+
+  type Row = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null }
+  const rows: Row[] = []
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('cyn_member_snapshots')
+      .select('openfront_id, snapshot_date, elo, elo_2v2')
+      .gte('snapshot_date', bufferStart)
+      .lte('snapshot_date', end)
+      .order('snapshot_date', { ascending: true })
+      .range(from, from + SUPABASE_PAGE_SIZE - 1)
+    if (error) return {}
+    rows.push(...((data ?? []) as Row[]))
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break
+  }
+
+  const byMember = new Map<string, Row[]>()
+  for (const r of rows) {
+    const arr = byMember.get(r.openfront_id) ?? []
+    arr.push(r)
+    byMember.set(r.openfront_id, arr)
+  }
+
+  const result: Record<string, MonthlyEloPoint> = {}
+  for (const [id, snaps] of byMember) {
+    // Already ascending by snapshot_date (query order) within each member's list.
+    const beforeMonth = snaps.filter((s) => s.snapshot_date < start)
+    const throughMonthEnd = snaps.filter((s) => s.snapshot_date <= end)
+    const startPoint = beforeMonth[beforeMonth.length - 1] ?? throughMonthEnd[0] ?? null
+    const endPoint = throughMonthEnd[throughMonthEnd.length - 1] ?? null
+
+    const elo = endPoint?.elo ?? null
+    const elo2v2 = endPoint?.elo_2v2 ?? null
+    result[id] = {
+      elo,
+      elo2v2,
+      eloDelta: elo != null && startPoint?.elo != null ? elo - startPoint.elo : null,
+      eloDelta2v2: elo2v2 != null && startPoint?.elo_2v2 != null ? elo2v2 - startPoint.elo_2v2 : null,
+    }
+  }
+  return result
+}

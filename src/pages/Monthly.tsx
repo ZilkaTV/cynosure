@@ -25,6 +25,7 @@ import {
   winRate,
   type MemberStats,
 } from '../lib/stats'
+import { fetchMonthlyEloForAllMembers, type MonthlyEloPoint } from '../lib/trends'
 
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -219,11 +220,26 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  // Elo for the SELECTED month specifically (see fetchMonthlyEloForAllMembers's
+  // own comment) - re-fetched whenever the month tab changes, since it's the
+  // one thing about this page that genuinely can't be derived from the
+  // already-loaded roster/game data alone.
+  const [monthlyElo, setMonthlyElo] = useState<Record<string, MonthlyEloPoint>>({})
 
   useEffect(() => {
     setSortKey(null)
     setSortDir(-1)
   }, [variant])
+
+  useEffect(() => {
+    let alive = true
+    fetchMonthlyEloForAllMembers(month).then((result) => {
+      if (alive) setMonthlyElo(result)
+    })
+    return () => {
+      alive = false
+    }
+  }, [month])
 
   function onSortClick(key: string) {
     if (sortKey === key) {
@@ -400,14 +416,20 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && variant === '1v1' && (() => {
           const rows = members
-            .map((m) => ({ m, b: oneVoneBucket(m.cynGames, month), wr: winRate(oneVoneBucket(m.cynGames, month).wins, oneVoneBucket(m.cynGames, month).losses) }))
+            .map((m) => ({
+              m,
+              b: oneVoneBucket(m.cynGames, month),
+              wr: winRate(oneVoneBucket(m.cynGames, month).wins, oneVoneBucket(m.cynGames, month).losses),
+              elo: monthlyElo[m.publicId]?.elo ?? null,
+              eloDelta: monthlyElo[m.publicId]?.eloDelta ?? null,
+            }))
             .sort((a, b) => {
               if (sortKey === 'wins') return compareNullable(a.b.wins, b.b.wins, sortDir)
               if (sortKey === 'losses') return compareNullable(a.b.losses, b.b.losses, sortDir)
               if (sortKey === 'winRatePct') return compareNullable(a.wr, b.wr, sortDir)
-              if (sortKey === 'elo') return compareNullable(a.m.elo, b.m.elo, sortDir)
-              if (sortKey === 'eloDelta') return compareNullable(a.m.eloMonthDelta, b.m.eloMonthDelta, sortDir)
-              return (b.m.eloMonthDelta ?? -9999) - (a.m.eloMonthDelta ?? -9999) || b.b.wins - a.b.wins
+              if (sortKey === 'elo') return compareNullable(a.elo, b.elo, sortDir)
+              if (sortKey === 'eloDelta') return compareNullable(a.eloDelta, b.eloDelta, sortDir)
+              return (b.eloDelta ?? -9999) - (a.eloDelta ?? -9999) || b.b.wins - a.b.wins
             })
           return (
             <div className="panel overflow-hidden">
@@ -425,15 +447,15 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr }, i) => (
+                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo ?? <span className="text-slate-600">-</span>}</td>
-                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta} /></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
+                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -445,14 +467,20 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && variant === '2v2' && (() => {
           const rows = members
-            .map((m) => ({ m, b: twoVTwoBucket(m.cynGames, month), wr: winRate(twoVTwoBucket(m.cynGames, month).wins, twoVTwoBucket(m.cynGames, month).losses) }))
+            .map((m) => ({
+              m,
+              b: twoVTwoBucket(m.cynGames, month),
+              wr: winRate(twoVTwoBucket(m.cynGames, month).wins, twoVTwoBucket(m.cynGames, month).losses),
+              elo: monthlyElo[m.publicId]?.elo2v2 ?? null,
+              eloDelta: monthlyElo[m.publicId]?.eloDelta2v2 ?? null,
+            }))
             .sort((a, b) => {
               if (sortKey === 'wins') return compareNullable(a.b.wins, b.b.wins, sortDir)
               if (sortKey === 'losses') return compareNullable(a.b.losses, b.b.losses, sortDir)
               if (sortKey === 'winRatePct') return compareNullable(a.wr, b.wr, sortDir)
-              if (sortKey === 'elo') return compareNullable(a.m.elo2v2, b.m.elo2v2, sortDir)
-              if (sortKey === 'eloDelta') return compareNullable(a.m.eloMonthDelta2v2, b.m.eloMonthDelta2v2, sortDir)
-              return (b.m.eloMonthDelta2v2 ?? -9999) - (a.m.eloMonthDelta2v2 ?? -9999) || b.b.wins - a.b.wins
+              if (sortKey === 'elo') return compareNullable(a.elo, b.elo, sortDir)
+              if (sortKey === 'eloDelta') return compareNullable(a.eloDelta, b.eloDelta, sortDir)
+              return (b.eloDelta ?? -9999) - (a.eloDelta ?? -9999) || b.b.wins - a.b.wins
             })
           return (
             <div className="panel overflow-hidden">
@@ -470,15 +498,15 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr }, i) => (
+                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{m.elo2v2 ?? <span className="text-slate-600">-</span>}</td>
-                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={m.eloMonthDelta2v2} /></td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
+                        <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
                     ))}
                   </tbody>

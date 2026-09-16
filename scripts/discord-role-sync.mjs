@@ -371,8 +371,8 @@ async function main() {
       if (rolesByMember.get(fastest.openfront_id)?.has(SPEEDRUN_ROLE_ID)) {
         const timeStr = fmtSpeedrunTime(fastest.seconds)
         const content = previousHolderDiscordId
-          ? `<@${previousHolderDiscordId}> has been overtaken in the speedrun!\nThe new title of **Flash of Cyn** goes to <@${newHolderDiscordId}> with a new speed time of **${timeStr}**!!\n\nCan you beat that? cynclan.com\n<@&${CLAN_PING_ROLE_ID}>`
-          : `<@${newHolderDiscordId}> claims the first-ever title of **Flash of Cyn** with a speed time of **${timeStr}**!!\n\nCan you beat that? cynclan.com\n<@&${CLAN_PING_ROLE_ID}>`
+          ? `<@${previousHolderDiscordId}> has been overtaken in the speedrun!\nThe new title <@&${SPEEDRUN_ROLE_ID}> goes to <@${newHolderDiscordId}> with a new speed time of **${timeStr}**!!\n\nCan you beat that? [cynclan.com](https://cynclan.com/)\n<@&${CLAN_PING_ROLE_ID}>`
+          : `<@${newHolderDiscordId}> claims the first-ever title <@&${SPEEDRUN_ROLE_ID}> with a speed time of **${timeStr}**!!\n\nCan you beat that? [cynclan.com](https://cynclan.com/)\n<@&${CLAN_PING_ROLE_ID}>`
         await postMessage(botToken, INNER_CIRCLE_CHANNEL_ID, content)
       }
     }

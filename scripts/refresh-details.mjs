@@ -104,29 +104,6 @@ async function fetchJson(url) {
   }
 }
 
-const SUPABASE_PAGE_SIZE = 1000
-
-/**
- * A plain `.select(...)` with no `.range()`/`.limit()` silently caps out at
- * Supabase's own default page size (1000 rows) - confirmed live: this
- * exact query used to read cyn_member_snapshots' entire history in one
- * request, but that table now has more than 1000 rows (one per member per
- * day, forever), so whichever rows fell outside the first page - often a
- * member's own most recent, highest snapshot - were invisibly dropped,
- * silently weakening the monotonic-wins clamp below. Pages through every
- * row instead of assuming the table still fits in one request.
- */
-async function fetchAllRows(supabase, table, columns) {
-  const rows = []
-  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + SUPABASE_PAGE_SIZE - 1)
-    if (error) throw error
-    rows.push(...(data ?? []))
-    if (!data || data.length < SUPABASE_PAGE_SIZE) break
-  }
-  return rows
-}
-
 // knownGameIds (this member's already-cached gameIds, from
 // cyn_member_games_cache) lets an incremental run stop early: pages come
 // back newest-first, so once an entire page's games are already known, every
@@ -347,23 +324,6 @@ async function main() {
   const { data: existingGamesRows } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
   const existingGamesByMember = new Map((existingGamesRows ?? []).map((r) => [r.openfront_id, r.games]))
 
-  // Historical high-water mark per member, so a snapshot's own all_wins can
-  // never regress below what's already on record even if this run's
-  // mergedGames is somehow thinner than a past run's (e.g. a shared-cache
-  // write from elsewhere lost games before the fix in src/lib/openfront.ts's
-  // saveSharedPlayerGames - this is the persisted-history-side half of that
-  // same guarantee, confirmed necessary against real data: the clan-wide
-  // all_wins trend had visible drops day to day, including one with the
-  // exact same member count both days). A handful of hundred rows total, so
-  // fetching everything and reducing client-side is simpler than a
-  // per-member query loop.
-  const allSnapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, all_wins')
-  const priorMaxWinsByMember = new Map()
-  for (const row of allSnapshotRows ?? []) {
-    const prev = priorMaxWinsByMember.get(row.openfront_id) ?? 0
-    if (row.all_wins > prev) priorMaxWinsByMember.set(row.openfront_id, row.all_wins)
-  }
-
   const mk = currentMonthKey()
   const wantDetail = new Set()
   let membersScanFailed = 0
@@ -425,16 +385,26 @@ async function main() {
     // One row per member per day (upsert on conflict), refined every time
     // this job touches that member - by end of day it holds the last
     // values seen, which is all a daily-granularity trend graph needs.
-    // Uses mergedGames too, so a truncated live fetch this run can't make
-    // the win count regress for the day. Clamped against this member's own
-    // historical max as a second, independent floor (see
-    // priorMaxWinsByMember above) - belt and suspenders against the win
-    // count ever visibly dropping in the trend chart.
+    // Computed straight from mergedGames (union of every game this cache has
+    // ever seen for this member, see above) - already monotonic on its own
+    // by construction, so no extra historical-max clamp is layered on top
+    // here. There used to be one (Math.max against every past snapshot's
+    // all_wins) - removed after confirming directly it was actively
+    // harmful, not just redundant: a past bug elsewhere had briefly written
+    // an inflated all_wins for several members (values mathematically
+    // impossible given how many CYN games those members have EVER had
+    // cached, e.g. more recorded "wins" than total CYN games), and the
+    // clamp then preserved that bad ceiling forever - every later, correctly
+    // computed (lower) value kept losing to Math.max against the old
+    // inflated one, silently freezing the roster's own displayed win count
+    // above what mergedGames actually supports. mergedGames' own union
+    // guarantees the real monotonicity this needs; a second clamp sourced
+    // from historical rows can only ever preserve old bad data, never
+    // detect or correct it.
     let allWins = 0
     for (const g of mergedGames) {
       if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
     }
-    allWins = Math.max(allWins, priorMaxWinsByMember.get(r.openfront_id) ?? 0)
     await supabase
       .from('cyn_member_snapshots')
       .upsert(

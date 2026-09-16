@@ -217,15 +217,27 @@ async function main() {
   // redundant per-member Discord fetch.
   const rolesByMember = new Map()
 
-  // Wins were made monotonic (never decrease day to day - see
-  // refresh-details.mjs's own priorMaxWinsByMember clamp), so the max
-  // all_wins ever recorded for a member IS their current wins - no need to
-  // re-scan OpenFront directly here.
-  const snapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, all_wins')
-  const maxWinsByMember = new Map()
-  for (const row of snapshotRows ?? []) {
-    const prev = maxWinsByMember.get(row.openfront_id) ?? 0
-    if (row.all_wins > prev) maxWinsByMember.set(row.openfront_id, row.all_wins)
+  // refresh-details.mjs writes one row per member per day, computed fresh
+  // each time from its own monotonic games cache (see that script's own
+  // comment) - no re-scan of OpenFront needed here, just today's already-
+  // computed number. Deliberately the member's LATEST row, not the max
+  // across their whole history: a max-based clamp used to sit here (and a
+  // matching one in refresh-details.mjs) reasoning "wins only go up, so the
+  // historical ceiling IS the truth" - confirmed directly this was actively
+  // wrong, not just redundant. A past bug elsewhere had briefly written an
+  // inflated all_wins for several members (values mathematically impossible
+  // given how many CYN games those members have EVER had cached), and the
+  // max-clamp preserved that bad ceiling forever - every later, correctly
+  // computed (lower) day kept losing to Math.max against the old inflated
+  // one, which would have kept granting/holding wins-tier roles several
+  // members hadn't actually earned. refresh-details.mjs's own row for
+  // "today" is already the authoritative, freshly computed value - reading
+  // that instead of an all-time max is what actually reflects reality once
+  // a bad value like that exists anywhere in the table's history.
+  const snapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, snapshot_date, all_wins')
+  const latestWinsByMember = new Map()
+  for (const row of [...(snapshotRows ?? [])].sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))) {
+    latestWinsByMember.set(row.openfront_id, row.all_wins)
   }
 
   // Total CYN-tagged games played (any result) per member, for the
@@ -256,7 +268,7 @@ async function main() {
     }
     checked++
     try {
-      const allWins = maxWinsByMember.get(m.openfront_id) ?? 0
+      const allWins = latestWinsByMember.get(m.openfront_id) ?? 0
       const targetTier = tierFromWins(allWins)
       const targetRoleId = targetTier ? roleIdByTier[targetTier] : null
       const wants100GamesRole = (totalGamesByMember.get(m.openfront_id) ?? 0) >= GAMES_100_THRESHOLD

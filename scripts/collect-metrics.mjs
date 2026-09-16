@@ -151,19 +151,32 @@ async function main() {
   let privateMessagesDelta = 0
   for (const [kind, ids] of [['public', channels.public ?? []], ['private', channels.private ?? []]]) {
     for (const channelId of ids) {
-      const { data: lastMessageId, error: stateError } = await supabase.rpc('cyn_get_metrics_channel_state', {
-        p_channel_id: channelId,
-      })
-      if (stateError) throw stateError
-      const { count, newestId } = await countNewMessages(botToken, channelId, lastMessageId ?? null)
-      if (kind === 'public') publicMessagesDelta += count
-      else privateMessagesDelta += count
-      if (newestId) {
-        const { error: stateWriteError } = await supabase.rpc('cyn_upsert_metrics_channel_state', {
+      // Isolated per channel - one bad id (deleted/recreated channel, 404;
+      // bot kicked from it, 403) used to throw straight out of main() and
+      // lose EVERY other metric this run (member count, VC activity, joins,
+      // registrations), not just that channel's message count. Confirmed
+      // live: a single stale channel id failed every run for 50+ minutes
+      // straight, with nothing else in this job actually broken. Skipped
+      // (contributes 0 to this run's delta) rather than retried - a
+      // deleted/inaccessible channel won't fix itself between now and the
+      // next poll, so retrying here would just repeat the same failure.
+      try {
+        const { data: lastMessageId, error: stateError } = await supabase.rpc('cyn_get_metrics_channel_state', {
           p_channel_id: channelId,
-          p_last_message_id: newestId,
         })
-        if (stateWriteError) throw stateWriteError
+        if (stateError) throw stateError
+        const { count, newestId } = await countNewMessages(botToken, channelId, lastMessageId ?? null)
+        if (kind === 'public') publicMessagesDelta += count
+        else privateMessagesDelta += count
+        if (newestId) {
+          const { error: stateWriteError } = await supabase.rpc('cyn_upsert_metrics_channel_state', {
+            p_channel_id: channelId,
+            p_last_message_id: newestId,
+          })
+          if (stateWriteError) throw stateWriteError
+        }
+      } catch (err) {
+        console.error(`Skipping channel ${channelId} (${kind}) this run:`, err)
       }
     }
   }

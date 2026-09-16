@@ -8,6 +8,16 @@
 
 import { supabase } from './supabase'
 
+// A plain `.select(...)` with no `.range()`/`.limit()` silently caps out at
+// Supabase's own default page size (1000 rows) - confirmed live as the
+// actual cause of a real bug elsewhere (scripts/discord-role-sync.mjs
+// computing stale wins once cyn_member_snapshots grew past 1000 total
+// rows). fetchAllMemberTrends/fetchClanTrend below aren't scoped to one
+// member, so as the roster grows their own `days`-windowed query could hit
+// the same cap - both page through their query explicitly instead of
+// waiting for that to happen.
+const SUPABASE_PAGE_SIZE = 1000
+
 export interface SnapshotPoint {
   date: string // YYYY-MM-DD
   elo: number | null
@@ -32,17 +42,24 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
   return (data ?? []).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, allWins: r.all_wins, xp: r.xp }))
 }
 
-/** Every registered member's trend at once, keyed by openfront_id - one query instead of N. */
+/** Every registered member's trend at once, keyed by openfront_id - one (paginated) query instead of N. */
 export async function fetchAllMemberTrends(days = 30): Promise<Record<string, SnapshotPoint[]>> {
   if (!supabase) return {}
-  const { data, error } = await supabase
-    .from('cyn_member_snapshots')
-    .select('openfront_id, snapshot_date, elo, elo_2v2, all_wins, xp')
-    .gte('snapshot_date', sinceDate(days))
-    .order('snapshot_date', { ascending: true })
-  if (error) return {}
+  type Row = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null; all_wins: number; xp: number }
+  const rows: Row[] = []
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('cyn_member_snapshots')
+      .select('openfront_id, snapshot_date, elo, elo_2v2, all_wins, xp')
+      .gte('snapshot_date', sinceDate(days))
+      .order('snapshot_date', { ascending: true })
+      .range(from, from + SUPABASE_PAGE_SIZE - 1)
+    if (error) return {}
+    rows.push(...((data ?? []) as Row[]))
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break
+  }
   const byMember: Record<string, SnapshotPoint[]> = {}
-  for (const row of (data ?? []) as { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null; all_wins: number; xp: number }[]) {
+  for (const row of rows) {
     const arr = byMember[row.openfront_id] ?? (byMember[row.openfront_id] = [])
     arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, allWins: row.all_wins, xp: row.xp })
   }
@@ -58,12 +75,18 @@ export interface ClanTrendPoint {
 /** Clan-wide totals per day, derived from every member's own snapshot that day. */
 export async function fetchClanTrend(days = 30): Promise<ClanTrendPoint[]> {
   if (!supabase) return []
-  const { data, error } = await supabase
-    .from('cyn_member_snapshots')
-    .select('snapshot_date, openfront_id, all_wins')
-    .gte('snapshot_date', sinceDate(days))
-  if (error) return []
-  const rows = (data ?? []) as { snapshot_date: string; openfront_id: string; all_wins: number }[]
+  type Row = { snapshot_date: string; openfront_id: string; all_wins: number }
+  const rows: Row[] = []
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('cyn_member_snapshots')
+      .select('snapshot_date, openfront_id, all_wins')
+      .gte('snapshot_date', sinceDate(days))
+      .range(from, from + SUPABASE_PAGE_SIZE - 1)
+    if (error) return []
+    rows.push(...((data ?? []) as Row[]))
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break
+  }
 
   const byMember = new Map<string, { snapshot_date: string; all_wins: number }[]>()
   for (const row of rows) {

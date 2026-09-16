@@ -59,6 +59,31 @@ function tierFromWins(allWins) {
   return null
 }
 
+const SUPABASE_PAGE_SIZE = 1000
+
+/**
+ * A plain `.select(...)` with no `.range()`/`.limit()` silently caps out at
+ * Supabase's own default page size (1000 rows) - confirmed live as the
+ * actual cause of "wins-tier roles never update": cyn_member_snapshots grew
+ * past 1000 rows, and whichever rows fell outside that first page (often a
+ * member's own most recent, highest snapshot) were invisibly dropped, so
+ * this script kept computing several members' current wins as lower than
+ * they really are. Pages through every row instead of assuming the table
+ * still fits in one request - this table only ever grows (a new row per
+ * member per day, forever), so a fixed row cap was always going to break
+ * again eventually even at a higher limit.
+ */
+async function fetchAllRows(supabase, table, columns) {
+  const rows = []
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + SUPABASE_PAGE_SIZE - 1)
+    if (error) throw error
+    rows.push(...(data ?? []))
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break
+  }
+  return rows
+}
+
 const RATE_LIMIT_RETRIES = 4
 const RATE_LIMIT_BASE_DELAY_MS = 500
 
@@ -104,10 +129,7 @@ async function main() {
   // refresh-details.mjs's own priorMaxWinsByMember clamp), so the max
   // all_wins ever recorded for a member IS their current wins - no need to
   // re-scan OpenFront directly here.
-  const { data: snapshotRows, error: snapshotError } = await supabase
-    .from('cyn_member_snapshots')
-    .select('openfront_id, all_wins')
-  if (snapshotError) throw snapshotError
+  const snapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, all_wins')
   const maxWinsByMember = new Map()
   for (const row of snapshotRows ?? []) {
     const prev = maxWinsByMember.get(row.openfront_id) ?? 0

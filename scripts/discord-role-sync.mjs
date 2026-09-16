@@ -59,6 +59,84 @@ function tierFromWins(allWins) {
   return null
 }
 
+// "Flash of Cyn" - single role for the clan's all-time fastest verified
+// speedrun (see src/lib/speedruns.ts / cyn_speedruns). Held by exactly one
+// member, swapped the moment someone's PB beats the current holder's time.
+// Checked every run of this script (30-minute cadence, same as everything
+// else here) - a speedrun submission happens straight from the member's own
+// browser to Supabase (submitSpeedrun in src/lib/speedruns.ts), so there's
+// no server-side hook to react to instantly; catching up within half an
+// hour is as close to "automatic" as this architecture gets without adding
+// a whole new webhook/trigger path.
+const SPEEDRUN_ROLE_ID = '1549681103642820648'
+
+// "Hero of Cyn" (most Team-game points last calendar month) and "Master of
+// Cyn" (most FFA-game points last calendar month) - reassigned once, only on
+// the 1st of the month (see isFirstOfMonthUtc below), covering the month
+// that just ended. Unlike every other role here, no announcement is posted
+// for these two - the admin writes that manually (with images).
+const HERO_ROLE_ID = '1549681207514763264'
+const MASTER_ROLE_ID = '1549681153106120764'
+
+// Posted to when a NEW Flash of Cyn is crowned (see below).
+const INNER_CIRCLE_CHANNEL_ID = '1367289070564151510'
+// Pinged at the bottom of that announcement so the whole clan sees the
+// challenge, not just whoever happens to already be in the channel.
+const CLAN_PING_ROLE_ID = '1367283915936763944'
+
+// Duplicated from fmtTime in src/lib/speedruns.ts - same reasoning as every
+// other small duplicated helper in this script (can't import from src/).
+function fmtSpeedrunTime(seconds) {
+  const m = Math.floor(seconds / 60)
+  return `${m}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
+}
+
+// ── monthly points (Hero of Cyn / Master of Cyn) ────────────────────────────
+// Duplicated from ffaBucket/teamBucket/isTeam/isFfa/isVictory/isDefeat/
+// monthKeyOf in src/lib/stats.ts - same reasoning as everywhere else in this
+// script (can't import from src/). Only the points total is needed here
+// (not wins/losses/winstreak/etc), so this is the trimmed-down version.
+const isTeam = (g) => g.mode === 'Team' && g.rankedType !== '2v2'
+const isFfa = (g) => g.mode === 'Free For All' && g.rankedType !== '1v1'
+const isVictory = (g) => g.result === 'victory'
+const isDefeat = (g) => g.result === 'defeat'
+const monthKeyOf = (iso) => iso.slice(0, 7)
+
+function prevMonthKeyUtc() {
+  const d = new Date()
+  d.setUTCDate(1) // avoid month-length overflow (e.g. Aug 31 -> "Sep 31")
+  d.setUTCMonth(d.getUTCMonth() - 1)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+function ffaPoints(games, monthKey) {
+  const decided = games
+    .filter((g) => isFfa(g) && monthKeyOf(g.start) === monthKey && (isVictory(g) || isDefeat(g)))
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  let points = 0
+  let run = 0
+  const flush = () => {
+    if (run > 0) points += run >= 2 ? run * 2 : 1
+    run = 0
+  }
+  for (const g of decided) {
+    if (isVictory(g)) run++
+    else flush()
+  }
+  flush()
+  return points
+}
+
+function teamPoints(games, monthKey, coopByGame) {
+  let points = 0
+  for (const g of games) {
+    if (isTeam(g) && monthKeyOf(g.start) === monthKey && isVictory(g)) {
+      points += coopByGame[g.gameId] ? 2 : 1
+    }
+  }
+  return points
+}
+
 const SUPABASE_PAGE_SIZE = 1000
 
 /**
@@ -105,6 +183,14 @@ async function discordFetch(botToken, path, init = {}) {
   }
 }
 
+async function postMessage(botToken, channelId, content) {
+  const res = await discordFetch(botToken, `/channels/${channelId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  })
+  if (!res.ok) throw new Error(`POST message to ${channelId}: ${res.status}`)
+}
+
 async function main() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -124,6 +210,12 @@ async function main() {
     .from('cyn_members')
     .select('openfront_id, discord_user_id')
   if (membersError) throw membersError
+  const membersByOpenfrontId = new Map((members ?? []).map((m) => [m.openfront_id, m]))
+  // Filled in during the per-member loop below (currentRoles is already
+  // fetched there for the wins-tier sync) - reused after the loop by the
+  // Flash/Hero/Master of Cyn sections so they don't need their own
+  // redundant per-member Discord fetch.
+  const rolesByMember = new Map()
 
   // Wins were made monotonic (never decrease day to day - see
   // refresh-details.mjs's own priorMaxWinsByMember clamp), so the max
@@ -177,6 +269,7 @@ async function main() {
       if (!memberRes.ok) throw new Error(`GET member ${m.discord_user_id}: ${memberRes.status}`)
       const memberData = await memberRes.json()
       const currentRoles = new Set(memberData.roles ?? [])
+      rolesByMember.set(m.openfront_id, currentRoles)
 
       // Isolated in its own try/catch - a cyn_inner_circle write failure
       // (e.g. a missing RLS policy, confirmed to happen live once already)
@@ -228,6 +321,117 @@ async function main() {
     } catch (err) {
       console.error(`Failed to sync roles for ${m.openfront_id} (${m.discord_user_id}):`, err)
       failed++
+    }
+  }
+
+  // Removes roleId from anyone in rolesByMember who currently holds it but
+  // isn't in winnerIds, then adds it to anyone in winnerIds who doesn't have
+  // it yet. Shared by the Hero/Master-of-Cyn monthly reassignment below -
+  // pulled out since both need the identical add/remove dance.
+  async function reassignRole(roleId, winnerIds) {
+    for (const [openfrontId, roles] of rolesByMember) {
+      const discordId = membersByOpenfrontId.get(openfrontId)?.discord_user_id
+      if (!discordId) continue
+      const has = roles.has(roleId)
+      const should = winnerIds.has(openfrontId)
+      if (has && !should) {
+        const res = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`, { method: 'DELETE' })
+        if (res.ok || res.status === 404) roles.delete(roleId)
+      } else if (!has && should) {
+        const res = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`, { method: 'PUT' })
+        if (res.ok) roles.add(roleId)
+      }
+    }
+  }
+
+  // ── Flash of Cyn (fastest verified speedrun) ──────────────────────────────
+  // Isolated in its own try/catch - a failure here (e.g. cyn_speedruns
+  // temporarily unreachable) must never abort the wins-tier sync above,
+  // which has already completed successfully by this point.
+  try {
+    const { data: speedrunRows } = await supabase.from('cyn_speedruns').select('openfront_id, seconds, submitted_at')
+    let fastest = null
+    for (const row of speedrunRows ?? []) {
+      // Ties go to whoever set that time FIRST (earliest submitted_at) -
+      // matching normal speedrunning convention that a tying run doesn't
+      // "beat" the existing record.
+      if (!fastest || row.seconds < fastest.seconds || (row.seconds === fastest.seconds && row.submitted_at < fastest.submitted_at)) {
+        fastest = row
+      }
+    }
+    const newHolderDiscordId = fastest ? (membersByOpenfrontId.get(fastest.openfront_id)?.discord_user_id ?? null) : null
+    const alreadyHolds = fastest ? (rolesByMember.get(fastest.openfront_id)?.has(SPEEDRUN_ROLE_ID) ?? false) : true
+    if (fastest && newHolderDiscordId && !alreadyHolds) {
+      let previousHolderDiscordId = null
+      for (const [openfrontId, roles] of rolesByMember) {
+        if (openfrontId === fastest.openfront_id || !roles.has(SPEEDRUN_ROLE_ID)) continue
+        previousHolderDiscordId = membersByOpenfrontId.get(openfrontId)?.discord_user_id ?? previousHolderDiscordId
+      }
+      await reassignRole(SPEEDRUN_ROLE_ID, new Set([fastest.openfront_id]))
+      if (rolesByMember.get(fastest.openfront_id)?.has(SPEEDRUN_ROLE_ID)) {
+        const timeStr = fmtSpeedrunTime(fastest.seconds)
+        const content = previousHolderDiscordId
+          ? `<@${previousHolderDiscordId}> has been overtaken in the speedrun!\nThe new title of **Flash of Cyn** goes to <@${newHolderDiscordId}> with a new speed time of **${timeStr}**!!\n\nCan you beat that? cynclan.com\n<@&${CLAN_PING_ROLE_ID}>`
+          : `<@${newHolderDiscordId}> claims the first-ever title of **Flash of Cyn** with a speed time of **${timeStr}**!!\n\nCan you beat that? cynclan.com\n<@&${CLAN_PING_ROLE_ID}>`
+        await postMessage(botToken, INNER_CIRCLE_CHANNEL_ID, content)
+      }
+    }
+  } catch (err) {
+    console.error('Flash of Cyn speedrun-role sync failed (non-fatal):', err)
+  }
+
+  // ── Hero of Cyn / Master of Cyn (last month's Team / FFA points leader) ──
+  // Only on the 1st of the month (UTC) - see HERO_ROLE_ID/MASTER_ROLE_ID.
+  if (new Date().getUTCDate() === 1) {
+    try {
+      const targetMonth = prevMonthKeyUtc()
+      const allGamesRows = gamesRows ?? []
+
+      // Team-win games in the target month, across every member - detail
+      // (players list) needed to know if another CYN player shared the win
+      // (worth 2 points instead of 1, same rule as teamBucket in
+      // src/lib/stats.ts). These are the SAME games refresh-details.mjs
+      // already queues for detail-fetch unconditionally the moment they're
+      // seen as a team win, so by the 1st of the following month they
+      // should already be cached in cyn_game_detail_cache.
+      const teamWinGameIds = new Set()
+      for (const row of allGamesRows) {
+        for (const g of row.games ?? []) {
+          if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && isTeam(g) && isVictory(g) && monthKeyOf(g.start) === targetMonth) {
+            teamWinGameIds.add(g.gameId)
+          }
+        }
+      }
+      const coopByGame = {}
+      if (teamWinGameIds.size > 0) {
+        const { data: detailRows } = await supabase
+          .from('cyn_game_detail_cache')
+          .select('game_id, detail')
+          .in('game_id', [...teamWinGameIds])
+        for (const row of detailRows ?? []) {
+          coopByGame[row.game_id] = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length >= 2
+        }
+      }
+
+      const heroPointsByMember = new Map()
+      const masterPointsByMember = new Map()
+      for (const row of allGamesRows) {
+        const cynGames = (row.games ?? []).filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
+        heroPointsByMember.set(row.openfront_id, teamPoints(cynGames, targetMonth, coopByGame))
+        masterPointsByMember.set(row.openfront_id, ffaPoints(cynGames, targetMonth))
+      }
+
+      // Nobody gets crowned off zero points (nothing played that mode last
+      // month) - reassignRole just clears the role from whoever had it.
+      const heroMax = Math.max(0, ...heroPointsByMember.values())
+      const heroWinners = new Set(heroMax > 0 ? [...heroPointsByMember].filter(([, p]) => p === heroMax).map(([id]) => id) : [])
+      await reassignRole(HERO_ROLE_ID, heroWinners)
+
+      const masterMax = Math.max(0, ...masterPointsByMember.values())
+      const masterWinners = new Set(masterMax > 0 ? [...masterPointsByMember].filter(([, p]) => p === masterMax).map(([id]) => id) : [])
+      await reassignRole(MASTER_ROLE_ID, masterWinners)
+    } catch (err) {
+      console.error('Hero/Master of Cyn monthly reassignment failed (non-fatal):', err)
     }
   }
 

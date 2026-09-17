@@ -46,7 +46,6 @@ export const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour (OpenFront elo updates hour
 export const USEFUL_LINKS: { label: string; url: string; note: string }[] = [
   { label: 'CYN Skin Shop', url: 'https://openfront.io/#modal=store&affiliateCode=cyn', note: 'OpenFront skin store' },
   { label: 'OpenFront', url: 'https://openfront.io', note: 'Main website' },
-  { label: 'OpenFront Lobbies', url: 'https://minhkarl.github.io', note: 'Browse open public lobbies' },
   { label: 'Replay Tool', url: 'https://openfront-tools.frozenpenguin.media', note: 'Replays for old versions' },
   { label: '1v1 Leaderboard', url: 'https://op-leaderboard.netlify.app', note: 'Ranked 1v1 rankings' },
   { label: 'ofstats.io', url: 'https://ofstats.io/?mode=Ranked+1v1', note: 'Live ranked queue' },

@@ -170,7 +170,9 @@ export default function Survey() {
         <Card>
           <form className="space-y-5" onSubmit={goToQuestions}>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Your OpenFront in-game name</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                Your OpenFront in-game name <span className="text-signal-red">*</span>
+              </label>
               <input
                 required
                 value={inGameName}
@@ -179,7 +181,9 @@ export default function Survey() {
                 className="w-full rounded-lg border border-base-600 bg-base-800 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
               />
             </div>
-            {error && <p className="text-sm text-signal-red">{error}</p>}
+            {error && (
+              <div className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-4 py-3 text-sm text-signal-red">{error}</div>
+            )}
             <button type="submit" className="btn-accent">
               Start survey
             </button>
@@ -190,16 +194,21 @@ export default function Survey() {
       {step === 'questions' && (
         <div className="space-y-6">
           <p className="text-sm text-slate-500">
-            All 5 slots per question are required. The same name can appear in different questions, just not twice within the
-            same one.
+            All 5 slots per question (<span className="text-signal-red">*</span>) are required. The same name can appear in
+            different questions, just not twice within the same one.
           </p>
+          {error && (
+            <div className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-4 py-3 text-sm text-signal-red">{error}</div>
+          )}
           {SURVEY_CATEGORIES.map((cat) => (
             <Card key={cat.id}>
               <h2 className="mb-4 font-display text-lg font-bold text-white">{cat.title}</h2>
               <div className="space-y-5">
                 {cat.questions.map((q) => (
                   <div key={q.id}>
-                    <p className="mb-2 text-sm font-medium text-slate-300">{q.text}</p>
+                    <p className="mb-2 text-sm font-medium text-slate-300">
+                      {q.text} <span className="text-signal-red">*</span>
+                    </p>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
                       {Array.from({ length: ANSWERS_PER_QUESTION }, (_, i) => (
                         <input
@@ -231,7 +240,9 @@ export default function Survey() {
             />
           </Card>
 
-          {error && <p className="text-sm text-signal-red">{error}</p>}
+          {error && (
+            <div className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-4 py-3 text-sm text-signal-red">{error}</div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button

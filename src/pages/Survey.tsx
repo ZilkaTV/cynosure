@@ -42,6 +42,7 @@ export default function Survey() {
   const [busy, setBusy] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [restoring, setRestoring] = useState(true)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   // Restores a draft saved right before a Discord redirect (or just a page
   // refresh mid-survey) - and, failing that, an already-submitted response
@@ -145,6 +146,7 @@ export default function Survey() {
   }
 
   if (submitted) {
+    const shareUrl = `${window.location.origin}/survey`
     return (
       <div className="mx-auto max-w-xl text-center">
         <SectionHeading eyebrow="Community Awards" title="Thank you for participating!" />
@@ -160,6 +162,29 @@ export default function Survey() {
           >
             {STREAM_URL.replace('https://www.', '')}
           </a>
+        </Card>
+        <Card className="mt-4">
+          <p className="text-slate-300">
+            Please share this survey with as many people as possible - the more responses we get, the more accurate the results!
+          </p>
+          <div className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+            <code className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-slate-300">{shareUrl}</code>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(shareUrl)
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                } catch {
+                  /* clipboard access can be blocked - the link is still visible to copy by hand */
+                }
+              }}
+              className="btn-accent shrink-0"
+            >
+              {linkCopied ? 'Copied!' : 'Copy link'}
+            </button>
+          </div>
         </Card>
         <Link to="/" className="mt-6 inline-block text-sm text-slate-400 hover:text-accent-light">
           ← Back to overview

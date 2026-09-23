@@ -1298,5 +1298,12 @@ alter table public.cyn_clan_score_ledger enable row level security;
 
 create policy "public can read cyn_clan_score_ledger"
   on public.cyn_clan_score_ledger for select to public using (true);
--- No insert/update/delete policy - only scripts/compute-clan-score-ledger.mjs
--- writes here, via the anon key same as every other cron script in this repo.
+
+-- Only scripts/compute-clan-score-ledger.mjs actually writes here (via the
+-- anon key, same trust level as every other cron script in this repo - see
+-- cyn_member_snapshots above for the identical insert/update pair).
+create policy "anyone can upsert cyn_clan_score_ledger"
+  on public.cyn_clan_score_ledger for insert to public with check (true);
+
+create policy "anyone can update cyn_clan_score_ledger"
+  on public.cyn_clan_score_ledger for update to public using (true) with check (true);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useIsAdmin } from '../lib/useSession'
-import { Card, SectionHeading, Spinner } from '../components/ui'
+import { Card, SectionHeading, Spinner, StatCard } from '../components/ui'
 import { SURVEY_CATEGORIES, fetchAllSurveyResponses, tallyQuestion, type SurveyResponseSummary } from '../lib/survey'
 
 const EyeIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -145,9 +145,11 @@ export default function SurveyResults() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <SectionHeading center eyebrow="Community Awards" title="Survey results" />
+      <div className="mx-auto max-w-xs">
+        <StatCard label="Participants" value={responses.length} accent="gold" />
+      </div>
       <p className="text-center text-sm text-slate-500">
-        {responses.length} {responses.length === 1 ? 'response' : 'responses'} · click the eye icons to reveal a name or its vote
-        count independently, for the stream.
+        Click the eye icons to reveal a name or its vote count independently, for the stream.
       </p>
 
       {SURVEY_CATEGORIES.map((cat) => (

@@ -10,6 +10,7 @@
 import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
 import { handleHelpChat } from './help-chat.js'
+import { handleDiscordAuthCallback } from './discord-auth.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
@@ -20,6 +21,7 @@ export default {
     if (pathname.startsWith('/api/of/')) return handleOf(request, env)
     if (pathname.startsWith('/api/tf/')) return handleTf(request, env)
     if (pathname === '/api/help-chat') return handleHelpChat(request, env)
+    if (pathname === '/api/auth/discord/callback') return handleDiscordAuthCallback(request, env)
 
     return new Response(JSON.stringify({ error: 'not_found' }), {
       status: 404,

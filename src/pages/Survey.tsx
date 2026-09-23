@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useSession, useIsAdmin, discordDisplayName } from '../lib/useSession'
+import { startDiscordSignIn } from '../lib/discordAuth'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import {
   SURVEY_CATEGORIES,
@@ -117,10 +117,7 @@ export default function Survey() {
     if (!session) {
       // Saved BEFORE the Discord redirect - see saveSurveyDraft's own comment.
       saveSurveyDraft({ inGameName, answers, comment })
-      supabase?.auth.signInWithOAuth({
-        provider: 'discord',
-        options: { redirectTo: `${window.location.origin}/survey`, scopes: 'identify' },
-      })
+      startDiscordSignIn('/survey')
       return
     }
 

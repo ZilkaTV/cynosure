@@ -5,6 +5,7 @@ import { hasBackend, saveProfile, saveLocalProfile, clearLocalProfile, getRememb
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName, discordUserId } from '../lib/useSession'
+import { startDiscordSignIn } from '../lib/discordAuth'
 import { fetchPlayerGames } from '../lib/openfront'
 import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
@@ -208,12 +209,7 @@ export default function Register() {
           <h2 className="mb-1 text-lg font-semibold text-white">{t.register.verifyWithDiscord}</h2>
           <p className="mx-auto mb-6 max-w-sm text-sm text-slate-400">{t.register.discordIntro}</p>
           <button
-            onClick={() =>
-              supabase?.auth.signInWithOAuth({
-                provider: 'discord',
-                options: { redirectTo: `${window.location.origin}/register`, scopes: 'identify' },
-              })
-            }
+            onClick={() => startDiscordSignIn('/register')}
             className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752c4]"
           >
             <DiscordIcon className="h-4 w-4" /> {t.register.continueWithDiscord}

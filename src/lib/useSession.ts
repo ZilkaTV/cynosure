@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { isEventAdmin } from './events'
+import { completeDiscordSignIn } from './discordAuth'
 
 // ── Shared session singleton ────────────────────────────────────────────────
 // useSession() is called from many places at once on a single page (Layout's
@@ -29,6 +30,11 @@ function notifyAll(s: Session | null | undefined) {
 function ensureInitialized() {
   if (initStarted || !supabase) return
   initStarted = true
+  // Fire-and-forget: if this page is the redirect target after a Discord
+  // sign-in (see discordAuth.ts), this exchanges the token in the URL for a
+  // real session, which then surfaces through the onAuthStateChange
+  // subscription registered below - no need to await it here.
+  completeDiscordSignIn()
   supabase.auth.getSession().then(({ data, error }) => {
     // Temporary - tracking down an intermittent forced-logout bug. Safe to
     // remove once that's confirmed fixed.

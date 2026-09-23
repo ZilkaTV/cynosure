@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useSession, discordDisplayName } from '../lib/useSession'
+import { useSession, useIsAdmin, discordDisplayName } from '../lib/useSession'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import {
   SURVEY_CATEGORIES,
@@ -32,6 +32,7 @@ function emptyAnswers(): SurveyAnswers {
 
 export default function Survey() {
   const session = useSession()
+  const isAdmin = useIsAdmin()
 
   const [step, setStep] = useState<'name' | 'questions'>('name')
   const [inGameName, setInGameName] = useState('')
@@ -188,6 +189,10 @@ export default function Survey() {
 
       {step === 'questions' && (
         <div className="space-y-6">
+          <p className="text-sm text-slate-500">
+            All 5 slots per question are required. The same name can appear in different questions, just not twice within the
+            same one.
+          </p>
           {SURVEY_CATEGORIES.map((cat) => (
             <Card key={cat.id}>
               <h2 className="mb-4 font-display text-lg font-bold text-white">{cat.title}</h2>
@@ -199,6 +204,7 @@ export default function Survey() {
                       {Array.from({ length: ANSWERS_PER_QUESTION }, (_, i) => (
                         <input
                           key={i}
+                          required
                           value={answers[q.id]?.[i] ?? ''}
                           onChange={(e) => setSlot(q.id, i, e.target.value)}
                           placeholder="Name"
@@ -247,6 +253,11 @@ export default function Survey() {
               >
                 <DiscordIcon className="h-4 w-4" /> Sign in with Discord to submit
               </button>
+            )}
+            {isAdmin && (
+              <Link to="/survey/results" className="btn-ghost">
+                Results
+              </Link>
             )}
           </div>
         </div>

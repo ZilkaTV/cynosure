@@ -69,10 +69,20 @@ export const MAX_NAME_LENGTH = 32
 
 export type SurveyAnswers = Record<string, string[]>
 
-/** Every non-empty slot must be unique within its own question (case-insensitive) and match NAME_PATTERN. */
+/**
+ * Every slot in every question is required (all 5, no blanks) - unlike an
+ * "up to 5" nomination list, this is a fixed ballot: 15 questions x 5 names
+ * each. A name can repeat across DIFFERENT questions (the same person can be
+ * nominated for both "best FFA player" and "best Team Games player"), but
+ * not twice within the SAME question's 5 slots.
+ */
 export function validateAnswers(answers: SurveyAnswers): string | null {
   for (const q of ALL_SURVEY_QUESTIONS) {
-    const slots = (answers[q.id] ?? []).map((s) => s.trim()).filter(Boolean)
+    const raw = answers[q.id] ?? []
+    const slots = raw.map((s) => s.trim())
+    if (slots.length < ANSWERS_PER_QUESTION || slots.some((s) => !s)) {
+      return `Please fill in all ${ANSWERS_PER_QUESTION} name slots for: "${q.text}"`
+    }
     for (const name of slots) {
       if (name.length > MAX_NAME_LENGTH) return `"${name}" is too long (max ${MAX_NAME_LENGTH} characters).`
       if (!NAME_PATTERN.test(name)) return `"${name}" contains a character that isn't allowed (letters, numbers, "_" and "-" only, no spaces).`
@@ -83,12 +93,11 @@ export function validateAnswers(answers: SurveyAnswers): string | null {
   return null
 }
 
-/** Strips empty slots before saving - an all-blank question is just "no opinion", not five empty strings. */
+/** Trims every slot before saving - validateAnswers already guarantees all 5 are filled by the time this runs. */
 function cleanAnswers(answers: SurveyAnswers): SurveyAnswers {
   const cleaned: SurveyAnswers = {}
   for (const q of ALL_SURVEY_QUESTIONS) {
-    const slots = (answers[q.id] ?? []).map((s) => s.trim()).filter(Boolean)
-    if (slots.length) cleaned[q.id] = slots
+    cleaned[q.id] = (answers[q.id] ?? []).map((s) => s.trim())
   }
   return cleaned
 }

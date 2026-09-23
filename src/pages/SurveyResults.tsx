@@ -33,10 +33,14 @@ function RevealButton({ revealed, onToggle, children }: { revealed: boolean; onT
   )
 }
 
+const TOP_N_DEFAULT = 5
+
 function QuestionResults({ questionId, questionText, responses }: { questionId: string; questionText: string; responses: SurveyResponseSummary[] }) {
   const tally = tallyQuestion(responses, questionId)
   const [revealedNames, setRevealedNames] = useState<Set<number>>(new Set())
   const [revealedCounts, setRevealedCounts] = useState<Set<number>>(new Set())
+  const [showAll, setShowAll] = useState(false)
+  const visible = showAll ? tally : tally.slice(0, TOP_N_DEFAULT)
 
   function toggle(set: Set<number>, setter: (s: Set<number>) => void, i: number) {
     const next = new Set(set)
@@ -58,7 +62,7 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
     <div className="border-b border-base-700/50 py-3 last:border-0">
       <p className="mb-2 text-sm font-medium text-slate-300">{questionText}</p>
       <ol className="space-y-1">
-        {tally.map((entry, i) => (
+        {visible.map((entry, i) => (
           <li key={i} className="flex items-center gap-3 text-sm">
             <span className="w-5 shrink-0 text-right text-slate-600">{i + 1}.</span>
             <RevealButton revealed={revealedNames.has(i)} onToggle={() => toggle(revealedNames, setRevealedNames, i)}>
@@ -71,6 +75,11 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
           </li>
         ))}
       </ol>
+      {tally.length > TOP_N_DEFAULT && (
+        <button onClick={() => setShowAll((s) => !s)} className="mt-2 text-xs font-semibold text-accent hover:text-accent-light">
+          {showAll ? 'Show top 5 only' : `Show all ${tally.length}`}
+        </button>
+      )}
     </div>
   )
 }

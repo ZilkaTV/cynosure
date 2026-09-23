@@ -62,12 +62,26 @@ export const ANSWERS_PER_QUESTION = 3
  * practice, and the request was explicit: no special characters, no spaces.
  * Letters, digits, underscore and hyphen cover every real name/tag seen on
  * the roster elsewhere on this site (see CLAN_TAG usage) without being so
- * strict a legitimate one gets rejected.
+ * strict a legitimate one gets rejected. Square brackets are the one
+ * exception - the clan questions explicitly ask for "[TAG]" formatting, so
+ * they're allowed through (and ignored for comparison, see
+ * normalizeForCompare below) rather than rejected as a special character.
  */
-export const NAME_PATTERN = /^[A-Za-z0-9_-]+$/
+export const NAME_PATTERN = /^[A-Za-z0-9_[\]-]+$/
 export const MAX_NAME_LENGTH = 32
 
 export type SurveyAnswers = Record<string, string[]>
+
+/**
+ * Comparison key for both the within-question duplicate check and the admin
+ * tally: case-insensitive, and square brackets stripped so "CYN" and
+ * "[CYN]" are recognized as the same nominee instead of splitting a clan's
+ * votes across two entries just because people formatted the tag
+ * differently.
+ */
+export function normalizeForCompare(name: string): string {
+  return name.toLowerCase().replace(/[[\]]/g, '')
+}
 
 /**
  * Every slot in every question is required (all ANSWERS_PER_QUESTION, no
@@ -85,10 +99,10 @@ export function validateAnswers(answers: SurveyAnswers): string | null {
     }
     for (const name of slots) {
       if (name.length > MAX_NAME_LENGTH) return `"${name}" is too long (max ${MAX_NAME_LENGTH} characters).`
-      if (!NAME_PATTERN.test(name)) return `"${name}" contains a character that isn't allowed (letters, numbers, "_" and "-" only, no spaces).`
+      if (!NAME_PATTERN.test(name)) return `"${name}" contains a character that isn't allowed (letters, numbers, "_", "-" and "[]" only, no spaces).`
     }
-    const lower = slots.map((s) => s.toLowerCase())
-    if (new Set(lower).size !== lower.length) return `You entered the same name twice for "${q.text}".`
+    const normalized = slots.map(normalizeForCompare)
+    if (new Set(normalized).size !== normalized.length) return `You entered the same name twice for "${q.text}".`
   }
   return null
 }
@@ -221,16 +235,19 @@ export interface TallyEntry {
 
 /** Every nominee for one question, ranked by how many respondents named them (case-insensitive; the most-common casing seen is kept for display). */
 export function tallyQuestion(responses: SurveyResponseSummary[], questionId: string): TallyEntry[] {
-  const countByLower = new Map<string, number>()
-  const displayByLower = new Map<string, string>()
+  const countByKey = new Map<string, number>()
+  const displayByKey = new Map<string, string>()
   for (const r of responses) {
     for (const name of r.answers[questionId] ?? []) {
-      const lower = name.toLowerCase()
-      countByLower.set(lower, (countByLower.get(lower) ?? 0) + 1)
-      if (!displayByLower.has(lower)) displayByLower.set(lower, name)
+      const key = normalizeForCompare(name)
+      countByKey.set(key, (countByKey.get(key) ?? 0) + 1)
+      // Brackets stripped from the display name too - a clean "CYN" either
+      // way, regardless of whether this particular respondent typed "CYN"
+      // or "[CYN]".
+      if (!displayByKey.has(key)) displayByKey.set(key, name.replace(/[[\]]/g, ''))
     }
   }
-  return [...countByLower.entries()]
-    .map(([lower, count]) => ({ name: displayByLower.get(lower)!, count }))
+  return [...countByKey.entries()]
+    .map(([key, count]) => ({ name: displayByKey.get(key)!, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }

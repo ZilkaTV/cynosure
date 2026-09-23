@@ -77,6 +77,16 @@ export default function Survey() {
     }
   }, [session])
 
+  // Keeps the draft continuously up to date (not just right before the
+  // Discord redirect) - a plain page refresh mid-survey used to lose
+  // everything, since nothing had been saved yet at that point. Guarded on
+  // `!restoring` so this can't fire with the initial blank state and
+  // clobber a real draft the restore effect above is about to load.
+  useEffect(() => {
+    if (restoring || submitted) return
+    saveSurveyDraft({ inGameName, answers, comment })
+  }, [inGameName, answers, comment, restoring, submitted])
+
   function setSlot(questionId: string, index: number, value: string) {
     setAnswers((prev) => {
       const next = [...(prev[questionId] ?? Array(ANSWERS_PER_QUESTION).fill(''))]

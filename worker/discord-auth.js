@@ -49,6 +49,36 @@ function errorRedirect(targetPath, reason) {
   return Response.redirect(url.toString(), 302)
 }
 
+/**
+ * Finds this Discord account's existing auth.users row, if any (matched by
+ * the immutable Discord snowflake id in user_metadata.provider_id, not
+ * username - a username can change). Without this, every sign-in would
+ * unconditionally target the synthetic "<id>@cynclan.invalid" address,
+ * which for anyone who'd already signed in before this custom flow existed
+ * (back when Supabase's own Discord provider created a REAL-email user)
+ * creates a brand-new SECOND account instead of reusing their real one -
+ * confirmed live as a real bug: it silently orphaned that person's existing
+ * cyn_survey_responses/cyn_event_admins rows (RLS-invisible under their new
+ * session's different auth.uid(), not deleted). If more than one row
+ * somehow matches (exactly this bug, before this fix existed), the oldest
+ * is treated as canonical - it's the one everything else was already
+ * created against.
+ */
+async function findExistingUserByDiscordId(supabaseAdmin, discordId) {
+  let oldest = null
+  for (let page = 1; ; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+    for (const u of data.users) {
+      if (u.user_metadata?.provider_id === discordId) {
+        if (!oldest || new Date(u.created_at) < new Date(oldest.created_at)) oldest = u
+      }
+    }
+    if (data.users.length < 1000) break
+  }
+  return oldest
+}
+
 export async function handleDiscordAuthCallback(request, env) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
@@ -88,10 +118,21 @@ export async function handleDiscordAuthCallback(request, env) {
     return errorRedirect(targetPath, 'discord_exchange_failed')
   }
 
-  // Synthetic, never-real email - see this file's own top comment. Scoped to
-  // the Discord snowflake id (immutable), not the username (which visitors
-  // can change), so a username change never orphans/duplicates an account.
-  const syntheticEmail = `discord-${discordUser.id}@cynclan.invalid`
+  const supabaseAdmin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+
+  // Reuse this Discord account's existing user (whether created by
+  // Supabase's old Discord provider with a real email, or by this flow
+  // before) if one exists - see findExistingUserByDiscordId's own comment.
+  // Only a brand-new Discord id falls back to the synthetic, never-real
+  // "<id>@cynclan.invalid" address (RFC 2606's reserved .invalid TLD).
+  let existingUser
+  try {
+    existingUser = await findExistingUserByDiscordId(supabaseAdmin, discordUser.id)
+  } catch (err) {
+    console.error('findExistingUserByDiscordId failed:', err)
+    return errorRedirect(targetPath, 'session_mint_failed')
+  }
+  const targetEmail = existingUser?.email ?? `discord-${discordUser.id}@cynclan.invalid`
 
   // Matches exactly what Supabase's own Discord provider used to populate,
   // so discordDisplayName()/discordUserId() (src/lib/useSession.ts) and
@@ -108,11 +149,9 @@ export async function handleDiscordAuthCallback(request, env) {
     custom_claims: { global_name: discordUser.global_name ?? null },
   }
 
-  const supabaseAdmin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
-
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: 'magiclink',
-    email: syntheticEmail,
+    email: targetEmail,
     options: { data: userMetadata },
   })
   if (error || !data.properties?.hashed_token) {

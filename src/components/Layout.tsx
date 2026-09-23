@@ -25,6 +25,7 @@ function navItems(t: TranslationShape) {
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
+    { to: '/survey', label: t.nav.survey, shortLabel: t.nav.shortSurvey },
   ]
 }
 
@@ -113,6 +114,11 @@ function AccountMenu() {
           {isAdmin && (
             <Link to="/admin/help" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
               {t.adminHelp.title}
+            </Link>
+          )}
+          {isAdmin && (
+            <Link to="/survey/results" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              {t.nav.surveyResults}
             </Link>
           )}
           <button

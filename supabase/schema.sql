@@ -1227,3 +1227,44 @@ create policy "inner circle can read cyn_site_visits"
       where m.user_id = auth.uid()
     )
   );
+
+-- Community awards survey ("Umfrage", September 2026 edition) - open to
+-- EVERYONE, not just registered [CYN] members (see src/pages/Survey.tsx),
+-- but submitting requires a Discord sign-in so one visitor can't stuff a
+-- question with dozens of made-up nominees under no identity at all. One row
+-- per Discord account (unique on user_id) - upserted on resubmission so
+-- someone can come back and fix their answers before the reveal instead of
+-- being locked into a single-shot submission.
+create table if not exists public.cyn_survey_responses (
+  id bigint generated always as identity primary key,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  in_game_name text not null,
+  discord_username text,
+  -- { [questionId]: string[] } - see SURVEY_QUESTIONS in src/lib/survey.ts
+  -- for the fixed set of question ids this keys against.
+  answers jsonb not null,
+  comment text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cyn_survey_responses enable row level security;
+
+-- Deliberately NOT publicly readable - the whole point is keeping results
+-- secret until the stream reveal (see SurveyResults.tsx). Only a whitelisted
+-- admin (cyn_event_admins, same check used everywhere else in this file) can
+-- read every response; everyone else can only read their own (so returning
+-- to the page after signing back in shows what they already submitted).
+create policy "admins can read cyn_survey_responses"
+  on public.cyn_survey_responses for select to authenticated using (
+    exists (select 1 from public.cyn_event_admins a where a.user_id = auth.uid())
+  );
+
+create policy "users can read their own cyn_survey_responses"
+  on public.cyn_survey_responses for select to authenticated using (auth.uid() = user_id);
+
+create policy "users can submit their own cyn_survey_responses"
+  on public.cyn_survey_responses for insert to authenticated with check (auth.uid() = user_id);
+
+create policy "users can edit their own cyn_survey_responses"
+  on public.cyn_survey_responses for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);

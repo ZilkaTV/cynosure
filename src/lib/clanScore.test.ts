@@ -82,4 +82,11 @@ describe('buildClanScoreLedger', () => {
     ])
     expect(ledger).toHaveLength(0)
   })
+
+  it('skips a game with only 1 clan member - the clan did not play it together', () => {
+    const ledger = buildClanScoreLedger([
+      { gameId: 'solo', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 1, won: true },
+    ])
+    expect(ledger).toHaveLength(0)
+  })
 })

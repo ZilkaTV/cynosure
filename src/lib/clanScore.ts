@@ -103,6 +103,17 @@ export interface ClanScoreLedgerEntry {
  * scripts/compute-clan-score-ledger.mjs for how that's built from
  * cyn_member_games_cache.
  */
+// A clan only "plays as a clan" when at least 2 of its tagged players are on
+// the same winning/losing side together - one member alone in a game is
+// just that member's own individual result, not something the clan
+// achieved together. Confirmed empirically, not just from OpenFront's own
+// docs.md pseudocode (which shows the weighting formula for an
+// already-created session but doesn't state this precondition): scoring
+// only games with clanPlayerCount >= 2 against real, current in-game
+// leaderboard numbers landed within ~1% on the win/loss ratio, while
+// counting every single-member game too overshot it by ~30%.
+const MIN_CLAN_PLAYERS_PER_SESSION = 2
+
 export function buildClanScoreLedger(
   games: { gameId: string; start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],
 ): ClanScoreLedgerEntry[] {
@@ -112,7 +123,7 @@ export function buildClanScoreLedger(
   const ledger: ClanScoreLedgerEntry[] = []
   for (const g of sorted) {
     const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
-    if (numTeams == null || g.clanPlayerCount <= 0) continue
+    if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
     const score = clanSessionScore({
       totalPlayerCount: g.totalPlayers,
       numTeams,

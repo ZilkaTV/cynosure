@@ -17,9 +17,16 @@ const EyeOffIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+// Fixed-width mask, same for every hidden value regardless of the real
+// text's length - a blurred-but-still-real-length string (the previous
+// approach) leaks information on its own: a 3-letter name and a 12-letter
+// name are visibly different widths even blurred, which is enough for
+// someone to start guessing before the eye is ever clicked.
+const HIDDEN_PLACEHOLDER = '••••••••'
+
 // Two INDEPENDENT reveal toggles per row (name / count), for building suspense
 // during the stream reveal - clicking one never gives away the other.
-function RevealButton({ revealed, onToggle, children }: { revealed: boolean; onToggle: () => void; children: React.ReactNode }) {
+function RevealButton({ revealed, onToggle, text }: { revealed: boolean; onToggle: () => void; text: string }) {
   return (
     <button
       onClick={onToggle}
@@ -28,9 +35,18 @@ function RevealButton({ revealed, onToggle, children }: { revealed: boolean; onT
       }`}
     >
       {revealed ? <EyeIcon className="h-3.5 w-3.5 shrink-0" /> : <EyeOffIcon className="h-3.5 w-3.5 shrink-0" />}
-      <span className={revealed ? '' : 'blur-sm select-none'}>{children}</span>
+      <span className={revealed ? '' : 'select-none tracking-widest'}>{revealed ? text : HIDDEN_PLACEHOLDER}</span>
     </button>
   )
+}
+
+// Shared by every reveal toggle on this page (question rows + comment
+// author names) - a plain immutable toggle over a Set of revealed indices.
+function toggleIndex(set: Set<number>, setter: (s: Set<number>) => void, i: number) {
+  const next = new Set(set)
+  if (next.has(i)) next.delete(i)
+  else next.add(i)
+  setter(next)
 }
 
 const TOP_N_DEFAULT = 5
@@ -41,13 +57,6 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
   const [revealedCounts, setRevealedCounts] = useState<Set<number>>(new Set())
   const [showAll, setShowAll] = useState(false)
   const visible = showAll ? tally : tally.slice(0, TOP_N_DEFAULT)
-
-  function toggle(set: Set<number>, setter: (s: Set<number>) => void, i: number) {
-    const next = new Set(set)
-    if (next.has(i)) next.delete(i)
-    else next.add(i)
-    setter(next)
-  }
 
   if (tally.length === 0) {
     return (
@@ -65,13 +74,17 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
         {visible.map((entry, i) => (
           <li key={i} className="flex items-center gap-3 text-sm">
             <span className="w-5 shrink-0 text-right text-slate-600">{i + 1}.</span>
-            <RevealButton revealed={revealedNames.has(i)} onToggle={() => toggle(revealedNames, setRevealedNames, i)}>
-              {entry.name}
-            </RevealButton>
+            <RevealButton
+              revealed={revealedNames.has(i)}
+              onToggle={() => toggleIndex(revealedNames, setRevealedNames, i)}
+              text={entry.name}
+            />
             <span className="text-slate-700">·</span>
-            <RevealButton revealed={revealedCounts.has(i)} onToggle={() => toggle(revealedCounts, setRevealedCounts, i)}>
-              {entry.count} {entry.count === 1 ? 'vote' : 'votes'}
-            </RevealButton>
+            <RevealButton
+              revealed={revealedCounts.has(i)}
+              onToggle={() => toggleIndex(revealedCounts, setRevealedCounts, i)}
+              text={`${entry.count} ${entry.count === 1 ? 'vote' : 'votes'}`}
+            />
           </li>
         ))}
       </ol>
@@ -81,6 +94,33 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
         </button>
       )}
     </div>
+  )
+}
+
+function CommentsSection({ responses }: { responses: SurveyResponseSummary[] }) {
+  const commented = responses.filter((r) => r.comment)
+  const [revealedNames, setRevealedNames] = useState<Set<number>>(new Set())
+
+  if (commented.length === 0) return null
+
+  return (
+    <Card>
+      <h2 className="mb-3 font-display text-lg font-bold text-white">Additional comments</h2>
+      <div className="space-y-3">
+        {commented.map((r, i) => (
+          <div key={i} className="rounded-lg bg-base-800 px-3.5 py-2.5 text-sm">
+            <div className="mb-1 text-xs font-semibold">
+              <RevealButton
+                revealed={revealedNames.has(i)}
+                onToggle={() => toggleIndex(revealedNames, setRevealedNames, i)}
+                text={r.inGameName}
+              />
+            </div>
+            <p className="whitespace-pre-wrap text-slate-300">{r.comment}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 
@@ -121,21 +161,7 @@ export default function SurveyResults() {
         </Card>
       ))}
 
-      {responses.some((r) => r.comment) && (
-        <Card>
-          <h2 className="mb-3 font-display text-lg font-bold text-white">Additional comments</h2>
-          <div className="space-y-3">
-            {responses
-              .filter((r) => r.comment)
-              .map((r, i) => (
-                <div key={i} className="rounded-lg bg-base-800 px-3.5 py-2.5 text-sm">
-                  <p className="mb-1 text-xs font-semibold text-slate-500">{r.inGameName}</p>
-                  <p className="whitespace-pre-wrap text-slate-300">{r.comment}</p>
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
+      <CommentsSection responses={responses} />
     </div>
   )
 }

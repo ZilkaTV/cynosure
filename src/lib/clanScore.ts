@@ -23,8 +23,10 @@
 // taken seriously as a member, this should track the real number closely,
 // but isn't guaranteed to match OpenFront's own total exactly.
 
-import type { PlayerGame } from './openfront'
+import { deriveNumTeams, type PlayerGame, type GameDetail } from './openfront'
 import { supabase } from './supabase'
+
+export { deriveNumTeams }
 
 export interface ClanScoreInput {
   totalPlayerCount: number
@@ -45,35 +47,6 @@ export function clanSessionScore({ totalPlayerCount, numTeams, clanPlayerCount, 
   const clanMemberRatio = clanPlayerCount / avgTeamSize
   const difficulty = Math.max(1, Math.sqrt(numTeams - 1))
   return won ? clanMemberRatio * difficulty : clanMemberRatio / difficulty
-}
-
-// Fixed team-size presets OpenFront's own "auto-teams" lobby types use -
-// confirmed against real cached games: numTeams for these isn't given
-// directly (unlike a ranked 2v2 game, where playerTeams is already the
-// literal team count "2"), so it has to be derived from how many humans
-// were in the lobby divided into groups of this size.
-const TEAM_SIZE_PRESETS: Record<string, number> = { Duos: 2, Trios: 3, Quads: 4 }
-
-// A game's own clanTag field (not real player-vs-player teams) puts every
-// human on one side against AI "nations" - the whole lobby is effectively a
-// single giant stack, which the official formula was never meant to score
-// (confirmed live: this string shows up as a real playerTeams value in
-// cached Team-mode games).
-const EXCLUDED_PLAYER_TEAMS = 'Humans Vs Nations'
-
-/**
- * How many teams a game had, or null if it can't be determined (missing
- * data) or the game is explicitly excluded from clan scoring. playerTeams is
- * a string that's EITHER the literal team count as digits (e.g. "2", "63" -
- * confirmed on both ranked 2v2 games and large unranked lobbies) OR one of
- * the fixed size-preset names above, never both in the same game.
- */
-export function deriveNumTeams(playerTeams: string | null, totalPlayerCount: number | null): number | null {
-  if (!playerTeams || playerTeams === EXCLUDED_PLAYER_TEAMS) return null
-  if (/^\d+$/.test(playerTeams)) return Number(playerTeams)
-  const presetSize = TEAM_SIZE_PRESETS[playerTeams]
-  if (presetSize && totalPlayerCount) return Math.max(1, Math.round(totalPlayerCount / presetSize))
-  return null
 }
 
 /** Whether a game is eligible for clan scoring at all (Team mode, not Humans vs Nations, has a determinable team count). */
@@ -231,4 +204,45 @@ export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry 
   const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard').eq('id', 1).maybeSingle()
   if (error || !data) return null
   return (data as RosterCacheClanRow).clan_leaderboard
+}
+
+// ── Per-game score for OTHER clans in the same game (post-game report) ─────
+
+export interface OtherClanScore {
+  clanTag: string
+  won: boolean
+  score: number
+}
+
+/**
+ * Every OTHER clan tag (not CLAN_TAG - that one gets its own ledger-backed
+ * line with real history, see ClanScoreRow above) with at least
+ * MIN_CLAN_PLAYERS_PER_SESSION players in this one game, and what THIS game
+ * alone was worth to them - "how much did the other team(s) lose" for the
+ * post-game report. No historical ratio for these (this site only tracks
+ * [CLAN_TAG]'s own full game history), just this game's own session score,
+ * computed straight from the already-fetched GameDetail - no extra fetch.
+ * Same "same-tag players share a team" assumption the official leaderboard
+ * itself relies on: whether a tag "won" is just whether any of its players'
+ * clientIDs are among the winners.
+ */
+export function otherClanScoresForGame(detail: Pick<GameDetail, 'players' | 'winnerClientIds' | 'numTeams'>, excludeClanTag: string): OtherClanScore[] {
+  if (detail.numTeams == null) return []
+  const totalPlayerCount = detail.players.length
+  const byTag = new Map<string, GameDetail['players']>()
+  for (const p of detail.players) {
+    if (!p.clanTag || p.clanTag === excludeClanTag) continue
+    const arr = byTag.get(p.clanTag) ?? []
+    arr.push(p)
+    byTag.set(p.clanTag, arr)
+  }
+  const winnerSet = new Set(detail.winnerClientIds)
+  const results: OtherClanScore[] = []
+  for (const [clanTag, players] of byTag) {
+    if (players.length < MIN_CLAN_PLAYERS_PER_SESSION) continue
+    const won = players.some((p) => winnerSet.has(p.clientID))
+    const score = clanSessionScore({ totalPlayerCount, numTeams: detail.numTeams, clanPlayerCount: players.length, won })
+    results.push({ clanTag, won, score })
+  }
+  return results.sort((a, b) => b.score - a.score)
 }

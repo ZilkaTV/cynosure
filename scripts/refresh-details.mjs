@@ -240,10 +240,31 @@ async function fetchClanLeaderboardEntry() {
   }
 }
 
+// Duplicated from parseWinnerClientIds/deriveNumTeams (src/lib/openfront.ts) -
+// same reasoning as every other small duplicated helper in this script (this
+// script can't import from src/). OpenFront's raw `winner` field has two
+// incompatible shapes: `["player", clientID]` for a solo win, or
+// `["team", teamLabel, ...clientIds]` for a team win - confirmed directly
+// against real games of both kinds.
+function parseWinnerClientIds(winner) {
+  if (!Array.isArray(winner)) return []
+  return winner[0] === 'team' ? winner.slice(2) : winner[0] === 'player' ? winner.slice(1, 2) : []
+}
+const TEAM_SIZE_PRESETS = { Duos: 2, Trios: 3, Quads: 4 }
+const EXCLUDED_PLAYER_TEAMS = 'Humans Vs Nations'
+function deriveNumTeams(playerTeams, totalPlayerCount) {
+  if (!playerTeams || playerTeams === EXCLUDED_PLAYER_TEAMS) return null
+  if (/^\d+$/.test(playerTeams)) return Number(playerTeams)
+  const presetSize = TEAM_SIZE_PRESETS[playerTeams]
+  if (presetSize && totalPlayerCount) return Math.max(1, Math.round(totalPlayerCount / presetSize))
+  return null
+}
+
 async function fetchGameDetail(gameId) {
   const json = await fetchJson(`https://api.openfront.io/public/game/${encodeURIComponent(gameId)}?turns=false`)
   const info = json.info
   if (!info) return null
+  const players = info.players ?? []
   return {
     gameId: info.gameID ?? gameId,
     map: info.config?.gameMap ?? '?',
@@ -252,9 +273,10 @@ async function fetchGameDetail(gameId) {
     bots: info.config?.bots ?? 0,
     durationSeconds: info.duration ?? 0,
     numTurns: info.num_turns ?? 0,
-    winnerClientId: Array.isArray(info.winner) ? info.winner[1] ?? null : null,
+    winnerClientIds: parseWinnerClientIds(info.winner),
+    numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, players.length || null),
     start: info.start ?? 0,
-    players: info.players ?? [],
+    players,
   }
 }
 
@@ -515,6 +537,38 @@ async function main() {
     }
   }
 
+  // Re-fetches a bounded batch of ALREADY-cached details still in the old
+  // shape (missing winnerClientIds - see parseWinnerClientIds's own comment
+  // for why the old winnerClientId field was actually broken for every team
+  // game, not just incomplete). This table used to be "once a row exists,
+  // it's simply correct forever" - no longer strictly true the one time the
+  // shape itself changes, so this self-heals the backlog a bounded chunk at
+  // a time instead of leaving every already-cached team game stuck showing
+  // no winner/other-clan-score forever.
+  const OLD_SHAPE_BACKFILL_PER_RUN = 30
+  let oldShapeFixed = 0
+  try {
+    const { data: oldShapeRows } = await supabase
+      .from('cyn_game_detail_cache')
+      .select('game_id')
+      .is('detail->winnerClientIds', null)
+      .limit(OLD_SHAPE_BACKFILL_PER_RUN)
+    for (const row of oldShapeRows ?? []) {
+      if (Date.now() - startedAt > TIME_BUDGET_MS) break
+      try {
+        const detail = await fetchGameDetail(row.game_id)
+        if (detail) {
+          await supabase.from('cyn_game_detail_cache').upsert({ game_id: row.game_id, detail }, { onConflict: 'game_id' })
+          oldShapeFixed++
+        }
+      } catch (err) {
+        console.error(`Failed to re-fetch old-shape detail for ${row.game_id}:`, err)
+      }
+    }
+  } catch (err) {
+    console.error('Old-shape backfill query failed (non-fatal):', err)
+  }
+
   const remaining = [...wantDetail].filter((id) => !alreadyCached.has(id)).length - fetched
   console.log(
     JSON.stringify(
@@ -529,6 +583,7 @@ async function main() {
         fetched,
         failed,
         remaining,
+        oldShapeFixed,
       },
       null,
       2,

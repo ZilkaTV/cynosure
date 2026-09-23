@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
-import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
+import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -21,6 +21,24 @@ function fmtDuration(s: number): string {
 
 function num(v: string | undefined): number {
   return v ? Number(v) : 0
+}
+
+/**
+ * "Winner" tile text: a solo win (1v1/FFA) shows that player's username, same
+ * as before. A team win shows the winning TEAM instead - [CYN] if any of its
+ * players won, else whichever tag is the clear majority among the winners,
+ * else a generic player count for a genuinely mixed/untagged team (no single
+ * clan "won" it).
+ */
+function describeWinner(winners: GamePlayerStat[]): string {
+  if (winners.length === 0) return '-'
+  if (winners.length === 1) return winners[0].username
+  if (winners.some((p) => p.clanTag === CLAN_TAG)) return `[${CLAN_TAG}]`
+  const byTag = new Map<string, number>()
+  for (const p of winners) if (p.clanTag) byTag.set(p.clanTag, (byTag.get(p.clanTag) ?? 0) + 1)
+  const [topTag, topCount] = [...byTag.entries()].sort((a, b) => b[1] - a[1])[0] ?? []
+  if (topTag && topCount! > winners.length / 2) return `[${topTag}]`
+  return `${winners.length} Players`
 }
 
 function replayUrl(gameId: string): string {
@@ -158,7 +176,10 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
 
   const byId = new Map<string, GamePlayerStat>()
   detail?.players.forEach((p) => byId.set(p.clientID, p))
-  const winner = detail?.winnerClientId ? byId.get(detail.winnerClientId) : null
+  const winnerClientIds = new Set(detail?.winnerClientIds ?? [])
+  const winners = (detail?.players ?? []).filter((p) => winnerClientIds.has(p.clientID))
+  const winnerDisplay = describeWinner(winners)
+  const otherClanScores = detail ? otherClanScoresForGame(detail, CLAN_TAG) : []
 
   const rows: Row[] = (detail?.players ?? [])
     .map((p) => {
@@ -175,7 +196,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         victims: kills.map((k) => byId.get(k.victim)?.username ?? t.gameDetail.unknownPlayer),
         deathSec: killedAt != null ? killedAt / tickRate : null,
         maxPercent: tileStats?.maxPercent[p.clientID] ?? null,
-        isWinner: detail?.winnerClientId === p.clientID,
+        isWinner: winnerClientIds.has(p.clientID),
       }
     })
     .sort((a, b) => {
@@ -214,7 +235,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
             {/* header tiles */}
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tile label={t.gameDetail.tileDuration} value={fmtDuration(detail.durationSeconds)} />
-              <Tile label={t.gameDetail.tileWinner} value={winner?.username ?? '-'} accent />
+              <Tile label={t.gameDetail.tileWinner} value={winnerDisplay} accent />
               <Tile label={t.gameDetail.tilePlayers} value={String(detail.players.length)} />
               <Tile label={t.gameDetail.tileMap} value={detail.map} />
             </div>
@@ -233,6 +254,16 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                     [{CLAN_TAG}] Ratio: {fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter)}
                   </span>
                 )}
+              </div>
+            )}
+
+            {otherClanScores.length > 0 && (
+              <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                {otherClanScores.map((c) => (
+                  <span key={c.clanTag} className={c.won ? 'text-signal-green' : 'text-signal-red'}>
+                    [{c.clanTag}] {c.won ? 'Win Score' : 'Loss Score'} {fmtScoreDelta(c.score, c.won)}
+                  </span>
+                ))}
               </div>
             )}
 

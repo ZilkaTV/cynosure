@@ -7,7 +7,7 @@ import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
 import TrendChart from '../components/TrendChart'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
-import { fetchClanScoreLedger, fmtScoreDelta, type ClanScoreRow } from '../lib/clanScore'
+import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
@@ -325,17 +325,19 @@ export default function MemberProfile() {
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                  <th className="px-4 py-3 text-right font-semibold">Win Score</th>
+                  <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
-                  <th className="px-4 py-3 text-right font-semibold">Clan Score</th>
                 </tr>
               </thead>
               <tbody>
                 {recent.map((g) => {
                   const clanScore = clanScores.get(g.gameId)
+                  const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
                   return (
                     <tr
                       key={g.gameId}
@@ -345,15 +347,16 @@ export default function MemberProfile() {
                     >
                       <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                       <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                      <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                        {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
                       <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                       <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                         {g.result}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                        {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                       </td>
                     </tr>
                   )

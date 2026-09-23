@@ -92,10 +92,11 @@ export function verifySpeedrun(
   if (d.map !== 'Australia') return { ok: false, reason: `Map must be Australia (this game was ${d.map}).`, seconds: 0 }
   if (d.gameType !== 'Singleplayer') return { ok: false, reason: `Must be a solo (singleplayer) game (this was ${d.gameType}).`, seconds: 0 }
   if (d.nations !== 'disabled') return { ok: false, reason: 'Nations must be disabled ("No Nations").', seconds: 0 }
-  if (!d.winnerClientId) return { ok: false, reason: 'The game has no recorded winner - it wasn’t completed.', seconds: 0 }
+  if (d.winnerClientIds.length === 0) return { ok: false, reason: 'The game has no recorded winner - it wasn’t completed.', seconds: 0 }
   if (!d.durationSeconds) return { ok: false, reason: 'No duration recorded for this game.', seconds: 0 }
 
-  const winner = d.players.find((p) => p.clientID === d.winnerClientId)
+  // A solo (Singleplayer) game - already required above - only ever has one winner.
+  const winner = d.players.find((p) => p.clientID === d.winnerClientIds[0])
   if (!winner || winner.username.trim().toLowerCase() !== inGameName.trim().toLowerCase()) {
     return { ok: false, reason: 'The winner of this game doesn’t match your registered in-game name - you can only submit your own runs.', seconds: 0 }
   }

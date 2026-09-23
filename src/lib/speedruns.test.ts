@@ -11,7 +11,8 @@ function makeDetail(overrides: Partial<GameDetail> = {}): GameDetail {
     bots: 5,
     durationSeconds: 189,
     numTurns: 1890,
-    winnerClientId: 'client-1',
+    winnerClientIds: ['client-1'],
+    numTeams: null,
     start: 0,
     players: [{ clientID: 'client-1', username: 'Zilka', clanTag: 'CYN' }],
     ...overrides,
@@ -65,7 +66,7 @@ describe('verifySpeedrun', () => {
   })
 
   it('rejects a game with no recorded winner', () => {
-    const result = verifySpeedrun(makeDetail({ winnerClientId: null }), 'Zilka')
+    const result = verifySpeedrun(makeDetail({ winnerClientIds: [] }), 'Zilka')
     expect(result.ok).toBe(false)
   })
 

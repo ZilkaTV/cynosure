@@ -514,7 +514,18 @@ export interface GameDetail {
   bots: number
   durationSeconds: number
   numTurns: number
-  winnerClientId: string | null
+  // Every winning player's clientID - one for a solo win (1v1/FFA), several
+  // for a team win. OpenFront's own raw `winner` field has two incompatible
+  // shapes depending on mode: `["player", clientID]` for a solo win, or
+  // `["team", teamLabel, ...clientIds]` for a team win (confirmed directly
+  // against real games of both kinds) - parsed into this one uniform shape
+  // once, here, so nothing downstream has to know about that difference.
+  winnerClientIds: string[]
+  // How many teams this game had, or null if undeterminable/not a scorable
+  // Team game (see deriveNumTeams above) - needed to compute any clan's
+  // (not just [CYN]'s) own Win Score/Loss Score for this specific game,
+  // straight from this cached detail with no extra fetch.
+  numTeams: number | null
   start: number
   players: GamePlayerStat[]
 }
@@ -563,6 +574,53 @@ function saveSharedGameDetail(gameId: string, detail: GameDetail): void {
  * network/rate-limit failure is not, so it's retried on the next call
  * instead of getting stuck.
  */
+// Fixed team-size presets OpenFront's own "auto-teams" lobby types use -
+// confirmed against real cached games: numTeams for these isn't given
+// directly (unlike a ranked 2v2 game, where playerTeams is already the
+// literal team count "2"), so it has to be derived from how many humans
+// were in the lobby divided into groups of this size. Lives here (not
+// clanScore.ts, which needs it too) since it's fundamentally about parsing
+// OpenFront's own game shape - clanScore.ts imports it from here instead of
+// its own copy, avoiding a circular import (clanScore.ts already imports
+// PlayerGame from this file).
+const TEAM_SIZE_PRESETS: Record<string, number> = { Duos: 2, Trios: 3, Quads: 4 }
+
+// A game's own playerTeams field (not real player-vs-player teams) puts
+// every human on one side against AI "nations" - the whole lobby is
+// effectively a single giant stack, which the clan-scoring formula was
+// never meant to score (confirmed live: this string shows up as a real
+// playerTeams value in cached Team-mode games).
+const EXCLUDED_PLAYER_TEAMS = 'Humans Vs Nations'
+
+/**
+ * How many teams a game had, or null if it can't be determined (missing
+ * data) or the game is explicitly excluded from clan scoring. playerTeams is
+ * a string that's EITHER the literal team count as digits (e.g. "2", "63" -
+ * confirmed on both ranked 2v2 games and large unranked lobbies) OR one of
+ * the fixed size-preset names above, never both in the same game.
+ */
+export function deriveNumTeams(playerTeams: string | null, totalPlayerCount: number | null): number | null {
+  if (!playerTeams || playerTeams === EXCLUDED_PLAYER_TEAMS) return null
+  if (/^\d+$/.test(playerTeams)) return Number(playerTeams)
+  const presetSize = TEAM_SIZE_PRESETS[playerTeams]
+  if (presetSize && totalPlayerCount) return Math.max(1, Math.round(totalPlayerCount / presetSize))
+  return null
+}
+
+/**
+ * OpenFront's raw `winner` field has two incompatible shapes: a solo win
+ * (1v1/FFA) is `["player", clientID]`, a team win is
+ * `["team", teamLabel, ...clientIds]` - confirmed directly against real
+ * games of both kinds. Using `winner[1]` unconditionally (the old code here)
+ * grabbed a human-readable team NAME string like "Red" for a team win, not a
+ * clientID - it could never match any real player, silently making every
+ * team game's "Winner" show "-" and every row's isWinner flag false.
+ */
+function parseWinnerClientIds(winner: [string, ...string[]] | null | undefined): string[] {
+  if (!Array.isArray(winner)) return []
+  return winner[0] === 'team' ? winner.slice(2) : winner[0] === 'player' ? winner.slice(1, 2) : []
+}
+
 // The actual "go ask OpenFront" path, shared by fetchGameDetail and
 // fetchGameDetailsBatch below - assumes the caller already checked both the
 // local permanent cache and the shared cyn_game_detail_cache table (or its
@@ -576,8 +634,13 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
       duration?: number
       num_turns?: number
       start?: number
-      winner?: [string, string] | null
-      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number }
+      winner?: [string, ...string[]] | null
+      // Either the literal team count (a ranked 2v2 game) or a size-preset
+      // name like "Trios" (an unranked auto-teams lobby) - see
+      // deriveNumTeams's own comment. Can come through as either a number or
+      // a string depending on which, so normalized to a string below before
+      // parsing either way.
+      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number }
       players?: GamePlayerStat[]
     }
   } | null
@@ -593,7 +656,8 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
         bots: info.config?.bots ?? 0,
         durationSeconds: info.duration ?? 0,
         numTurns: info.num_turns ?? 0,
-        winnerClientId: Array.isArray(info.winner) ? info.winner[1] ?? null : null,
+        winnerClientIds: parseWinnerClientIds(info.winner),
+        numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, info.players?.length ?? null),
         start: info.start ?? 0,
         players: info.players ?? [],
       }

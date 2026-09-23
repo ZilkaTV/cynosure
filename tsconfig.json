@@ -155,6 +155,9 @@
     },
     {
       "path": "./src/vendor/openfront-core-cfa6c47"
+    },
+    {
+      "path": "./src/vendor/openfront-core-a76a11b"
     }
   ]
 }

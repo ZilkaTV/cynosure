@@ -128,8 +128,12 @@ export async function handleDiscordAuthCallback(request, env) {
     console.error('updateUserById (metadata refresh) failed, continuing with stale metadata:', err)
   })
 
+  // Only token_hash is needed client-side (see discordAuth.ts's
+  // verifyOtp() call) - Supabase's own VerifyTokenHashParams type doesn't
+  // even accept an email alongside it, confirmed live: passing one caused
+  // the server to reject every verification outright with a 400 ("Only the
+  // token_hash and type should be provided").
   const redirectUrl = new URL(targetPath, 'https://cynclan.com')
-  redirectUrl.searchParams.set('discord_email', syntheticEmail)
   redirectUrl.searchParams.set('discord_token_hash', data.properties.hashed_token)
   return Response.redirect(redirectUrl.toString(), 302)
 }

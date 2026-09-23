@@ -45,12 +45,10 @@ export async function completeDiscordSignIn(): Promise<void> {
   if (!supabase) return
   const params = new URLSearchParams(window.location.search)
   const tokenHash = params.get('discord_token_hash')
-  const email = params.get('discord_email')
   const authError = params.get('discord_auth_error')
-  if (!tokenHash && !email && !authError) return
+  if (!tokenHash && !authError) return
 
   params.delete('discord_token_hash')
-  params.delete('discord_email')
   params.delete('discord_auth_error')
   const newSearch = params.toString()
   window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash)
@@ -59,15 +57,17 @@ export async function completeDiscordSignIn(): Promise<void> {
     console.error('[auth] Discord sign-in failed:', authError)
     return
   }
-  if (!tokenHash || !email) return
+  if (!tokenHash) return
 
   // 'magiclink' (what generateLink used to CREATE this token - see
   // worker/discord-auth.js) is a different, now-deprecated type value on
   // THIS (verifyOtp) side - Supabase's own docs show 'email' as the current
   // type for token_hash verification regardless of which link type minted
-  // it. Confirmed live: using 'magiclink' here left visitors stuck on the
-  // signed-out card after a real, successful Discord authorization - the
-  // verification silently never completed.
-  const { error } = await supabase.auth.verifyOtp({ type: 'email', token_hash: tokenHash, email })
+  // it. And per Supabase's VerifyTokenHashParams type, `email` must NOT be
+  // passed alongside token_hash - confirmed live, the server rejected it
+  // outright with "Only the token_hash and type should be provided" (a
+  // 400), which is what was actually keeping every sign-in stuck on the
+  // signed-out card, not the type value.
+  const { error } = await supabase.auth.verifyOtp({ type: 'email', token_hash: tokenHash })
   if (error) console.error('[auth] Discord sign-in verification failed:', error)
 }

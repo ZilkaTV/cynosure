@@ -9,7 +9,12 @@
 // in src/lib/openfront.ts and src/lib/replaySimCore.ts) - without this,
 // anyone could use this Worker as a free, unauthenticated open proxy to any
 // path on api.openfront.io.
-const ALLOWED_PATHS = [/^leaderboard\/ranked$/, /^public\/player\/[^/]+\/games$/, /^public\/game\/[^/]+$/]
+const ALLOWED_PATHS = [
+  /^leaderboard\/ranked$/,
+  /^public\/player\/[^/]+\/games$/,
+  /^public\/game\/[^/]+$/,
+  /^public\/clans\/leaderboard$/,
+]
 
 export async function handleOf(request) {
   const url = new URL(request.url)

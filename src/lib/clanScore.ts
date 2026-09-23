@@ -200,3 +200,35 @@ export function fmtRatioChange(before: number | null, after: number | null): str
   const afterStr = after.toFixed(2)
   return before == null ? `→ ${afterStr}` : `${before.toFixed(2)} → ${afterStr}`
 }
+
+// ── Live clan leaderboard entry (matches OpenFront's own in-game numbers) ──
+
+export interface ClanLeaderboardEntry {
+  games: number
+  wins: number
+  losses: number
+  playerSessions: number
+  weightedWins: number
+  weightedLosses: number
+  weightedWLRatio: number
+}
+
+interface RosterCacheClanRow {
+  clan_leaderboard: ClanLeaderboardEntry | null
+}
+
+/**
+ * [CYN]'s own row from OpenFront's public/clans/leaderboard, cached by
+ * refresh-details.mjs - the LIVE, rolling-90-day/30-day-half-life-decayed
+ * numbers exactly as OpenFront's own in-game "CLANS" leaderboard tab shows
+ * them right now. Deliberately a different metric from the rest of this
+ * file's per-game history (which is all-time and never decays, on purpose -
+ * see buildClanScoreLedger's own comment) - this is the one place on the
+ * site meant to match that live, ever-changing number exactly.
+ */
+export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard').eq('id', 1).maybeSingle()
+  if (error || !data) return null
+  return (data as RosterCacheClanRow).clan_leaderboard
+}

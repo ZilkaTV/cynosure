@@ -221,6 +221,25 @@ async function fetchFfaLeaderboard() {
   return byName
 }
 
+// [CYN]'s own row from OpenFront's public/clans/leaderboard - the LIVE,
+// rolling-90-day/30-day-half-life-decayed numbers exactly as OpenFront's own
+// in-game "CLANS" leaderboard tab shows them (see cyn_roster_cache's own
+// clan_leaderboard column comment for why this is kept separate from
+// cyn_clan_score_ledger's self-computed, no-decay history). Routed through
+// our own Worker proxy pre-emptively, same as fetchRankedMap above - this is
+// the same class of "leaderboard" endpoint that's already confirmed to 403
+// from GitHub Actions runner IPs specifically.
+async function fetchClanLeaderboardEntry() {
+  try {
+    const json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/public/clans/leaderboard`)
+    const entry = (json?.clans ?? []).find((c) => c.clanTag === CLAN_TAG)
+    return entry ?? null
+  } catch (err) {
+    console.error('fetchClanLeaderboardEntry failed:', err)
+    return null
+  }
+}
+
 async function fetchGameDetail(gameId) {
   const json = await fetchJson(`https://api.openfront.io/public/game/${encodeURIComponent(gameId)}?turns=false`)
   const info = json.info
@@ -262,6 +281,7 @@ async function main() {
   // already treats "no live elo" everywhere else.
   const { byId: rankedMap, byId2v2: rankedMap2v2 } = await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
   const ffaLeaderboard = await fetchFfaLeaderboard()
+  const clanLeaderboardEntry = await fetchClanLeaderboardEntry()
 
   // A transient OpenFront/trackerfront hiccup (confirmed live: the ranked
   // leaderboard scan came back completely empty for one run, no thrown
@@ -276,6 +296,7 @@ async function main() {
   const nextRanked1v1 = rankedMap.size > 0 ? Object.fromEntries(rankedMap) : (existingRosterCache?.ranked_1v1 ?? {})
   const nextRanked2v2 = rankedMap2v2.size > 0 ? Object.fromEntries(rankedMap2v2) : (existingRosterCache?.ranked_2v2 ?? {})
   const nextFfaLeaderboard = Object.keys(ffaLeaderboard).length > 0 ? ffaLeaderboard : (existingRosterCache?.ffa_leaderboard ?? {})
+  const nextClanLeaderboard = clanLeaderboardEntry ?? existingRosterCache?.clan_leaderboard ?? null
 
   // Written whole to cyn_roster_cache (see supabase/schema.sql) so browsers
   // building the roster (src/lib/openfront.ts's fetchRankedMap/
@@ -290,6 +311,7 @@ async function main() {
         ranked_1v1: nextRanked1v1,
         ranked_2v2: nextRanked2v2,
         ffa_leaderboard: nextFfaLeaderboard,
+        clan_leaderboard: nextClanLeaderboard,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },

@@ -13,6 +13,7 @@ import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { fetchClanLeaderboardEntry, type ClanLeaderboardEntry } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -189,6 +190,15 @@ export default function Home() {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+
+  // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
+  // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
+  // - deliberately the one stat on this page meant to match that in-game
+  // number exactly, not the per-game history shown elsewhere on the site.
+  useEffect(() => {
+    fetchClanLeaderboardEntry().then(setClanLeaderboard)
+  }, [])
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
@@ -253,6 +263,18 @@ export default function Home() {
           <StatCard className="col-span-2 sm:col-span-1" label={t.home.statAllWins} value={totals ? totals.allWins : '…'} accent="gold" />
         </div>
       </section>
+
+      {clanLeaderboard && (
+        <section>
+          <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Games" value={clanLeaderboard.games} accent="plain" />
+            <StatCard label="Win Score" value={clanLeaderboard.weightedWins.toFixed(1)} accent="gold" />
+            <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
+            <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
+          </div>
+        </section>
+      )}
 
       <TagNotice />
 

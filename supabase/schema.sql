@@ -983,9 +983,22 @@ create table if not exists public.cyn_roster_cache (
   ranked_1v1 jsonb not null default '{}',
   ranked_2v2 jsonb not null default '{}',
   ffa_leaderboard jsonb not null default '{}',
+  -- [CYN]'s own row from OpenFront's public/clans/leaderboard (games, wins,
+  -- losses, playerSessions, weightedWins, weightedLosses, weightedWLRatio) -
+  -- the LIVE, rolling-90-day/30-day-half-life-decayed numbers exactly as
+  -- shown on OpenFront's own in-game "CLANS" leaderboard tab. Deliberately
+  -- separate from cyn_clan_score_ledger (src/lib/clanScore.ts), which is a
+  -- self-computed, all-time, no-decay history for per-game reports - this
+  -- column is the one place on the site meant to match that live number
+  -- exactly, since it's fetched from OpenFront directly rather than
+  -- reconstructed.
+  clan_leaderboard jsonb,
   updated_at timestamptz not null default now(),
   constraint cyn_roster_cache_singleton check (id = 1)
 );
+
+-- Safe to re-run: adds the column if this table already existed without it.
+alter table public.cyn_roster_cache add column if not exists clan_leaderboard jsonb;
 
 alter table public.cyn_roster_cache enable row level security;
 

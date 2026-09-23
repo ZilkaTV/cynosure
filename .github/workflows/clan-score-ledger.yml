@@ -1,0 +1,40 @@
+name: Compute clan score ledger
+
+# Runs scripts/compute-clan-score-ledger.mjs, rebuilding cyn_clan_score_ledger
+# (Win Score / Loss Score / Win-Loss Ratio per game, see src/lib/clanScore.ts)
+# from cyn_member_games_cache. Same reliability reasoning as
+# refresh-details-cron.yml: `schedule` is a fallback, the primary trigger is
+# `repository_dispatch`, poked by the same Cloudflare Cron Trigger tick that
+# already drives refresh-details/collect-metrics (see worker/index.js's
+# scheduled()).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  repository_dispatch:
+    types: [clan-score-ledger]
+  workflow_dispatch: {}
+
+# A full recompute-and-upsert every run - two overlapping runs racing could
+# interleave upserts inconsistently, so queue instead of running in parallel
+# (same reasoning as refresh-details-cron.yml/collect-metrics.yml).
+concurrency:
+  group: clan-score-ledger
+  cancel-in-progress: false
+
+jobs:
+  compute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Run compute-clan-score-ledger
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: node scripts/compute-clan-score-ledger.mjs

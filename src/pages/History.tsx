@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2 } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
+import { fetchClanScoreLedger, fmtScoreDelta, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { PlayerGame } from '../lib/openfront'
 
@@ -46,9 +47,7 @@ export default function History() {
   const [playerFilter, setPlayerFilter] = useState<string>(ALL_PLAYERS)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [openGame, setOpenGame] = useState<string | null>(null)
-
-  if (!profile) return <RegistrationGate />
-  if (loading) return <Spinner label={t.common.loadingLiveData} />
+  const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId, keeping every member (publicId, not
@@ -57,7 +56,10 @@ export default function History() {
   // by name alone could collide - see MemberNameLink's own use of publicId
   // as the real identity everywhere else on the site). Unlike Home's
   // recent-games list, private games are kept here (they're one of the
-  // filter buckets), so this is Every CYN game, not a subset.
+  // filter buckets), so this is Every CYN game, not a subset. Computed above
+  // the (profile/loading) early returns below since it feeds the effect
+  // right after - `data?.members ?? []` already degrades to empty during
+  // loading, same as every other read of `data` on this page.
   const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string }[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
@@ -73,6 +75,24 @@ export default function History() {
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
   const sortedMembers = [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name))
+
+  // Batches one lookup per page of newly-revealed rows instead of one per
+  // row - keyed on the visible gameIds themselves (stable string, not the
+  // array reference) so paging/filtering fetches exactly the newly-missing
+  // ids and nothing already known.
+  const visibleGameIdsKey = visibleGames.map(({ g }) => g.gameId).join(',')
+  useEffect(() => {
+    const ids = visibleGameIdsKey ? visibleGameIdsKey.split(',').filter((id) => !clanScores.has(id)) : []
+    if (ids.length === 0) return
+    fetchClanScoreLedger(ids).then((fetched) => {
+      if (fetched.size === 0) return
+      setClanScores((prev) => new Map([...prev, ...fetched]))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleGameIdsKey])
+
+  if (!profile) return <RegistrationGate />
+  if (loading) return <Spinner label={t.common.loadingLiveData} />
 
   const filters: { key: Filter; label: string }[] = [
     { key: 'all', label: t.history.filterAll },
@@ -137,29 +157,36 @@ export default function History() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                    <th className="px-4 py-3 text-right font-semibold">Clan Score</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleGames.map(({ g, members }) => (
-                    <tr
-                      key={g.gameId}
-                      onClick={() => setOpenGame(g.gameId)}
-                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                      title={t.home.clickForReportTitle}
-                    >
-                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-white">{members.map((m) => m.name).join(', ')}</td>
-                      <td className="px-4 py-2.5 text-slate-300">
-                        {modeLabel(g)}
-                        {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
-                        {g.result}
-                      </td>
-                    </tr>
-                  ))}
+                  {visibleGames.map(({ g, members }) => {
+                    const clanScore = clanScores.get(g.gameId)
+                    return (
+                      <tr
+                        key={g.gameId}
+                        onClick={() => setOpenGame(g.gameId)}
+                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                        title={t.home.clickForReportTitle}
+                      >
+                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-2.5 text-white">{members.map((m) => m.name).join(', ')}</td>
+                        <td className="px-4 py-2.5 text-slate-300">
+                          {modeLabel(g)}
+                          {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
+                          {g.result}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

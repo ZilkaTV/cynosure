@@ -7,6 +7,7 @@ import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
 import TrendChart from '../components/TrendChart'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
+import { fetchClanScoreLedger, fmtScoreDelta, type ClanScoreRow } from '../lib/clanScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { BumpCard } from '../components/BumpButton'
@@ -45,6 +46,7 @@ export default function MemberProfile() {
   const [viewedIsSupporter, setViewedIsSupporter] = useState(false)
   const [supporterMsg, setSupporterMsg] = useState<string | null>(null)
   const [trend, setTrend] = useState<SnapshotPoint[]>([])
+  const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
 
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
@@ -88,6 +90,14 @@ export default function MemberProfile() {
   useEffect(() => {
     if (recentGameIds.length === 0) return
     import('../lib/replaySim').then(({ prefetchGameTileStats }) => prefetchGameTileStats(recentGameIds))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGameIds.join(',')])
+
+  // Win Score/Loss Score for the recent-games table below (see clanScore.ts) -
+  // reuses the same recentGameIds already computed above for Max Tiles.
+  useEffect(() => {
+    if (recentGameIds.length === 0) return
+    fetchClanScoreLedger(recentGameIds).then(setClanScores)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentGameIds.join(',')])
 
@@ -320,27 +330,34 @@ export default function MemberProfile() {
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                  <th className="px-4 py-3 text-right font-semibold">Clan Score</th>
                 </tr>
               </thead>
               <tbody>
-                {recent.map((g) => (
-                  <tr
-                    key={g.gameId}
-                    onClick={() => setOpenGame(g.gameId)}
-                    className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                    title={t.home.clickForReportTitle}
-                  >
-                    <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
-                    <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
-                      {g.result}
-                    </td>
-                  </tr>
-                ))}
+                {recent.map((g) => {
+                  const clanScore = clanScores.get(g.gameId)
+                  return (
+                    <tr
+                      key={g.gameId}
+                      onClick={() => setOpenGame(g.gameId)}
+                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                      title={t.home.clickForReportTitle}
+                    >
+                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                      <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
+                        {g.result}
+                      </td>
+                      <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                        {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

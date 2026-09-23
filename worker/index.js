@@ -35,13 +35,15 @@ export default {
   // This ONLY pokes GitHub's repository_dispatch API - the actual scan work
   // stays on GitHub Actions, since Workers cap outbound fetch() at
   // 50/invocation on the free tier and that work needs far more than one
-  // request. Dispatches two independent workflows off the same tick:
-  // refresh-details (stats/roster cache) and collect-metrics (the "Metrics"
-  // admin dashboard) - each fires its own repository_dispatch so one
-  // workflow being slow/failing never blocks the other.
+  // request. Dispatches three independent workflows off the same tick:
+  // refresh-details (stats/roster cache), collect-metrics (the "Metrics"
+  // admin dashboard), and clan-score-ledger (Win Score/Loss Score/Ratio per
+  // game, see src/lib/clanScore.ts) - each fires its own repository_dispatch
+  // so one workflow being slow/failing never blocks the others.
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(dispatch(env, 'refresh-details'))
     ctx.waitUntil(dispatch(env, 'collect-metrics'))
+    ctx.waitUntil(dispatch(env, 'clan-score-ledger'))
   },
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
+import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -86,10 +87,17 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
 
+  // Win Score/Loss Score/Ratio for this specific game (see clanScore.ts) -
+  // null for a game that isn't in cyn_clan_score_ledger (not a Team game,
+  // not eligible, or the cron just hasn't reached it yet), which the UI
+  // below just renders nothing for rather than an error.
+  const [clanScore, setClanScore] = useState<ClanScoreRow | null>(null)
+
   useEffect(() => {
     if (!gameId) return
     setState('loading')
     setDetail(null)
+    setClanScore(null)
     fetchGameDetail(gameId)
       .then((d) => {
         if (d) {
@@ -98,6 +106,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         } else setState('error')
       })
       .catch(() => setState('error'))
+    fetchClanScoreLedger([gameId]).then((m) => setClanScore(m.get(gameId) ?? null))
   }, [gameId])
 
   useEffect(() => {
@@ -209,6 +218,24 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               <Tile label={t.gameDetail.tilePlayers} value={String(detail.players.length)} />
               <Tile label={t.gameDetail.tileMap} value={detail.map} />
             </div>
+
+            {clanScore && (
+              <div
+                className={`mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 rounded-lg border px-4 py-2.5 text-sm ${
+                  clanScore.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'
+                }`}
+              >
+                <span className={`font-display font-bold ${clanScore.won ? 'text-signal-green' : 'text-signal-red'}`}>
+                  {clanScore.won ? 'Win Score' : 'Loss Score'} {fmtScoreDelta(clanScore.score, clanScore.won)}
+                </span>
+                {fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) && (
+                  <span className="text-slate-300">
+                    [{CLAN_TAG}] Ratio: {fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter)}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
               <p className="text-center text-xs text-slate-500">
                 {t.gameDetail.gameIdLabel} <span className="font-mono text-slate-300">{detail.gameId}</span>

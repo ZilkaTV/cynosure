@@ -1268,3 +1268,35 @@ create policy "users can submit their own cyn_survey_responses"
 
 create policy "users can edit their own cyn_survey_responses"
   on public.cyn_survey_responses for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Clan Score (Win Score / Loss Score / Win-Loss Ratio) - reproduces
+-- OpenFront's own official clan-leaderboard weighting formula (documented in
+-- openfrontio/OpenFrontIO's docs/API.md) per individual game, plus the
+-- clan-wide cumulative ratio immediately before/after each one. See
+-- src/lib/clanScore.ts (the shared formula) and
+-- scripts/compute-clan-score-ledger.mjs (which rebuilds this table in full
+-- every run from cyn_member_games_cache - OpenFront's own aggregate
+-- endpoint, public/clans/leaderboard, only ever returns the CURRENT rolling
+-- total and ignores any start/end/clanTag query params, so it can't answer
+-- "what did this one game change" - this is a self-computed reconstruction
+-- instead, walking the clan's full chronological history itself).
+create table if not exists public.cyn_clan_score_ledger (
+  game_id text primary key,
+  played_at timestamptz not null,
+  won boolean not null,
+  clan_player_count integer not null,
+  total_player_count integer not null,
+  num_teams integer not null,
+  score numeric not null,
+  cum_weighted_wins numeric not null,
+  cum_weighted_losses numeric not null,
+  ratio_before numeric,
+  ratio_after numeric
+);
+
+alter table public.cyn_clan_score_ledger enable row level security;
+
+create policy "public can read cyn_clan_score_ledger"
+  on public.cyn_clan_score_ledger for select to public using (true);
+-- No insert/update/delete policy - only scripts/compute-clan-score-ledger.mjs
+-- writes here, via the anon key same as every other cron script in this repo.

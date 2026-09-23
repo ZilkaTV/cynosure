@@ -513,9 +513,23 @@ async function main() {
   // below instead of a confusing/negative remaining count.
   const scanIncomplete = membersScanFailed > 0
 
-  const { data: existing, error: existingError } = await supabase.from('cyn_game_detail_cache').select('game_id')
-  if (existingError) throw existingError
-  const alreadyCached = new Set((existing ?? []).map((r) => r.game_id))
+  // A plain `.select('game_id')` with no `.range()` silently caps out at
+  // Supabase's own default page size (1000 rows) - confirmed live:
+  // cyn_game_detail_cache has grown to 3000+ rows, so an unpaginated read
+  // here only ever saw the first 1000 game_ids, making the "missing" check
+  // below wrongly treat most already-cached games as needing a fetch. Not
+  // data corruption (a re-fetched game just gets the exact same detail
+  // written back), but it silently wasted most of every run's
+  // MAX_GAMES_PER_RUN budget re-fetching games that never needed it, well
+  // before ever reaching genuinely new/missing ones.
+  const existing = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id').range(from, from + 999)
+    if (error) throw error
+    existing.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
+  const alreadyCached = new Set(existing.map((r) => r.game_id))
 
   const missing = [...wantDetail].filter((id) => !alreadyCached.has(id)).slice(0, MAX_GAMES_PER_RUN)
 
@@ -545,7 +559,15 @@ async function main() {
   // shape itself changes, so this self-heals the backlog a bounded chunk at
   // a time instead of leaving every already-cached team game stuck showing
   // no winner/other-clan-score forever.
-  const OLD_SHAPE_BACKFILL_PER_RUN = 30
+  // Higher than MAX_GAMES_PER_RUN on purpose: this is a one-time migration
+  // clearing a backlog (thousands of already-cached games in the old
+  // shape), not steady-state new-game discovery - a bigger batch here
+  // converges to "every game fixed" in hours instead of days, and each
+  // fetch is still individually paced the same as every other OpenFront
+  // call in this script (see REQUEST_PACING_MS), so it can't burst-trip
+  // OpenFront's rate limiter any harder than the rest of this run already
+  // does.
+  const OLD_SHAPE_BACKFILL_PER_RUN = 150
   let oldShapeFixed = 0
   try {
     const { data: oldShapeRows } = await supabase

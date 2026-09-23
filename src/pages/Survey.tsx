@@ -201,7 +201,7 @@ export default function Survey() {
                           key={i}
                           value={answers[q.id]?.[i] ?? ''}
                           onChange={(e) => setSlot(q.id, i, e.target.value)}
-                          placeholder={`#${i + 1}`}
+                          placeholder="Name"
                           maxLength={32}
                           className="w-full rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-accent focus:outline-none"
                         />

@@ -30,18 +30,31 @@ function notifyAll(s: Session | null | undefined) {
 function ensureInitialized() {
   if (initStarted || !supabase) return
   initStarted = true
-  // Fire-and-forget: if this page is the redirect target after a Discord
-  // sign-in (see discordAuth.ts), this exchanges the token in the URL for a
-  // real session, which then surfaces through the onAuthStateChange
-  // subscription registered below - no need to await it here.
-  completeDiscordSignIn()
-  supabase.auth.getSession().then(({ data, error }) => {
-    // Temporary - tracking down an intermittent forced-logout bug. Safe to
-    // remove once that's confirmed fixed.
-    console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
-    notifyAll(data.session)
+  // Narrowed local alias - TS doesn't carry the `!supabase` guard's
+  // narrowing into the nested .finally() closure below since it's an
+  // imported binding, not a local const.
+  const client = supabase
+  // If this page is the redirect target after a Discord sign-in (see
+  // discordAuth.ts), getSession() is held off until that finishes - it
+  // would otherwise very likely resolve with null (nothing to find locally
+  // yet) BEFORE the OTP exchange completes, notifying every subscriber with
+  // a premature "signed out" that only self-corrects once
+  // onAuthStateChange's own notifyAll lands moments later. Not just a
+  // cosmetic flash: confirmed live as a real stuck state on Register.tsx,
+  // exactly the class of race this singleton was already built to prevent
+  // (see this file's own top comment) - completeDiscordSignIn() itself can
+  // fail today (a bad token, Supabase briefly down) and getSession() must
+  // still run afterward regardless, so this waits for it to settle rather
+  // than depending on it succeeding.
+  completeDiscordSignIn().finally(() => {
+    client.auth.getSession().then(({ data, error }) => {
+      // Temporary - tracking down an intermittent forced-logout bug. Safe to
+      // remove once that's confirmed fixed.
+      console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
+      notifyAll(data.session)
+    })
   })
-  supabase.auth.onAuthStateChange((e, s) => {
+  client.auth.onAuthStateChange((e, s) => {
     console.info('[auth] onAuthStateChange', e, { hasSession: !!s, expiresAt: s?.expires_at })
     notifyAll(s)
   })

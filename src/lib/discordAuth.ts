@@ -61,6 +61,13 @@ export async function completeDiscordSignIn(): Promise<void> {
   }
   if (!tokenHash || !email) return
 
-  const { error } = await supabase.auth.verifyOtp({ type: 'magiclink', token_hash: tokenHash, email })
+  // 'magiclink' (what generateLink used to CREATE this token - see
+  // worker/discord-auth.js) is a different, now-deprecated type value on
+  // THIS (verifyOtp) side - Supabase's own docs show 'email' as the current
+  // type for token_hash verification regardless of which link type minted
+  // it. Confirmed live: using 'magiclink' here left visitors stuck on the
+  // signed-out card after a real, successful Discord authorization - the
+  // verification silently never completed.
+  const { error } = await supabase.auth.verifyOtp({ type: 'email', token_hash: tokenHash, email })
   if (error) console.error('[auth] Discord sign-in verification failed:', error)
 }

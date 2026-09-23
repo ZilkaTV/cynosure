@@ -17,7 +17,7 @@ import { fetchClanLeaderboardEntry, fetchClanScoreLedger, fmtScoreDelta, fmtRati
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
-import type { PlayerGame } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
@@ -192,6 +192,7 @@ export default function Home() {
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
+  const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
   // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
   // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
@@ -250,6 +251,19 @@ export default function Home() {
   useEffect(() => {
     if (recentGames.length === 0) return
     fetchClanScoreLedger(recentGames.map(({ g }) => g.gameId)).then(setClanScores)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGames.map(({ g }) => g.gameId).join(',')])
+
+  // Full team roster per game (see teamRosterNames in openfront.ts) for the
+  // Player column below - everyone who was actually there, not just
+  // whichever registered members happened to play.
+  useEffect(() => {
+    if (recentGames.length === 0) return
+    fetchGameDetailsBatch(recentGames.map(({ g }) => g.gameId)).then((fetched) => {
+      const next = new Map<string, GameDetail>()
+      for (const [id, detail] of fetched) if (detail) next.set(id, detail)
+      setGameDetails(next)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentGames.map(({ g }) => g.gameId).join(',')])
 
@@ -340,6 +354,9 @@ export default function Home() {
                   {recentGames.map(({ g, memberNames }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    const detail = gameDetails.get(g.gameId)
+                    const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
+                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.join(', ')
                     return (
                       <tr
                         key={g.gameId}
@@ -348,7 +365,7 @@ export default function Home() {
                         title={t.home.clickForReportTitle}
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                        <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
+                        <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
                         <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
                         <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                           {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}

@@ -496,6 +496,10 @@ export interface GamePlayerStat {
   clientID: string
   username: string
   clanTag: string | null
+  // Which team this player was placed on - present on ranked 2v2 games,
+  // confirmed absent (undefined) on many unranked "auto-teams" lobbies
+  // (Trios/Quads/etc), so callers can't assume it's always there.
+  teamIndex?: number
   stats?: {
     attacks?: string[]
     gold?: string[]
@@ -792,4 +796,32 @@ export async function fetchGameClanTags(gameId: string): Promise<string[]> {
   const tags = (json.info?.players ?? []).map((p) => p.clanTag ?? '').filter(Boolean)
   cachePermSet(key, tags)
   return tags
+}
+
+/**
+ * Every player who shared a specific game's registered members' own team -
+ * not just the ones who registered on this site, for a "who was actually in
+ * this with us" display (see History.tsx/MemberProfile.tsx/Home.tsx's
+ * recent-games tables). A win reconstructs the team exactly, straight from
+ * winnerClientIds (every winner IS the winning team, full stop). A loss can
+ * only be reconstructed when at least one of our own registered players'
+ * entry in this game carries a teamIndex - confirmed directly that many
+ * unranked "auto-teams" lobbies simply don't provide one at all, in which
+ * case this returns null rather than guessing at teammates it can't
+ * actually verify.
+ */
+export function teamRosterNames(detail: GameDetail, won: boolean, ourMemberNames: string[]): string[] | null {
+  const winnerSet = new Set(detail.winnerClientIds)
+  if (won) return detail.players.filter((p) => winnerSet.has(p.clientID)).map((p) => p.username)
+
+  const ourNamesLower = new Set(ourMemberNames.map((n) => n.toLowerCase()))
+  const anchor = detail.players.find((p) => ourNamesLower.has(p.username.toLowerCase()) && !winnerSet.has(p.clientID))
+  if (anchor?.teamIndex == null) return null
+  return detail.players.filter((p) => p.teamIndex === anchor.teamIndex).map((p) => p.username)
+}
+
+/** "Zilka, Sweeper, deshack" up to `maxNames`, else "Zilka, Sweeper, deshack +4" for a bigger team. */
+export function fmtTeamRoster(names: string[], maxNames = 4): string {
+  if (names.length <= maxNames) return names.join(', ')
+  return `${names.slice(0, maxNames - 1).join(', ')} +${names.length - (maxNames - 1)}`
 }

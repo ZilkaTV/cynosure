@@ -7,7 +7,7 @@ import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
-import type { PlayerGame } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
 
 const PAGE_SIZE = 40
@@ -49,6 +49,7 @@ export default function History() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
+  const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId, keeping every member (publicId, not
@@ -88,6 +89,21 @@ export default function History() {
     fetchClanScoreLedger(ids).then((fetched) => {
       if (fetched.size === 0) return
       setClanScores((prev) => new Map([...prev, ...fetched]))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleGameIdsKey])
+
+  // Full team roster per game (see teamRosterNames) for the Player column
+  // below - shows everyone who was actually on the team, not just whichever
+  // registered members happened to play, same batching as clanScores above.
+  useEffect(() => {
+    const ids = visibleGameIdsKey ? visibleGameIdsKey.split(',').filter((id) => !gameDetails.has(id)) : []
+    if (ids.length === 0) return
+    fetchGameDetailsBatch(ids).then((fetched) => {
+      const next = new Map<string, GameDetail>()
+      for (const [id, detail] of fetched) if (detail) next.set(id, detail)
+      if (next.size === 0) return
+      setGameDetails((prev) => new Map([...prev, ...next]))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleGameIdsKey])
@@ -166,6 +182,16 @@ export default function History() {
                   {visibleGames.map(({ g, members }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    // Full team roster when it can be reconstructed (see
+                    // teamRosterNames) - everyone who was actually there,
+                    // not just whichever registered members happened to
+                    // play. Falls back to just the registered names for an
+                    // incomplete game, a not-yet-fetched detail, or a loss
+                    // where the losing team can't be determined.
+                    const detail = gameDetails.get(g.gameId)
+                    const registeredNames = members.map((m) => m.name)
+                    const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', registeredNames) : null
+                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : registeredNames.join(', ')
                     return (
                       <tr
                         key={g.gameId}
@@ -174,7 +200,7 @@ export default function History() {
                         title={t.home.clickForReportTitle}
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                        <td className="px-4 py-2.5 text-white">{members.map((m) => m.name).join(', ')}</td>
+                        <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
                         <td className="px-4 py-2.5 text-slate-300">
                           {modeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}

@@ -65,7 +65,7 @@ interface Row {
   isWinner: boolean
 }
 
-type SortKey = 'out' | 'inc' | 'gold' | 'kills' | 'maxPercent' | 'deathSec'
+type SortKey = 'out' | 'inc' | 'gold' | 'kills' | 'maxPercent' | 'deathSec' | 'clan'
 
 function getColumns(t: TranslationShape): { key: SortKey; label: string; icon?: string }[] {
   return [
@@ -185,7 +185,16 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
     .map((p) => {
       const st = p.stats ?? {}
       const goldTotal = (st.gold ?? []).reduce((s, g) => s + num(g), 0)
-      const kills = st.kills ?? []
+      // OpenFront's own raw kill log sometimes lists the exact same victim
+      // clientID twice for one killer (confirmed directly against a real
+      // game - a duplicate event on OpenFront's end, not something on our
+      // side double-counting) - a player can only actually die once, so
+      // deduping by victim clientID here is what makes both the kill count
+      // and the "Killed: ..." tooltip agree with each other and with
+      // reality, instead of both faithfully reproducing the same inflated
+      // duplicate.
+      const rawKills = st.kills ?? []
+      const kills = [...new Map(rawKills.map((k) => [k.victim, k])).values()]
       const killedAt = st.killedAt ? num(st.killedAt) : null
       return {
         p,
@@ -200,9 +209,34 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
       }
     })
     .sort((a, b) => {
+      // Clan-grouped sort: alphabetical by clan tag (untagged players always
+      // last regardless of direction - there's no clan to group them under),
+      // then alphabetical by username within a clan so the group stays
+      // stable as its members' stats change.
+      if (sortKey === 'clan') {
+        const at = a.p.clanTag ?? ''
+        const bt = b.p.clanTag ?? ''
+        if (at !== bt) {
+          if (!at) return 1
+          if (!bt) return -1
+          return at.localeCompare(bt) * sortDir
+        }
+        return a.p.username.localeCompare(b.p.username)
+      }
       if (sortKey) return compareNullable(a[sortKey], b[sortKey], sortDir)
       return Number(b.isWinner) - Number(a.isWinner) || b.kills - a.kills || b.gold - a.gold
     })
+
+  // Numbers each distinct clan in the currently-sorted order (1, 2, 3, ...)
+  // so the "alphabetische Clans nummeriert" badge stays stable no matter
+  // which direction the clan sort is toggled to.
+  const clanGroupNumbers = new Map<string, number>()
+  if (sortKey === 'clan') {
+    for (const r of rows) {
+      const tag = r.p.clanTag
+      if (tag && !clanGroupNumbers.has(tag)) clanGroupNumbers.set(tag, clanGroupNumbers.size + 1)
+    }
+  }
 
   function onSortClick(key: SortKey) {
     if (sortKey === key) {
@@ -299,7 +333,14 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-2 py-2.5 text-left font-semibold">{t.monthly.colRank}</th>
-                    <th className="px-3 py-2.5 text-left font-semibold">{t.common.table.player}</th>
+                    <th
+                      onClick={() => onSortClick('clan')}
+                      className="cursor-pointer select-none px-3 py-2.5 text-left font-semibold hover:text-white"
+                      title={t.gameDetail.sortBy(t.common.table.player)}
+                    >
+                      {t.common.table.player}
+                      {sortKey === 'clan' && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
+                    </th>
                     {columns.map((c) => (
                       <th
                         key={c.key}
@@ -325,7 +366,13 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                             title={r.p.clanTag ? `[${r.p.clanTag}] ${r.p.username}` : r.p.username}
                           >
                             <span className="truncate">
-                              {r.p.clanTag && <span className="text-slate-500">[{r.p.clanTag}] </span>}
+                              {r.p.clanTag && (
+                                <span className="text-slate-500">
+                                  [{r.p.clanTag}]{sortKey === 'clan' && clanGroupNumbers.has(r.p.clanTag) && (
+                                    <sup className="ml-0.5 text-accent-light">{clanGroupNumbers.get(r.p.clanTag)}</sup>
+                                  )}{' '}
+                                </span>
+                              )}
                               {r.p.username}
                             </span>
                             {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}

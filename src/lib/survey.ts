@@ -55,7 +55,7 @@ export const SURVEY_CATEGORIES: SurveyCategory[] = [
 export const ALL_SURVEY_QUESTIONS: SurveyQuestion[] = SURVEY_CATEGORIES.flatMap((c) => c.questions)
 
 /** How many nominee slots each question has. */
-export const ANSWERS_PER_QUESTION = 5
+export const ANSWERS_PER_QUESTION = 3
 
 /**
  * OpenFront in-game names / clan tags don't contain spaces or punctuation in
@@ -70,11 +70,11 @@ export const MAX_NAME_LENGTH = 32
 export type SurveyAnswers = Record<string, string[]>
 
 /**
- * Every slot in every question is required (all 5, no blanks) - unlike an
- * "up to 5" nomination list, this is a fixed ballot: 15 questions x 5 names
- * each. A name can repeat across DIFFERENT questions (the same person can be
- * nominated for both "best FFA player" and "best Team Games player"), but
- * not twice within the SAME question's 5 slots.
+ * Every slot in every question is required (all ANSWERS_PER_QUESTION, no
+ * blanks) - unlike an "up to N" nomination list, this is a fixed ballot: 15
+ * questions x N names each. A name can repeat across DIFFERENT questions
+ * (the same person can be nominated for both "best FFA player" and "best
+ * Team Games player"), but not twice within the SAME question's slots.
  */
 export function validateAnswers(answers: SurveyAnswers): string | null {
   for (const q of ALL_SURVEY_QUESTIONS) {
@@ -93,7 +93,7 @@ export function validateAnswers(answers: SurveyAnswers): string | null {
   return null
 }
 
-/** Trims every slot before saving - validateAnswers already guarantees all 5 are filled by the time this runs. */
+/** Trims every slot before saving - validateAnswers already guarantees every slot is filled by the time this runs. */
 function cleanAnswers(answers: SurveyAnswers): SurveyAnswers {
   const cleaned: SurveyAnswers = {}
   for (const q of ALL_SURVEY_QUESTIONS) {

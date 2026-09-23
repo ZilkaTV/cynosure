@@ -162,8 +162,8 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl">
       <SectionHeading eyebrow="Community Awards" title="OpenFront Survey" />
       <p className="-mt-4 mb-6 max-w-xl text-sm text-slate-400">
-        Open to everyone, not just [CYN] members. Nominate whoever you think deserves it in each category - up to 5 names per
-        question.
+        Open to everyone, not just [CYN] members. Nominate whoever you think deserves it in each category - {ANSWERS_PER_QUESTION}{' '}
+        names per question.
       </p>
 
       {step === 'name' && (
@@ -194,7 +194,7 @@ export default function Survey() {
       {step === 'questions' && (
         <div className="space-y-6">
           <p className="text-sm text-slate-500">
-            All 5 slots per question (<span className="text-signal-red">*</span>) are required. The same name can appear in
+            All {ANSWERS_PER_QUESTION} slots per question (<span className="text-signal-red">*</span>) are required. The same name can appear in
             different questions, just not twice within the same one.
           </p>
           {error && (
@@ -209,7 +209,8 @@ export default function Survey() {
                     <p className="mb-2 text-sm font-medium text-slate-300">
                       {q.text} <span className="text-signal-red">*</span>
                     </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+                    {/* sm:grid-cols-3 mirrors ANSWERS_PER_QUESTION (survey.ts) - Tailwind needs a literal class, so keep these in sync if that constant ever changes. */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {Array.from({ length: ANSWERS_PER_QUESTION }, (_, i) => (
                         <input
                           key={i}

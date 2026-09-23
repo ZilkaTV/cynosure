@@ -13,7 +13,7 @@ import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
-import { fetchClanLeaderboardEntry, type ClanLeaderboardEntry } from '../lib/clanScore'
+import { fetchClanLeaderboardEntry, fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -191,6 +191,7 @@ export default function Home() {
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
 
   // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
   // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
@@ -243,6 +244,14 @@ export default function Home() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefetchGames.map(({ g }) => g.gameId).join(',')])
+
+  // Win Score/Ratio for the Latest Games table below (see clanScore.ts) -
+  // matches History.tsx/MemberProfile.tsx's own recent-games tables.
+  useEffect(() => {
+    if (recentGames.length === 0) return
+    fetchClanScoreLedger(recentGames.map(({ g }) => g.gameId)).then(setClanScores)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGames.map(({ g }) => g.gameId).join(',')])
 
   if (!profile) return <RegistrationGate />
 
@@ -320,29 +329,39 @@ export default function Home() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                    <th className="px-4 py-3 text-right font-semibold">Win Score</th>
+                    <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentGames.map(({ g, memberNames }) => (
-                    <tr
-                      key={g.gameId}
-                      onClick={() => setOpenGame(g.gameId)}
-                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                      title={t.home.clickForReportTitle}
-                    >
-                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
-                      <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
-                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
-                        {g.result}
-                      </td>
-                    </tr>
-                  ))}
+                  {recentGames.map(({ g, memberNames }) => {
+                    const clanScore = clanScores.get(g.gameId)
+                    const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    return (
+                      <tr
+                        key={g.gameId}
+                        onClick={() => setOpenGame(g.gameId)}
+                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                        title={t.home.clickForReportTitle}
+                      >
+                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
+                        <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
+                        <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
+                          {g.result}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

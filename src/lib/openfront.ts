@@ -819,20 +819,21 @@ export function teamRosterNames(detail: GameDetail, won: boolean, ourMemberNames
     // signals the caller to fall back to the registered-member names
     // instead of rendering a blank Player cell.
     const team = detail.players.filter((p) => winnerSet.has(p.clientID))
-    return team.length > 0 ? clanFirstNames(team, ourMemberNames) : null
+    const names = ourPlayerNames(team, ourMemberNames)
+    return names.length > 0 ? names : null
   }
 
   const ourNamesLower = new Set(ourMemberNames.map((n) => n.toLowerCase()))
   const anchor = detail.players.find((p) => ourNamesLower.has(p.username.toLowerCase()) && !winnerSet.has(p.clientID))
   if (anchor?.teamIndex == null) return null
-  return clanFirstNames(detail.players.filter((p) => p.teamIndex === anchor.teamIndex), ourMemberNames)
+  const names = ourPlayerNames(detail.players.filter((p) => p.teamIndex === anchor.teamIndex), ourMemberNames)
+  return names.length > 0 ? names : null
 }
 
-/** Our own players (registered, or just tagged [CYN]) first, everyone else after - so a truncated "+N" only ever hides strangers. */
-function clanFirstNames(team: GamePlayerStat[], ourMemberNames: string[]): string[] {
+/** Only our own players (registered, or tagged [CYN] but not on the site) - randoms and other clans' players aren't listed. */
+function ourPlayerNames(team: GamePlayerStat[], ourMemberNames: string[]): string[] {
   const ours = new Set(ourMemberNames.map((n) => n.toLowerCase()))
-  const isOurs = (p: GamePlayerStat) => p.clanTag === CLAN_TAG || ours.has(p.username.toLowerCase())
-  return [...team.filter(isOurs), ...team.filter((p) => !isOurs(p))].map((p) => p.username)
+  return team.filter((p) => p.clanTag === CLAN_TAG || ours.has(p.username.toLowerCase())).map((p) => p.username)
 }
 
 /** "Zilka, Sweeper, deshack" up to `maxNames`, else "Zilka, Sweeper, deshack +4" for a bigger team. */

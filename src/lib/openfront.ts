@@ -4,7 +4,7 @@
 // localStorage. The proxy also shares one CDN cache across visitors, which
 // keeps us under OpenFront's strict rate limits.
 
-import { CACHE_TTL_MS } from '../config'
+import { CACHE_TTL_MS, CLAN_TAG } from '../config'
 import { supabase } from './supabase'
 
 const API_BASE = '/api/of'
@@ -818,18 +818,25 @@ export function teamRosterNames(detail: GameDetail, won: boolean, ourMemberNames
     // reached by the backfill) rather than a real "nobody won" case - null
     // signals the caller to fall back to the registered-member names
     // instead of rendering a blank Player cell.
-    const names = detail.players.filter((p) => winnerSet.has(p.clientID)).map((p) => p.username)
-    return names.length > 0 ? names : null
+    const team = detail.players.filter((p) => winnerSet.has(p.clientID))
+    return team.length > 0 ? clanFirstNames(team, ourMemberNames) : null
   }
 
   const ourNamesLower = new Set(ourMemberNames.map((n) => n.toLowerCase()))
   const anchor = detail.players.find((p) => ourNamesLower.has(p.username.toLowerCase()) && !winnerSet.has(p.clientID))
   if (anchor?.teamIndex == null) return null
-  return detail.players.filter((p) => p.teamIndex === anchor.teamIndex).map((p) => p.username)
+  return clanFirstNames(detail.players.filter((p) => p.teamIndex === anchor.teamIndex), ourMemberNames)
+}
+
+/** Our own players (registered, or just tagged [CYN]) first, everyone else after - so a truncated "+N" only ever hides strangers. */
+function clanFirstNames(team: GamePlayerStat[], ourMemberNames: string[]): string[] {
+  const ours = new Set(ourMemberNames.map((n) => n.toLowerCase()))
+  const isOurs = (p: GamePlayerStat) => p.clanTag === CLAN_TAG || ours.has(p.username.toLowerCase())
+  return [...team.filter(isOurs), ...team.filter((p) => !isOurs(p))].map((p) => p.username)
 }
 
 /** "Zilka, Sweeper, deshack" up to `maxNames`, else "Zilka, Sweeper, deshack +4" for a bigger team. */
-export function fmtTeamRoster(names: string[], maxNames = 4): string {
+export function fmtTeamRoster(names: string[], maxNames = 6): string {
   if (names.length <= maxNames) return names.join(', ')
   return `${names.slice(0, maxNames - 1).join(', ')} +${names.length - (maxNames - 1)}`
 }

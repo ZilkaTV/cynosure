@@ -233,18 +233,73 @@ export interface TallyEntry {
   count: number
 }
 
-/** Every nominee for one question, ranked by how many respondents named them (case-insensitive; the most-common casing seen is kept for display). */
+/** Non-answers ("idk", "none", ...) - dropped from the results entirely, compared via simpleKey. */
+const JUNK_ANSWERS = new Set(
+  ['idk', 'idkn', 'dont', 'dontknow', 'idontknow', 'dunno', 'dk', 'any', 'blank', 'none', 'na', 'nobody', 'noone', 'nothing', 'unknown'],
+)
+
+/**
+ * Nominees people spelled differently (typos, shortened names, numbered
+ * variants), first entry of each group = the name shown in the results.
+ * Hand-curated on purpose rather than fuzzy-matched - an automatic
+ * similarity threshold would eventually merge two genuinely different
+ * players.
+ */
+const NAME_ALIAS_GROUPS: string[][] = [
+  ['cosmicvoidarchon', 'cosmic', 'cosmicvoid'],
+  ['alt_number_3', 'alt_3', 'alt_number3'],
+  ['Zixer', 'Zixer1', 'Zixer2'],
+  ['lewis', 'iamlewis'],
+  ['Nebula', 'nebulaxy', 'nebualxy'],
+  ['JadedRose', 'Jaddedrose', 'jadded'],
+  ['UltimusRex', 'Rex', 'Ultimus', 'Ultimus_Red'],
+  ['Biffeur', 'biff', 'TheBiffeur'],
+  ['Vari', 'Vari_vari', 'Vari_vari_vari'],
+  ['Dougy', 'DougyJr', 'Dougy2', 'Doogy', 'DougDoug'],
+  ['LonelyMillenial', 'lonley_millenial', 'Lonnely', 'Millenial'],
+  ['Nikas', 'Nikas1', 'Nikas2'],
+  ['Zorbix', 'Zorbit'],
+  ['Professor_SPloyer', 'Proffesorsployer', 'sployer'],
+  ['Skailex', 'Skaillex'],
+  ['Space_Sheep', 'Space_Sheeep'],
+]
+
+/** Case-insensitive, ignoring brackets/underscores/hyphens/spaces - "Ultimus_rex" and "UltimusRex" are the same key. */
+function simpleKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+const ALIAS_CANONICAL = new Map<string, { key: string; display: string }>()
+for (const [canonical, ...aliases] of NAME_ALIAS_GROUPS) {
+  const entry = { key: simpleKey(canonical), display: canonical }
+  ALIAS_CANONICAL.set(entry.key, entry)
+  for (const a of aliases) ALIAS_CANONICAL.set(simpleKey(a), entry)
+}
+
+/**
+ * Every nominee for one question, ranked by how many respondents named them.
+ * Non-answers are dropped, spelling variants of the same nominee are merged
+ * (see NAME_ALIAS_GROUPS), and one respondent naming several variants of the
+ * same person in one question still only counts once - the merged total is
+ * the number of DIFFERENT people who voted for them.
+ */
 export function tallyQuestion(responses: SurveyResponseSummary[], questionId: string): TallyEntry[] {
   const countByKey = new Map<string, number>()
   const displayByKey = new Map<string, string>()
   for (const r of responses) {
+    const seenThisResponse = new Set<string>()
     for (const name of r.answers[questionId] ?? []) {
-      const key = normalizeForCompare(name)
+      const simple = simpleKey(name)
+      if (!simple || JUNK_ANSWERS.has(simple)) continue
+      const alias = ALIAS_CANONICAL.get(simple)
+      const key = alias?.key ?? simple
+      if (seenThisResponse.has(key)) continue
+      seenThisResponse.add(key)
       countByKey.set(key, (countByKey.get(key) ?? 0) + 1)
       // Brackets stripped from the display name too - a clean "CYN" either
       // way, regardless of whether this particular respondent typed "CYN"
       // or "[CYN]".
-      if (!displayByKey.has(key)) displayByKey.set(key, name.replace(/[[\]]/g, ''))
+      if (!displayByKey.has(key)) displayByKey.set(key, alias?.display ?? name.replace(/[[\]]/g, ''))
     }
   }
   return [...countByKey.entries()]

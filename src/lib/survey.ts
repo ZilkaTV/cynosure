@@ -288,19 +288,54 @@ for (const [canonical, ...aliases] of NAME_ALIAS_GROUPS) {
   for (const a of aliases) ALIAS_CANONICAL.set(simpleKey(a), entry)
 }
 
+/** Trailing digits dropped - "idk2", "idk3" and "Zixer2" are numbered variants of the base word. */
+function stripTrailingDigits(simple: string): string {
+  return simple.replace(/[0-9]+$/, '')
+}
+
+function editDistanceAtMost1(a: string, b: string): boolean {
+  if (a === b) return true
+  if (Math.abs(a.length - b.length) > 1) return false
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a]
+  let i = 0
+  while (i < short.length && short[i] === long[i]) i++
+  if (short.length === long.length) return short.slice(i + 1) === long.slice(i + 1)
+  return short.slice(i) === long.slice(i + 1)
+}
+
+/**
+ * Alias group for a spelling: exact match, then with trailing digits
+ * dropped, then a single-character typo of a long-enough alias (>= 6 chars,
+ * so short names like "Rex" can never fuzzy-match something else).
+ */
+function lookupAlias(simple: string): { key: string; display: string } | undefined {
+  const exact = ALIAS_CANONICAL.get(simple)
+  if (exact) return exact
+  const stripped = stripTrailingDigits(simple)
+  const strippedHit = stripped ? ALIAS_CANONICAL.get(stripped) : undefined
+  if (strippedHit) return strippedHit
+  for (const candidate of new Set([simple, stripped])) {
+    if (candidate.length < 6) continue
+    for (const [aliasKey, entry] of ALIAS_CANONICAL) {
+      if (aliasKey.length >= 6 && editDistanceAtMost1(candidate, aliasKey)) return entry
+    }
+  }
+  return undefined
+}
+
 export function isJunkAnswer(name: string): boolean {
   const simple = simpleKey(name)
-  return !simple || JUNK_ANSWERS.has(simple)
+  return !simple || JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple))
 }
 
 /** Identity of a nominee for duplicate checks and tallying: the alias group's key if it belongs to one, else its simple key. */
 function nomineeKey(name: string): string {
   const simple = simpleKey(name)
-  return ALIAS_CANONICAL.get(simple)?.key ?? simple
+  return lookupAlias(simple)?.key ?? simple
 }
 
 function canonicalDisplayName(name: string): string {
-  return ALIAS_CANONICAL.get(simpleKey(name))?.display ?? name
+  return lookupAlias(simpleKey(name))?.display ?? name
 }
 
 /**
@@ -317,8 +352,8 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
     const seenThisResponse = new Set<string>()
     for (const name of r.answers[questionId] ?? []) {
       const simple = simpleKey(name)
-      if (!simple || JUNK_ANSWERS.has(simple)) continue
-      const alias = ALIAS_CANONICAL.get(simple)
+      if (isJunkAnswer(name)) continue
+      const alias = lookupAlias(simple)
       const key = alias?.key ?? simple
       if (seenThisResponse.has(key)) continue
       seenThisResponse.add(key)

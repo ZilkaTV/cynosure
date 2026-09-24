@@ -11,6 +11,11 @@ describe('tallyQuestion', () => {
     expect(t).toEqual([{ name: 'Zilka', count: 1 }])
   })
 
+  it('drops numbered non-answers and merges numbered / typo variants', () => {
+    const t = tallyQuestion([resp(['idk2', 'idk3', 'cosmicvoid2']), resp(['cosmicvoidarchn']), resp(['CosmicVoidArchon'])], 'q')
+    expect(t).toEqual([{ name: 'cosmicvoidarchon', count: 3 }])
+  })
+
   it('merges spelling variants voted by different people', () => {
     const t = tallyQuestion([resp(['Zixer1']), resp(['Zixer2']), resp(['Ultimus_rex']), resp(['Rex'])], 'q')
     expect(t).toEqual([

@@ -102,6 +102,8 @@ export const is2v2 = (g: PlayerGame) => g.rankedType === '2v2'
 // so 2v2 gets tracked as its own thing instead of silently folding into Team.
 export const isTeam = (g: PlayerGame) => g.mode === 'Team' && !is2v2(g)
 export const is1v1 = (g: PlayerGame) => g.rankedType === '1v1'
+// Abandoned/never-finished ranked matches (e.g. an opponent disconnecting at 0m 21s) are noise in game lists.
+export const isIncompleteRanked = (g: PlayerGame) => g.result === 'incomplete' && (is1v1(g) || is2v2(g))
 
 export function monthKeyOf(iso: string): string {
   const d = new Date(iso)

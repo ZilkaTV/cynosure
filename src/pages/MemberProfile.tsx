@@ -21,6 +21,7 @@ import {
   isTeam,
   is1v1,
   is2v2,
+  isIncompleteRanked,
   monthLabel,
   oneVoneBucket,
   twoVTwoBucket,
@@ -51,7 +52,7 @@ export default function MemberProfile() {
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
   const recentGameIds = (m?.cynGames ?? [])
-    .filter((g) => g.type !== 'Private')
+    .filter((g) => g.type !== 'Private' && !isIncompleteRanked(g))
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 20)
     .map((g) => g.gameId)

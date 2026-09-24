@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
-import { isFfa, isTeam, is1v1, is2v2 } from '../lib/stats'
+import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
@@ -65,6 +65,7 @@ export default function History() {
   const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string }[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
+      if (isIncompleteRanked(g)) continue
       const existing = byGameId.get(g.gameId)
       if (existing) existing.members.push({ publicId: m.publicId, name: m.name })
       else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name }] })

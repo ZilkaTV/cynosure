@@ -5,7 +5,7 @@ import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
-import { isFfa, isTeam, is1v1, is2v2 } from '../lib/stats'
+import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
@@ -209,7 +209,7 @@ export default function Home() {
   const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
-      if (g.type === 'Private') continue
+      if (g.type === 'Private' || isIncompleteRanked(g)) continue
       const existing = byGameId.get(g.gameId)
       if (existing) existing.memberNames.push(m.name)
       else byGameId.set(g.gameId, { g, memberNames: [m.name] })

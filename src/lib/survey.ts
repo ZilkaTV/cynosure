@@ -100,18 +100,30 @@ export function validateAnswers(answers: SurveyAnswers): string | null {
     for (const name of slots) {
       if (name.length > MAX_NAME_LENGTH) return `"${name}" is too long (max ${MAX_NAME_LENGTH} characters).`
       if (!NAME_PATTERN.test(name)) return `"${name}" contains a character that isn't allowed (letters, numbers, "_", "-" and "[]" only, no spaces).`
+      if (isJunkAnswer(name)) return `"${name}" isn't a real nominee - please enter an actual player/clan name for "${q.text}".`
     }
-    const normalized = slots.map(normalizeForCompare)
-    if (new Set(normalized).size !== normalized.length) return `You entered the same name twice for "${q.text}".`
+    // Alias-aware: "Zixer" and "Zixer2" (or "Rex" and "Ultimus_rex") are the
+    // same person, so naming both would just waste one of the three slots.
+    const seen = new Map<string, string>()
+    for (const name of slots) {
+      const key = nomineeKey(name)
+      const earlier = seen.get(key)
+      if (earlier) {
+        return earlier.toLowerCase() === name.toLowerCase()
+          ? `You entered the same name twice for "${q.text}".`
+          : `"${earlier}" and "${name}" are the same nominee - please enter a different name for "${q.text}".`
+      }
+      seen.set(key, name)
+    }
   }
   return null
 }
 
-/** Trims every slot before saving - validateAnswers already guarantees every slot is filled by the time this runs. */
+/** Trims every slot and rewrites known spelling variants to their canonical name before saving - validateAnswers already guarantees every slot is filled by the time this runs. */
 function cleanAnswers(answers: SurveyAnswers): SurveyAnswers {
   const cleaned: SurveyAnswers = {}
   for (const q of ALL_SURVEY_QUESTIONS) {
-    cleaned[q.id] = (answers[q.id] ?? []).map((s) => s.trim())
+    cleaned[q.id] = (answers[q.id] ?? []).map((s) => canonicalDisplayName(s.trim()))
   }
   return cleaned
 }
@@ -274,6 +286,21 @@ for (const [canonical, ...aliases] of NAME_ALIAS_GROUPS) {
   const entry = { key: simpleKey(canonical), display: canonical }
   ALIAS_CANONICAL.set(entry.key, entry)
   for (const a of aliases) ALIAS_CANONICAL.set(simpleKey(a), entry)
+}
+
+export function isJunkAnswer(name: string): boolean {
+  const simple = simpleKey(name)
+  return !simple || JUNK_ANSWERS.has(simple)
+}
+
+/** Identity of a nominee for duplicate checks and tallying: the alias group's key if it belongs to one, else its simple key. */
+function nomineeKey(name: string): string {
+  const simple = simpleKey(name)
+  return ALIAS_CANONICAL.get(simple)?.key ?? simple
+}
+
+function canonicalDisplayName(name: string): string {
+  return ALIAS_CANONICAL.get(simpleKey(name))?.display ?? name
 }
 
 /**

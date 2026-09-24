@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tallyQuestion, type SurveyResponseSummary } from './survey'
+import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, type SurveyAnswers, type SurveyResponseSummary } from './survey'
 
 function resp(names: string[]): SurveyResponseSummary {
   return { inGameName: 'x', discordUsername: null, answers: { q: names }, comment: null, createdAt: '' }
@@ -25,5 +25,31 @@ describe('tallyQuestion', () => {
       { name: 'cosmicvoidarchon', count: 2 },
       { name: 'Nikas', count: 1 },
     ])
+  })
+})
+
+function ballot(override: Record<string, string[]> = {}): SurveyAnswers {
+  const a: SurveyAnswers = {}
+  for (const q of ALL_SURVEY_QUESTIONS) a[q.id] = ['Alpha', 'Bravo', 'Charlie']
+  return { ...a, ...override }
+}
+
+describe('validateAnswers', () => {
+  it('accepts a normal ballot', () => {
+    expect(validateAnswers(ballot())).toBeNull()
+  })
+
+  it('rejects non-answers', () => {
+    expect(validateAnswers(ballot({ players_ffa: ['Alpha', 'idk', 'Charlie'] }))).toMatch(/isn't a real nominee/)
+    expect(validateAnswers(ballot({ players_ffa: ['Alpha', 'none', 'Charlie'] }))).toMatch(/isn't a real nominee/)
+  })
+
+  it('rejects two spellings of the same nominee in one question', () => {
+    expect(validateAnswers(ballot({ players_ffa: ['Zixer', 'Zixer2', 'Charlie'] }))).toMatch(/same nominee/)
+    expect(validateAnswers(ballot({ players_ffa: ['Rex', 'Ultimus_rex', 'Charlie'] }))).toMatch(/same nominee/)
+  })
+
+  it('still allows the same name in different questions', () => {
+    expect(validateAnswers(ballot({ players_ffa: ['Zixer', 'Bravo', 'Charlie'], players_team: ['Zixer2', 'Bravo', 'Charlie'] }))).toBeNull()
   })
 })

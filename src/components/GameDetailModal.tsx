@@ -253,7 +253,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
       onClick={onClose}
     >
       <div
-        className="my-8 w-full max-w-4xl rounded-2xl border border-base-600 bg-base-900 shadow-2xl"
+        className="my-8 w-full max-w-6xl rounded-2xl border border-base-600 bg-base-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-base-700 px-6 py-4">

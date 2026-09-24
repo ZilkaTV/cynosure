@@ -812,7 +812,15 @@ export async function fetchGameClanTags(gameId: string): Promise<string[]> {
  */
 export function teamRosterNames(detail: GameDetail, won: boolean, ourMemberNames: string[]): string[] | null {
   const winnerSet = new Set(detail.winnerClientIds)
-  if (won) return detail.players.filter((p) => winnerSet.has(p.clientID)).map((p) => p.username)
+  if (won) {
+    // An empty result here means winnerClientIds itself is missing/broken
+    // (e.g. a cached detail written before that field existed, not yet
+    // reached by the backfill) rather than a real "nobody won" case - null
+    // signals the caller to fall back to the registered-member names
+    // instead of rendering a blank Player cell.
+    const names = detail.players.filter((p) => winnerSet.has(p.clientID)).map((p) => p.username)
+    return names.length > 0 ? names : null
+  }
 
   const ourNamesLower = new Set(ourMemberNames.map((n) => n.toLowerCase()))
   const anchor = detail.players.find((p) => ourNamesLower.has(p.username.toLowerCase()) && !winnerSet.has(p.clientID))

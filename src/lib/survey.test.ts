@@ -70,7 +70,7 @@ describe('findAnswerProblem', () => {
   })
 
   it('points at both slots of a same-person pair', () => {
-    expect(findAnswerProblem(ballot({ clans_ffa: ['Zixer', 'Bravo', 'Zixer2'] }))).toMatchObject({ questionId: 'clans_ffa', slots: [0, 2] })
+    expect(findAnswerProblem(ballot({ players_ffa: ['Zixer', 'Bravo', 'Zixer2'] }))).toMatchObject({ questionId: 'players_ffa', slots: [0, 2] })
   })
 })
 

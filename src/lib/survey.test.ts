@@ -101,3 +101,29 @@ describe('clan questions', () => {
     ])
   })
 })
+
+describe('more aliases', () => {
+  it('merges the new groups, counting a voter who names two variants once', () => {
+    const t = tallyQuestion(
+      [
+        resp(['Morta', 'Mortality', 'Nvr']),
+        resp(['Mortality']),
+        resp(['Nvr_kn']),
+        resp(['pyrrha']),
+        resp(['pyrrah']),
+        resp(['soothing']),
+        resp(['soothxng']),
+        resp(['evimito']),
+        resp(['evil_Mitochondria']),
+      ],
+      'q',
+    )
+    expect(t.map((e) => [e.name, e.count])).toEqual([
+      ['evil_Mitochondria', 2],
+      ['Mortality', 2],
+      ['Nvr_Kn', 2],
+      ['pyrrah', 2],
+      ['soothxng', 2],
+    ])
+  })
+})

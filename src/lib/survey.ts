@@ -305,6 +305,11 @@ const NAME_ALIAS_GROUPS: string[][] = [
   ['Professor_SPloyer', 'Proffesorsployer', 'sployer'],
   ['Skailex', 'Skaillex'],
   ['Space_Sheep', 'Space_Sheeep'],
+  ['Mortality', 'Morta'],
+  ['Nvr_Kn', 'Nvr'],
+  ['pyrrah', 'pyrrha'],
+  ['soothxng', 'soothing'],
+  ['evil_Mitochondria', 'evimito'],
 ]
 
 /** Case-insensitive, ignoring brackets/underscores/hyphens/spaces - "Ultimus_rex" and "UltimusRex" are the same key. */

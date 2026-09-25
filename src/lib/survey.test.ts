@@ -1,28 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, findAnswerProblem, type SurveyAnswers, type SurveyResponseSummary } from './survey'
 
+const tally = (r: SurveyResponseSummary[], q: string) => tallyQuestion(r, q).map(({ name, count }) => ({ name, count }))
+
 function resp(names: string[]): SurveyResponseSummary {
   return { inGameName: 'x', discordUsername: null, answers: { q: names }, comment: null, createdAt: '' }
 }
 
 describe('tallyQuestion', () => {
   it('drops non-answers', () => {
-    const t = tallyQuestion([resp(['idk', 'None', 'Dunno']), resp(['-', 'Zilka', 'blank'])], 'q')
+    const t = tally([resp(['idk', 'None', 'Dunno']), resp(['-', 'Zilka', 'blank'])], 'q')
     expect(t).toEqual([{ name: 'Zilka', count: 1 }])
   })
 
   it('drops numbered non-answers and merges numbered / typo variants', () => {
-    const t = tallyQuestion([resp(['idk2', 'idk3', 'cosmicvoid2']), resp(['cosmicvoidarchn']), resp(['CosmicVoidArchon'])], 'q')
+    const t = tally([resp(['idk2', 'idk3', 'cosmicvoid2']), resp(['cosmicvoidarchn']), resp(['CosmicVoidArchon'])], 'q')
     expect(t).toEqual([{ name: 'cosmicvoidarchon', count: 3 }])
   })
 
   it('treats alt and Alt_Number3 as the same nominee', () => {
-    const t = tallyQuestion([resp(['alt']), resp(['Alt_Number3']), resp(['alt_3'])], 'q')
+    const t = tally([resp(['alt']), resp(['Alt_Number3']), resp(['alt_3'])], 'q')
     expect(t).toEqual([{ name: 'alt_number_3', count: 3 }])
   })
 
   it('merges spelling variants voted by different people', () => {
-    const t = tallyQuestion([resp(['Zixer1']), resp(['Zixer2']), resp(['Ultimus_rex']), resp(['Rex'])], 'q')
+    const t = tally([resp(['Zixer1']), resp(['Zixer2']), resp(['Ultimus_rex']), resp(['Rex'])], 'q')
     expect(t).toEqual([
       { name: 'UltimusRex', count: 2 },
       { name: 'Zixer', count: 2 },
@@ -30,7 +32,7 @@ describe('tallyQuestion', () => {
   })
 
   it('counts one voter naming several variants of the same person only once', () => {
-    const t = tallyQuestion([resp(['cosmic', 'cosmicvoid', 'Nikas']), resp(['CosmicVoidArchon'])], 'q')
+    const t = tally([resp(['cosmic', 'cosmicvoid', 'Nikas']), resp(['CosmicVoidArchon'])], 'q')
     expect(t).toEqual([
       { name: 'cosmicvoidarchon', count: 2 },
       { name: 'Nikas', count: 1 },
@@ -76,12 +78,12 @@ describe('findAnswerProblem', () => {
 
 describe('junk and new aliases', () => {
   it('drops very short, repeated-character and filler answers', () => {
-    const t = tallyQuestion([resp(['a', 'aa', 's', 'ss', 'me', 'Community']), resp(['aaaa', '1234', 'Zilka'])], 'q')
+    const t = tally([resp(['a', 'aa', 's', 'ss', 'me', 'Community']), resp(['aaaa', '1234', 'Zilka'])], 'q')
     expect(t).toEqual([{ name: 'Zilka', count: 1 }])
   })
 
   it('merges jaded/jadedrose and ash/ashfall/ashfalllive', () => {
-    const t = tallyQuestion([resp(['jaded']), resp(['JadedRose']), resp(['ash']), resp(['ashfall']), resp(['ashfalllive'])], 'q')
+    const t = tally([resp(['jaded']), resp(['JadedRose']), resp(['ash']), resp(['ashfall']), resp(['ashfalllive'])], 'q')
     expect(t).toEqual([
       { name: 'ashfalllive', count: 3 },
       { name: 'jadedrose', count: 2 },
@@ -95,7 +97,7 @@ describe('clan questions', () => {
       { inGameName: 'x', discordUsername: null, answers: { clans_ffa: ['ASH', 'ashfalllive', 'ashfall'] }, comment: null, createdAt: '' },
       { inGameName: 'y', discordUsername: null, answers: { clans_ffa: ['ash', 'CYN'] }, comment: null, createdAt: '' },
     ]
-    expect(tallyQuestion(responses, 'clans_ffa')).toEqual([
+    expect(tally(responses, 'clans_ffa')).toEqual([
       { name: 'ASH', count: 2 },
       { name: 'CYN', count: 1 },
     ])
@@ -104,7 +106,7 @@ describe('clan questions', () => {
 
 describe('more aliases', () => {
   it('merges the new groups, counting a voter who names two variants once', () => {
-    const t = tallyQuestion(
+    const t = tally(
       [
         resp(['Morta', 'Mortality', 'Nvr']),
         resp(['Mortality']),
@@ -125,5 +127,41 @@ describe('more aliases', () => {
       ['pyrrah', 2],
       ['soothxng', 2],
     ])
+  })
+})
+
+describe('automatic look-alike merging', () => {
+  it('merges typos, numbered and start/end variants nobody listed by hand', () => {
+    const t = tallyQuestion(
+      [resp(['Wolfgang']), resp(['wolfgan']), resp(['Wolfgang2']), resp(['Tiberius']), resp(['tiber']), resp(['Blackbird']), resp(['Blackbird']), resp(['xblackbird'])],
+      'q',
+    )
+    expect(t.map((e) => [e.name, e.count])).toEqual([
+      ['Blackbird', 3],
+      ['Wolfgang', 3],
+      ['Tiberius', 2],
+    ])
+    expect(t.find((e) => e.name === 'Wolfgang')?.variants.sort()).toEqual(['Wolfgang2', 'wolfgan'])
+  })
+
+  it('counts one voter once even if their two spellings are only automatically linked', () => {
+    const t = tallyQuestion([resp(['Wolfgang', 'wolfgan', 'Alice']), resp(['Wolfgang'])], 'q')
+    expect(t.find((e) => e.name === 'Wolfgang')?.count).toBe(2)
+  })
+
+  it('does not merge short names or clearly different players', () => {
+    const t = tally([resp(['alex']), resp(['alexander']), resp(['Marcus']), resp(['Marius'])], 'q')
+    expect(t.map((e) => e.name).sort()).toEqual(['Marcus', 'Marius', 'alex', 'alexander'])
+  })
+
+  it('leaves clan tags alone', () => {
+    const responses: SurveyResponseSummary[] = [
+      { inGameName: 'x', discordUsername: null, answers: { clans_team: ['ASTRO', 'ASTROX'] }, comment: null, createdAt: '' },
+    ]
+    expect(tally(responses, 'clans_team').map((e) => e.name).sort()).toEqual(['ASTRO', 'ASTROX'])
+  })
+
+  it('blocks look-alike names within one player question at submit', () => {
+    expect(findAnswerProblem(ballot({ players_ffa: ['Wolfgang', 'Bravo', 'wolfgan'] }))).toMatchObject({ questionId: 'players_ffa', slots: [0, 2] })
   })
 })

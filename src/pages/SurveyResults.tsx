@@ -26,10 +26,11 @@ const HIDDEN_PLACEHOLDER = '••••••••'
 
 // Two INDEPENDENT reveal toggles per row (name / count), for building suspense
 // during the stream reveal - clicking one never gives away the other.
-function RevealButton({ revealed, onToggle, text }: { revealed: boolean; onToggle: () => void; text: string }) {
+function RevealButton({ revealed, onToggle, text, title }: { revealed: boolean; onToggle: () => void; text: string; title?: string }) {
   return (
     <button
       onClick={onToggle}
+      title={revealed ? title : undefined}
       className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition-colors ${
         revealed ? 'text-white' : 'text-slate-600 hover:text-slate-400'
       }`}
@@ -78,6 +79,7 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
               revealed={revealedNames.has(i)}
               onToggle={() => toggleIndex(revealedNames, setRevealedNames, i)}
               text={entry.name}
+              title={entry.variants.length > 0 ? `Also counted: ${entry.variants.join(', ')}` : undefined}
             />
             <span className="text-slate-700">·</span>
             <RevealButton

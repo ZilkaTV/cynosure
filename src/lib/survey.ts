@@ -138,6 +138,19 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
       }
       seen.set(key, i)
     }
+    if (!q.id.startsWith('clans_')) {
+      for (let i = 0; i < slots.length; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          if (similarKeys(nomineeKey(slots[i]), nomineeKey(slots[j]))) {
+            return {
+              message: `"${slots[i]}" and "${slots[j]}" look like the same nominee - please enter a different name for "${q.text}".`,
+              questionId: q.id,
+              slots: [i, j],
+            }
+          }
+        }
+      }
+    }
   }
   return null
 }
@@ -270,6 +283,8 @@ export async function fetchAllSurveyResponses(): Promise<SurveyResponseSummary[]
 export interface TallyEntry {
   name: string
   count: number
+  /** Other spellings that were automatically folded into this entry (for the admin to double-check). */
+  variants: string[]
 }
 
 /** Non-answers ("idk", "none", ...) - dropped from the results entirely, compared via simpleKey. */
@@ -391,36 +406,139 @@ function canonicalDisplayName(name: string, isClanQuestion = false): string {
 const PLAYER_NAMES_NOT_CLANS = new Set(['ashfalllive', 'ashfall'])
 
 /**
+ * Pairs of keys that look similar but are known to be DIFFERENT people -
+ * never auto-merged. Entries are simpleKeys, joined "a|b" in sorted order.
+ */
+const KEEP_SEPARATE = new Set<string>([])
+
+function osaWithin1(a: string, b: string): boolean {
+  // A single missing/extra/wrong letter only counts for longer names (>= 8):
+  // on a 6-letter name it's just as likely two different players
+  // ("Marcus" / "Marius").
+  if (Math.max(a.length, b.length) >= 8 && editDistanceAtMost1(a, b)) return true
+  if (a.length !== b.length) return false
+  // One adjacent swap ("pyrrah" / "pyrrha") is a typo at any length we consider.
+  let i = 0
+  while (i < a.length && a[i] === b[i]) i++
+  return i + 1 < a.length && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)
+}
+
+/**
+ * Would two (already simpleKey'd) player names plausibly be the same person?
+ * Conservative on purpose: numbered variants ("zixer1"/"zixer2"), one typo,
+ * or one name being the start/end of the other ("cosmic" / "cosmicvoid",
+ * "lewis" / "iamlewis") - and only when the shorter side is at least 5
+ * characters, so short names like "alex" can never swallow "alexander".
+ * Compared against a cluster's leader only (never transitively), so chains of
+ * near-misses can't snowball into one giant merged entry. Everything merged
+ * this way is listed on the results page (TallyEntry.variants).
+ */
+export function similarKeys(a: string, b: string): boolean {
+  if (a === b) return true
+  if (KEEP_SEPARATE.has([a, b].sort().join('|'))) return false
+  const ba = stripTrailingDigits(a)
+  const bb = stripTrailingDigits(b)
+  if (ba.length >= 3 && ba === bb) return true
+  const [short, long] = ba.length <= bb.length ? [ba, bb] : [bb, ba]
+  if (short.length < 5) return false
+  return long.startsWith(short) || long.endsWith(short) || osaWithin1(short, long)
+}
+
+/**
+ * Groups keys around "leaders": most-named first (ties: no trailing digits,
+ * then the longer, i.e. fuller, name), each later key joins the first leader
+ * it's similar to, else becomes a leader itself. Returns key -> leader key.
+ */
+function clusterKeys(entries: { key: string; count: number }[]): Map<string, string> {
+  const ordered = [...entries].sort(
+    (x, y) =>
+      y.count - x.count ||
+      Number(/[0-9]$/.test(x.key)) - Number(/[0-9]$/.test(y.key)) ||
+      y.key.length - x.key.length ||
+      x.key.localeCompare(y.key),
+  )
+  const leaders: string[] = []
+  const leaderOf = new Map<string, string>()
+  for (const { key } of ordered) {
+    const leader = leaders.find((l) => similarKeys(key, l))
+    if (leader) leaderOf.set(key, leader)
+    else {
+      leaders.push(key)
+      leaderOf.set(key, key)
+    }
+  }
+  return leaderOf
+}
+
+/**
  * Every nominee for one question, ranked by how many respondents named them.
- * Non-answers are dropped, spelling variants of the same nominee are merged
- * (see NAME_ALIAS_GROUPS), and one respondent naming several variants of the
- * same person in one question still only counts once - the merged total is
- * the number of DIFFERENT people who voted for them.
+ * Non-answers are dropped; spelling variants of the same nominee are merged
+ * - first via the hand-curated NAME_ALIAS_GROUPS, then automatically for
+ * anything that merely looks alike (similarKeys; player questions only, clan
+ * tags like ASH/AST are legitimately close together) - and one respondent
+ * naming several variants of the same person in one question still only
+ * counts once, so the merged total is the number of DIFFERENT people who
+ * voted for them.
  */
 export function tallyQuestion(responses: SurveyResponseSummary[], questionId: string): TallyEntry[] {
+  const isClanQuestion = questionId.startsWith('clans_')
+
+  // Pass 1: each response's distinct nominee keys (curated aliases applied).
+  const answersByResponse: string[][] = []
   const countByKey = new Map<string, number>()
   const displayByKey = new Map<string, string>()
+  const curatedDisplayByKey = new Map<string, string>()
   for (const r of responses) {
-    const seenThisResponse = new Set<string>()
+    const keys: string[] = []
     for (const name of r.answers[questionId] ?? []) {
       const simple = simpleKey(name)
       if (isJunkAnswer(name)) continue
-      const isClanQuestion = questionId.startsWith('clans_')
       if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simple)) continue
       const alias = isClanQuestion ? undefined : lookupAlias(simple)
       const key = alias?.key ?? simple
-      if (seenThisResponse.has(key)) continue
-      seenThisResponse.add(key)
+      if (keys.includes(key)) continue
+      keys.push(key)
       countByKey.set(key, (countByKey.get(key) ?? 0) + 1)
+      if (alias) curatedDisplayByKey.set(key, alias.display)
       // Brackets stripped from the display name too - a clean "CYN" either
       // way, regardless of whether this particular respondent typed "CYN"
       // or "[CYN]".
       if (!displayByKey.has(key)) displayByKey.set(key, alias?.display ?? name.replace(/[[\]]/g, ''))
     }
+    answersByResponse.push(keys)
   }
-  return [...countByKey.entries()]
-    .map(([key, count]) => ({ name: displayByKey.get(key)!, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+
+  // Pass 2: fold look-alike keys into their leader (player questions only).
+  const leaderOf = isClanQuestion
+    ? new Map([...countByKey.keys()].map((k) => [k, k] as const))
+    : clusterKeys([...countByKey].map(([key, count]) => ({ key, count })))
+
+  // Pass 3: count DIFFERENT voters per leader.
+  const voters = new Map<string, number>()
+  for (const keys of answersByResponse) {
+    for (const leader of new Set(keys.map((k) => leaderOf.get(k)!))) voters.set(leader, (voters.get(leader) ?? 0) + 1)
+  }
+
+  const variantsByLeader = new Map<string, string[]>()
+  const displayForLeader = new Map<string, string>()
+  for (const [key, leader] of leaderOf) {
+    if (curatedDisplayByKey.has(key) && !curatedDisplayByKey.has(leader)) curatedDisplayByKey.set(leader, curatedDisplayByKey.get(key)!)
+  }
+  for (const leader of voters.keys()) displayForLeader.set(leader, curatedDisplayByKey.get(leader) ?? displayByKey.get(leader)!)
+  for (const [key, leader] of leaderOf) {
+    if (key === leader) continue
+    const list = variantsByLeader.get(leader) ?? []
+    list.push(displayByKey.get(key)!)
+    variantsByLeader.set(leader, list)
+  }
+
+  return [...voters]
+    .map(([leader, count]) => ({
+      name: displayForLeader.get(leader)!,
+      count,
+      variants: (variantsByLeader.get(leader) ?? []).filter((v) => v !== displayForLeader.get(leader)),
+    }))
+    .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
 }
 
 // ── Name suggestions for the form's dropdown ───────────────────────────────
@@ -453,6 +571,14 @@ export async function fetchSurveySuggestions(): Promise<Record<string, string[]>
   }
 
   const result: Record<string, string[]> = {}
-  for (const [questionId, map] of byQuestion) result[questionId] = [...map.values()].sort((a, b) => a.localeCompare(b))
+  for (const [questionId, map] of byQuestion) {
+    let entries = [...map.entries()]
+    if (!questionId.startsWith('clans_')) {
+      // One suggestion per look-alike group (the fuller name), not five spellings of the same person.
+      const leaderOf = clusterKeys(entries.map(([key]) => ({ key, count: 1 })))
+      entries = entries.filter(([key]) => leaderOf.get(key) === key)
+    }
+    result[questionId] = entries.map(([, display]) => display).sort((x, y) => x.localeCompare(y))
+  }
   return result
 }

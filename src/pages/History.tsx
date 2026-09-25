@@ -9,6 +9,7 @@ import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow 
 import { useLanguage } from '../i18n/LanguageContext'
 import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
+import { cleanDisplayName } from '../lib/displayName'
 
 const PAGE_SIZE = 40
 
@@ -155,7 +156,7 @@ export default function History() {
             <option value={ALL_PLAYERS}>{t.history.allPlayers}</option>
             {sortedMembers.map((m) => (
               <option key={m.publicId} value={m.publicId}>
-                {m.name}
+                {cleanDisplayName(m.name)}
               </option>
             ))}
           </select>
@@ -192,7 +193,7 @@ export default function History() {
                     const detail = gameDetails.get(g.gameId)
                     const registeredNames = members.map((m) => m.name)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', registeredNames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : registeredNames.join(', ')
+                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : registeredNames.map(cleanDisplayName).join(', ')
                     return (
                       <tr
                         key={g.gameId}

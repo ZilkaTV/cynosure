@@ -12,6 +12,7 @@ import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
+import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import { fetchClanLeaderboardEntry, fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -356,7 +357,7 @@ export default function Home() {
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.join(', ')
+                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
                     return (
                       <tr
                         key={g.gameId}

@@ -6,6 +6,7 @@
 
 import { CACHE_TTL_MS, CLAN_TAG } from '../config'
 import { supabase } from './supabase'
+import { cleanDisplayName } from './displayName'
 
 const API_BASE = '/api/of'
 
@@ -844,6 +845,7 @@ function ourPlayerNames(team: GamePlayerStat[], ourMemberNames: string[]): strin
 
 /** "Zilka, Sweeper, deshack" up to `maxNames`, else "Zilka, Sweeper, deshack +4" for a bigger team. */
 export function fmtTeamRoster(names: string[], maxNames = 6): string {
+  names = names.map(cleanDisplayName)
   if (names.length <= maxNames) return names.join(', ')
   return `${names.slice(0, maxNames - 1).join(', ')} +${names.length - (maxNames - 1)}`
 }

@@ -208,8 +208,39 @@ async function main() {
 
   const { data: members, error: membersError } = await supabase
     .from('cyn_members')
-    .select('openfront_id, discord_user_id')
+    .select('openfront_id, discord_user_id, discord_username')
   if (membersError) throw membersError
+
+  // Most members never signed in with Discord on the site, which is the only
+  // thing that fills in discord_user_id (see useProfile.ts) - so 13 of 33
+  // were silently skipped and never got any role. For those, look the
+  // username they typed at registration up in the guild directly (exact,
+  // case-insensitive match on the unique Discord username only - never a
+  // nickname or prefix match, so it can't pick the wrong person). Kept in
+  // memory for this run only; the members array's objects are the same ones
+  // membersByOpenfrontId below points at, so everything after sees the ID.
+  // Needs the bot's "Server Members Intent"; without it the search just
+  // fails and those members stay skipped, exactly as before.
+  let resolvedByUsername = 0
+  for (const m of members ?? []) {
+    if (m.discord_user_id || !m.discord_username) continue
+    try {
+      const wanted = m.discord_username.replace(/^@/, '').trim().toLowerCase()
+      if (!wanted) continue
+      const res = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/search?query=${encodeURIComponent(wanted)}&limit=10`)
+      if (!res.ok) {
+        console.error(`member search for "${wanted}" failed: ${res.status}`)
+        continue
+      }
+      const hit = (await res.json()).find((x) => x.user?.username?.toLowerCase() === wanted)
+      if (hit) {
+        m.discord_user_id = hit.user.id
+        resolvedByUsername++
+      }
+    } catch (err) {
+      console.error(`member search failed for ${m.openfront_id} (non-fatal):`, err)
+    }
+  }
   const membersByOpenfrontId = new Map((members ?? []).map((m) => [m.openfront_id, m]))
   // Filled in during the per-member loop below (currentRoles is already
   // fetched there for the wins-tier sync) - reused after the loop by the
@@ -447,7 +478,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ checked, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
+  console.log(JSON.stringify({ checked, resolvedByUsername, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
 }
 
 main().catch((err) => {

@@ -19,6 +19,8 @@ import {
 } from '../lib/survey'
 
 const REVEAL_DATE = 'Saturday, September 26th 2026, 20:00 CEST (German time)'
+// 20:00 CEST (UTC+2) - keep in sync with REVEAL_DATE's wording above.
+const REVEAL_AT = Date.parse('2026-09-26T18:00:00Z')
 const STREAM_URL = 'https://www.twitch.tv/ZilkaCYN'
 
 const DiscordIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
@@ -26,6 +28,35 @@ const DiscordIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
     <path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.213.38-.462.893-.634 1.301a18.27 18.27 0 0 0-5.5 0A12.6 12.6 0 0 0 9.115 3a19.74 19.74 0 0 0-4.435 1.371C1.4 9.043.65 13.6.925 18.096a19.9 19.9 0 0 0 6.06 3.06c.49-.665.926-1.372 1.302-2.115a12.9 12.9 0 0 1-2.049-.98c.172-.125.34-.256.503-.392a14.19 14.19 0 0 0 12.516 0c.166.14.334.27.503.392-.65.385-1.336.71-2.052.982.377.742.812 1.45 1.303 2.114a19.83 19.83 0 0 0 6.064-3.06c.323-5.218-.552-9.735-2.758-13.727ZM8.68 15.331c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.815 2.081-1.85 2.081Zm6.646 0c-1.017 0-1.85-.933-1.85-2.081 0-1.148.815-2.082 1.85-2.082 1.044 0 1.867.943 1.85 2.082 0 1.148-.806 2.081-1.85 2.081Z" />
   </svg>
 )
+
+function Countdown() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const left = Math.max(0, REVEAL_AT - now)
+  if (left === 0) return <p className="mt-4 font-display text-xl font-bold text-gold">The results are being revealed now!</p>
+
+  const total = Math.floor(left / 1000)
+  const parts = [
+    { label: 'days', value: Math.floor(total / 86400) },
+    { label: 'hours', value: Math.floor((total % 86400) / 3600) },
+    { label: 'min', value: Math.floor((total % 3600) / 60) },
+    { label: 'sec', value: total % 60 },
+  ]
+  return (
+    <div className="mt-4 flex justify-center gap-3" role="timer" aria-label="Time until the results are revealed">
+      {parts.map((p) => (
+        <div key={p.label} className="min-w-[4.25rem] rounded-xl border border-base-600 bg-base-800 px-3 py-2">
+          <div className="font-display text-2xl font-bold tabular-nums text-white">{String(p.value).padStart(2, '0')}</div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">{p.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function emptyAnswers(): SurveyAnswers {
   const a: SurveyAnswers = {}
@@ -166,11 +197,12 @@ export default function Survey() {
           <p className="text-slate-300">
             The results will be revealed on <span className="font-semibold text-white">{REVEAL_DATE}</span> on the following stream:
           </p>
+          <Countdown />
           <a
             href={STREAM_URL}
             target="_blank"
             rel="noreferrer"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#9146FF] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7c2ff2]"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#9146FF] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7c2ff2]"
           >
             {STREAM_URL.replace('https://www.', '')}
           </a>

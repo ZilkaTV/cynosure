@@ -161,6 +161,9 @@
     },
     {
       "path": "./src/vendor/openfront-core-59da4bc"
+    },
+    {
+      "path": "./src/vendor/openfront-core-824d141"
     }
   ]
 }

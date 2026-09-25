@@ -437,7 +437,13 @@ async function fetchPlayerGamesLive(publicId: string, maxPages: number): Promise
   const byGame = new Map<string, PlayerGame>()
   for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
   const merged = mergeAndCacheGames(publicId, [...byGame.values()])
-  saveSharedPlayerGames(publicId, merged)
+  // A short scan (Register's 3-page "is this really a CYN player" check) is
+  // deliberately NOT written to the shared cache: scripts/refresh-details.mjs
+  // stops paging as soon as a whole page is already known, so a truncated
+  // row there made the cron treat the member as up to date and never
+  // backfill their older history (confirmed: a member who registered this
+  // way was missing ~40 of 47 clan team wins on the site).
+  if (maxPages >= 25) saveSharedPlayerGames(publicId, merged)
   return merged
 }
 

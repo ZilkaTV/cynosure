@@ -114,11 +114,18 @@ async function fetchJson(url) {
 // affordable time-budget-wise: most runs are re-checking members who've only
 // played a handful of new games since the last pass, not re-walking their
 // entire history every single time.
+const SITE_START = '2026-07-12'
+
 async function fetchPlayerGames(publicId, knownGameIds) {
   const all = []
   for (const filter of [null, 'ranked']) {
     let cursor = null
-    for (let page = 0; page < (filter ? 13 : 25); page++) {
+    // A page holds only ~10 games, so the old 25/13 caps (250/130 games) cut off
+    // an active member's older clan history (confirmed: a newly-registered
+    // member with ~600 games was missing ~40 of 47 clan team wins). Paging also
+    // stops once a whole page predates the clan/site (SITE_START), so the
+    // higher caps only cost anything for a brand-new member's first walk.
+    for (let page = 0; page < (filter ? 60 : 150); page++) {
       const url = new URL(`https://api.openfront.io/public/player/${encodeURIComponent(publicId)}/games`)
       if (filter) url.searchParams.set('filter', filter)
       if (cursor) url.searchParams.set('cursor', cursor)
@@ -143,6 +150,7 @@ async function fetchPlayerGames(publicId, knownGameIds) {
       }
       const results = json.results ?? []
       all.push(...results)
+      if (results.length > 0 && results.every((g) => g.start < SITE_START)) break
       if (results.length > 0 && results.every((g) => knownGameIds.has(g.gameId))) break
       cursor = json.nextCursor ?? null
       if (!cursor) break

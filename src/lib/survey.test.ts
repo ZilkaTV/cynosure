@@ -165,3 +165,17 @@ describe('automatic look-alike merging', () => {
     expect(findAnswerProblem(ballot({ players_ffa: ['Wolfgang', 'Bravo', 'wolfgan'] }))).toMatchObject({ questionId: 'players_ffa', slots: [0, 2] })
   })
 })
+
+describe('short clan tags', () => {
+  it('allows two-letter clan tags like UN in clan questions but not in player questions', () => {
+    const answers = (id: string): SurveyResponseSummary[] => [
+      { inGameName: 'x', discordUsername: null, answers: { [id]: ['UN', 'a'] }, comment: null, createdAt: '' },
+    ]
+    expect(tally(answers('clans_ffa'), 'clans_ffa')).toEqual([{ name: 'UN', count: 1 }])
+    expect(tally(answers('players_ffa'), 'players_ffa')).toEqual([])
+  })
+
+  it('accepts UN as a clan answer at submit', () => {
+    expect(validateAnswers(ballot({ clans_team: ['UN', 'CYN', 'ASH'] }))).toBeNull()
+  })
+})

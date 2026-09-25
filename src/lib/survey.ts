@@ -115,7 +115,7 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
           slots: [i],
         }
       }
-      if (isJunkAnswer(name)) {
+      if (isJunkAnswer(name, q.id.startsWith('clans_'))) {
         return { message: `"${name}" isn't a real nominee - please enter an actual player/clan name for "${q.text}".`, questionId: q.id, slots: [i] }
       }
     }
@@ -380,10 +380,17 @@ function lookupAlias(simple: string): { key: string; display: string } | undefin
  * pure digits. Nobody's real nominee is that short or patterned - a genuine
  * 2-letter name would have to be spelled out longer to count.
  */
-export function isJunkAnswer(name: string): boolean {
+export function isJunkAnswer(name: string, isClanQuestion = false): boolean {
   const simple = simpleKey(name)
+  if (isClanQuestion) {
+    // Clan tags are legitimately 2-5 characters ("UN", "NU", "AA") - only a
+    // single character or filler words of 3+ letters are non-answers there.
+    if (simple.length < 2) return true
+    if (simple.length <= 2) return false
+    return JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple)) || /^[0-9]+$/.test(simple)
+  }
   if (simple.length <= 2) return true
-  if (/^(.)\1*$/.test(simple) || /^[0-9]+$/.test(simple)) return true
+  if (new Set(simple).size === 1 || /^[0-9]+$/.test(simple)) return true
   return JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple))
 }
 
@@ -492,7 +499,7 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
     const keys: string[] = []
     for (const name of r.answers[questionId] ?? []) {
       const simple = simpleKey(name)
-      if (isJunkAnswer(name)) continue
+      if (isJunkAnswer(name, isClanQuestion)) continue
       if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simple)) continue
       const alias = isClanQuestion ? undefined : lookupAlias(simple)
       const key = alias?.key ?? simple
@@ -555,7 +562,7 @@ export async function fetchSurveySuggestions(): Promise<Record<string, string[]>
   const byQuestion = new Map<string, Map<string, string>>()
   const add = (questionId: string, name: string) => {
     const trimmed = name.trim()
-    if (!trimmed || trimmed.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(trimmed) || isJunkAnswer(trimmed)) return
+    if (!trimmed || trimmed.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(trimmed) || isJunkAnswer(trimmed, questionId.startsWith('clans_'))) return
     const isClanQuestion = questionId.startsWith('clans_')
     if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simpleKey(trimmed))) return
     const display = canonicalDisplayName(trimmed, isClanQuestion).replace(/[[\]]/g, '')

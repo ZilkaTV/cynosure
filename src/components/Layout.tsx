@@ -155,7 +155,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 pt-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-end gap-2 px-4 pt-3 sm:px-6">
           <Link
             to="/"
             className="absolute left-3 top-2 z-10 font-display text-lg font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:left-4 sm:top-3 sm:text-2xl lg:text-3xl"

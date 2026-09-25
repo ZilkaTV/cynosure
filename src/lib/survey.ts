@@ -287,6 +287,12 @@ export interface TallyEntry {
   variants: string[]
 }
 
+/**
+ * Real players whose names are short enough to look like junk (see
+ * isJunkAnswer's length rule) - simpleKeys, always accepted.
+ */
+const SHORT_PLAYER_NAMES = new Set(['ry'])
+
 /** Non-answers ("idk", "none", ...) - dropped from the results entirely, compared via simpleKey. */
 const JUNK_ANSWERS = new Set(
   [
@@ -389,6 +395,7 @@ export function isJunkAnswer(name: string, isClanQuestion = false): boolean {
     if (simple.length <= 2) return false
     return JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple)) || /^[0-9]+$/.test(simple)
   }
+  if (SHORT_PLAYER_NAMES.has(simple)) return false
   if (simple.length <= 2) return true
   if (new Set(simple).size === 1 || /^[0-9]+$/.test(simple)) return true
   return JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple))

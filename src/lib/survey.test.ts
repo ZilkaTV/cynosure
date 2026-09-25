@@ -179,3 +179,10 @@ describe('short clan tags', () => {
     expect(validateAnswers(ballot({ clans_team: ['UN', 'CYN', 'ASH'] }))).toBeNull()
   })
 })
+
+describe('short player names', () => {
+  it('accepts RY as a player', () => {
+    expect(tally([resp(['RY']), resp(['ry']), resp(['ab'])], 'q')).toEqual([{ name: 'RY', count: 2 }])
+    expect(validateAnswers(ballot({ players_ffa: ['RY', 'Bravo', 'Charlie'] }))).toBeNull()
+  })
+})

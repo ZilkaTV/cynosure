@@ -4,7 +4,6 @@
 // (this is a one-off community poll, not part of the translated UI chrome).
 
 import { supabase } from './supabase'
-import { CLAN_TAG } from '../config'
 
 export interface SurveyQuestion {
   id: string
@@ -424,10 +423,10 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
 /**
  * Suggested names per question id: everyone already nominated in that
  * question (names only, never counts or who voted - via the
- * cyn_survey_nominees() function, see schema.sql), plus the clan's own
- * registered players for the player questions and [CYN] for the clan
- * questions. Every source is best-effort: a missing function or a failed
- * query just means fewer suggestions, never a broken form.
+ * cyn_survey_nominees() function, see schema.sql) - only names someone
+ * actually nominated, deliberately NOT the clan roster. Best-effort: a
+ * missing function or a failed query just means no suggestions, never a
+ * broken form.
  */
 export async function fetchSurveySuggestions(): Promise<Record<string, string[]>> {
   const byQuestion = new Map<string, Map<string, string>>()
@@ -444,14 +443,7 @@ export async function fetchSurveySuggestions(): Promise<Record<string, string[]>
   }
 
   if (supabase) {
-    const [members, nominees] = await Promise.all([
-      supabase.from('cyn_members').select('in_game_name'),
-      supabase.rpc('cyn_survey_nominees'),
-    ])
-    for (const q of ALL_SURVEY_QUESTIONS) {
-      if (q.id.startsWith('players_')) for (const m of (members.data ?? []) as { in_game_name: string }[]) add(q.id, m.in_game_name)
-      if (q.id.startsWith('clans_')) add(q.id, CLAN_TAG)
-    }
+    const nominees = await supabase.rpc('cyn_survey_nominees')
     for (const row of (nominees.data ?? []) as { question_id: string; name: string }[]) add(row.question_id, row.name)
   }
 

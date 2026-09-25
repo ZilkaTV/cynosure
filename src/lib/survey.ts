@@ -4,6 +4,7 @@
 // (this is a one-off community poll, not part of the translated UI chrome).
 
 import { supabase } from './supabase'
+import { CLAN_TAG } from '../config'
 
 export interface SurveyQuestion {
   id: string
@@ -90,33 +91,60 @@ export function normalizeForCompare(name: string): string {
  * (the same person can be nominated for both "best FFA player" and "best
  * Team Games player"), but not twice within the SAME question's slots.
  */
-export function validateAnswers(answers: SurveyAnswers): string | null {
+export interface AnswerProblem {
+  message: string
+  questionId: string
+  /** Which of the question's name slots are at fault (all of them for a too-short answer list). */
+  slots: number[]
+}
+
+/** Same checks as validateAnswers, but says WHICH question and slots are wrong so the form can outline them. */
+export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null {
   for (const q of ALL_SURVEY_QUESTIONS) {
     const raw = answers[q.id] ?? []
-    const slots = raw.map((s) => s.trim())
-    if (slots.length < ANSWERS_PER_QUESTION || slots.some((s) => !s)) {
-      return `Please fill in all ${ANSWERS_PER_QUESTION} name slots for: "${q.text}"`
+    const slots = Array.from({ length: ANSWERS_PER_QUESTION }, (_, i) => (raw[i] ?? '').trim())
+    const empty = slots.flatMap((s, i) => (s ? [] : [i]))
+    if (empty.length > 0) {
+      return { message: `Please fill in all ${ANSWERS_PER_QUESTION} name slots for: "${q.text}"`, questionId: q.id, slots: empty }
     }
-    for (const name of slots) {
-      if (name.length > MAX_NAME_LENGTH) return `"${name}" is too long (max ${MAX_NAME_LENGTH} characters).`
-      if (!NAME_PATTERN.test(name)) return `"${name}" contains a character that isn't allowed (letters, numbers, "_", "-" and "[]" only, no spaces).`
-      if (isJunkAnswer(name)) return `"${name}" isn't a real nominee - please enter an actual player/clan name for "${q.text}".`
+    for (const [i, name] of slots.entries()) {
+      if (name.length > MAX_NAME_LENGTH) return { message: `"${name}" is too long (max ${MAX_NAME_LENGTH} characters).`, questionId: q.id, slots: [i] }
+      if (!NAME_PATTERN.test(name)) {
+        return {
+          message: `"${name}" contains a character that isn't allowed (letters, numbers, "_", "-" and "[]" only, no spaces).`,
+          questionId: q.id,
+          slots: [i],
+        }
+      }
+      if (isJunkAnswer(name)) {
+        return { message: `"${name}" isn't a real nominee - please enter an actual player/clan name for "${q.text}".`, questionId: q.id, slots: [i] }
+      }
     }
     // Alias-aware: "Zixer" and "Zixer2" (or "Rex" and "Ultimus_rex") are the
     // same person, so naming both would just waste one of the three slots.
-    const seen = new Map<string, string>()
-    for (const name of slots) {
+    const seen = new Map<string, number>()
+    for (const [i, name] of slots.entries()) {
       const key = nomineeKey(name)
-      const earlier = seen.get(key)
-      if (earlier) {
-        return earlier.toLowerCase() === name.toLowerCase()
-          ? `You entered the same name twice for "${q.text}".`
-          : `"${earlier}" and "${name}" are the same nominee - please enter a different name for "${q.text}".`
+      const earlierIndex = seen.get(key)
+      if (earlierIndex !== undefined) {
+        const earlier = slots[earlierIndex]
+        return {
+          message:
+            earlier.toLowerCase() === name.toLowerCase()
+              ? `You entered the same name twice for "${q.text}".`
+              : `"${earlier}" and "${name}" are the same nominee - please enter a different name for "${q.text}".`,
+          questionId: q.id,
+          slots: [earlierIndex, i],
+        }
       }
-      seen.set(key, name)
+      seen.set(key, i)
     }
   }
   return null
+}
+
+export function validateAnswers(answers: SurveyAnswers): string | null {
+  return findAnswerProblem(answers)?.message ?? null
 }
 
 /** Trims every slot and rewrites known spelling variants to their canonical name before saving - validateAnswers already guarantees every slot is filled by the time this runs. */
@@ -259,7 +287,7 @@ const JUNK_ANSWERS = new Set(
  */
 const NAME_ALIAS_GROUPS: string[][] = [
   ['cosmicvoidarchon', 'cosmic', 'cosmicvoid'],
-  ['alt_number_3', 'alt_3', 'alt_number3'],
+  ['alt_number_3', 'alt_3', 'alt_number3', 'alt'],
   ['Zixer', 'Zixer1', 'Zixer2'],
   ['lewis', 'iamlewis'],
   ['Nebula', 'nebulaxy', 'nebualxy'],
@@ -367,4 +395,43 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
   return [...countByKey.entries()]
     .map(([key, count]) => ({ name: displayByKey.get(key)!, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
+// ── Name suggestions for the form's dropdown ───────────────────────────────
+
+/**
+ * Suggested names per question id: everyone already nominated in that
+ * question (names only, never counts or who voted - via the
+ * cyn_survey_nominees() function, see schema.sql), plus the clan's own
+ * registered players for the player questions and [CYN] for the clan
+ * questions. Every source is best-effort: a missing function or a failed
+ * query just means fewer suggestions, never a broken form.
+ */
+export async function fetchSurveySuggestions(): Promise<Record<string, string[]>> {
+  const byQuestion = new Map<string, Map<string, string>>()
+  const add = (questionId: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed || trimmed.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(trimmed) || isJunkAnswer(trimmed)) return
+    const display = canonicalDisplayName(trimmed).replace(/[[\]]/g, '')
+    const map = byQuestion.get(questionId) ?? new Map<string, string>()
+    const key = nomineeKey(display)
+    if (!map.has(key)) map.set(key, display)
+    byQuestion.set(questionId, map)
+  }
+
+  if (supabase) {
+    const [members, nominees] = await Promise.all([
+      supabase.from('cyn_members').select('in_game_name'),
+      supabase.rpc('cyn_survey_nominees'),
+    ])
+    for (const q of ALL_SURVEY_QUESTIONS) {
+      if (q.id.startsWith('players_')) for (const m of (members.data ?? []) as { in_game_name: string }[]) add(q.id, m.in_game_name)
+      if (q.id.startsWith('clans_')) add(q.id, CLAN_TAG)
+    }
+    for (const row of (nominees.data ?? []) as { question_id: string; name: string }[]) add(row.question_id, row.name)
+  }
+
+  const result: Record<string, string[]> = {}
+  for (const [questionId, map] of byQuestion) result[questionId] = [...map.values()].sort((a, b) => a.localeCompare(b))
+  return result
 }

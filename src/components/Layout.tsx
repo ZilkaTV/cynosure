@@ -155,15 +155,20 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
-        <div className="mx-auto flex max-w-7xl items-center justify-end gap-2 px-4 pt-3 sm:px-6">
-          <LanguageSwitcher />
-          {isInnerCircle && (
-            <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.metrics.navLabel}>
-              <ChartIcon />
-              <span className="hidden sm:inline">{t.metrics.navLabel}</span>
-            </Link>
-          )}
-          <AccountMenu />
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 pt-3 sm:px-6">
+          <Link to="/" className="font-display text-sm font-semibold tracking-wide text-slate-300 transition-colors hover:text-white">
+            CynClan.com
+          </Link>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            {isInnerCircle && (
+              <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.metrics.navLabel}>
+                <ChartIcon />
+                <span className="hidden sm:inline">{t.metrics.navLabel}</span>
+              </Link>
+            )}
+            <AccountMenu />
+          </div>
         </div>
 
         {/* centred crest - always links home */}

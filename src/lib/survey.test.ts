@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, type SurveyAnswers, type SurveyResponseSummary } from './survey'
+import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, findAnswerProblem, type SurveyAnswers, type SurveyResponseSummary } from './survey'
 
 function resp(names: string[]): SurveyResponseSummary {
   return { inGameName: 'x', discordUsername: null, answers: { q: names }, comment: null, createdAt: '' }
@@ -14,6 +14,11 @@ describe('tallyQuestion', () => {
   it('drops numbered non-answers and merges numbered / typo variants', () => {
     const t = tallyQuestion([resp(['idk2', 'idk3', 'cosmicvoid2']), resp(['cosmicvoidarchn']), resp(['CosmicVoidArchon'])], 'q')
     expect(t).toEqual([{ name: 'cosmicvoidarchon', count: 3 }])
+  })
+
+  it('treats alt and Alt_Number3 as the same nominee', () => {
+    const t = tallyQuestion([resp(['alt']), resp(['Alt_Number3']), resp(['alt_3'])], 'q')
+    expect(t).toEqual([{ name: 'alt_number_3', count: 3 }])
   })
 
   it('merges spelling variants voted by different people', () => {
@@ -56,5 +61,15 @@ describe('validateAnswers', () => {
 
   it('still allows the same name in different questions', () => {
     expect(validateAnswers(ballot({ players_ffa: ['Zixer', 'Bravo', 'Charlie'], players_team: ['Zixer2', 'Bravo', 'Charlie'] }))).toBeNull()
+  })
+})
+
+describe('findAnswerProblem', () => {
+  it('points at the exact empty slot', () => {
+    expect(findAnswerProblem(ballot({ players_ffa: ['Alpha', '', 'Charlie'] }))).toMatchObject({ questionId: 'players_ffa', slots: [1] })
+  })
+
+  it('points at both slots of a same-person pair', () => {
+    expect(findAnswerProblem(ballot({ clans_ffa: ['Zixer', 'Bravo', 'Zixer2'] }))).toMatchObject({ questionId: 'clans_ffa', slots: [0, 2] })
   })
 })

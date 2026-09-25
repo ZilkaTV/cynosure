@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom'
 import { useSession, useIsAdmin, discordDisplayName } from '../lib/useSession'
 import { startDiscordSignIn } from '../lib/discordAuth'
 import { Card, SectionHeading, Spinner } from '../components/ui'
+import NameInput from '../components/NameInput'
 import {
   SURVEY_CATEGORIES,
   ANSWERS_PER_QUESTION,
-  validateAnswers,
+  findAnswerProblem,
+  fetchSurveySuggestions,
+  type AnswerProblem,
   saveSurveyDraft,
   loadSurveyDraft,
   clearSurveyDraft,
@@ -43,6 +46,13 @@ export default function Survey() {
   const [submitted, setSubmitted] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [problem, setProblem] = useState<AnswerProblem | null>(null)
+  const [nameInvalid, setNameInvalid] = useState(false)
+  const [suggestions, setSuggestions] = useState<Record<string, string[]>>({})
+
+  useEffect(() => {
+    fetchSurveySuggestions().then(setSuggestions)
+  }, [])
 
   // Restores a draft saved right before a Discord redirect (or just a page
   // refresh mid-survey) - and, failing that, an already-submitted response
@@ -89,6 +99,7 @@ export default function Survey() {
   }, [inGameName, answers, comment, restoring, submitted])
 
   function setSlot(questionId: string, index: number, value: string) {
+    if (problem?.questionId === questionId) setProblem(null)
     setAnswers((prev) => {
       const next = [...(prev[questionId] ?? Array(ANSWERS_PER_QUESTION).fill(''))]
       next[index] = value
@@ -100,17 +111,21 @@ export default function Survey() {
     e.preventDefault()
     if (!inGameName.trim()) {
       setError('Please enter your OpenFront in-game name.')
+      setNameInvalid(true)
       return
     }
     setError(null)
+    setNameInvalid(false)
     setStep('questions')
   }
 
   async function onSubmit() {
     setError(null)
-    const validationError = validateAnswers(answers)
-    if (validationError) {
-      setError(validationError)
+    const found = findAnswerProblem(answers)
+    setProblem(found)
+    if (found) {
+      setError(found.message)
+      requestAnimationFrame(() => document.getElementById(`q-${found.questionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
       return
     }
 
@@ -208,9 +223,14 @@ export default function Survey() {
               <input
                 required
                 value={inGameName}
-                onChange={(e) => setInGameName(e.target.value)}
+                onChange={(e) => {
+                  setInGameName(e.target.value)
+                  setNameInvalid(false)
+                }}
                 placeholder="e.g. Bane"
-                className="w-full rounded-lg border border-base-600 bg-base-800 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+                className={`w-full rounded-lg border bg-base-800 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none ${
+                  nameInvalid ? 'border-signal-red focus:border-signal-red' : 'border-base-600 focus:border-accent'
+                }`}
               />
             </div>
             {error && (
@@ -237,21 +257,27 @@ export default function Survey() {
               <h2 className="mb-4 font-display text-lg font-bold text-white">{cat.title}</h2>
               <div className="space-y-5">
                 {cat.questions.map((q) => (
-                  <div key={q.id}>
+                  <div
+                    key={q.id}
+                    id={`q-${q.id}`}
+                    className={`rounded-lg ${problem?.questionId === q.id ? 'border border-signal-red/60 bg-signal-red/5 p-3' : 'border border-transparent p-3'}`}
+                  >
                     <p className="mb-2 text-sm font-medium text-slate-300">
                       {q.text} <span className="text-signal-red">*</span>
                     </p>
                     {/* sm:grid-cols-3 mirrors ANSWERS_PER_QUESTION (survey.ts) - Tailwind needs a literal class, so keep these in sync if that constant ever changes. */}
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {Array.from({ length: ANSWERS_PER_QUESTION }, (_, i) => (
-                        <input
+                        <NameInput
                           key={i}
-                          required
                           value={answers[q.id]?.[i] ?? ''}
-                          onChange={(e) => setSlot(q.id, i, e.target.value)}
+                          onChange={(v) => setSlot(q.id, i, v)}
+                          suggestions={(suggestions[q.id] ?? []).filter(
+                            (name) => !(answers[q.id] ?? []).some((other, j) => j !== i && other.trim().toLowerCase() === name.toLowerCase()),
+                          )}
+                          invalid={problem?.questionId === q.id && problem.slots.includes(i)}
                           placeholder="Name"
                           maxLength={32}
-                          className="w-full rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-accent focus:outline-none"
                         />
                       ))}
                     </div>

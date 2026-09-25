@@ -1320,3 +1320,22 @@ create policy "anyone can upsert cyn_clan_score_ledger"
 
 create policy "anyone can update cyn_clan_score_ledger"
   on public.cyn_clan_score_ledger for update to public using (true) with check (true);
+
+-- Name suggestions for the survey form's dropdown: every distinct name
+-- already nominated, per question - deliberately names ONLY (no counts, no
+-- respondents), since the responses table itself stays admin/own-row only
+-- until the stream reveal. security definer so anonymous visitors can call
+-- it without read access to the table.
+create or replace function public.cyn_survey_nominees()
+returns table (question_id text, name text)
+language sql
+security definer
+set search_path = public
+as $$
+  select distinct q.key, n.value
+  from public.cyn_survey_responses r,
+       jsonb_each(r.answers) as q(key, value),
+       jsonb_array_elements_text(q.value) as n(value)
+$$;
+
+grant execute on function public.cyn_survey_nominees() to anon, authenticated;

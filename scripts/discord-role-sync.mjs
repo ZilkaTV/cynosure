@@ -222,6 +222,7 @@ async function main() {
   // Needs the bot's "Server Members Intent"; without it the search just
   // fails and those members stay skipped, exactly as before.
   let resolvedByUsername = 0
+  const unresolvedUsernames = []
   for (const m of members ?? []) {
     if (m.discord_user_id || !m.discord_username) continue
     try {
@@ -236,6 +237,8 @@ async function main() {
       if (hit) {
         m.discord_user_id = hit.user.id
         resolvedByUsername++
+      } else {
+        unresolvedUsernames.push(wanted)
       }
     } catch (err) {
       console.error(`member search failed for ${m.openfront_id} (non-fatal):`, err)
@@ -478,7 +481,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ checked, resolvedByUsername, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
+  console.log(JSON.stringify({ checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
 }
 
 main().catch((err) => {

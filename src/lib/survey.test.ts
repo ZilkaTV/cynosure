@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, findAnswerProblem, type SurveyAnswers, type SurveyResponseSummary } from './survey'
+import { ALL_SURVEY_QUESTIONS, tallyQuestion, validateAnswers, findAnswerProblem, isSurveyClosed, REVEAL_AT, type SurveyAnswers, type SurveyResponseSummary } from './survey'
 
 const tally = (r: SurveyResponseSummary[], q: string) => tallyQuestion(r, q).map(({ name, count }) => ({ name, count }))
 
@@ -184,5 +184,13 @@ describe('short player names', () => {
   it('accepts RY as a player', () => {
     expect(tally([resp(['RY']), resp(['ry']), resp(['ab'])], 'q')).toEqual([{ name: 'RY', count: 2 }])
     expect(validateAnswers(ballot({ players_ffa: ['RY', 'Bravo', 'Charlie'] }))).toBeNull()
+  })
+})
+
+describe('closing', () => {
+  it('is open before the reveal and closed from that moment on', () => {
+    expect(isSurveyClosed(REVEAL_AT - 1)).toBe(false)
+    expect(isSurveyClosed(REVEAL_AT)).toBe(true)
+    expect(new Date(REVEAL_AT).toISOString()).toBe('2026-09-26T18:00:00.000Z')
   })
 })

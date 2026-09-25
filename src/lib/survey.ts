@@ -52,6 +52,18 @@ export const SURVEY_CATEGORIES: SurveyCategory[] = [
   },
 ]
 
+/**
+ * Submissions close when the results are revealed: 20:00 CEST (UTC+2) on
+ * Saturday 2026-09-26. Also enforced in the database (see the two survey
+ * policies in supabase/schema.sql) - this client-side check alone could be
+ * bypassed by calling the API directly.
+ */
+export const REVEAL_AT = Date.parse('2026-09-26T18:00:00Z')
+
+export function isSurveyClosed(now = Date.now()): boolean {
+  return now >= REVEAL_AT
+}
+
 export const ALL_SURVEY_QUESTIONS: SurveyQuestion[] = SURVEY_CATEGORIES.flatMap((c) => c.questions)
 
 /** How many nominee slots each question has. */
@@ -229,6 +241,7 @@ export async function submitSurvey(params: {
   comment: string
 }): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: 'Survey backend is not configured.' }
+  if (isSurveyClosed()) return { ok: false, error: 'The survey is closed - the results have been revealed.' }
   const validationError = validateAnswers(params.answers)
   if (validationError) return { ok: false, error: validationError }
 

@@ -1276,11 +1276,19 @@ create policy "admins can read cyn_survey_responses"
 create policy "users can read their own cyn_survey_responses"
   on public.cyn_survey_responses for select to authenticated using (auth.uid() = user_id);
 
+-- Submissions (and edits) close at the reveal: 2026-09-26 20:00 CEST = 18:00 UTC.
+-- Mirrors REVEAL_AT in src/lib/survey.ts. On an existing database this needs the
+-- drop/create form below, since "create policy" can't replace one in place.
+drop policy if exists "users can submit their own cyn_survey_responses" on public.cyn_survey_responses;
 create policy "users can submit their own cyn_survey_responses"
-  on public.cyn_survey_responses for insert to authenticated with check (auth.uid() = user_id);
+  on public.cyn_survey_responses for insert to authenticated
+  with check (auth.uid() = user_id and now() < timestamptz '2026-09-26 18:00:00+00');
 
+drop policy if exists "users can edit their own cyn_survey_responses" on public.cyn_survey_responses;
 create policy "users can edit their own cyn_survey_responses"
-  on public.cyn_survey_responses for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  on public.cyn_survey_responses for update to authenticated
+  using (auth.uid() = user_id and now() < timestamptz '2026-09-26 18:00:00+00')
+  with check (auth.uid() = user_id and now() < timestamptz '2026-09-26 18:00:00+00');
 
 -- Clan Score (Win Score / Loss Score / Win-Loss Ratio) - reproduces
 -- OpenFront's own official clan-leaderboard weighting formula (documented in

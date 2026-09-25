@@ -9,6 +9,8 @@ import {
   ANSWERS_PER_QUESTION,
   findAnswerProblem,
   fetchSurveySuggestions,
+  isSurveyClosed,
+  REVEAL_AT,
   type AnswerProblem,
   saveSurveyDraft,
   loadSurveyDraft,
@@ -19,8 +21,6 @@ import {
 } from '../lib/survey'
 
 const REVEAL_DATE = 'Saturday, September 26th 2026, 20:00 CEST (German time)'
-// 20:00 CEST (UTC+2) - keep in sync with REVEAL_DATE's wording above.
-const REVEAL_AT = Date.parse('2026-09-26T18:00:00Z')
 const STREAM_URL = 'https://www.twitch.tv/ZilkaCYN'
 
 const DiscordIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
@@ -79,6 +79,15 @@ export default function Survey() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [problem, setProblem] = useState<AnswerProblem | null>(null)
   const [nameInvalid, setNameInvalid] = useState(false)
+  const [closed, setClosed] = useState(isSurveyClosed())
+
+  // Flips the form to "closed" the moment the reveal time passes, even for
+  // someone who has had the page open the whole time.
+  useEffect(() => {
+    if (closed) return
+    const id = setTimeout(() => setClosed(true), Math.min(REVEAL_AT - Date.now(), 2 ** 31 - 1))
+    return () => clearTimeout(id)
+  }, [closed])
   const [suggestions, setSuggestions] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
@@ -229,6 +238,31 @@ export default function Survey() {
               {linkCopied ? 'Copied!' : 'Copy link'}
             </button>
           </div>
+        </Card>
+        <Link to="/" className="mt-6 inline-block text-sm text-slate-400 hover:text-accent-light">
+          ← Back to overview
+        </Link>
+      </div>
+    )
+  }
+
+  if (closed) {
+    return (
+      <div className="mx-auto max-w-xl text-center">
+        <SectionHeading eyebrow="Community Awards" title="The survey is closed" />
+        <Card className="mt-2">
+          <p className="text-slate-300">
+            Thank you to everyone who took part - submissions ended when the results were revealed on{' '}
+            <span className="font-semibold text-white">{REVEAL_DATE}</span>.
+          </p>
+          <a
+            href={STREAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#9146FF] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7c2ff2]"
+          >
+            {STREAM_URL.replace('https://www.', '')}
+          </a>
         </Card>
         <Link to="/" className="mt-6 inline-block text-sm text-slate-400 hover:text-accent-light">
           ← Back to overview

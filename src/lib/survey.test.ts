@@ -73,3 +73,18 @@ describe('findAnswerProblem', () => {
     expect(findAnswerProblem(ballot({ clans_ffa: ['Zixer', 'Bravo', 'Zixer2'] }))).toMatchObject({ questionId: 'clans_ffa', slots: [0, 2] })
   })
 })
+
+describe('junk and new aliases', () => {
+  it('drops very short, repeated-character and filler answers', () => {
+    const t = tallyQuestion([resp(['a', 'aa', 's', 'ss', 'me', 'Community']), resp(['aaaa', '1234', 'Zilka'])], 'q')
+    expect(t).toEqual([{ name: 'Zilka', count: 1 }])
+  })
+
+  it('merges jaded/jadedrose and ash/ashfall/ashfalllive', () => {
+    const t = tallyQuestion([resp(['jaded']), resp(['JadedRose']), resp(['ash']), resp(['ashfall']), resp(['ashfalllive'])], 'q')
+    expect(t).toEqual([
+      { name: 'ashfalllive', count: 3 },
+      { name: 'jadedrose', count: 2 },
+    ])
+  })
+})

@@ -275,7 +275,10 @@ export interface TallyEntry {
 
 /** Non-answers ("idk", "none", ...) - dropped from the results entirely, compared via simpleKey. */
 const JUNK_ANSWERS = new Set(
-  ['idk', 'idkn', 'dont', 'dontknow', 'idontknow', 'dunno', 'dk', 'any', 'blank', 'none', 'na', 'nobody', 'noone', 'nothing', 'unknown'],
+  [
+    'idk', 'idkn', 'dont', 'dontknow', 'idontknow', 'dunno', 'dk', 'any', 'blank', 'none', 'na', 'nobody', 'noone', 'nothing', 'unknown',
+    'me', 'myself', 'community', 'everyone', 'everybody', 'idc', 'nah', 'test', 'asd', 'asdf', 'qwerty',
+  ],
 )
 
 /**
@@ -288,10 +291,11 @@ const JUNK_ANSWERS = new Set(
 const NAME_ALIAS_GROUPS: string[][] = [
   ['cosmicvoidarchon', 'cosmic', 'cosmicvoid'],
   ['alt_number_3', 'alt_3', 'alt_number3', 'alt'],
+  ['ashfalllive', 'ashfall', 'ash'],
   ['Zixer', 'Zixer1', 'Zixer2'],
   ['lewis', 'iamlewis'],
   ['Nebula', 'nebulaxy', 'nebualxy'],
-  ['JadedRose', 'Jaddedrose', 'jadded'],
+  ['jadedrose', 'JadedRose', 'Jaddedrose', 'jadded', 'jaded'],
   ['UltimusRex', 'Rex', 'Ultimus', 'Ultimus_Red'],
   ['Biffeur', 'biff', 'TheBiffeur'],
   ['Vari', 'Vari_vari', 'Vari_vari_vari'],
@@ -351,9 +355,17 @@ function lookupAlias(simple: string): { key: string; display: string } | undefin
   return undefined
 }
 
+/**
+ * Non-answers: known filler words (also numbered, "idk2"), anything of one or
+ * two characters ("a", "s", "ss"), one repeated character ("aaa", "xxxx") and
+ * pure digits. Nobody's real nominee is that short or patterned - a genuine
+ * 2-letter name would have to be spelled out longer to count.
+ */
 export function isJunkAnswer(name: string): boolean {
   const simple = simpleKey(name)
-  return !simple || JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple))
+  if (simple.length <= 2) return true
+  if (/^(.)\1*$/.test(simple) || /^[0-9]+$/.test(simple)) return true
+  return JUNK_ANSWERS.has(simple) || JUNK_ANSWERS.has(stripTrailingDigits(simple))
 }
 
 /** Identity of a nominee for duplicate checks and tallying: the alias group's key if it belongs to one, else its simple key. */

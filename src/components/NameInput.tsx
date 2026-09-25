@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const ChevronIcon = ({ open }: { open: boolean }) => (
   <svg
@@ -15,6 +16,13 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 )
 
 const MAX_SHOWN = 8
+
+interface ListPosition {
+  left: number
+  width: number
+  top?: number
+  bottom?: number
+}
 
 /**
  * Text input with a suggestion list: typing filters it (names starting with
@@ -39,15 +47,41 @@ export default function NameInput({
   const [open, setOpen] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const [active, setActive] = useState(-1)
+  const [pos, setPos] = useState<ListPosition | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (!rootRef.current?.contains(target) && !listRef.current?.contains(target)) setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  // The list is rendered in a portal on <body>, positioned from the input's
+  // own rectangle, instead of inside the card: an absolutely-positioned list
+  // inside a card is painted UNDER the next card below it, which made the
+  // suggestions look cut off by the following section. Opens upward when
+  // there's little room below.
+  useLayoutEffect(() => {
+    if (!open) return
+    const update = () => {
+      const r = rootRef.current?.getBoundingClientRect()
+      if (!r) return
+      const spaceBelow = window.innerHeight - r.bottom
+      const openUp = spaceBelow < 240 && r.top > spaceBelow
+      setPos({ left: r.left, width: r.width, ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
   }, [open])
 
   const typed = value.trim().toLowerCase()
@@ -55,7 +89,10 @@ export default function NameInput({
   const filtered =
     showAll || !typed
       ? matches
-      : [...matches.filter((s) => s.toLowerCase().startsWith(typed)), ...matches.filter((s) => !s.toLowerCase().startsWith(typed) && s.toLowerCase().includes(typed))]
+      : [
+          ...matches.filter((s) => s.toLowerCase().startsWith(typed)),
+          ...matches.filter((s) => !s.toLowerCase().startsWith(typed) && s.toLowerCase().includes(typed)),
+        ]
   const shown = showAll ? filtered : filtered.slice(0, MAX_SHOWN)
 
   function pick(name: string) {
@@ -122,25 +159,33 @@ export default function NameInput({
           <ChevronIcon open={open && showAll} />
         </button>
       )}
-      {open && shown.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-base-600 bg-base-850 py-1 shadow-xl">
-          {shown.map((name, i) => (
-            <li key={name}>
-              <button
-                type="button"
-                // mousedown instead of click so the pick lands before the input's blur closes the list
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  pick(name)
-                }}
-                className={`block w-full truncate px-3 py-1.5 text-left text-sm ${i === active ? 'bg-accent/20 text-white' : 'text-slate-300 hover:bg-base-700'}`}
-              >
-                {name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        pos &&
+        shown.length > 0 &&
+        createPortal(
+          <ul
+            ref={listRef}
+            style={{ position: 'fixed', left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom }}
+            className="z-[200] max-h-56 overflow-y-auto rounded-lg border border-base-600 bg-base-850 py-1 shadow-xl"
+          >
+            {shown.map((name, i) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  // mousedown instead of click so the pick lands before the input's blur closes the list
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    pick(name)
+                  }}
+                  className={`block w-full truncate px-3 py-1.5 text-left text-sm ${i === active ? 'bg-accent/20 text-white' : 'text-slate-300 hover:bg-base-700'}`}
+                >
+                  {name}
+                </button>
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
     </div>
   )
 }

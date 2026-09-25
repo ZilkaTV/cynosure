@@ -124,7 +124,7 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
     // same person, so naming both would just waste one of the three slots.
     const seen = new Map<string, number>()
     for (const [i, name] of slots.entries()) {
-      const key = nomineeKey(name)
+      const key = nomineeKey(name, q.id.startsWith('clans_'))
       const earlierIndex = seen.get(key)
       if (earlierIndex !== undefined) {
         const earlier = slots[earlierIndex]
@@ -151,7 +151,7 @@ export function validateAnswers(answers: SurveyAnswers): string | null {
 function cleanAnswers(answers: SurveyAnswers): SurveyAnswers {
   const cleaned: SurveyAnswers = {}
   for (const q of ALL_SURVEY_QUESTIONS) {
-    cleaned[q.id] = (answers[q.id] ?? []).map((s) => canonicalDisplayName(s.trim()))
+    cleaned[q.id] = (answers[q.id] ?? []).map((s) => canonicalDisplayName(s.trim(), q.id.startsWith('clans_')))
   }
   return cleaned
 }
@@ -369,14 +369,22 @@ export function isJunkAnswer(name: string): boolean {
 }
 
 /** Identity of a nominee for duplicate checks and tallying: the alias group's key if it belongs to one, else its simple key. */
-function nomineeKey(name: string): string {
+function nomineeKey(name: string, isClanQuestion = false): string {
   const simple = simpleKey(name)
-  return lookupAlias(simple)?.key ?? simple
+  return (isClanQuestion ? undefined : lookupAlias(simple))?.key ?? simple
 }
 
-function canonicalDisplayName(name: string): string {
-  return lookupAlias(simpleKey(name))?.display ?? name
+function canonicalDisplayName(name: string, isClanQuestion = false): string {
+  return (isClanQuestion ? undefined : lookupAlias(simpleKey(name)))?.display ?? name
 }
+
+/**
+ * The name aliases above are all PLAYER spellings, so they don't apply to the
+ * clan questions (where "ash" is the real clan tag [ASH], not a short form of
+ * the player ashfalllive). A player's own name given as a "clan" is dropped
+ * from the clan questions' suggestions and results instead.
+ */
+const PLAYER_NAMES_NOT_CLANS = new Set(['ashfalllive', 'ashfall'])
 
 /**
  * Every nominee for one question, ranked by how many respondents named them.
@@ -393,7 +401,9 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
     for (const name of r.answers[questionId] ?? []) {
       const simple = simpleKey(name)
       if (isJunkAnswer(name)) continue
-      const alias = lookupAlias(simple)
+      const isClanQuestion = questionId.startsWith('clans_')
+      if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simple)) continue
+      const alias = isClanQuestion ? undefined : lookupAlias(simple)
       const key = alias?.key ?? simple
       if (seenThisResponse.has(key)) continue
       seenThisResponse.add(key)
@@ -424,9 +434,11 @@ export async function fetchSurveySuggestions(): Promise<Record<string, string[]>
   const add = (questionId: string, name: string) => {
     const trimmed = name.trim()
     if (!trimmed || trimmed.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(trimmed) || isJunkAnswer(trimmed)) return
-    const display = canonicalDisplayName(trimmed).replace(/[[\]]/g, '')
+    const isClanQuestion = questionId.startsWith('clans_')
+    if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simpleKey(trimmed))) return
+    const display = canonicalDisplayName(trimmed, isClanQuestion).replace(/[[\]]/g, '')
     const map = byQuestion.get(questionId) ?? new Map<string, string>()
-    const key = nomineeKey(display)
+    const key = nomineeKey(display, isClanQuestion)
     if (!map.has(key)) map.set(key, display)
     byQuestion.set(questionId, map)
   }

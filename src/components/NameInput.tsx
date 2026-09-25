@@ -15,8 +15,6 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
   </svg>
 )
 
-const MAX_SHOWN = 8
-
 interface ListPosition {
   left: number
   width: number
@@ -93,7 +91,8 @@ export default function NameInput({
           ...matches.filter((s) => s.toLowerCase().startsWith(typed)),
           ...matches.filter((s) => !s.toLowerCase().startsWith(typed) && s.toLowerCase().includes(typed)),
         ]
-  const shown = showAll ? filtered : filtered.slice(0, MAX_SHOWN)
+  // Every match is listed (the list itself scrolls) - capping it hid everything past the first few letters.
+  const shown = filtered
 
   function pick(name: string) {
     onChange(name)

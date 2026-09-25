@@ -88,3 +88,16 @@ describe('junk and new aliases', () => {
     ])
   })
 })
+
+describe('clan questions', () => {
+  it('keeps ash as a real clan tag and drops the player ashfalllive', () => {
+    const responses: SurveyResponseSummary[] = [
+      { inGameName: 'x', discordUsername: null, answers: { clans_ffa: ['ASH', 'ashfalllive', 'ashfall'] }, comment: null, createdAt: '' },
+      { inGameName: 'y', discordUsername: null, answers: { clans_ffa: ['ash', 'CYN'] }, comment: null, createdAt: '' },
+    ]
+    expect(tallyQuestion(responses, 'clans_ffa')).toEqual([
+      { name: 'ASH', count: 2 },
+      { name: 'CYN', count: 1 },
+    ])
+  })
+})

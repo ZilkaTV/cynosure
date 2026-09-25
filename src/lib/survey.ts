@@ -340,6 +340,7 @@ const NAME_ALIAS_GROUPS: string[][] = [
   ['Skailex', 'Skaillex'],
   ['Space_Sheep', 'Space_Sheeep'],
   ['Mortality', 'Morta'],
+  ['John', 'jhon'],
   ['Nvr_Kn', 'Nvr'],
   ['pyrrah', 'pyrrha'],
   ['soothxng', 'soothing'],

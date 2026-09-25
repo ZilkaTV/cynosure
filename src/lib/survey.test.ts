@@ -194,3 +194,9 @@ describe('closing', () => {
     expect(new Date(REVEAL_AT).toISOString()).toBe('2026-09-26T18:00:00.000Z')
   })
 })
+
+describe('John alias', () => {
+  it('shows jhon as John', () => {
+    expect(tally([resp(['jhon']), resp(['John'])], 'q')).toEqual([{ name: 'John', count: 2 }])
+  })
+})

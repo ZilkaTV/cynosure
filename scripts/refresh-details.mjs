@@ -125,7 +125,7 @@ async function fetchPlayerGames(publicId, knownGameIds) {
     // member with ~600 games was missing ~40 of 47 clan team wins). Paging also
     // stops once a whole page predates the clan/site (SITE_START), so the
     // higher caps only cost anything for a brand-new member's first walk.
-    for (let page = 0; page < (filter ? 60 : 150); page++) {
+    for (let page = 0; page < (filter ? 150 : 400); page++) {
       const url = new URL(`https://api.openfront.io/public/player/${encodeURIComponent(publicId)}/games`)
       if (filter) url.searchParams.set('filter', filter)
       if (cursor) url.searchParams.set('cursor', cursor)

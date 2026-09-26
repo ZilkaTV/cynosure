@@ -117,6 +117,57 @@ function QuestionResults({
   )
 }
 
+/** Admin-only: who voted for whom in the player categories, with a plain-text copy for pasting elsewhere. */
+function VotersSection({ responses }: { responses: SurveyResponseSummary[] }) {
+  const [copied, setCopied] = useState(false)
+  const playerQuestions = SURVEY_CATEGORIES.find((c) => c.id === 'players')?.questions ?? []
+  const blocks = playerQuestions.map((q) => ({ q, tally: tallyQuestion(responses, q.id) }))
+
+  const asText = blocks
+    .map(({ q, tally }) => [q.text, ...tally.map((e) => '  ' + e.name + ' (' + e.count + '): ' + e.voters.join(', '))].join('\n'))
+    .join('\n\n')
+
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-lg font-bold text-white">Who voted for whom (players)</h2>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(asText)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            } catch {
+              /* clipboard can be blocked - the list is still on screen */
+            }
+          }}
+        >
+          {copied ? 'Copied!' : 'Copy as text'}
+        </button>
+      </div>
+      <p className="mb-3 text-xs text-slate-500">Admin only. Voters are shown as in-game name and Discord username.</p>
+      <div className="space-y-2">
+        {blocks.map(({ q, tally }) => (
+          <details key={q.id} className="rounded-lg bg-base-800 px-3.5 py-2.5">
+            <summary className="cursor-pointer text-sm font-medium text-slate-300">{q.text}</summary>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {tally.map((e) => (
+                <li key={e.name}>
+                  <span className="font-semibold text-white">{e.name}</span>{' '}
+                  <span className="text-slate-500">({e.count})</span>
+                  <span className="text-slate-400"> - {e.voters.join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function CommentsSection({ responses }: { responses: SurveyResponseSummary[] }) {
   const commented = responses.filter((r) => r.comment)
   const [revealedNames, setRevealedNames] = useState<Set<number>>(new Set())
@@ -188,6 +239,8 @@ export default function SurveyResults() {
           </div>
         </Card>
       ))}
+
+      {isAdmin && <VotersSection responses={responses} />}
 
       <CommentsSection responses={responses} />
     </div>

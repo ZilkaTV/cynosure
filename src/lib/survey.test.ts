@@ -229,3 +229,19 @@ describe('clan aliases', () => {
     expect(validateAnswers(ballot({ clans_ffa: ['LBU', 'CYN', 'LUB'] }))).toMatch(/same nominee/)
   })
 })
+
+describe('voters', () => {
+  it('lists who voted for each nominee, merged variants included, each voter once', () => {
+    const responses: SurveyResponseSummary[] = [
+      { inGameName: 'Anna', discordUsername: 'anna_d', answers: { q: ['Wolfgang', 'wolfgan'] }, comment: null, createdAt: '' },
+      { inGameName: 'Bob', discordUsername: null, answers: { q: ['Wolfgang2'] }, comment: null, createdAt: '' },
+    ]
+    const t = tallyQuestion(responses, 'q')
+    expect(t[0].name).toBe('Wolfgang')
+    expect(t[0].voters).toEqual(['Anna (@anna_d)', 'Bob'])
+  })
+
+  it('has no voters for anonymous (public) responses', () => {
+    expect(tallyQuestion([resp(['Zilka'])], 'q')[0].voters).toEqual([])
+  })
+})

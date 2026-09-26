@@ -325,6 +325,8 @@ export interface TallyEntry {
   count: number
   /** Other spellings that were automatically folded into this entry (for the admin to double-check). */
   variants: string[]
+  /** Who voted for this nominee ("InGameName (@discord)") - only filled where the responses carry identities (the admin view). */
+  voters: string[]
 }
 
 /**
@@ -551,6 +553,7 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
 
   // Pass 1: each response's distinct nominee keys (curated aliases applied).
   const answersByResponse: string[][] = []
+  const voterLabels: string[] = []
   const countByKey = new Map<string, number>()
   const displayByKey = new Map<string, string>()
   const curatedDisplayByKey = new Map<string, string>()
@@ -572,6 +575,8 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
       if (!displayByKey.has(key)) displayByKey.set(key, alias?.display ?? name.replace(/[[\]]/g, ''))
     }
     answersByResponse.push(keys)
+    const label = [r.inGameName, r.discordUsername ? '(@' + r.discordUsername + ')' : ''].filter(Boolean).join(' ')
+    voterLabels.push(label)
   }
 
   // Pass 2: fold look-alike keys into their leader (player questions only).
@@ -581,9 +586,13 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
 
   // Pass 3: count DIFFERENT voters per leader.
   const voters = new Map<string, number>()
-  for (const keys of answersByResponse) {
-    for (const leader of new Set(keys.map((k) => leaderOf.get(k)!))) voters.set(leader, (voters.get(leader) ?? 0) + 1)
-  }
+  const voterNames = new Map<string, string[]>()
+  answersByResponse.forEach((keys, idx) => {
+    for (const leader of new Set(keys.map((k) => leaderOf.get(k)!))) {
+      voters.set(leader, (voters.get(leader) ?? 0) + 1)
+      if (voterLabels[idx]) voterNames.set(leader, [...(voterNames.get(leader) ?? []), voterLabels[idx]])
+    }
+  })
 
   const variantsByLeader = new Map<string, string[]>()
   const displayForLeader = new Map<string, string>()
@@ -603,6 +612,7 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
       name: displayForLeader.get(leader)!,
       count,
       variants: (variantsByLeader.get(leader) ?? []).filter((v) => v !== displayForLeader.get(leader)),
+      voters: (voterNames.get(leader) ?? []).sort((a, b) => a.localeCompare(b)),
     }))
     .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
 }

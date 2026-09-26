@@ -242,6 +242,7 @@ describe('voters', () => {
   })
 
   it('has no voters for anonymous (public) responses', () => {
-    expect(tallyQuestion([resp(['Zilka'])], 'q')[0].voters).toEqual([])
+    const anonymous: SurveyResponseSummary = { inGameName: '', discordUsername: null, answers: { q: ['Zilka'] }, comment: null, createdAt: '' }
+    expect(tallyQuestion([anonymous], 'q')[0].voters).toEqual([])
   })
 })

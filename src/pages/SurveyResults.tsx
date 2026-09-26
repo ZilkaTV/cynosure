@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useIsAdmin } from '../lib/useSession'
 import { Card, SectionHeading, Spinner, StatCard } from '../components/ui'
-import { SURVEY_CATEGORIES, fetchAllSurveyResponses, tallyQuestion, type SurveyResponseSummary } from '../lib/survey'
+import {
+  SURVEY_CATEGORIES,
+  RESULTS_PUBLIC,
+  fetchAllSurveyResponses,
+  fetchPublicSurveyResponses,
+  isSurveyClosed,
+  tallyQuestion,
+  type SurveyResponseSummary,
+} from '../lib/survey'
 
 const EyeIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -52,7 +60,17 @@ function toggleIndex(set: Set<number>, setter: (s: Set<number>) => void, i: numb
 
 const TOP_N_DEFAULT = 5
 
-function QuestionResults({ questionId, questionText, responses }: { questionId: string; questionText: string; responses: SurveyResponseSummary[] }) {
+function QuestionResults({
+  questionId,
+  questionText,
+  responses,
+  revealAll,
+}: {
+  questionId: string
+  questionText: string
+  responses: SurveyResponseSummary[]
+  revealAll: boolean
+}) {
   const tally = tallyQuestion(responses, questionId)
   const [revealedNames, setRevealedNames] = useState<Set<number>>(new Set())
   const [revealedCounts, setRevealedCounts] = useState<Set<number>>(new Set())
@@ -76,14 +94,14 @@ function QuestionResults({ questionId, questionText, responses }: { questionId: 
           <li key={i} className="flex items-center gap-3 text-sm">
             <span className="w-5 shrink-0 text-right text-slate-600">{i + 1}.</span>
             <RevealButton
-              revealed={revealedNames.has(i)}
+              revealed={revealAll || revealedNames.has(i)}
               onToggle={() => toggleIndex(revealedNames, setRevealedNames, i)}
               text={entry.name}
               title={entry.variants.length > 0 ? `Also counted: ${entry.variants.join(', ')}` : undefined}
             />
             <span className="text-slate-700">·</span>
             <RevealButton
-              revealed={revealedCounts.has(i)}
+              revealed={revealAll || revealedCounts.has(i)}
               onToggle={() => toggleIndex(revealedCounts, setRevealedCounts, i)}
               text={`${entry.count} ${entry.count === 1 ? 'vote' : 'votes'}`}
             />
@@ -130,14 +148,20 @@ export default function SurveyResults() {
   const isAdmin = useIsAdmin()
   const [responses, setResponses] = useState<SurveyResponseSummary[] | null>(null)
 
+  // Everyone else may look once results are public AND the survey has closed.
+  const publicView = !isAdmin && RESULTS_PUBLIC && isSurveyClosed()
+
   useEffect(() => {
     if (isAdmin) fetchAllSurveyResponses().then(setResponses)
-  }, [isAdmin])
+    else if (publicView) fetchPublicSurveyResponses().then(setResponses)
+  }, [isAdmin, publicView])
 
-  if (!isAdmin) {
+  if (!isAdmin && !publicView) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
-        <p className="text-slate-400">Admins only.</p>
+        <p className="text-slate-400">
+          {RESULTS_PUBLIC ? 'The results will be available once the survey has closed.' : 'Admins only.'}
+        </p>
       </div>
     )
   }
@@ -151,7 +175,7 @@ export default function SurveyResults() {
         <StatCard label="Participants" value={responses.length} accent="gold" />
       </div>
       <p className="text-center text-sm text-slate-500">
-        Click the eye icons to reveal a name or its vote count independently, for the stream.
+        {publicView ? "Final results of the community awards survey." : "Click the eye icons to reveal a name or its vote count independently, for the stream."}
       </p>
 
       {SURVEY_CATEGORIES.map((cat) => (
@@ -159,7 +183,7 @@ export default function SurveyResults() {
           <h2 className="mb-1 font-display text-lg font-bold text-white">{cat.title}</h2>
           <div>
             {cat.questions.map((q) => (
-              <QuestionResults key={q.id} questionId={q.id} questionText={q.text} responses={responses} />
+              <QuestionResults key={q.id} questionId={q.id} questionText={q.text} responses={responses} revealAll={publicView} />
             ))}
           </div>
         </Card>

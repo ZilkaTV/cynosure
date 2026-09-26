@@ -1347,3 +1347,20 @@ as $$
 $$;
 
 grant execute on function public.cyn_survey_nominees() to anon, authenticated;
+
+-- PUBLIC SURVEY RESULTS - not applied yet; run this when RESULTS_PUBLIC in
+-- src/lib/survey.ts is switched to true. Returns ONLY the answers (never
+-- names, Discord usernames or comments) and nothing at all before the
+-- reveal (2026-09-26 20:00 CEST = 18:00 UTC), so it's safe to expose.
+create or replace function public.cyn_survey_public_answers()
+returns table (answers jsonb)
+language sql
+security definer
+set search_path = public
+as $$
+  select r.answers
+  from public.cyn_survey_responses r
+  where now() >= timestamptz '2026-09-26 18:00:00+00'
+$$;
+
+grant execute on function public.cyn_survey_public_answers() to anon, authenticated;

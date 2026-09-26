@@ -64,6 +64,15 @@ export function isSurveyClosed(now = Date.now()): boolean {
   return now >= REVEAL_AT
 }
 
+/**
+ * Launch switch for public results. While false, only admins see the Results
+ * button and page (today's behaviour). Set to true - and run the
+ * cyn_survey_public_answers() SQL from supabase/schema.sql - to show the
+ * button to everyone and let anyone view the results once the survey is
+ * closed (see isSurveyClosed).
+ */
+export const RESULTS_PUBLIC = false
+
 export const ALL_SURVEY_QUESTIONS: SurveyQuestion[] = SURVEY_CATEGORIES.flatMap((c) => c.questions)
 
 /** How many nominee slots each question has. */
@@ -290,6 +299,24 @@ export async function fetchAllSurveyResponses(): Promise<SurveyResponseSummary[]
     answers: r.answers,
     comment: r.comment,
     createdAt: r.created_at,
+  }))
+}
+
+/**
+ * The public version of the results: ONLY the answers, via a security-definer
+ * function that returns nothing before the reveal - never names, Discord
+ * usernames or comments (those stay admin-only in cyn_survey_responses).
+ */
+export async function fetchPublicSurveyResponses(): Promise<SurveyResponseSummary[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('cyn_survey_public_answers')
+  if (error || !data) return []
+  return (data as { answers: SurveyAnswers }[]).map((r) => ({
+    inGameName: '',
+    discordUsername: null,
+    answers: r.answers,
+    comment: null,
+    createdAt: '',
   }))
 }
 

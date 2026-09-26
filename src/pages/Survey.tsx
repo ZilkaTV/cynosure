@@ -10,6 +10,7 @@ import {
   findAnswerProblem,
   fetchSurveySuggestions,
   isSurveyClosed,
+  RESULTS_PUBLIC,
   REVEAL_AT,
   type AnswerProblem,
   saveSurveyDraft,
@@ -239,6 +240,13 @@ export default function Survey() {
             </button>
           </div>
         </Card>
+        {(isAdmin || RESULTS_PUBLIC) && (
+          <div className="mt-6">
+            <Link to="/survey/results" className="btn-ghost">
+              Results
+            </Link>
+          </div>
+        )}
         <Link to="/" className="mt-6 inline-block text-sm text-slate-400 hover:text-accent-light">
           ← Back to overview
         </Link>
@@ -264,6 +272,13 @@ export default function Survey() {
             {STREAM_URL.replace('https://www.', '')}
           </a>
         </Card>
+        {(isAdmin || RESULTS_PUBLIC) && (
+          <div className="mt-6">
+            <Link to="/survey/results" className="btn-ghost">
+              Results
+            </Link>
+          </div>
+        )}
         <Link to="/" className="mt-6 inline-block text-sm text-slate-400 hover:text-accent-light">
           ← Back to overview
         </Link>
@@ -390,7 +405,7 @@ export default function Survey() {
                 <DiscordIcon className="h-4 w-4" /> Sign in with Discord to submit
               </button>
             )}
-            {isAdmin && (
+            {(isAdmin || RESULTS_PUBLIC) && (
               <Link to="/survey/results" className="btn-ghost">
                 Results
               </Link>

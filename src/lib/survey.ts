@@ -330,7 +330,7 @@ const NAME_ALIAS_GROUPS: string[][] = [
   ['Nebula', 'nebulaxy', 'nebualxy'],
   ['jadedrose', 'JadedRose', 'Jaddedrose', 'jadded', 'jaded'],
   ['UltimusRex', 'Rex', 'Ultimus', 'Ultimus_Red'],
-  ['Biffeur', 'biff', 'TheBiffeur'],
+  ['biffeur', 'Biffeur', 'biff', 'TheBiffeur', 'thebiff'],
   ['Vari', 'Vari_vari', 'Vari_vari_vari'],
   ['Dougy', 'DougyJr', 'Dougy2', 'Doogy', 'DougDoug'],
   ['LonelyMillenial', 'lonley_millenial', 'Lonnely', 'Millenial'],
@@ -341,11 +341,15 @@ const NAME_ALIAS_GROUPS: string[][] = [
   ['Space_Sheep', 'Space_Sheeep'],
   ['Mortality', 'Morta'],
   ['John', 'jhon'],
+  ['Ry', 'Ryy'],
   ['Nvr_Kn', 'Nvr'],
   ['pyrrah', 'pyrrha'],
   ['soothxng', 'soothing'],
   ['evil_Mitochondria', 'evimito'],
 ]
+
+/** Same idea for the clan questions: differently-typed spellings of one clan tag, first entry = shown. */
+const CLAN_ALIAS_GROUPS: string[][] = [['LBU', 'LUB']]
 
 /** Case-insensitive, ignoring brackets/underscores/hyphens/spaces - "Ultimus_rex" and "UltimusRex" are the same key. */
 function simpleKey(name: string): string {
@@ -379,6 +383,13 @@ function editDistanceAtMost1(a: string, b: string): boolean {
  * dropped, then a single-character typo of a long-enough alias (>= 6 chars,
  * so short names like "Rex" can never fuzzy-match something else).
  */
+const CLAN_ALIAS_CANONICAL = new Map<string, { key: string; display: string }>()
+for (const [canonical, ...aliases] of CLAN_ALIAS_GROUPS) {
+  const entry = { key: simpleKey(canonical), display: canonical }
+  CLAN_ALIAS_CANONICAL.set(entry.key, entry)
+  for (const a of aliases) CLAN_ALIAS_CANONICAL.set(simpleKey(a), entry)
+}
+
 function lookupAlias(simple: string): { key: string; display: string } | undefined {
   const exact = ALIAS_CANONICAL.get(simple)
   if (exact) return exact
@@ -418,11 +429,11 @@ export function isJunkAnswer(name: string, isClanQuestion = false): boolean {
 /** Identity of a nominee for duplicate checks and tallying: the alias group's key if it belongs to one, else its simple key. */
 function nomineeKey(name: string, isClanQuestion = false): string {
   const simple = simpleKey(name)
-  return (isClanQuestion ? undefined : lookupAlias(simple))?.key ?? simple
+  return (isClanQuestion ? CLAN_ALIAS_CANONICAL.get(simple) : lookupAlias(simple))?.key ?? simple
 }
 
 function canonicalDisplayName(name: string, isClanQuestion = false): string {
-  return (isClanQuestion ? undefined : lookupAlias(simpleKey(name)))?.display ?? name
+  return (isClanQuestion ? CLAN_ALIAS_CANONICAL.get(simpleKey(name)) : lookupAlias(simpleKey(name)))?.display ?? name
 }
 
 /**
@@ -522,7 +533,7 @@ export function tallyQuestion(responses: SurveyResponseSummary[], questionId: st
       const simple = simpleKey(name)
       if (isJunkAnswer(name, isClanQuestion)) continue
       if (isClanQuestion && PLAYER_NAMES_NOT_CLANS.has(simple)) continue
-      const alias = isClanQuestion ? undefined : lookupAlias(simple)
+      const alias = isClanQuestion ? CLAN_ALIAS_CANONICAL.get(simple) : lookupAlias(simple)
       const key = alias?.key ?? simple
       if (keys.includes(key)) continue
       keys.push(key)

@@ -182,7 +182,7 @@ describe('short clan tags', () => {
 
 describe('short player names', () => {
   it('accepts RY as a player', () => {
-    expect(tally([resp(['RY']), resp(['ry']), resp(['ab'])], 'q')).toEqual([{ name: 'RY', count: 2 }])
+    expect(tally([resp(['RY']), resp(['ry']), resp(['ab'])], 'q')).toEqual([{ name: 'Ry', count: 2 }])
     expect(validateAnswers(ballot({ players_ffa: ['RY', 'Bravo', 'Charlie'] }))).toBeNull()
   })
 })
@@ -198,5 +198,34 @@ describe('closing', () => {
 describe('John alias', () => {
   it('shows jhon as John', () => {
     expect(tally([resp(['jhon']), resp(['John'])], 'q')).toEqual([{ name: 'John', count: 2 }])
+  })
+})
+
+describe('Ry alias', () => {
+  it('counts Ryy as Ry', () => {
+    expect(tally([resp(['Ryy']), resp(['ry']), resp(['RY', 'Ryy'])], 'q')).toEqual([{ name: 'Ry', count: 3 }])
+  })
+})
+
+describe('Biffeur alias', () => {
+  it('shows biff/thebiff/TheBiffeur as biffeur', () => {
+    expect(tally([resp(['thebiff']), resp(['Biffeur']), resp(['biff', 'TheBiffeur'])], 'q')).toEqual([{ name: 'biffeur', count: 3 }])
+  })
+})
+
+describe('clan aliases', () => {
+  it('counts LUB as LBU in clan questions, one voter once', () => {
+    const responses: SurveyResponseSummary[] = [
+      { inGameName: 'x', discordUsername: null, answers: { clans_ffa: ['LUB', 'CYN'] }, comment: null, createdAt: '' },
+      { inGameName: 'y', discordUsername: null, answers: { clans_ffa: ['lbu', 'LUB'] }, comment: null, createdAt: '' },
+    ]
+    expect(tally(responses, 'clans_ffa')).toEqual([
+      { name: 'LBU', count: 2 },
+      { name: 'CYN', count: 1 },
+    ])
+  })
+
+  it('warns when both spellings are entered in one clan question', () => {
+    expect(validateAnswers(ballot({ clans_ffa: ['LBU', 'CYN', 'LUB'] }))).toMatch(/same nominee/)
   })
 })

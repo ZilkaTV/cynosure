@@ -71,7 +71,7 @@ export function isSurveyClosed(now = Date.now()): boolean {
  * button to everyone and let anyone view the results once the survey is
  * closed (see isSurveyClosed).
  */
-export const RESULTS_PUBLIC = false
+export const RESULTS_PUBLIC = true
 
 export const ALL_SURVEY_QUESTIONS: SurveyQuestion[] = SURVEY_CATEGORIES.flatMap((c) => c.questions)
 

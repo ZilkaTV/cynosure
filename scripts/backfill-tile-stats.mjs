@@ -75,19 +75,25 @@ async function fetchRegisteredMembers() {
   })
 }
 
+// Reads each member's game list from our own shared cache
+// (cyn_member_games_cache, kept current by refresh-details.mjs) instead of
+// paging OpenFront's player-games endpoint directly. The old direct calls
+// swallowed every error into an empty list (.catch -> no games), so a
+// rate-limited or blocked run from GitHub's IPs silently reported "0 recent
+// games, nothing to backfill" - confirmed in the run log while 18 of the 25
+// newest CYN games had no Max Tiles row at all.
 async function fetchRecentGameIds() {
   const members = await fetchRegisteredMembers()
   const cutoff = Date.now() - daysBack * 86_400_000
   const ids = new Set()
   for (const m of members) {
-    const [main, ranked] = await Promise.all([
-      fetchJson(`https://api.openfront.io/public/player/${encodeURIComponent(m.openfront_id)}/games`),
-      fetchJson(`https://api.openfront.io/public/player/${encodeURIComponent(m.openfront_id)}/games?filter=ranked`),
-    ]).catch(() => [{ results: [] }, { results: [] }])
-    const byId = new Map()
-    for (const g of [...(main.results ?? []), ...(ranked.results ?? [])]) byId.set(g.gameId, g)
-    for (const g of byId.values()) {
+    const rows = await fetchJson(
+      `${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=games&openfront_id=eq.${encodeURIComponent(m.openfront_id)}`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+    )
+    for (const g of rows[0]?.games ?? []) {
       if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer' || g.type === 'Private') continue
+      if (g.result === 'incomplete') continue
       if (new Date(g.start).getTime() < cutoff) continue
       ids.add(g.gameId)
     }

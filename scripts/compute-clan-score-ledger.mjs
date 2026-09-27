@@ -95,7 +95,24 @@ async function main() {
   }
   const supabase = createClient(url, key)
 
-  const { data: gamesRows, error } = await supabase.from('cyn_member_games_cache').select('games')
+  // Confirmed live: this exact query (identical URL every run - no filters,
+  // no pagination) kept returning a byte-identical, hours-stale response
+  // when called from GitHub Actions - the same script run locally with the
+  // same credentials always saw current data. Supabase's REST endpoint sits
+  // behind Cloudflare (visible in its own response headers), and GitHub
+  // Actions runner IPs are well-known datacenter ranges Cloudflare's bot
+  // heuristics are especially likely to flag - plausibly serving those
+  // requests a cached/degraded response instead of hitting Postgres fresh
+  // each time, the same class of problem already confirmed for OpenFront's
+  // own Cloudflare-fronted API elsewhere in this repo (see fetchRankedMap's
+  // own comment). A harmless, always-true filter keyed to the current
+  // second makes the request URL genuinely different every run, defeating
+  // any exact-URL cache without changing which rows come back.
+  const { data: gamesRows, error } = await supabase
+    .from('cyn_member_games_cache')
+    .select('games')
+    .gte('updated_at', '1970-01-01T00:00:00Z')
+    .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
   if (error) throw error
 
   // One entry per gameId (not per member) - clanPlayerCount is how many

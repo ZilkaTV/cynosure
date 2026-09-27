@@ -13,7 +13,7 @@ import { cleanDisplayName } from '../lib/displayName'
 
 const PAGE_SIZE = 40
 
-type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'private'
+type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'private' | 'incomplete'
 
 function modeLabel(g: PlayerGame): string {
   return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
@@ -28,10 +28,15 @@ function fmtDuration(s: number): string {
 // four - matches how the request framed it ("FFA, Teams, 1v1, 2v2, Private
 // games" as five parallel options), and keeps the public-mode filters clean
 // (a private FFA game only shows up under "Private", not double-counted
-// under "FFA" too).
+// under "FFA" too). Incomplete is a sixth, similarly orthogonal bucket -
+// abandoned/never-finished games of ANY mode or type, most usefully the
+// incomplete ranked 1v1/2v2 matches that every other filter hides
+// entirely (see isIncompleteRanked) so they don't clutter the normal
+// lists, but are still reachable here on purpose rather than just gone.
 function matchesFilter(g: PlayerGame, filter: Filter): boolean {
+  if (filter === 'incomplete') return g.result === 'incomplete'
   if (filter === 'private') return g.type === 'Private'
-  if (g.type === 'Private') return false
+  if (g.type === 'Private' || isIncompleteRanked(g)) return false
   if (filter === 'all') return true
   if (filter === 'ffa') return isFfa(g)
   if (filter === 'team') return isTeam(g)
@@ -66,7 +71,6 @@ export default function History() {
   const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string }[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
-      if (isIncompleteRanked(g)) continue
       const existing = byGameId.get(g.gameId)
       if (existing) existing.members.push({ publicId: m.publicId, name: m.name })
       else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name }] })
@@ -120,6 +124,7 @@ export default function History() {
     { key: '1v1', label: t.history.filter1v1 },
     { key: '2v2', label: t.history.filter2v2 },
     { key: 'private', label: t.history.filterPrivate },
+    { key: 'incomplete', label: t.history.filterIncomplete },
   ]
 
   return (

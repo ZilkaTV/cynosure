@@ -196,14 +196,29 @@ async function fetchRankedMap() {
   const byId2v2 = new Map()
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
     let json
-    try {
-      json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/leaderboard/ranked?page=${page}`)
-    } catch (err) {
+    let lastErr
+    // A couple of retries with a real pause - confirmed live this endpoint
+    // specifically (not /public/clans/leaderboard on the same proxy, same
+    // run) has been 403-ing on literally every cron invocation for over a
+    // week, so this alone won't fix a persistent block, but it's a real,
+    // cheap chance to recover from a shorter-lived one instead of
+    // immediately giving up on page 1 and losing every page after it too.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 3000 * attempt))
+      try {
+        json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/leaderboard/ranked?page=${page}`)
+        lastErr = undefined
+        break
+      } catch (err) {
+        lastErr = err
+      }
+    }
+    if (lastErr) {
       // Confirmed live: this failed silently for days with nothing in the
       // run log to explain why cyn_roster_cache went empty - logged (not
       // thrown) so a future recurrence is diagnosable from the Action's
       // own output instead of needing a fresh investigation each time.
-      console.error(`fetchRankedMap page ${page} failed:`, err)
+      console.error(`fetchRankedMap page ${page} failed after retries:`, lastErr)
       break
     }
     const entries = json?.['1v1'] ?? []
@@ -325,6 +340,19 @@ async function main() {
   const { data: existingRosterCache } = await supabase.from('cyn_roster_cache').select('*').eq('id', 1).maybeSingle()
   const nextRanked1v1 = rankedMap.size > 0 ? Object.fromEntries(rankedMap) : (existingRosterCache?.ranked_1v1 ?? {})
   const nextRanked2v2 = rankedMap2v2.size > 0 ? Object.fromEntries(rankedMap2v2) : (existingRosterCache?.ranked_2v2 ?? {})
+  // Per-member snapshot Elo below reads from these two (the same
+  // fall-back-aware maps just written to cyn_roster_cache), not the raw
+  // rankedMap/rankedMap2v2 - confirmed live as the actual cause of every
+  // member showing no Elo/Elo change for 10+ days straight: OpenFront's
+  // leaderboard/ranked endpoint has been 403-ing for every cron run this
+  // whole time (still succeeding for an ad-hoc request, so likely an
+  // OpenFront-side block/rate-limit specific to this recurring traffic
+  // pattern, not a permanent outage), so rankedMap came back empty every
+  // run - cyn_roster_cache correctly fell back to yesterday's good data,
+  // but the snapshot write below was still reading the raw (empty) map
+  // directly and writing `elo: null` for literally everyone, every day.
+  const snapshotRanked1v1 = new Map(Object.entries(nextRanked1v1))
+  const snapshotRanked2v2 = new Map(Object.entries(nextRanked2v2))
   const nextFfaLeaderboard = Object.keys(ffaLeaderboard).length > 0 ? ffaLeaderboard : (existingRosterCache?.ffa_leaderboard ?? {})
   const nextClanLeaderboard = clanLeaderboardEntry ?? existingRosterCache?.clan_leaderboard ?? null
 
@@ -463,8 +491,8 @@ async function main() {
         {
           openfront_id: r.openfront_id,
           snapshot_date: snapshotDate,
-          elo: rankedMap.get(r.openfront_id)?.elo ?? null,
-          elo_2v2: rankedMap2v2.get(r.openfront_id)?.elo ?? null,
+          elo: snapshotRanked1v1.get(r.openfront_id)?.elo ?? null,
+          elo_2v2: snapshotRanked2v2.get(r.openfront_id)?.elo ?? null,
           all_wins: allWins,
           xp: xpByMember.get(r.openfront_id) ?? 0,
         },

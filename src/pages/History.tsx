@@ -178,6 +178,7 @@ export default function History() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
                     <th className="px-4 py-3 text-right font-semibold">Win Score</th>
                     <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
@@ -212,6 +213,7 @@ export default function History() {
                           {modeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
                         </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                           {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                         </td>

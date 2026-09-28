@@ -993,12 +993,19 @@ create table if not exists public.cyn_roster_cache (
   -- exactly, since it's fetched from OpenFront directly rather than
   -- reconstructed.
   clan_leaderboard jsonb,
+  -- Top 20 clans overall from that same public/clans/leaderboard response
+  -- (already ranked by weightedWins in the API's own order), not just
+  -- [CYN]'s row - feeds the Win Score decay forecast panel (Home.tsx /
+  -- src/lib/clanScore.ts's forecastWinScoreLoss), which needs other clans'
+  -- current weightedWins to project.
+  clan_leaderboard_top jsonb,
   updated_at timestamptz not null default now(),
   constraint cyn_roster_cache_singleton check (id = 1)
 );
 
 -- Safe to re-run: adds the column if this table already existed without it.
 alter table public.cyn_roster_cache add column if not exists clan_leaderboard jsonb;
+alter table public.cyn_roster_cache add column if not exists clan_leaderboard_top jsonb;
 
 alter table public.cyn_roster_cache enable row level security;
 

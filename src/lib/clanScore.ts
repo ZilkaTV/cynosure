@@ -188,6 +188,12 @@ export interface ClanLeaderboardEntry {
 
 interface RosterCacheClanRow {
   clan_leaderboard: ClanLeaderboardEntry | null
+  clan_leaderboard_top: TopClanEntry[] | null
+}
+
+/** One row of the top-N clans overall (see fetchTopClanLeaderboard) - the same shape as ClanLeaderboardEntry, plus which clan it is. */
+export interface TopClanEntry extends ClanLeaderboardEntry {
+  clanTag: string
 }
 
 /**
@@ -204,6 +210,49 @@ export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry 
   const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard').eq('id', 1).maybeSingle()
   if (error || !data) return null
   return (data as RosterCacheClanRow).clan_leaderboard
+}
+
+/**
+ * Top 20 clans overall (by Win Score / weightedWins, same ranking as
+ * OpenFront's own in-game "CLANS" tab), from the same cached snapshot as
+ * fetchClanLeaderboardEntry - feeds the Win Score decay forecast panel.
+ */
+export async function fetchTopClanLeaderboard(): Promise<TopClanEntry[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard_top').eq('id', 1).maybeSingle()
+  if (error || !data) return []
+  return (data as RosterCacheClanRow).clan_leaderboard_top ?? []
+}
+
+// ── Win Score decay forecast (no new games assumed) ─────────────────────────
+
+/**
+ * Half-life (days) OpenFront's own live clan leaderboard decays every
+ * game's weighted contribution by - see docs/API.md's own description,
+ * duplicated from the formula already used in clanSessionScore's own
+ * comment above. A clan's Win Score (weightedWins) and Loss Score
+ * (weightedLosses) are each just a sum of every past game's own
+ * independently-decaying term - since every term shares the SAME decay
+ * constant, calculus says the SUM decays at that identical constant rate
+ * too, regardless of how old any individual game already is (this is why
+ * projecting forward needs only today's total, not per-game history we
+ * don't have for other clans in the first place).
+ */
+const DECAY_HALF_LIFE_DAYS = 30
+
+/**
+ * How many Win Score (or Loss Score) points a clan is on track to lose
+ * over the next `days`, assuming they play NO further clan-tagged Team
+ * games in that window - pure exponential decay of today's total, nothing
+ * projected about new games. Note the Win/Loss RATIO itself does NOT move
+ * from decay alone (wins and losses shrink by the exact same proportion),
+ * so this is a forecast of the raw score dropping, not of rank/ratio
+ * necessarily changing - a clan that keeps playing at its current rate
+ * would offset some or all of this.
+ */
+export function forecastWinScoreLoss(currentScore: number, days: number): number {
+  const remaining = currentScore * Math.pow(0.5, days / DECAY_HALF_LIFE_DAYS)
+  return currentScore - remaining
 }
 
 // ── Per-game score for OTHER clans in the same game (post-game report) ─────

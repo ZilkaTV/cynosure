@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clanSessionScore, deriveNumTeams, isClanScoreEligible, buildClanScoreLedger } from './clanScore'
+import { clanSessionScore, deriveNumTeams, isClanScoreEligible, buildClanScoreLedger, forecastWinScoreLoss } from './clanScore'
 
 describe('deriveNumTeams', () => {
   it('reads a literal numeric team count straight through', () => {
@@ -88,5 +88,23 @@ describe('buildClanScoreLedger', () => {
       { gameId: 'solo', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 1, won: true },
     ])
     expect(ledger).toHaveLength(0)
+  })
+})
+
+describe('forecastWinScoreLoss', () => {
+  it('loses exactly half the score after one half-life (30 days)', () => {
+    expect(forecastWinScoreLoss(1000, 30)).toBeCloseTo(500, 6)
+  })
+
+  it('loses nothing over zero days', () => {
+    expect(forecastWinScoreLoss(1000, 0)).toBeCloseTo(0, 6)
+  })
+
+  it('loses more the longer the window (1 day < 7 days < 30 days)', () => {
+    const day = forecastWinScoreLoss(1000, 1)
+    const week = forecastWinScoreLoss(1000, 7)
+    const month = forecastWinScoreLoss(1000, 30)
+    expect(day).toBeLessThan(week)
+    expect(week).toBeLessThan(month)
   })
 })

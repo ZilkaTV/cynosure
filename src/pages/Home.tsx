@@ -14,7 +14,17 @@ import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
-import { fetchClanLeaderboardEntry, fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
+import {
+  fetchClanLeaderboardEntry,
+  fetchClanScoreLedger,
+  fetchTopClanLeaderboard,
+  forecastWinScoreLoss,
+  fmtScoreDelta,
+  fmtRatioChange,
+  type ClanLeaderboardEntry,
+  type ClanScoreRow,
+  type TopClanEntry,
+} from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -192,6 +202,9 @@ export default function Home() {
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  const [topClans, setTopClans] = useState<TopClanEntry[]>([])
+  const [forecastClanTag, setForecastClanTag] = useState<string>(CLAN_TAG)
+  const [forecastDays, setForecastDays] = useState<number>(1)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -201,6 +214,12 @@ export default function Home() {
   // number exactly, not the per-game history shown elsewhere on the site.
   useEffect(() => {
     fetchClanLeaderboardEntry().then(setClanLeaderboard)
+    fetchTopClanLeaderboard().then((top) => {
+      setTopClans(top)
+      // Defaults to [CYN] when it's actually in the top 20, else whichever
+      // clan is #1 - never an empty/invalid selection once data has loaded.
+      if (top.length > 0 && !top.some((c) => c.clanTag === CLAN_TAG)) setForecastClanTag(top[0].clanTag)
+    })
   }, [])
 
   // Same game can show up under multiple members if several CYN players were
@@ -300,6 +319,54 @@ export default function Home() {
         </section>
       )}
 
+      {topClans.length > 0 && (
+        <section>
+          <SectionHeading center eyebrow="Win Score Forecast" title="Points Lost Without New Games" />
+          <Card className="mx-auto max-w-xl">
+            <p className="mb-4 text-center text-sm text-slate-400">
+              OpenFront's live clan leaderboard decays every game's weight over time (30-day half-life). This projects how many
+              Win Score points a clan is on track to lose if it plays no further Team games in the selected window - keep
+              playing at the current rate and some or all of this gets offset by new games instead.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <select
+                value={forecastClanTag}
+                onChange={(e) => setForecastClanTag(e.target.value)}
+                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+              >
+                {topClans.map((c, i) => (
+                  <option key={c.clanTag} value={c.clanTag}>
+                    #{i + 1} [{c.clanTag}]
+                  </option>
+                ))}
+              </select>
+              <select
+                value={forecastDays}
+                onChange={(e) => setForecastDays(Number(e.target.value))}
+                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+              >
+                <option value={1}>Next day</option>
+                <option value={7}>Next week</option>
+                <option value={30}>Next month</option>
+              </select>
+            </div>
+            {(() => {
+              const clan = topClans.find((c) => c.clanTag === forecastClanTag)
+              if (!clan) return null
+              const loss = forecastWinScoreLoss(clan.weightedWins, forecastDays)
+              const projected = clan.weightedWins - loss
+              return (
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <StatCard label="Win Score Now" value={clan.weightedWins.toFixed(1)} accent="plain" />
+                  <StatCard label="Points Lost" value={`-${loss.toFixed(1)}`} accent="gold" />
+                  <StatCard label="Projected" value={projected.toFixed(1)} accent="purple" />
+                </div>
+              )
+            })()}
+          </Card>
+        </section>
+      )}
+
       <TagNotice />
 
       <section className="space-y-4">
@@ -344,6 +411,7 @@ export default function Home() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
                     <th className="px-4 py-3 text-right font-semibold">Win Score</th>
                     <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
@@ -368,6 +436,7 @@ export default function Home() {
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
                         <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                           {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                         </td>

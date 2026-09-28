@@ -11,8 +11,19 @@ import {
   type DailyMetricsRow,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
+import { fetchTopClanLeaderboard, forecastWinScoreLoss, type TopClanEntry } from '../lib/clanScore'
 
 const HISTORY_DAYS = 30
+
+/** One point per day from today (0) out to `days`, projecting pure 30-day-half-life decay off `currentScore` - fed straight into TrendChart. */
+function forecastCurve(currentScore: number, days: number): { date: string; value: number }[] {
+  const points = []
+  const today = Date.now()
+  for (let d = 0; d <= days; d++) {
+    points.push({ date: new Date(today + d * 86_400_000).toISOString(), value: currentScore - forecastWinScoreLoss(currentScore, d) })
+  }
+  return points
+}
 
 function downloadCsv(rows: DailyMetricsRow[]) {
   const csv = metricsHistoryToCsv(rows)
@@ -39,11 +50,18 @@ export default function Metrics() {
   const session = useSession()
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
+  const [topClans, setTopClans] = useState<TopClanEntry[]>([])
+  const [forecastClanTag, setForecastClanTag] = useState<string>('')
+  const [forecastDays, setForecastDays] = useState<number>(1)
 
   useEffect(() => {
     if (!isInnerCircle || !session) return
     getTodayMetrics().then(setMetrics)
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
+    fetchTopClanLeaderboard().then((top) => {
+      setTopClans(top)
+      if (top.length > 0) setForecastClanTag((prev) => prev || top[0].clanTag)
+    })
   }, [isInnerCircle, session])
 
   if (!isInnerCircle) {
@@ -144,6 +162,64 @@ export default function Metrics() {
           </div>
         )}
       </div>
+
+      {topClans.length > 0 && (
+        <div className="mt-10">
+          <SectionHeading eyebrow="Win Score" title="Decay Forecast" />
+          <Card>
+            <p className="mb-4 text-center text-sm text-slate-400">
+              OpenFront's live clan leaderboard decays every game's weight over time (30-day half-life). This projects how many
+              Win Score points a clan is on track to lose if it plays no further Team games in the selected window - keep
+              playing at the current rate and some or all of this gets offset by new games instead.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <select
+                value={forecastClanTag}
+                onChange={(e) => setForecastClanTag(e.target.value)}
+                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+              >
+                {topClans.map((c, i) => (
+                  <option key={c.clanTag} value={c.clanTag}>
+                    #{i + 1} [{c.clanTag}]
+                  </option>
+                ))}
+              </select>
+              <select
+                value={forecastDays}
+                onChange={(e) => setForecastDays(Number(e.target.value))}
+                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+              >
+                <option value={1}>Next day</option>
+                <option value={7}>Next week</option>
+                <option value={30}>Next month</option>
+              </select>
+            </div>
+            {(() => {
+              const clan = topClans.find((c) => c.clanTag === forecastClanTag)
+              if (!clan) return null
+              const loss = forecastWinScoreLoss(clan.weightedWins, forecastDays)
+              const projected = clan.weightedWins - loss
+              return (
+                <>
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <StatCard label="Win Score Now" value={clan.weightedWins.toFixed(1)} accent="plain" />
+                    <StatCard label="Points Lost" value={`-${loss.toFixed(1)}`} accent="gold" />
+                    <StatCard label="Projected" value={projected.toFixed(1)} accent="purple" />
+                  </div>
+                  <div className="mt-5">
+                    <TrendChart
+                      points={forecastCurve(clan.weightedWins, forecastDays)}
+                      color="#f59e0b"
+                      formatValue={(v) => v.toFixed(1)}
+                      emptyLabel={t.trends.emptyLabel}
+                    />
+                  </div>
+                </>
+              )
+            })()}
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

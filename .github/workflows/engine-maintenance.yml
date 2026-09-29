@@ -17,13 +17,16 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 #      failures here are transient, not permanent), whether that's because
 #      step 1 just vendored something new or a fetch simply failed earlier.
 #
-# Runs every 30 minutes rather than daily - OpenFront can ship more than one
-# engine update in a day, and a daily check meant games played any time after
-# that morning's run showed no Max Tiles until the following day (confirmed
-# directly: a game played the same afternoon a new commit shipped sat with a
-# missing/uncomputed Max Tiles for hours). 30 minutes bounds that gap to
-# something reasonable without hammering the OpenFront API or re-cloning
-# OpenFrontIO from scratch every run (see the cache step below).
+# Bounds how stale Max Tiles can get without hammering the OpenFront API or
+# re-cloning OpenFrontIO from scratch every run (see the cache step below).
+# `schedule` alone used to be the only trigger (every 30 min) - confirmed
+# directly via the Actions run history that GitHub's own scheduler is not
+# reliable for this (real gaps of 3-4+ hours with nothing else explaining
+# it, the same unreliability already documented on refresh-details-cron.yml).
+# `repository_dispatch`, poked every 10 minutes by the same Cloudflare Cron
+# Trigger the other three jobs already use (see wrangler.jsonc /
+# worker/index.js's `scheduled()`), is now the primary trigger; `schedule`
+# stays only as a backup for whenever that dispatch itself misses a tick.
 #
 # A newly-vendored tree is pushed straight to master (guarded only by
 # vendor-engine.mjs's own `tsc -b` self-check). This used to open a PR
@@ -40,7 +43,20 @@ name: Engine maintenance (auto-vendor + Max Tiles backfill)
 on:
   schedule:
     - cron: "*/30 * * * *"
+  repository_dispatch:
+    types: [engine-maintenance]
   workflow_dispatch: {}
+
+# A single run can take anywhere from under a minute to ~15+ minutes
+# (cloning/updating OpenFrontIO when a new commit needs vendoring, then
+# replaying every still-missing recent game) - comfortably longer than the
+# 10-minute dispatch interval on a bad run. Without this, an overlapping
+# invocation could race the "auto-vendor a new commit, then git push" step
+# against itself. cancel-in-progress: false queues the next run instead of
+# killing real in-flight work, same as refresh-details-cron.yml's own guard.
+concurrency:
+  group: engine-maintenance
+  cancel-in-progress: false
 
 permissions:
   contents: write

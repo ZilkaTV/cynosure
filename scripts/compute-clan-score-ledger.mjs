@@ -45,11 +45,12 @@ function clanSessionScore({ totalPlayerCount, numTeams, clanPlayerCount, won }) 
   return won ? clanMemberRatio * difficulty : clanMemberRatio / difficulty
 }
 
-// A clan only "plays as a clan" when at least 2 tagged players are on the
-// same side together - confirmed empirically against real in-game
-// leaderboard numbers (see clanScore.ts's own comment on this constant for
-// the full reasoning), not stated in OpenFront's docs.md pseudocode itself.
-const MIN_CLAN_PLAYERS_PER_SESSION = 2
+// OpenFront's own docs.md: "A clan session is created any time a player
+// with that clan tag is in a public team game" - one tagged player is
+// enough. See src/lib/clanScore.ts's own comment on this constant for the
+// full reasoning (confirmed directly against the live sessions endpoint,
+// and against the live decayed leaderboard ratio once decay is modeled).
+const MIN_CLAN_PLAYERS_PER_SESSION = 1
 
 function buildClanScoreLedger(games) {
   const sorted = [...games].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())

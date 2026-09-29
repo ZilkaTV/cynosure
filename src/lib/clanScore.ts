@@ -76,16 +76,19 @@ export interface ClanScoreLedgerEntry {
  * scripts/compute-clan-score-ledger.mjs for how that's built from
  * cyn_member_games_cache.
  */
-// A clan only "plays as a clan" when at least 2 of its tagged players are on
-// the same winning/losing side together - one member alone in a game is
-// just that member's own individual result, not something the clan
-// achieved together. Confirmed empirically, not just from OpenFront's own
-// docs.md pseudocode (which shows the weighting formula for an
-// already-created session but doesn't state this precondition): scoring
-// only games with clanPlayerCount >= 2 against real, current in-game
-// leaderboard numbers landed within ~1% on the win/loss ratio, while
-// counting every single-member game too overshot it by ~30%.
-const MIN_CLAN_PLAYERS_PER_SESSION = 2
+// OpenFront's own docs.md is explicit: "A clan session is created any time
+// a player with that clan tag is in a public team game" - a single tagged
+// player is enough. Confirmed directly against the live, previously-unused
+// GET /public/clan/:tag/sessions endpoint: a real solo [CYN] game
+// (clanPlayerCount 1) comes back from OpenFront itself with its own nonzero
+// score, same as any other session. A prior, flawed comparison here claimed
+// requiring >=2 matched the live leaderboard ratio better - that comparison
+// forgot the live ratio is 30-day-half-life DECAYED (see
+// forecastWinScoreLoss's own comment); once the same decay is applied to
+// this side of the comparison, >=1 lands far closer to OpenFront's live
+// ratio (~15.4 vs live 16.83) than >=2 does (~22.7 vs 16.83). So a single
+// tagged player is enough - no minimum beyond "the session exists at all".
+const MIN_CLAN_PLAYERS_PER_SESSION = 1
 
 export function buildClanScoreLedger(
   games: { gameId: string; start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],

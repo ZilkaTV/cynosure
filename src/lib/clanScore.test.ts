@@ -59,10 +59,19 @@ describe('isClanScoreEligible', () => {
 
 describe('buildClanScoreLedger', () => {
   it('accumulates weighted wins/losses in chronological order and computes before/after ratios', () => {
-    const ledger = buildClanScoreLedger([
-      { gameId: 'b', start: '2026-01-02T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: true },
-      { gameId: 'a', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: false },
-    ])
+    // `now` pinned right at the later game, with only 1 second between the
+    // two games - decay over that span is ~0.0000003, negligible next to
+    // the 5-decimal-place tolerance below. This test is about the
+    // accumulation/ordering logic, not decay itself (see the dedicated
+    // decay test further down for that).
+    const now = new Date('2026-01-01T00:00:01Z')
+    const ledger = buildClanScoreLedger(
+      [
+        { gameId: 'b', start: '2026-01-01T00:00:01Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: true },
+        { gameId: 'a', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: false },
+      ],
+      now,
+    )
     // Re-sorted chronologically: 'a' (loss) first, then 'b' (win).
     expect(ledger.map((e) => e.gameId)).toEqual(['a', 'b'])
 
@@ -73,6 +82,19 @@ describe('buildClanScoreLedger', () => {
     expect(ledger[1].ratioBefore).toBe(0)
     expect(ledger[1].cumWeightedWins).toBeCloseTo(1, 5)
     expect(ledger[1].ratioAfter).toBeCloseTo(1, 5) // 1 win / 1 loss
+  })
+
+  it('decays an older game\'s contribution to the cumulative ratio relative to `now`', () => {
+    const now = new Date('2026-02-01T00:00:00Z') // 31 days after the game - just over one half-life
+    const ledger = buildClanScoreLedger(
+      [{ gameId: 'old-win', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: true }],
+      now,
+    )
+    // Undecayed score would be 1 (clanMemberRatio 1 * difficulty 1); at just
+    // over one 30-day half-life it should be just under half of that.
+    expect(ledger[0].score).toBeCloseTo(1, 5)
+    expect(ledger[0].cumWeightedWins).toBeLessThan(0.5)
+    expect(ledger[0].cumWeightedWins).toBeGreaterThan(0.4)
   })
 
   it('skips games with no CYN players or an undeterminable team count', () => {

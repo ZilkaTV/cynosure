@@ -5,6 +5,9 @@
 // game any registered [CYN] member has ever played, walked chronologically
 // so each game also gets the clan's own cumulative weighted win/loss ratio
 // immediately before and after it - not just that one game's own score.
+// The cumulative ratio uses the same 30-day-half-life decay OpenFront's own
+// live leaderboard uses (relative to "now" at each run), so it tracks a
+// clan's current form the same way OpenFront's own number does.
 //
 // Reads only cyn_member_games_cache (already maintained by
 // refresh-details.mjs) - no OpenFront API calls of its own. Duplicates the
@@ -52,7 +55,15 @@ function clanSessionScore({ totalPlayerCount, numTeams, clanPlayerCount, won }) 
 // and against the live decayed leaderboard ratio once decay is modeled).
 const MIN_CLAN_PLAYERS_PER_SESSION = 1
 
-function buildClanScoreLedger(games) {
+// Same 30-day half-life OpenFront's own live leaderboard decays by - see
+// src/lib/clanScore.ts's own comment on this constant for the full
+// reasoning. Applied to the running cumulative win/loss totals below (not
+// to each game's own standalone `score`, which stays undecayed, matching
+// how OpenFront's own "Clan stats" endpoint reports one session - "No
+// decay is used" there).
+const DECAY_HALF_LIFE_DAYS = 30
+
+function buildClanScoreLedger(games, now) {
   const sorted = [...games].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
   let cumWins = 0
   let cumLosses = 0
@@ -61,9 +72,11 @@ function buildClanScoreLedger(games) {
     const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
     if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
     const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won })
+    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
+    const decayedScore = score * Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
     const ratioBefore = cumLosses > 0 ? cumWins / cumLosses : null
-    if (g.won) cumWins += score
-    else cumLosses += score
+    if (g.won) cumWins += decayedScore
+    else cumLosses += decayedScore
     const ratioAfter = cumLosses > 0 ? cumWins / cumLosses : null
     ledger.push({
       gameId: g.gameId,
@@ -80,31 +93,6 @@ function buildClanScoreLedger(games) {
     })
   }
   return ledger
-}
-
-// Same 30-day half-life OpenFront's own live leaderboard decays by - see
-// src/lib/clanScore.ts's DecayedClanTotals/computeDecayedClanTotals for the
-// full reasoning (this is the honest, membership-scoped equivalent of that
-// live number, since OpenFront's own /public/clan/:tag endpoints aggregate
-// every player worldwide who ever set their raw tag to "CYN", not just this
-// clan's real registered members).
-const DECAY_HALF_LIFE_DAYS = 30
-
-function computeDecayedClanTotals(games, now) {
-  let weightedWins = 0
-  let weightedLosses = 0
-  let count = 0
-  for (const g of games) {
-    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
-    if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
-    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
-    const decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
-    const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won }) * decay
-    if (g.won) weightedWins += score
-    else weightedLosses += score
-    count++
-  }
-  return { games: count, weightedWins, weightedLosses, weightedWLRatio: weightedLosses > 0 ? weightedWins / weightedLosses : null }
 }
 
 // ── end duplicated section ──────────────────────────────────────────────────
@@ -195,11 +183,7 @@ async function main() {
   }
 
   const allGames = [...byGameId.values()]
-  const ledger = buildClanScoreLedger(allGames)
-
-  const ownTotals = computeDecayedClanTotals(allGames, new Date())
-  const { error: rosterError } = await supabase.from('cyn_roster_cache').update({ own_clan_totals: ownTotals }).eq('id', 1)
-  if (rosterError) throw rosterError
+  const ledger = buildClanScoreLedger(allGames, new Date())
 
   let written = 0
   for (let i = 0; i < ledger.length; i += UPSERT_BATCH_SIZE) {
@@ -227,7 +211,6 @@ async function main() {
         eligibleGamesConsidered: byGameId.size,
         ledgerEntriesWritten: written,
         latestRatio: ledger.length ? ledger[ledger.length - 1].ratioAfter : null,
-        ownDecayedRatio: ownTotals.weightedWLRatio,
       },
       null,
       2,

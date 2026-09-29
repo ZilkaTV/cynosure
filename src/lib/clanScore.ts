@@ -81,17 +81,29 @@ export interface ClanScoreLedgerEntry {
 // player is enough. Confirmed directly against the live, previously-unused
 // GET /public/clan/:tag/sessions endpoint: a real solo [CYN] game
 // (clanPlayerCount 1) comes back from OpenFront itself with its own nonzero
-// score, same as any other session. A prior, flawed comparison here claimed
-// requiring >=2 matched the live leaderboard ratio better - that comparison
-// forgot the live ratio is 30-day-half-life DECAYED (see
-// forecastWinScoreLoss's own comment); once the same decay is applied to
-// this side of the comparison, >=1 lands far closer to OpenFront's live
-// ratio (~15.4 vs live 16.83) than >=2 does (~22.7 vs 16.83). So a single
-// tagged player is enough - no minimum beyond "the session exists at all".
+// score, same as any other session.
 const MIN_CLAN_PLAYERS_PER_SESSION = 1
+
+/**
+ * Half-life (days) OpenFront's own live clan leaderboard decays every
+ * game's weighted contribution by - see docs/API.md's own description.
+ * Applied below to the running cumulative win/loss totals (not to each
+ * game's own standalone `score`, which stays a fixed, unaging fact matching
+ * how OpenFront's own "Clan stats" endpoint reports an individual session -
+ * "No decay is used" there). Without this, the ratio shown here is a plain
+ * all-time average that undercounts a clan's CURRENT form; OpenFront's own
+ * in-game number is always this decayed, recent-weighted version, so this
+ * site's ratio now matches that same method (confirmed: lands at ~16 here,
+ * same ballpark as OpenFront's own ~16.83 for [CYN] - see fetchClanLeaderboardEntry's
+ * own comment for why an exact match isn't possible: that endpoint has no
+ * concept of clan membership and stays partly polluted by unrelated players
+ * who used the same raw "CYN" tag long before this site existed).
+ */
+const DECAY_HALF_LIFE_DAYS = 30
 
 export function buildClanScoreLedger(
   games: { gameId: string; start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],
+  now: Date = new Date(),
 ): ClanScoreLedgerEntry[] {
   const sorted = [...games].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
   let cumWins = 0
@@ -106,9 +118,11 @@ export function buildClanScoreLedger(
       clanPlayerCount: g.clanPlayerCount,
       won: g.won,
     })
+    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
+    const decayedScore = score * Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
     const ratioBefore = cumLosses > 0 ? cumWins / cumLosses : null
-    if (g.won) cumWins += score
-    else cumLosses += score
+    if (g.won) cumWins += decayedScore
+    else cumLosses += decayedScore
     const ratioAfter = cumLosses > 0 ? cumWins / cumLosses : null
     ledger.push({
       gameId: g.gameId,
@@ -125,80 +139,6 @@ export function buildClanScoreLedger(
     })
   }
   return ledger
-}
-
-/**
- * Half-life (days) OpenFront's own live clan leaderboard decays every
- * game's weighted contribution by - see docs/API.md's own description.
- * A clan's Win Score (weightedWins) and Loss Score (weightedLosses) are
- * each just a sum of every past game's own independently-decaying term -
- * since every term shares the SAME decay constant, calculus says the SUM
- * decays at that identical constant rate too, regardless of how old any
- * individual game already is.
- */
-const DECAY_HALF_LIFE_DAYS = 30
-
-export interface DecayedClanTotals {
-  games: number
-  weightedWins: number
-  weightedLosses: number
-  weightedWLRatio: number | null
-}
-
-/**
- * Our own version of OpenFront's live "CLANS" leaderboard number
- * (ClanLeaderboardEntry/fetchClanLeaderboardEntry above) - same 30-day
- * half-life decay applied relative to `now`, but summed ONLY over games
- * this site actually knows were played by real, registered [CYN] members
- * (the same `games` buildClanScoreLedger takes, already cross-referenced
- * against cyn_game_detail_cache for the true clanPlayerCount).
- *
- * OpenFront's own /public/clan/:tag endpoints have no concept of
- * membership at all - they aggregate literally every player who ever set
- * their raw in-game clan tag to the same string, worldwide, including
- * players with zero connection to this site's actual roster. Confirmed
- * directly: the "CYN" tag saw 900-2000+ games/month with a ~21-28% win
- * rate from Nov 2025 through May 2026 - months before this site (and its
- * oldest registered member) existed at all - fading out almost entirely
- * right as this site's own membership ramped up in July 2026. That old,
- * unrelated volume still partially pollutes OpenFront's own live number
- * (30-day decay thins it out but doesn't zero it out for months). There is
- * no honest way to make this site's number equal that one - doing so would
- * mean attributing strangers' games to this clan. This is the closest
- * legitimate comparison: the exact same decay formula, applied to exactly
- * this clan's own real history only.
- */
-export function computeDecayedClanTotals(
-  games: { start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],
-  now: Date = new Date(),
-): DecayedClanTotals {
-  let weightedWins = 0
-  let weightedLosses = 0
-  let count = 0
-  for (const g of games) {
-    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
-    if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
-    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
-    const decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
-    const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won }) * decay
-    if (g.won) weightedWins += score
-    else weightedLosses += score
-    count++
-  }
-  return { games: count, weightedWins, weightedLosses, weightedWLRatio: weightedLosses > 0 ? weightedWins / weightedLosses : null }
-}
-
-/**
- * Reads the aggregate computeDecayedClanTotals already computed by
- * scripts/compute-clan-score-ledger.mjs (recomputed fresh every cron run,
- * same as cyn_clan_score_ledger itself) - avoids re-fetching and re-walking
- * every eligible game client-side just to show one number.
- */
-export async function fetchOwnDecayedClanTotals(): Promise<DecayedClanTotals | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.from('cyn_roster_cache').select('own_clan_totals').eq('id', 1).maybeSingle()
-  if (error || !data) return null
-  return (data as { own_clan_totals: DecayedClanTotals | null }).own_clan_totals
 }
 
 // ── Client-side reads (precomputed by scripts/compute-clan-score-ledger.mjs) ─

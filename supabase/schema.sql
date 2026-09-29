@@ -1006,19 +1006,6 @@ create table if not exists public.cyn_roster_cache (
   -- identical-request pattern (see that script's own comment on
   -- RANKED_SCAN_INTERVAL_MS).
   ranked_scanned_at timestamptz,
-  -- Our own version of clan_leaderboard's number (games, weightedWins,
-  -- weightedLosses, weightedWLRatio - see DecayedClanTotals in
-  -- src/lib/clanScore.ts), same 30-day-half-life decay formula, but summed
-  -- ONLY over games this site knows real registered [CYN] members actually
-  -- played. clan_leaderboard above is OpenFront's own /public/clans/leaderboard
-  -- number, which has no concept of clan membership at all - it aggregates
-  -- every player worldwide who ever set their raw in-game tag to "CYN",
-  -- including a large, wholly unrelated population active Nov 2025-May 2026
-  -- (confirmed: ~21-28% win rate, months before this site's oldest member
-  -- even registered) that still partially pollutes that number today. This
-  -- column is the honest, membership-scoped equivalent - computed by
-  -- scripts/compute-clan-score-ledger.mjs, same run as cyn_clan_score_ledger.
-  own_clan_totals jsonb,
   updated_at timestamptz not null default now(),
   constraint cyn_roster_cache_singleton check (id = 1)
 );
@@ -1027,7 +1014,10 @@ create table if not exists public.cyn_roster_cache (
 alter table public.cyn_roster_cache add column if not exists clan_leaderboard jsonb;
 alter table public.cyn_roster_cache add column if not exists clan_leaderboard_top jsonb;
 alter table public.cyn_roster_cache add column if not exists ranked_scanned_at timestamptz;
-alter table public.cyn_roster_cache add column if not exists own_clan_totals jsonb;
+-- own_clan_totals: added then removed same session - the decayed ratio now
+-- lives directly in cyn_clan_score_ledger's own ratio_before/ratio_after
+-- (see compute-clan-score-ledger.mjs) instead of a separate aggregate.
+alter table public.cyn_roster_cache drop column if exists own_clan_totals;
 
 alter table public.cyn_roster_cache enable row level security;
 

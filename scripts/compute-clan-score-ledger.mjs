@@ -142,6 +142,32 @@ async function main() {
     }
   }
 
+  // clanPlayerCount above only counts REGISTERED members - confirmed live as
+  // a real undercount: a member who plays team games with an untagged-on-
+  // this-site clanmate (same [CYN] tag in-game, never registered on
+  // cynclan.com) still only showed clanPlayerCount=1 here, silently failing
+  // MIN_CLAN_PLAYERS_PER_SESSION and leaving those games unscored entirely -
+  // even though OpenFront's own formula only cares about the CLAN tag, not
+  // whether someone happens to have an account on this site. Where a game's
+  // full roster is already cached (cyn_game_detail_cache - refresh-details.mjs
+  // queues every team win/loss for this unconditionally), the true count of
+  // clan-tagged players in that roster replaces the registered-only guess;
+  // a game whose detail isn't cached yet keeps the registered-only count as
+  // a fallback rather than losing it entirely.
+  const gameIds = [...byGameId.keys()]
+  for (let i = 0; i < gameIds.length; i += 200) {
+    const chunk = gameIds.slice(i, i + 200)
+    const { data: detailRows, error: detailError } = await supabase
+      .from('cyn_game_detail_cache')
+      .select('game_id, detail')
+      .in('game_id', chunk)
+    if (detailError) throw detailError
+    for (const row of detailRows ?? []) {
+      const trueCount = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length
+      if (trueCount > 0) byGameId.get(row.game_id).clanPlayerCount = trueCount
+    }
+  }
+
   const ledger = buildClanScoreLedger([...byGameId.values()])
 
   let written = 0

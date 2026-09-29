@@ -68,12 +68,22 @@ export default function History() {
   // the (profile/loading) early returns below since it feeds the effect
   // right after - `data?.members ?? []` already degrades to empty during
   // loading, same as every other read of `data` on this page.
-  const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string }[] }>()
+  // `username` is THIS member's own actual OpenFront name in this specific
+  // game (straight off their PlayerGame row), not their registered site
+  // display name (m.name) - used as the fallback Player-column text below
+  // when the full team roster can't be reconstructed. Confirmed live these
+  // can differ: a member registered under e.g. "Peyz #5255" (whatever they
+  // typed at registration) shows as their clean real name "Peyz" everywhere
+  // a roster reconstructs fine, but used to fall back to the registered
+  // string - with its own leftover suffix - specifically on the games that
+  // couldn't reconstruct, looking like two different people across rows of
+  // the same table.
+  const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string; username: string }[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
       const existing = byGameId.get(g.gameId)
-      if (existing) existing.members.push({ publicId: m.publicId, name: m.name })
-      else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name }] })
+      if (existing) existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
+      else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
     }
   }
   const allGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
@@ -197,9 +207,9 @@ export default function History() {
                     // incomplete game, a not-yet-fetched detail, or a loss
                     // where the losing team can't be determined.
                     const detail = gameDetails.get(g.gameId)
-                    const registeredNames = members.map((m) => m.name)
-                    const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', registeredNames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : registeredNames.map(cleanDisplayName).join(', ')
+                    const memberUsernames = members.map((m) => m.username)
+                    const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
+                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberUsernames.map(cleanDisplayName).join(', ')
                     return (
                       <tr
                         key={g.gameId}

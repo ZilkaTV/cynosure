@@ -213,14 +213,19 @@ export default function Home() {
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
   // every member's name (not just whoever was found first) so a shared game
-  // credits everyone who played, e.g. "Zilka, Chuma".
+  // credits everyone who played, e.g. "Zilka, Chuma". `g.username` (this
+  // member's own actual OpenFront name in this specific game) is used
+  // instead of their registered site name - the two can differ (whatever
+  // someone typed at registration vs. their real in-game name), which used
+  // to only show up inconsistently on games the full roster couldn't
+  // reconstruct, looking like two different people.
   const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
       if (g.type === 'Private' || isIncompleteRanked(g)) continue
       const existing = byGameId.get(g.gameId)
-      if (existing) existing.memberNames.push(m.name)
-      else byGameId.set(g.gameId, { g, memberNames: [m.name] })
+      if (existing) existing.memberNames.push(g.username)
+      else byGameId.set(g.gameId, { g, memberNames: [g.username] })
     }
   }
   const sortedRecentGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())

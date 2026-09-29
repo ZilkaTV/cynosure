@@ -189,19 +189,20 @@ const LEADERBOARD_SCAN_PAGES = 3
 // different IP range, already allowlisted in worker/of.js) returns 200
 // with real data. A path-specific block on GH Actions' well-known IP
 // ranges, not a general OpenFront outage.
-// Confirmed live: cynclan.com/api/of/leaderboard/ranked kept 403-ing on
-// EVERY GitHub Actions run (many days straight, through retries and a
-// "fetchRankedMap failed" fallback that quietly froze ranked_1v1/ranked_2v2
-// - and therefore every member's Elo - at whatever was last fetched before
-// this started), while the exact same request succeeds instantly from any
-// non-GitHub-Actions IP. Since public/clans/leaderboard through this same
-// custom-domain proxy has never had this problem, it's very unlikely to be
-// OpenFront blocking us again (same worker code, same origin fetch, no
-// per-path branching in worker/of.js) - more likely cynclan.com's own
-// Cloudflare zone has a WAF/bot rule scoped to this one path. Routed
-// through the bare workers.dev URL instead, which sits outside that zone's
-// security config entirely and isn't subject to whatever rule that is.
-const RANKED_LEADERBOARD_BASE = 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev/api/of'
+// KNOWN, UNRESOLVED ISSUE: leaderboard/ranked has 403-ed on every single
+// GitHub Actions run for days straight (confirmed through retries), while
+// the exact same request succeeds instantly from any other IP, including
+// through this exact URL. Already ruled out: OpenFront blocking us (the
+// sibling public/clans/leaderboard call through this same proxy code never
+// has this problem) and a cynclan.com-zone-specific WAF rule (switching this
+// to the bare workers.dev URL - which sits outside that zone's config
+// entirely - made no difference, confirmed live). Left as cynclan.com since
+// neither URL is actually better; the real fix needs Cloudflare/OpenFront-
+// side investigation this script can't do from inside a failed request.
+// fetchRankedMap()'s own fallback-to-last-known-good keeps ranked_1v1/
+// ranked_2v2 (and therefore Elo) from a hard failure while this stands -
+// just stale instead of broken, until a run manages to get through.
+const RANKED_LEADERBOARD_BASE = 'https://cynclan.com/api/of'
 
 async function fetchRankedMap() {
   const byId = new Map()

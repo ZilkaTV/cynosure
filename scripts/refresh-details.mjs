@@ -189,7 +189,19 @@ const LEADERBOARD_SCAN_PAGES = 3
 // different IP range, already allowlisted in worker/of.js) returns 200
 // with real data. A path-specific block on GH Actions' well-known IP
 // ranges, not a general OpenFront outage.
-const RANKED_LEADERBOARD_BASE = 'https://cynclan.com/api/of'
+// Confirmed live: cynclan.com/api/of/leaderboard/ranked kept 403-ing on
+// EVERY GitHub Actions run (many days straight, through retries and a
+// "fetchRankedMap failed" fallback that quietly froze ranked_1v1/ranked_2v2
+// - and therefore every member's Elo - at whatever was last fetched before
+// this started), while the exact same request succeeds instantly from any
+// non-GitHub-Actions IP. Since public/clans/leaderboard through this same
+// custom-domain proxy has never had this problem, it's very unlikely to be
+// OpenFront blocking us again (same worker code, same origin fetch, no
+// per-path branching in worker/of.js) - more likely cynclan.com's own
+// Cloudflare zone has a WAF/bot rule scoped to this one path. Routed
+// through the bare workers.dev URL instead, which sits outside that zone's
+// security config entirely and isn't subject to whatever rule that is.
+const RANKED_LEADERBOARD_BASE = 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev/api/of'
 
 async function fetchRankedMap() {
   const byId = new Map()

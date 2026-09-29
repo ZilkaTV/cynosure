@@ -810,30 +810,21 @@ export async function fetchGameClanTags(gameId: string): Promise<string[]> {
  * not just the ones who registered on this site, for a "who was actually in
  * this with us" display (see History.tsx/MemberProfile.tsx/Home.tsx's
  * recent-games tables). A win reconstructs the team exactly, straight from
- * winnerClientIds (every winner IS the winning team, full stop). A loss can
- * only be reconstructed when at least one of our own registered players'
- * entry in this game carries a teamIndex - confirmed directly that many
- * unranked "auto-teams" lobbies simply don't provide one at all, in which
- * case this returns null rather than guessing at teammates it can't
- * actually verify.
+ * winnerClientIds (every winner IS the winning team, full stop). A loss
+ * doesn't need a per-game teamIndex at all: every player carrying the same
+ * [CYN] tag is guaranteed to be on the same team as every other (confirmed
+ * explicitly - the clan tag itself IS the team assignment for these
+ * players), so the full clan-tagged roster in the game IS the losing team.
  */
 export function teamRosterNames(detail: GameDetail, won: boolean, ourMemberNames: string[]): string[] | null {
   const winnerSet = new Set(detail.winnerClientIds)
-  if (won) {
-    // An empty result here means winnerClientIds itself is missing/broken
-    // (e.g. a cached detail written before that field existed, not yet
-    // reached by the backfill) rather than a real "nobody won" case - null
-    // signals the caller to fall back to the registered-member names
-    // instead of rendering a blank Player cell.
-    const team = detail.players.filter((p) => winnerSet.has(p.clientID))
-    const names = ourPlayerNames(team, ourMemberNames)
-    return names.length > 0 ? names : null
-  }
-
-  const ourNamesLower = new Set(ourMemberNames.map((n) => n.toLowerCase()))
-  const anchor = detail.players.find((p) => ourNamesLower.has(p.username.toLowerCase()) && !winnerSet.has(p.clientID))
-  if (anchor?.teamIndex == null) return null
-  const names = ourPlayerNames(detail.players.filter((p) => p.teamIndex === anchor.teamIndex), ourMemberNames)
+  const team = won ? detail.players.filter((p) => winnerSet.has(p.clientID)) : detail.players
+  // An empty result here means winnerClientIds itself is missing/broken
+  // (e.g. a cached detail written before that field existed, not yet
+  // reached by the backfill) rather than a real "nobody won" case - null
+  // signals the caller to fall back to the registered-member names instead
+  // of rendering a blank Player cell.
+  const names = ourPlayerNames(team, ourMemberNames)
   return names.length > 0 ? names : null
 }
 

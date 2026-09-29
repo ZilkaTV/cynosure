@@ -126,7 +126,7 @@ function within30d(iso: string): boolean {
 
 export function ffaBucket(games: PlayerGame[], monthKey: string): Bucket {
   const decided = games
-    .filter((g) => isFfa(g) && monthKeyOf(g.start) === monthKey && (isVictory(g) || isDefeat(g)))
+    .filter((g) => isFfa(g) && g.type !== 'Private' && monthKeyOf(g.start) === monthKey && (isVictory(g) || isDefeat(g)))
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 
   let wins = 0
@@ -155,7 +155,14 @@ export function teamBucket(
   monthKey: string,
   coopByGame: Record<string, boolean>,
 ): Bucket {
-  const inMonth = games.filter((g) => isTeam(g) && monthKeyOf(g.start) === monthKey)
+  // Private lobbies exclude on purpose (matches History's own "Private is
+  // its own bucket" convention) - confirmed live as the actual cause of a
+  // wildly inflated avgGold: a custom private game can set its own
+  // goldMultiplier/startingGold (seen directly: a 200x multiplier and
+  // 500,000,000 starting gold on one private lobby), producing gold/min
+  // values hundreds of times any normal public game's and blowing out the
+  // whole month's average the moment one such game gets mixed in.
+  const inMonth = games.filter((g) => isTeam(g) && g.type !== 'Private' && monthKeyOf(g.start) === monthKey)
   let wins = 0
   let losses = 0
   let points = 0
@@ -230,7 +237,7 @@ export interface TeamRow {
 
 export function ffaMonthly(m: MemberStats, monthKey: string): FfaRow {
   const b = ffaBucket(m.cynGames, monthKey)
-  const inMonth = m.cynGames.filter((g) => isFfa(g) && monthKeyOf(g.start) === monthKey)
+  const inMonth = m.cynGames.filter((g) => isFfa(g) && g.type !== 'Private' && monthKeyOf(g.start) === monthKey)
   const detailed = inMonth.filter((g) => m.detailByGame[g.gameId])
   const totalKills = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].kills, 0)
   return {
@@ -243,7 +250,7 @@ export function ffaMonthly(m: MemberStats, monthKey: string): FfaRow {
 
 export function teamMonthly(m: MemberStats, monthKey: string, coop: Record<string, boolean>): TeamRow {
   const b = teamBucket(m.cynGames, monthKey, coop)
-  const inMonth = m.cynGames.filter((g) => isTeam(g) && monthKeyOf(g.start) === monthKey)
+  const inMonth = m.cynGames.filter((g) => isTeam(g) && g.type !== 'Private' && monthKeyOf(g.start) === monthKey)
   const detailed = inMonth.filter((g) => m.detailByGame[g.gameId])
   const kills = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].kills, 0)
   const goldPerMinSum = detailed.reduce((s, g) => s + m.detailByGame[g.gameId].goldPerMin, 0)

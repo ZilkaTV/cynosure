@@ -999,6 +999,13 @@ create table if not exists public.cyn_roster_cache (
   -- src/lib/clanScore.ts's forecastWinScoreLoss), which needs other clans'
   -- current weightedWins to project.
   clan_leaderboard_top jsonb,
+  -- Last time refresh-details.mjs actually ATTEMPTED the leaderboard/ranked
+  -- scan (success or failure) - throttles it to roughly once an hour
+  -- instead of once every ~10-minute run, since that endpoint's own
+  -- Cloudflare bot-challenge started triggering for a forever-every-10-min
+  -- identical-request pattern (see that script's own comment on
+  -- RANKED_SCAN_INTERVAL_MS).
+  ranked_scanned_at timestamptz,
   updated_at timestamptz not null default now(),
   constraint cyn_roster_cache_singleton check (id = 1)
 );
@@ -1006,6 +1013,7 @@ create table if not exists public.cyn_roster_cache (
 -- Safe to re-run: adds the column if this table already existed without it.
 alter table public.cyn_roster_cache add column if not exists clan_leaderboard jsonb;
 alter table public.cyn_roster_cache add column if not exists clan_leaderboard_top jsonb;
+alter table public.cyn_roster_cache add column if not exists ranked_scanned_at timestamptz;
 
 alter table public.cyn_roster_cache enable row level security;
 

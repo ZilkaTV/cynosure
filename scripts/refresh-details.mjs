@@ -27,6 +27,8 @@
 // live fallback, and writes back to this same shared table when it does.
 
 import { createClient } from '@supabase/supabase-js'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 const CLAN_TAG = 'CYN'
 const MAX_GAMES_PER_RUN = 60
@@ -192,20 +194,58 @@ const LEADERBOARD_SCAN_PAGES = 3
 // different IP range, already allowlisted in worker/of.js) returns 200
 // with real data. A path-specific block on GH Actions' well-known IP
 // ranges, not a general OpenFront outage.
-// KNOWN, UNRESOLVED ISSUE: leaderboard/ranked has 403-ed on every single
-// GitHub Actions run for days straight (confirmed through retries), while
-// the exact same request succeeds instantly from any other IP, including
-// through this exact URL. Already ruled out: OpenFront blocking us (the
-// sibling public/clans/leaderboard call through this same proxy code never
-// has this problem) and a cynclan.com-zone-specific WAF rule (switching this
-// to the bare workers.dev URL - which sits outside that zone's config
-// entirely - made no difference, confirmed live). Left as cynclan.com since
-// neither URL is actually better; the real fix needs Cloudflare/OpenFront-
-// side investigation this script can't do from inside a failed request.
-// fetchRankedMap()'s own fallback-to-last-known-good keeps ranked_1v1/
-// ranked_2v2 (and therefore Elo) from a hard failure while this stands -
-// just stale instead of broken, until a run manages to get through.
+// CONFIRMED root cause (not an IP block, not OpenFront's app layer, not a
+// cynclan.com-zone WAF rule - all three ruled out directly): the response
+// body of this "403" is literally Cloudflare's own "Just a moment..."
+// interactive bot-challenge page, served by whatever Cloudflare zone fronts
+// api.openfront.io. That's a JS puzzle a plain fetch() can never solve
+// regardless of headers/UA/proxy - the sibling public/clans/leaderboard
+// call (hit once per run, not RANKED_LEADERBOARD_SCAN_PAGES=3 times, on the
+// exact same schedule) never triggers it, so the leading theory is that
+// this endpoint's own bot-heuristics are stricter and eventually flag a
+// forever-every-10-minutes, always-identical-request polling pattern as
+// automated. RANKED_SCAN_INTERVAL_MS below throttles actual attempts to
+// roughly once an hour instead of once every run, to look less robotic -
+// fetchRankedMap()'s own fallback-to-last-known-good still covers the gap
+// with slightly-stale (not broken) Elo either way.
 const RANKED_LEADERBOARD_BASE = 'https://cynclan.com/api/of'
+const RANKED_SCAN_INTERVAL_MS = 60 * 60 * 1000
+
+// Confirmed live, directly: Node's own fetch() (undici) gets Cloudflare's
+// "Just a moment..." interactive bot-challenge on THIS ONE OpenFront
+// endpoint specifically - reproduced straight to api.openfront.io, no
+// proxy involved, same IP that a plain `curl` call to the identical URL
+// succeeds on immediately, and the same IP that every OTHER OpenFront
+// endpoint (public/clans/leaderboard, public/game, public/player) never
+// has this problem with via the exact same Node fetch(). This is Cloudflare
+// fingerprinting the TLS/HTTP client itself (Node's fetch vs curl look
+// different at that layer), scoped to this one path - not an IP block, not
+// an OpenFront application-layer rejection, not anything specific to our
+// own cynclan.com Cloudflare zone (all three ruled out directly before
+// landing on this). Shelling out to the system's real `curl` (present on
+// every GitHub Actions runner by default) for just this one call sidesteps
+// it entirely, calling OpenFront directly - no need for our own proxy here
+// either, since curl itself was never blocked from anywhere it's been
+// tried.
+const execFileAsync = promisify(execFile)
+
+async function curlJson(url) {
+  for (let attempt = 0; ; attempt++) {
+    const { stdout } = await execFileAsync('curl', ['-s', '-w', '\n%{http_code}', '-H', 'Accept: application/json', url], {
+      maxBuffer: 20 * 1024 * 1024,
+    })
+    const splitAt = stdout.lastIndexOf('\n')
+    const status = Number(stdout.slice(splitAt + 1))
+    const body = stdout.slice(0, splitAt)
+    if (status === 429) {
+      if (attempt >= RATE_LIMIT_RETRIES) throw new Error(`rate-limited: ${url}`)
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
+      continue
+    }
+    if (status < 200 || status >= 300) throw new Error(`OpenFront API ${status} for ${url}: ${body.slice(0, 500)}`)
+    return JSON.parse(body)
+  }
+}
 
 async function fetchRankedMap() {
   const byId = new Map()
@@ -213,28 +253,31 @@ async function fetchRankedMap() {
   for (let page = 1; page <= LEADERBOARD_SCAN_PAGES; page++) {
     let json
     let lastErr
-    // A couple of retries with a real pause - confirmed live this endpoint
-    // specifically (not /public/clans/leaderboard on the same proxy, same
-    // run) has been 403-ing on literally every cron invocation for over a
-    // week, so this alone won't fix a persistent block, but it's a real,
-    // cheap chance to recover from a shorter-lived one instead of
-    // immediately giving up on page 1 and losing every page after it too.
+    // A couple of retries with a real pause for a genuinely transient
+    // failure. A 400 "Page must be between X and Y" isn't one, though - it's
+    // OpenFront's own leaderboard simply not having this many pages right
+    // now (LEADERBOARD_SCAN_PAGES is a fixed upper bound, not a guarantee),
+    // so it exits the loop immediately without wasting retries or logging
+    // it as an error.
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 3000 * attempt))
       try {
-        json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/leaderboard/ranked?page=${page}`)
+        json = await curlJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
         lastErr = undefined
         break
       } catch (err) {
         lastErr = err
+        if (String(err).includes('OpenFront API 400')) break
       }
     }
     if (lastErr) {
-      // Confirmed live: this failed silently for days with nothing in the
-      // run log to explain why cyn_roster_cache went empty - logged (not
-      // thrown) so a future recurrence is diagnosable from the Action's
-      // own output instead of needing a fresh investigation each time.
-      console.error(`fetchRankedMap page ${page} failed after retries:`, lastErr)
+      if (!String(lastErr).includes('OpenFront API 400')) {
+        // Confirmed live: this failed silently for days with nothing in the
+        // run log to explain why cyn_roster_cache went empty - logged (not
+        // thrown) so a future recurrence is diagnosable from the Action's
+        // own output instead of needing a fresh investigation each time.
+        console.error(`fetchRankedMap page ${page} failed after retries:`, lastErr)
+      }
       break
     }
     const entries = json?.['1v1'] ?? []
@@ -343,16 +386,6 @@ async function main() {
   const { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id')
   if (regError) throw regError
 
-  // Trend-graph data (elo/wins/XP over time - see src/lib/trends.ts) plus the
-  // roster page's own leaderboard needs: both fetched once per invocation,
-  // not once per member, and cheap either way (a 3-page leaderboard scan +
-  // one trackerfront call, one table read). A member outside the ranked top
-  // 100 just gets `elo: null` for today, same as the rest of the site
-  // already treats "no live elo" everywhere else.
-  const { byId: rankedMap, byId2v2: rankedMap2v2 } = await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
-  const ffaLeaderboard = await fetchFfaLeaderboard()
-  const { entry: clanLeaderboardEntry, top: clanLeaderboardTop } = await fetchClanLeaderboard()
-
   // A transient OpenFront/trackerfront hiccup (confirmed live: the ranked
   // leaderboard scan came back completely empty for one run, no thrown
   // error - fetchRankedMap's own per-page try/catch just breaks the loop
@@ -361,8 +394,30 @@ async function main() {
   // an empty write here instantly wiped Elo/badges site-wide until the
   // next successful run. Read the existing row first and only replace each
   // field where this run's result is actually non-empty; otherwise keep
-  // whatever was already cached.
+  // whatever was already cached. Fetched before fetchRankedMap() itself so
+  // that call's own throttle (below) can consult ranked_scanned_at.
   const { data: existingRosterCache } = await supabase.from('cyn_roster_cache').select('*').eq('id', 1).maybeSingle()
+
+  // Trend-graph data (elo/wins/XP over time - see src/lib/trends.ts) plus the
+  // roster page's own leaderboard needs: both fetched once per invocation,
+  // not once per member, and cheap either way (a 3-page leaderboard scan +
+  // one trackerfront call, one table read). A member outside the ranked top
+  // 100 just gets `elo: null` for today, same as the rest of the site
+  // already treats "no live elo" everywhere else.
+  //
+  // The leaderboard scan itself is throttled to RANKED_SCAN_INTERVAL_MS
+  // (see that constant's own comment) - skipped entirely on a run that's too
+  // soon after the last attempt, keeping whatever's already cached rather
+  // than paying (and failing) another attempt every single run.
+  const lastScanAt = existingRosterCache?.ranked_scanned_at ? new Date(existingRosterCache.ranked_scanned_at).getTime() : 0
+  const dueForRankedScan = Date.now() - lastScanAt > RANKED_SCAN_INTERVAL_MS
+  const { byId: rankedMap, byId2v2: rankedMap2v2 } = dueForRankedScan
+    ? await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
+    : { byId: new Map(), byId2v2: new Map() }
+  const nextRankedScannedAt = dueForRankedScan ? new Date().toISOString() : (existingRosterCache?.ranked_scanned_at ?? null)
+  const ffaLeaderboard = await fetchFfaLeaderboard()
+  const { entry: clanLeaderboardEntry, top: clanLeaderboardTop } = await fetchClanLeaderboard()
+
   const nextRanked1v1 = rankedMap.size > 0 ? Object.fromEntries(rankedMap) : (existingRosterCache?.ranked_1v1 ?? {})
   const nextRanked2v2 = rankedMap2v2.size > 0 ? Object.fromEntries(rankedMap2v2) : (existingRosterCache?.ranked_2v2 ?? {})
   // Per-member snapshot Elo below reads from these two (the same
@@ -394,6 +449,7 @@ async function main() {
         id: 1,
         ranked_1v1: nextRanked1v1,
         ranked_2v2: nextRanked2v2,
+        ranked_scanned_at: nextRankedScannedAt,
         ffa_leaderboard: nextFfaLeaderboard,
         clan_leaderboard: nextClanLeaderboard,
         clan_leaderboard_top: nextClanLeaderboardTop,

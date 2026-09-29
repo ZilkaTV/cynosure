@@ -99,7 +99,10 @@ async function fetchJson(url) {
       await new Promise((r) => setTimeout(r, RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt))
       continue
     }
-    if (!res.ok) throw new Error(`OpenFront API ${res.status} for ${url}`)
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => '<unreadable>')
+      throw new Error(`OpenFront API ${res.status} for ${url}: ${bodyText.slice(0, 500)}`)
+    }
     return res.json()
   }
 }

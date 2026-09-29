@@ -16,10 +16,12 @@ import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
 import {
   fetchClanLeaderboardEntry,
+  fetchOwnDecayedClanTotals,
   fetchClanScoreLedger,
   fmtScoreDelta,
   fmtRatioChange,
   type ClanLeaderboardEntry,
+  type DecayedClanTotals,
   type ClanScoreRow,
 } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -199,6 +201,7 @@ export default function Home() {
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  const [ownClanTotals, setOwnClanTotals] = useState<DecayedClanTotals | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -208,6 +211,7 @@ export default function Home() {
   // number exactly, not the per-game history shown elsewhere on the site.
   useEffect(() => {
     fetchClanLeaderboardEntry().then(setClanLeaderboard)
+    fetchOwnDecayedClanTotals().then(setOwnClanTotals)
   }, [])
 
   // Same game can show up under multiple members if several CYN players were
@@ -309,6 +313,24 @@ export default function Home() {
             <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
             <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
           </div>
+          <p className="mt-2 text-center text-xs text-white/40">
+            OpenFront's own "CYN" number - counts every player worldwide who ever set that raw tag, not just our roster.
+          </p>
+        </section>
+      )}
+
+      {ownClanTotals && ownClanTotals.weightedWLRatio != null && (
+        <section>
+          <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title="Our Own Win/Loss Ratio" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Games" value={ownClanTotals.games} accent="plain" />
+            <StatCard label="Win Score" value={ownClanTotals.weightedWins.toFixed(2)} accent="gold" />
+            <StatCard label="Loss Score" value={ownClanTotals.weightedLosses.toFixed(2)} accent="plain" />
+            <StatCard label="Win/Loss Ratio" value={ownClanTotals.weightedWLRatio.toFixed(2)} accent="gold" />
+          </div>
+          <p className="mt-2 text-center text-xs text-white/40">
+            Same 30-day-decay formula as above, but only our real registered members' own games.
+          </p>
         </section>
       )}
 

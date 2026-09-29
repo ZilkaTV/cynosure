@@ -82,6 +82,31 @@ function buildClanScoreLedger(games) {
   return ledger
 }
 
+// Same 30-day half-life OpenFront's own live leaderboard decays by - see
+// src/lib/clanScore.ts's DecayedClanTotals/computeDecayedClanTotals for the
+// full reasoning (this is the honest, membership-scoped equivalent of that
+// live number, since OpenFront's own /public/clan/:tag endpoints aggregate
+// every player worldwide who ever set their raw tag to "CYN", not just this
+// clan's real registered members).
+const DECAY_HALF_LIFE_DAYS = 30
+
+function computeDecayedClanTotals(games, now) {
+  let weightedWins = 0
+  let weightedLosses = 0
+  let count = 0
+  for (const g of games) {
+    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
+    if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
+    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
+    const decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
+    const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won }) * decay
+    if (g.won) weightedWins += score
+    else weightedLosses += score
+    count++
+  }
+  return { games: count, weightedWins, weightedLosses, weightedWLRatio: weightedLosses > 0 ? weightedWins / weightedLosses : null }
+}
+
 // ── end duplicated section ──────────────────────────────────────────────────
 
 const UPSERT_BATCH_SIZE = 500
@@ -169,7 +194,12 @@ async function main() {
     }
   }
 
-  const ledger = buildClanScoreLedger([...byGameId.values()])
+  const allGames = [...byGameId.values()]
+  const ledger = buildClanScoreLedger(allGames)
+
+  const ownTotals = computeDecayedClanTotals(allGames, new Date())
+  const { error: rosterError } = await supabase.from('cyn_roster_cache').update({ own_clan_totals: ownTotals }).eq('id', 1)
+  if (rosterError) throw rosterError
 
   let written = 0
   for (let i = 0; i < ledger.length; i += UPSERT_BATCH_SIZE) {
@@ -197,6 +227,7 @@ async function main() {
         eligibleGamesConsidered: byGameId.size,
         ledgerEntriesWritten: written,
         latestRatio: ledger.length ? ledger[ledger.length - 1].ratioAfter : null,
+        ownDecayedRatio: ownTotals.weightedWLRatio,
       },
       null,
       2,

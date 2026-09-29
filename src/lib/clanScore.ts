@@ -127,6 +127,80 @@ export function buildClanScoreLedger(
   return ledger
 }
 
+/**
+ * Half-life (days) OpenFront's own live clan leaderboard decays every
+ * game's weighted contribution by - see docs/API.md's own description.
+ * A clan's Win Score (weightedWins) and Loss Score (weightedLosses) are
+ * each just a sum of every past game's own independently-decaying term -
+ * since every term shares the SAME decay constant, calculus says the SUM
+ * decays at that identical constant rate too, regardless of how old any
+ * individual game already is.
+ */
+const DECAY_HALF_LIFE_DAYS = 30
+
+export interface DecayedClanTotals {
+  games: number
+  weightedWins: number
+  weightedLosses: number
+  weightedWLRatio: number | null
+}
+
+/**
+ * Our own version of OpenFront's live "CLANS" leaderboard number
+ * (ClanLeaderboardEntry/fetchClanLeaderboardEntry above) - same 30-day
+ * half-life decay applied relative to `now`, but summed ONLY over games
+ * this site actually knows were played by real, registered [CYN] members
+ * (the same `games` buildClanScoreLedger takes, already cross-referenced
+ * against cyn_game_detail_cache for the true clanPlayerCount).
+ *
+ * OpenFront's own /public/clan/:tag endpoints have no concept of
+ * membership at all - they aggregate literally every player who ever set
+ * their raw in-game clan tag to the same string, worldwide, including
+ * players with zero connection to this site's actual roster. Confirmed
+ * directly: the "CYN" tag saw 900-2000+ games/month with a ~21-28% win
+ * rate from Nov 2025 through May 2026 - months before this site (and its
+ * oldest registered member) existed at all - fading out almost entirely
+ * right as this site's own membership ramped up in July 2026. That old,
+ * unrelated volume still partially pollutes OpenFront's own live number
+ * (30-day decay thins it out but doesn't zero it out for months). There is
+ * no honest way to make this site's number equal that one - doing so would
+ * mean attributing strangers' games to this clan. This is the closest
+ * legitimate comparison: the exact same decay formula, applied to exactly
+ * this clan's own real history only.
+ */
+export function computeDecayedClanTotals(
+  games: { start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],
+  now: Date = new Date(),
+): DecayedClanTotals {
+  let weightedWins = 0
+  let weightedLosses = 0
+  let count = 0
+  for (const g of games) {
+    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
+    if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
+    const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
+    const decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
+    const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won }) * decay
+    if (g.won) weightedWins += score
+    else weightedLosses += score
+    count++
+  }
+  return { games: count, weightedWins, weightedLosses, weightedWLRatio: weightedLosses > 0 ? weightedWins / weightedLosses : null }
+}
+
+/**
+ * Reads the aggregate computeDecayedClanTotals already computed by
+ * scripts/compute-clan-score-ledger.mjs (recomputed fresh every cron run,
+ * same as cyn_clan_score_ledger itself) - avoids re-fetching and re-walking
+ * every eligible game client-side just to show one number.
+ */
+export async function fetchOwnDecayedClanTotals(): Promise<DecayedClanTotals | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('cyn_roster_cache').select('own_clan_totals').eq('id', 1).maybeSingle()
+  if (error || !data) return null
+  return (data as { own_clan_totals: DecayedClanTotals | null }).own_clan_totals
+}
+
 // ── Client-side reads (precomputed by scripts/compute-clan-score-ledger.mjs) ─
 
 export interface ClanScoreRow {
@@ -228,20 +302,6 @@ export async function fetchTopClanLeaderboard(): Promise<TopClanEntry[]> {
 }
 
 // ── Win Score decay forecast (no new games assumed) ─────────────────────────
-
-/**
- * Half-life (days) OpenFront's own live clan leaderboard decays every
- * game's weighted contribution by - see docs/API.md's own description,
- * duplicated from the formula already used in clanSessionScore's own
- * comment above. A clan's Win Score (weightedWins) and Loss Score
- * (weightedLosses) are each just a sum of every past game's own
- * independently-decaying term - since every term shares the SAME decay
- * constant, calculus says the SUM decays at that identical constant rate
- * too, regardless of how old any individual game already is (this is why
- * projecting forward needs only today's total, not per-game history we
- * don't have for other clans in the first place).
- */
-const DECAY_HALF_LIFE_DAYS = 30
 
 /**
  * How many Win Score (or Loss Score) points a clan is on track to lose

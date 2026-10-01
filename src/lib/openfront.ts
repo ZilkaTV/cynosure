@@ -389,9 +389,27 @@ interface SharedGamesRow {
 // union-before-upsert), trusting it regardless of age is always at least as
 // correct as the alternative, and the cron still keeps it fresh whenever it
 // does manage to run.
+// Goes through GET /api/member-games (worker/memberGames.js, KV-cached per
+// member) rather than querying Supabase directly - see that file's own
+// comment for why it's shaped as per-member keys instead of one blob like
+// cyn_roster_cache. Falls back to a direct Supabase read if the Worker
+// route is ever unreachable.
 async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<string, PlayerGame[]>> {
   const result = new Map<string, PlayerGame[]>()
-  if (!supabase || publicIds.length === 0) return result
+  if (publicIds.length === 0) return result
+
+  try {
+    const res = await fetch(`/api/member-games?ids=${encodeURIComponent(publicIds.join(','))}`)
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, PlayerGame[]>
+      for (const [id, games] of Object.entries(data)) result.set(id, games)
+      return result
+    }
+  } catch {
+    // fall through to the direct Supabase read below
+  }
+
+  if (!supabase) return result
   const { data, error } = await supabase.from('cyn_member_games_cache').select('openfront_id, games').in('openfront_id', publicIds)
   if (error || !data) return result
   for (const row of data as SharedGamesRow[]) result.set(row.openfront_id, row.games)

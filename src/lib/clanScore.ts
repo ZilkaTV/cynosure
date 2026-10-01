@@ -164,10 +164,29 @@ interface ClanScoreLedgerDbRow {
  * game isn't in the ledger yet (not eligible, or the cron hasn't reached it
  * yet) - callers should treat that the same as "no clan score to show",
  * never as an error.
+ *
+ * Goes through GET /api/clan-ledger (worker/clanLedger.js, KV-cached) rather
+ * than querying Supabase directly - see that file's own comment. Falls back
+ * to a direct Supabase read if the Worker route is ever unreachable.
  */
 export async function fetchClanScoreLedger(gameIds: string[]): Promise<Map<string, ClanScoreRow>> {
   const result = new Map<string, ClanScoreRow>()
-  if (!supabase || gameIds.length === 0) return result
+  if (gameIds.length === 0) return result
+
+  try {
+    const res = await fetch(`/api/clan-ledger?gameIds=${encodeURIComponent(gameIds.join(','))}`)
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, ClanScoreLedgerDbRow>
+      for (const row of Object.values(data)) {
+        result.set(row.game_id, { won: row.won, score: row.score, ratioBefore: row.ratio_before, ratioAfter: row.ratio_after })
+      }
+      return result
+    }
+  } catch {
+    // fall through to the direct Supabase read below
+  }
+
+  if (!supabase) return result
   const { data, error } = await supabase
     .from('cyn_clan_score_ledger')
     .select('game_id, won, score, ratio_before, ratio_after')

@@ -13,6 +13,8 @@ import { handleHelpChat } from './help-chat.js'
 import { handleDiscordAuthCallback } from './discord-auth.js'
 import { withSecurityHeaders } from './securityHeaders.js'
 import { handleRoster, refreshRosterKv } from './roster.js'
+import { handleClanLedger, refreshClanLedgerKv } from './clanLedger.js'
+import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
@@ -25,6 +27,8 @@ export default {
     if (pathname === '/api/help-chat') return withSecurityHeaders(await handleHelpChat(request, env))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await handleRoster(request, env, ctx))
+    if (pathname === '/api/clan-ledger') return withSecurityHeaders(await handleClanLedger(request, env, ctx))
+    if (pathname === '/api/member-games') return withSecurityHeaders(await handleMemberGames(request, env))
 
     return withSecurityHeaders(
       new Response(JSON.stringify({ error: 'not_found' }), {
@@ -53,11 +57,14 @@ export default {
     ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
     ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
-    // Refreshes the KV mirror of cyn_roster_cache every tick too - see
-    // roster.js's own comment. Independent of the dispatches above: this
-    // reads whatever Supabase already has (written by the PREVIOUS cron
-    // run), it doesn't wait for this tick's dispatched runs to finish.
+    // Refreshes the three KV read-caches every tick too - see roster.js's,
+    // clanLedger.js's and memberGames.js's own comments. Independent of the
+    // dispatches above: these read whatever Supabase already has (written
+    // by the PREVIOUS cron run), they don't wait for this tick's dispatched
+    // runs to finish.
     ctx.waitUntil(refreshRosterKv(env))
+    ctx.waitUntil(refreshClanLedgerKv(env))
+    ctx.waitUntil(refreshMemberGamesKv(env))
   },
 }
 

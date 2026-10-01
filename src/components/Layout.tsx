@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import CynLogo from './CynLogo'
-import HelpWidget from './HelpWidget'
-import ClanChatWidget from './ClanChatWidget'
 import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
@@ -229,8 +227,6 @@ export default function Layout({ children }: { children: ReactNode }) {
         <span className="hidden sm:inline">{t.donate.label}</span>
       </Link>
 
-      <HelpWidget />
-      <ClanChatWidget />
     </div>
   )
 }

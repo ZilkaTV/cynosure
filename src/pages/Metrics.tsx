@@ -13,6 +13,7 @@ import {
 import { useSession } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
 import { fetchTopClanLeaderboard, forecastWinScoreLoss, type TopClanEntry } from '../lib/clanScore'
+import { CLAN_TAG } from '../config'
 
 const QUIET_AFTER_DAYS = 14
 
@@ -64,7 +65,12 @@ export default function Metrics() {
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
     fetchTopClanLeaderboard().then((top) => {
       setTopClans(top)
-      if (top.length > 0) setForecastClanTag((prev) => prev || top[0].clanTag)
+      // Defaults to our own clan, not whoever happens to be #1 overall -
+      // this panel exists to forecast OUR Win Score decay, not to showcase
+      // the top clan. Falls back to rank #1 only in the unlikely case CYN
+      // itself isn't in the top-20 list this reads from.
+      const defaultTag = top.some((c) => c.clanTag === CLAN_TAG) ? CLAN_TAG : top[0]?.clanTag
+      if (defaultTag) setForecastClanTag((prev) => prev || defaultTag)
     })
   }, [isInnerCircle, session])
 

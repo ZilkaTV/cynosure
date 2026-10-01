@@ -82,8 +82,14 @@ async function findExistingUserByDiscordId(supabaseAdmin, discordId) {
 export async function handleDiscordAuthCallback(request, env) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  const rawState = searchParams.get('state') ?? '/'
-  const targetPath = ALLOWED_REDIRECT_PATHS.has(rawState) ? rawState : '/'
+  // `state` is `<path>|<nonce>` - see src/lib/discordAuth.ts's own comment
+  // on NONCE_STORAGE_KEY. The nonce only matters to the BROWSER (it checks
+  // the echo against what it stored before leaving for Discord - this
+  // Worker has no session of its own to compare against), so it's just
+  // parsed out and passed straight back below, not validated here.
+  const rawState = searchParams.get('state') ?? ''
+  const [rawPath, nonce] = rawState.split('|')
+  const targetPath = ALLOWED_REDIRECT_PATHS.has(rawPath) ? rawPath : '/'
 
   if (searchParams.get('error')) {
     // Most commonly access_denied - the visitor clicked "Cancel" on Discord's
@@ -174,5 +180,10 @@ export async function handleDiscordAuthCallback(request, env) {
   // token_hash and type should be provided").
   const redirectUrl = new URL(targetPath, 'https://cynclan.com')
   redirectUrl.searchParams.set('discord_token_hash', data.properties.hashed_token)
+  // Echoed straight back for the browser's own anti-CSRF check (see
+  // completeDiscordSignIn in discordAuth.ts) - if there's no nonce (an old
+  // link, or state was tampered with), that check fails closed on its own,
+  // nothing extra needed here.
+  if (nonce) redirectUrl.searchParams.set('discord_state_nonce', nonce)
   return Response.redirect(redirectUrl.toString(), 302)
 }

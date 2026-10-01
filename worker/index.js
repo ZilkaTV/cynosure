@@ -15,6 +15,7 @@ import { withSecurityHeaders } from './securityHeaders.js'
 import { handleRoster, refreshRosterKv } from './roster.js'
 import { handleClanLedger, refreshClanLedgerKv } from './clanLedger.js'
 import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
+import { handleGameDetail } from './gameDetail.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
@@ -29,6 +30,7 @@ export default {
     if (pathname === '/api/roster') return withSecurityHeaders(await handleRoster(request, env, ctx))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await handleClanLedger(request, env, ctx))
     if (pathname === '/api/member-games') return withSecurityHeaders(await handleMemberGames(request, env))
+    if (pathname === '/api/game-detail') return withSecurityHeaders(await handleGameDetail(request, env, ctx))
 
     return withSecurityHeaders(
       new Response(JSON.stringify({ error: 'not_found' }), {

@@ -575,27 +575,41 @@ export interface GameDetail {
 }
 
 /**
- * Reads a game's detail from the shared cyn_game_detail_cache table, if any
- * visitor (or the daily Vercel Cron backfill) has already fetched it - see
- * supabase/schema.sql. A finished game's own record never changes, so
- * there's no version/TTL to invalidate against here, unlike the Max Tiles
- * cache: once a row exists, it's simply correct forever.
+ * Bulk variant of fetchSharedGameDetail - one request for many games instead
+ * of one round-trip per game. Goes through GET /api/game-detail
+ * (worker/gameDetail.js, KV-cached) rather than querying Supabase directly -
+ * built after confirming this table (large: ~60KB/row, see buildRoster's own
+ * "292 lookups" comment in stats.ts) was the dominant cause of a real
+ * Supabase egress-quota overage. Falls back to a direct Supabase read if the
+ * Worker route is ever unreachable, same pattern as fetchClanScoreLedger/
+ * fetchSharedPlayerGamesBatch.
  */
-async function fetchSharedGameDetail(gameId: string): Promise<GameDetail | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.from('cyn_game_detail_cache').select('detail').eq('game_id', gameId).maybeSingle()
-  if (error || !data) return null
-  return (data as { detail: GameDetail }).detail
-}
-
-/** Bulk variant of fetchSharedGameDetail - one query for many games instead of one round-trip per game. */
 async function fetchSharedGameDetailsBatch(gameIds: string[]): Promise<Map<string, GameDetail>> {
   const result = new Map<string, GameDetail>()
-  if (!supabase || gameIds.length === 0) return result
+  if (gameIds.length === 0) return result
+
+  try {
+    const res = await fetch(`/api/game-detail?ids=${encodeURIComponent(gameIds.join(','))}`)
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, GameDetail>
+      for (const [gameId, detail] of Object.entries(data)) result.set(gameId, detail)
+      return result
+    }
+  } catch {
+    // fall through to the direct Supabase read below
+  }
+
+  if (!supabase) return result
   const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', gameIds)
   if (error || !data) return result
   for (const row of data as { game_id: string; detail: GameDetail }[]) result.set(row.game_id, row.detail)
   return result
+}
+
+/** Single-game variant of fetchSharedGameDetailsBatch, for the one-off "visitor clicked a specific game" path. */
+async function fetchSharedGameDetail(gameId: string): Promise<GameDetail | null> {
+  const result = await fetchSharedGameDetailsBatch([gameId])
+  return result.get(gameId) ?? null
 }
 
 function saveSharedGameDetail(gameId: string, detail: GameDetail): void {

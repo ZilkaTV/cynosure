@@ -1,0 +1,78 @@
+// Edge read-cache for cyn_game_detail_cache in front of Supabase - built in
+// direct response to a real Supabase egress-quota overage (9.3GB/5GB in one
+// billing cycle, confirmed live via the Supabase usage dashboard). Each row
+// here is a full post-game report (~60KB, confirmed directly) and
+// buildRoster's own comment (src/lib/stats.ts) documents a real roster
+// needing 292 of these in ONE call - multiplied across every visitor whose
+// browser doesn't already have a given game in its own permanent
+// localStorage cache (a first visit, a cleared cache, a different device),
+// this is almost certainly the dominant cause of the overage.
+//
+// Per-game KV key (same shape as memberGames.js, not one blob like
+// clanLedger.js/roster.js) - this table is already multi-hundred-MB and
+// only grows, same reasoning as memberGames.js's own comment. No scheduled()
+// sync needed: unlike the other cached tables, a finished game's detail
+// never changes once written (confirmed by openfront.ts's own
+// fetchSharedGameDetail comment: "once a row exists, it's simply correct
+// forever"), so lazy warm-on-first-read is sufficient - there's nothing to
+// keep in sync.
+import { createClient } from '@supabase/supabase-js'
+
+const KV_PREFIX = 'game-detail:v1:'
+// Generous and somewhat arbitrary, since the DATA itself never goes stale -
+// this is purely a storage-footprint bound, not a correctness one. An
+// eviction after 60 days just means the next visitor who asks for that
+// specific old game re-triggers one lazy Supabase fetch, same as a cold
+// cache today - never wrong, only occasionally not-yet-warm.
+const KV_TTL_SECONDS = 60 * 24 * 60 * 60
+
+function jsonResponse(obj, status = 200) {
+  return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+function supabaseClient(env) {
+  return createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY)
+}
+
+/**
+ * GET /api/game-detail?ids=a,b,c - per-game KV reads, with one batched
+ * Supabase query for whatever's missing, each result warmed into KV
+ * afterward (ctx.waitUntil'd - a response ending before an un-awaited KV
+ * write completes was a real, already-fixed bug in roster.js earlier this
+ * session) so the NEXT visitor asking for that same game - any visitor, any
+ * browser, forever - gets it from the edge instead of hitting Supabase at
+ * all.
+ */
+export async function handleGameDetail(request, env, ctx) {
+  const url = new URL(request.url)
+  const idsParam = url.searchParams.get('ids') ?? ''
+  const ids = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
+  if (ids.length === 0) return jsonResponse({})
+
+  const result = {}
+  const missing = []
+  if (env.ROSTER_KV) {
+    const values = await Promise.all(ids.map((id) => env.ROSTER_KV.get(`${KV_PREFIX}${id}`)))
+    ids.forEach((id, i) => {
+      if (values[i]) result[id] = JSON.parse(values[i])
+      else missing.push(id)
+    })
+  } else {
+    missing.push(...ids)
+  }
+
+  if (missing.length > 0) {
+    const { data, error } = await supabaseClient(env).from('cyn_game_detail_cache').select('game_id, detail').in('game_id', missing)
+    if (!error) {
+      const rows = data ?? []
+      for (const row of rows) result[row.game_id] = row.detail
+      if (env.ROSTER_KV && rows.length > 0) {
+        const warm = Promise.all(rows.map((row) => env.ROSTER_KV.put(`${KV_PREFIX}${row.game_id}`, JSON.stringify(row.detail), { expirationTtl: KV_TTL_SECONDS })))
+        if (ctx) ctx.waitUntil(warm)
+        else await warm
+      }
+    }
+  }
+
+  return jsonResponse(result)
+}

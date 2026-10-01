@@ -26,6 +26,7 @@ import {
   type MemberStats,
 } from '../lib/stats'
 import { fetchMonthlyEloForAllMembers, type MonthlyEloPoint } from '../lib/trends'
+import { fetchClanScoreLedger, type ClanScoreRow } from '../lib/clanScore'
 
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -252,6 +253,34 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
   const months = useMemo(() => (data ? availableMonths(data.members) : [currentMonthKey()]), [data])
 
+  // Team monthly's "Win Score" column/title (replaces the old flat points
+  // system - see clanScore.ts) needs the real per-game clan score, which
+  // isn't derivable from a PlayerGame alone (it depends on the WHOLE clan's
+  // player count in that specific game, total players and team count - the
+  // same ledger Home.tsx's Latest Games table already reads). Only the
+  // member's own WON team games this month count - a loss contributes
+  // nothing, same as the old points system never penalized a loss either.
+  const teamWinGameIds = useMemo(() => {
+    if (variant !== 'team') return [] as string[]
+    const ids = new Set<string>()
+    for (const m of data?.members ?? []) {
+      for (const g of m.cynGames) {
+        if (isTeam(g) && g.type !== 'Private' && g.result === 'victory' && monthKeyOf(g.start) === month) ids.add(g.gameId)
+      }
+    }
+    return [...ids]
+  }, [variant, month, data])
+
+  const [teamLedger, setTeamLedger] = useState<Map<string, ClanScoreRow>>(new Map())
+  useEffect(() => {
+    if (teamWinGameIds.length === 0) {
+      setTeamLedger(new Map())
+      return
+    }
+    fetchClanScoreLedger(teamWinGameIds).then(setTeamLedger)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamWinGameIds.join(',')])
+
   if (!profile) return <RegistrationGate />
 
   const coop = data?.coopByGame ?? {}
@@ -262,6 +291,21 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const leaderOf = (rows: { m: MemberStats; v: number }[]): Leader | null => {
     const best = rows.filter((r) => r.v > 0).sort((a, b) => b.v - a.v)[0]
     return best ? { name: best.m.name, value: best.v } : null
+  }
+
+  // Sum of the real clan Win Score (clanScore.ts) across this member's own
+  // won team games this month - see teamWinGameIds/teamLedger above. A game
+  // missing from the ledger (not clan-score-eligible, or the cron hasn't
+  // reached it yet) simply contributes 0, same as any other "no score to
+  // show" case elsewhere on the site.
+  const winScoreFor = (m: MemberStats): number => {
+    let total = 0
+    for (const g of m.cynGames) {
+      if (!isTeam(g) || g.type === 'Private' || g.result !== 'victory' || monthKeyOf(g.start) !== month) continue
+      const row = teamLedger.get(g.gameId)
+      if (row?.won) total += row.score
+    }
+    return Math.round(total * 100) / 100
   }
 
   const title =
@@ -292,7 +336,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {rules && (
           <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{t.monthly.scoring}</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gold">{variant === 'team' ? t.monthly.rulesHeading : t.monthly.scoring}</p>
             <ul className="list-inside list-disc space-y-1 text-sm text-slate-400">{rules}</ul>
           </div>
         )}
@@ -361,22 +405,28 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && variant === 'team' && (() => {
           const rows = members
-            .map((m) => ({ m, r: teamMonthly(m, month, coop) }))
+            .map((m) => ({ m, r: teamMonthly(m, month, coop), winScore: winScoreFor(m) }))
             .sort((a, b) => {
               if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
               if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
               if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
               if (sortKey === 'kills') return compareNullable(a.r.kills, b.r.kills, sortDir)
               if (sortKey === 'avgGold') return compareNullable(a.r.avgGold, b.r.avgGold, sortDir)
-              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
-              return b.r.points - a.r.points || b.r.wins - a.r.wins
+              if (sortKey === 'winScore') return compareNullable(a.winScore, b.winScore, sortDir)
+              return b.winScore - a.winScore || b.r.wins - a.r.wins
             })
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
                 <TitleCard emoji={EMOJI.anchor} title={t.monthly.titleMarine} metric={t.monthly.metricGoldMin} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgGold ?? 0 })))} fmt={fmtGold} />
                 <TitleCard emoji={EMOJI.blast} title={t.monthly.titleDestroyer} metric={t.monthly.metricKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.kills ?? 0 })))} />
-                <TitleCard emoji={EMOJI.wrench} title={t.monthly.titleTeamGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard
+                  emoji={EMOJI.wrench}
+                  title={t.monthly.titleTeamGrinder}
+                  metric={t.monthly.metricHighestWinScore}
+                  leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.winScore })))}
+                  fmt={(n) => n.toFixed(2)}
+                />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
@@ -390,11 +440,11 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colKills} sortKey="kills" active={sortKey === 'kills'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colGoldMin} sortKey="avgGold" active={sortKey === 'avgGold'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colPoints} sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="Win Score" sortKey="winScore" active={sortKey === 'winScore'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, r }, i) => (
+                      {rows.map(({ m, r, winScore }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -403,7 +453,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
-                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
+                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{winScore > 0 ? winScore.toFixed(2) : '-'}</td>
                         </tr>
                       ))}
                     </tbody>

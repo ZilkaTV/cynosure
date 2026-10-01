@@ -26,6 +26,19 @@ const KV_PREFIX = 'game-detail:v1:'
 // cache today - never wrong, only occasionally not-yet-warm.
 const KV_TTL_SECONDS = 60 * 24 * 60 * 60
 
+// Workers KV's free tier caps writes at 1000/day ACCOUNT-WIDE, shared with
+// roster.js/clanLedger.js/memberGames.js's own (much smaller) scheduled
+// writes. Confirmed live: deploying this file uncapped blew through that
+// limit within 2-3 page loads right after deploy, when the cache was
+// entirely cold and buildRoster's own "292 lookups in one call" (see this
+// file's top comment) meant a single visitor's first request could try to
+// warm close to 300 keys at once. Capping how many a single request ever
+// warms spreads that cost across many requests/visitors over time instead -
+// a few still-cold games on any one response is harmless (they're served
+// correctly from Supabase either way, just not cached YET), so this never
+// affects correctness, only how fast the cache fills in.
+const MAX_WARM_PER_REQUEST = 20
+
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
 }
@@ -67,7 +80,15 @@ export async function handleGameDetail(request, env, ctx) {
       const rows = data ?? []
       for (const row of rows) result[row.game_id] = row.detail
       if (env.ROSTER_KV && rows.length > 0) {
-        const warm = Promise.all(rows.map((row) => env.ROSTER_KV.put(`${KV_PREFIX}${row.game_id}`, JSON.stringify(row.detail), { expirationTtl: KV_TTL_SECONDS })))
+        // Best-effort per key - a single still-rate-limited PUT (e.g. during
+        // today's KV quota block) must never reject the whole batch and
+        // spam the Worker's error log; it just means that one game stays
+        // cold for another request to pick up later.
+        const warm = Promise.all(
+          rows.slice(0, MAX_WARM_PER_REQUEST).map((row) =>
+            env.ROSTER_KV.put(`${KV_PREFIX}${row.game_id}`, JSON.stringify(row.detail), { expirationTtl: KV_TTL_SECONDS }).catch(() => {}),
+          ),
+        )
         if (ctx) ctx.waitUntil(warm)
         else await warm
       }

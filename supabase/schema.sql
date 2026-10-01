@@ -1383,3 +1383,84 @@ as $$
 $$;
 
 grant execute on function public.cyn_survey_public_answers() to anon, authenticated;
+
+-- ============================================================
+-- Kudos: a one-click "nice game" reaction another member can give on a
+-- specific clan game (see Home.tsx's Latest Games table). Research-backed
+-- pattern (Strava Kudos, Tatsu's reputation system) - the first feature on
+-- this site where members react to EACH OTHER's activity instead of only
+-- their own stats. Unique per (game, giver, recipient) so the same person
+-- can't spam the same game repeatedly; no update/delete policy, same as a
+-- real "like" - once given, it stays.
+-- ============================================================
+
+create table if not exists public.cyn_kudos (
+  id bigint generated always as identity primary key,
+  game_id text not null,
+  from_openfront_id text not null,
+  to_openfront_id text not null,
+  created_at timestamptz not null default now(),
+  unique (game_id, from_openfront_id, to_openfront_id)
+);
+
+alter table public.cyn_kudos enable row level security;
+
+create policy "public can read cyn_kudos"
+  on public.cyn_kudos for select to public using (true);
+
+-- Same soft-trust bar as cyn_bumps/cyn_speedruns (see this file's own
+-- comment near cyn_members.user_id): proves "signed in with some Discord
+-- account", not individually ownership-checked at the DB level. Fine here -
+-- low-stakes, self-reported social reaction, not something with real stakes
+-- if someone fakes a from_openfront_id that isn't their own.
+create policy "members can give cyn_kudos"
+  on public.cyn_kudos for insert to authenticated with check (true);
+
+create index if not exists cyn_kudos_to_idx on public.cyn_kudos (to_openfront_id);
+create index if not exists cyn_kudos_game_idx on public.cyn_kudos (game_id);
+
+-- ============================================================
+-- Game nights: a lightweight "who's in tonight" RSVP, distinct from the
+-- tournament-style cyn_event_teams/cyn_event_submissions system (Events.tsx)
+-- - that one is for formal scrims/tournaments with admin-reviewed score
+-- submissions; this one is for casual "let's play tonight" coordination,
+-- openly creatable by any signed-in member, not admin-gated.
+-- ============================================================
+
+create table if not exists public.cyn_game_nights (
+  id bigint generated always as identity primary key,
+  starts_at timestamptz not null,
+  note text,
+  created_by text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.cyn_game_nights enable row level security;
+
+create policy "public can read cyn_game_nights"
+  on public.cyn_game_nights for select to public using (true);
+
+create policy "members can create cyn_game_nights"
+  on public.cyn_game_nights for insert to authenticated with check (true);
+
+create policy "members can delete cyn_game_nights"
+  on public.cyn_game_nights for delete to authenticated using (true);
+
+create table if not exists public.cyn_game_night_rsvps (
+  game_night_id bigint not null references public.cyn_game_nights(id) on delete cascade,
+  openfront_id text not null,
+  status text not null check (status in ('going', 'maybe', 'not_going')),
+  updated_at timestamptz not null default now(),
+  primary key (game_night_id, openfront_id)
+);
+
+alter table public.cyn_game_night_rsvps enable row level security;
+
+create policy "public can read cyn_game_night_rsvps"
+  on public.cyn_game_night_rsvps for select to public using (true);
+
+create policy "members can upsert cyn_game_night_rsvps"
+  on public.cyn_game_night_rsvps for insert to authenticated with check (true);
+
+create policy "members can update cyn_game_night_rsvps"
+  on public.cyn_game_night_rsvps for update to authenticated using (true) with check (true);

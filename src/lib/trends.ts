@@ -207,3 +207,28 @@ export async function fetchMonthlyEloForAllMembers(monthKey: string): Promise<Re
   }
   return result
 }
+
+// ── "Most improved this week" (segmented mini-leaderboard) ─────────────────
+// A single global ranking only motivates the top of the pack - a small,
+// separate "most improved" cut gives everyone else their own moment too
+// (same research as the clan streak above). Reuses fetchAllMemberTrends
+// rather than a new query - all_wins delta over the window is a direct,
+// already-tracked proxy for "how much did this person actually play/win
+// this week", no new table needed.
+
+export interface MostImproved {
+  openfrontId: string
+  winsDelta: number
+}
+
+/** Top N members by all_wins gained over the last `days` days, highest first. Members with no gain are excluded entirely, not shown as 0. */
+export async function fetchMostImproved(days = 7, limit = 3): Promise<MostImproved[]> {
+  const byMember = await fetchAllMemberTrends(days + 1)
+  const deltas: MostImproved[] = []
+  for (const [openfrontId, points] of Object.entries(byMember)) {
+    if (points.length < 2) continue
+    const winsDelta = points[points.length - 1].allWins - points[0].allWins
+    if (winsDelta > 0) deltas.push({ openfrontId, winsDelta })
+  }
+  return deltas.sort((a, b) => b.winsDelta - a.winsDelta).slice(0, limit)
+}

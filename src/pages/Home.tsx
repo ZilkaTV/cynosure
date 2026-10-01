@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -11,6 +11,7 @@ import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
+import { GameNightsCard } from '../components/GameNightsCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
@@ -19,9 +20,13 @@ import {
   fetchClanScoreLedger,
   fmtScoreDelta,
   fmtRatioChange,
+  isClanScoreEligible,
   type ClanLeaderboardEntry,
   type ClanScoreRow,
 } from '../lib/clanScore'
+import { computeClanStreak } from '../lib/streak'
+import { fetchMostImproved, type MostImproved } from '../lib/trends'
+import { fetchKudos, giveKudos, type KudosCounts } from '../lib/kudos'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -201,6 +206,9 @@ export default function Home() {
   const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
+  const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
+  const [kudos, setKudos] = useState<KudosCounts>({ totals: {}, givenByGame: {} })
+  const [kudosBusy, setKudosBusy] = useState<string | null>(null)
 
   // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
   // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
@@ -219,17 +227,51 @@ export default function Home() {
   // someone typed at registration vs. their real in-game name), which used
   // to only show up inconsistently on games the full roster couldn't
   // reconstruct, looking like two different people.
-  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
+  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[]; memberIds: string[] }>()
   for (const m of data?.members ?? []) {
     for (const g of m.cynGames) {
       if (g.type === 'Private' || isIncompleteRanked(g)) continue
       const existing = byGameId.get(g.gameId)
-      if (existing) existing.memberNames.push(g.username)
-      else byGameId.set(g.gameId, { g, memberNames: [g.username] })
+      if (existing) {
+        existing.memberNames.push(g.username)
+        existing.memberIds.push(m.publicId)
+      } else {
+        byGameId.set(g.gameId, { g, memberNames: [g.username], memberIds: [m.publicId] })
+      }
     }
   }
   const sortedRecentGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
   const recentGames = sortedRecentGames.slice(0, 5)
+
+  // Clan-wide play streak + "games this week" pulse stat (see streak.ts) -
+  // computed straight from the roster's already-loaded game history, no
+  // extra fetch. Memoized since this walks every member's full game list,
+  // same pattern tick 13's INP research flagged for History.tsx's sort/
+  // filter - worth doing right from the start in new code.
+  const allGamesForStreak = useMemo(() => (data?.members ?? []).flatMap((m) => m.cynGames), [data])
+  const streak = useMemo(() => computeClanStreak(allGamesForStreak), [allGamesForStreak])
+  const weeklyGameCount = useMemo(() => {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const seen = new Set<string>()
+    let count = 0
+    for (const g of allGamesForStreak) {
+      if (g.type === 'Private' || !isClanScoreEligible(g) || new Date(g.start).getTime() < since) continue
+      if (seen.has(g.gameId)) continue
+      seen.add(g.gameId)
+      count++
+    }
+    return count
+  }, [allGamesForStreak])
+
+  useEffect(() => {
+    fetchMostImproved().then(setMostImproved)
+  }, [])
+
+  useEffect(() => {
+    if (recentGames.length === 0) return
+    fetchKudos(recentGames.map(({ g }) => g.gameId)).then(setKudos)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentGames.map(({ g }) => g.gameId).join(',')])
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
@@ -300,6 +342,36 @@ export default function Home() {
         </div>
       </section>
 
+      <section>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatCard label={t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount)} value={weeklyGameCount} accent="gold" />
+          <StatCard
+            label={t.home.streakTitle}
+            value={streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}
+            sub={streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}
+            accent="purple"
+          />
+          <div className="panel px-5 py-4">
+            <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.home.mostImprovedTitle}</p>
+            {mostImproved.length === 0 ? (
+              <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
+            ) : (
+              <ul className="space-y-0.5">
+                {mostImproved.map((mi) => {
+                  const member = data?.members.find((m) => m.publicId === mi.openfrontId)
+                  return (
+                    <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
+                      <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
+                      <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
+
       {clanLeaderboard && (
         <section>
           <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
@@ -345,6 +417,12 @@ export default function Home() {
         </section>
       )}
 
+      {me && (
+        <section className="mx-auto max-w-xl">
+          <GameNightsCard openfrontId={me.publicId} />
+        </section>
+      )}
+
       {recentGames.length > 0 && (
         <section className="space-y-4">
           <SectionHeading center eyebrow={t.home.activityEyebrow} title={t.home.latestGamesTitle} />
@@ -362,15 +440,19 @@ export default function Home() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                    {me && <th className="px-4 py-3 text-right font-semibold"></th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {recentGames.map(({ g, memberNames }) => {
+                  {recentGames.map(({ g, memberNames, memberIds }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
+                    const kudosTotal = memberIds.reduce((sum, id) => sum + (kudos.totals[id] ?? 0), 0)
+                    const alreadyGiven = me ? memberIds.some((id) => kudos.givenByGame[`${g.gameId}:${id}`]?.has(me.publicId)) : false
+                    const canGiveKudos = me && memberIds.some((id) => id !== me.publicId)
                     return (
                       <tr
                         key={g.gameId}
@@ -391,6 +473,27 @@ export default function Home() {
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
+                        {me && (
+                          <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            {canGiveKudos && (
+                              <button
+                                disabled={alreadyGiven || kudosBusy === g.gameId}
+                                onClick={async () => {
+                                  setKudosBusy(g.gameId)
+                                  const r = await giveKudos(g.gameId, me.publicId, memberIds)
+                                  if (r.ok) fetchKudos(recentGames.map(({ g: rg }) => rg.gameId)).then(setKudos)
+                                  setKudosBusy(null)
+                                }}
+                                className={`rounded-md px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed ${
+                                  alreadyGiven ? 'text-gold-light opacity-70' : 'text-slate-400 hover:bg-base-700 hover:text-gold-light'
+                                }`}
+                                title={t.home.kudosButton}
+                              >
+                                🎉 {kudosTotal > 0 ? kudosTotal : ''}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     )
                   })}

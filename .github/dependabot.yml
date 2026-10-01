@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    groups:
+      # Major version bumps (vite, vitest, react-router) have broken this repo's
+      # build in the past if applied blindly - keep those as individual PRs
+      # needing a real test build, group everything else (patch/minor) to cut
+      # down on PR noise for the routine, safe-to-merge updates.
+      minor-and-patch:
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

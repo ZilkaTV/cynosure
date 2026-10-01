@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Card, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { useEffect, useMemo, useState } from 'react'
+import { Card, SectionHeading, StatCard, Spinner, MemberNameLink } from '../components/ui'
 import TrendChart from '../components/TrendChart'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
@@ -11,7 +11,10 @@ import {
   type DailyMetricsRow,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
+import { useRoster } from '../lib/useRoster'
 import { fetchTopClanLeaderboard, forecastWinScoreLoss, type TopClanEntry } from '../lib/clanScore'
+
+const QUIET_AFTER_DAYS = 14
 
 const HISTORY_DAYS = 30
 
@@ -48,6 +51,7 @@ export default function Metrics() {
   // otherwise read back as misleading all-zero metrics instead of a clear
   // reason. Checked separately here so that case gets its own message.
   const session = useSession()
+  const { data: roster } = useRoster(isInnerCircle)
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
   const [topClans, setTopClans] = useState<TopClanEntry[]>([])
@@ -63,6 +67,20 @@ export default function Metrics() {
       if (top.length > 0) setForecastClanTag((prev) => prev || top[0].clanTag)
     })
   }, [isInnerCircle, session])
+
+  // Detection only, deliberately - no auto-DM. Research (today's daytime
+  // loop) backs a personal, low-volume nudge as the right shape for
+  // re-engaging a lapsing member, but an algorithm silently DMing real
+  // people with no human in the loop risks false positives and reads as
+  // spam/bot behavior - this surfaces the list to an Inner Circle member
+  // instead, who decides whether/how to reach out.
+  const quietMembers = useMemo(() => {
+    const now = Date.now()
+    return (roster?.members ?? [])
+      .map((m) => ({ id: m.publicId, name: m.name, daysSince: m.lastGame ? Math.floor((now - new Date(m.lastGame).getTime()) / 86_400_000) : null }))
+      .filter((m) => m.daysSince === null || m.daysSince >= QUIET_AFTER_DAYS)
+      .sort((a, b) => (b.daysSince ?? Infinity) - (a.daysSince ?? Infinity))
+  }, [roster])
 
   if (!isInnerCircle) {
     return (
@@ -220,6 +238,27 @@ export default function Metrics() {
           </Card>
         </div>
       )}
+
+      <div className="mt-10">
+        <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.quietMembersTitle} />
+        <p className="mb-3 text-center text-xs text-slate-500">{t.metrics.quietMembersSub}</p>
+        <Card>
+          {!roster ? (
+            <Spinner label={t.metrics.loading} />
+          ) : quietMembers.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-500">{t.metrics.quietMembersEmpty}</p>
+          ) : (
+            <ul className="divide-y divide-base-700">
+              {quietMembers.map((m) => (
+                <li key={m.id} className="flex items-center justify-between py-2 text-sm">
+                  <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
+                  <span className="text-slate-400">{m.daysSince === null ? t.metrics.quietMembersNever : t.metrics.quietMembersDaysAgo(m.daysSince)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }

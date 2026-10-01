@@ -1500,3 +1500,20 @@ drop policy if exists "anyone can update cyn_inner_circle" on public.cyn_inner_c
 -- ============================================================
 
 alter publication supabase_realtime add table public.cyn_roster_cache;
+
+-- ============================================================
+-- compute-clan-score-ledger.mjs now deletes any cyn_clan_score_ledger row
+-- that's no longer eligible on a given run (see that script's own comment -
+-- added alongside the 2v2-exclusion fix). Confirmed live: with only
+-- select/insert/update policies and no delete policy, the anon-key DELETE
+-- call didn't error, it just silently deleted 0 rows (RLS filters it to
+-- nothing rather than raising) - the script falsely counted that as success,
+-- so the 2v2 rows stayed. Same public/anon-writable trust level as this
+-- table's existing insert/update policies (self-healing cache, one script
+-- writes it with no user session - see this file's cyn_inner_circle fix
+-- earlier for why that pattern is fine here but wasn't for a real
+-- access-control table).
+-- ============================================================
+
+create policy "anyone can delete cyn_clan_score_ledger"
+  on public.cyn_clan_score_ledger for delete to public using (true);

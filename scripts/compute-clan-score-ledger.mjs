@@ -239,12 +239,23 @@ async function main() {
     for (const row of existingRows ?? []) if (!currentIds.has(row.game_id)) staleIds.push(row.game_id)
     if (!existingRows || existingRows.length < SUPABASE_PAGE_SIZE) break
   }
+  // `.select('game_id')` on the delete makes Supabase return the rows it
+  // ACTUALLY deleted, instead of nothing - confirmed live as necessary, not
+  // defensive paranoia: a missing RLS delete policy for this table meant an
+  // earlier version of this exact call returned no error (RLS silently
+  // filters a DELETE to zero matching rows rather than rejecting it) while
+  // deleting nothing at all, and this script had no way to tell the
+  // difference from a real success until checked directly against the
+  // table afterward.
   let deleted = 0
   for (let i = 0; i < staleIds.length; i += UPSERT_BATCH_SIZE) {
     const chunk = staleIds.slice(i, i + UPSERT_BATCH_SIZE)
-    const { error: deleteError } = await supabase.from('cyn_clan_score_ledger').delete().in('game_id', chunk)
+    const { data: deletedRows, error: deleteError } = await supabase.from('cyn_clan_score_ledger').delete().in('game_id', chunk).select('game_id')
     if (deleteError) throw deleteError
-    deleted += chunk.length
+    if ((deletedRows ?? []).length !== chunk.length) {
+      throw new Error(`Deleted ${deletedRows?.length ?? 0} of ${chunk.length} stale rows in this batch - RLS likely blocking the delete (check for a delete policy on cyn_clan_score_ledger)`)
+    }
+    deleted += deletedRows.length
   }
 
   console.log(

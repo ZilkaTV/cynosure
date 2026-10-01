@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { computeClanStreak } from './streak'
 
-function teamGame(start: string): { start: string; mode: string; playerTeams: string | null; totalPlayers: number; type: string } {
-  return { start, mode: 'Team', playerTeams: '2', totalPlayers: 8, type: 'Public' }
+function teamGame(start: string): { start: string; mode: string; playerTeams: string | null; totalPlayers: number; type: string; rankedType: string } {
+  return { start, mode: 'Team', playerTeams: '2', totalPlayers: 8, type: 'Public', rankedType: 'unranked' }
 }
 
 const NOW = new Date('2026-06-15T12:00:00Z')
@@ -40,6 +40,13 @@ describe('computeClanStreak', () => {
     const games = [{ ...teamGame('2026-06-15T09:00:00Z'), type: 'Private' }, { ...teamGame('2026-06-15T09:00:00Z'), mode: 'Free For All' }]
     const s = computeClanStreak(games, NOW)
     expect(s.currentDays).toBe(0)
+  })
+
+  it('ignores 2v2 ranked games - confirmed not a real clan session on OpenFront\'s own backend despite sharing mode: "Team"', () => {
+    const games = [{ ...teamGame('2026-06-15T09:00:00Z'), rankedType: '2v2' }]
+    const s = computeClanStreak(games, NOW)
+    expect(s.currentDays).toBe(0)
+    expect(s.playedToday).toBe(false)
   })
 
   it('longest can exceed the current streak', () => {

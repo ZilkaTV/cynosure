@@ -20,7 +20,7 @@ export interface ClanStreak {
   playedToday: boolean
 }
 
-type StreakGame = Pick<PlayerGame, 'start' | 'mode' | 'playerTeams' | 'totalPlayers' | 'type'>
+type StreakGame = Pick<PlayerGame, 'start' | 'mode' | 'playerTeams' | 'totalPlayers' | 'type' | 'rankedType'>
 
 function dayKey(iso: string): string {
   return new Date(iso).toISOString().slice(0, 10)

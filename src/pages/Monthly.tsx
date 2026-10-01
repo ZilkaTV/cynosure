@@ -253,19 +253,20 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
   const months = useMemo(() => (data ? availableMonths(data.members) : [currentMonthKey()]), [data])
 
-  // Team AND 2v2 monthly's "Win Score" column/title needs the real per-game
-  // clan score, which isn't derivable from a PlayerGame alone (it depends on
-  // the WHOLE clan's player count in that specific game, total players and
-  // team count - the same ledger Home.tsx's Latest Games table already
-  // reads). A 2v2 ranked game is still a real `mode: 'Team'` session as far
-  // as OpenFront's own clan-session rule is concerned ("a player with that
-  // clan tag is in a public TEAM game") - confirmed directly, 2v2 games
-  // already show up in cyn_clan_score_ledger today, just not surfaced here
-  // yet. Covers both wins AND losses this month - a loss subtracts its
-  // score instead of contributing nothing, so Win Score can go negative
-  // (see winScoreFor below), which is the point: it should read as worse
-  // than not having played at all, not the same as it.
-  const isScoredMode = variant === 'team' ? isTeam : variant === '2v2' ? is2v2 : null
+  // Team monthly's "Win Score" column/title needs the real per-game clan
+  // score, which isn't derivable from a PlayerGame alone (it depends on the
+  // WHOLE clan's player count in that specific game, total players and team
+  // count - the same ledger Home.tsx's Latest Games table already reads).
+  // 2v2 is deliberately NOT included here - confirmed directly against
+  // OpenFront's own real GET /public/clan/:tag/sessions endpoint that a 2v2
+  // ranked game (mode: 'Team' same as a regular team lobby) is NOT counted
+  // as a clan session by OpenFront's own backend, same exclusion
+  // isClanScoreEligible (clanScore.ts) now applies everywhere else. Covers
+  // both wins AND losses this month - a loss subtracts its score instead of
+  // contributing nothing, so Win Score can go negative (see winScoreFor
+  // below), which is the point: it should read as worse than not having
+  // played at all, not the same as it.
+  const isScoredMode = variant === 'team' ? isTeam : null
   const scoredGameIds = useMemo(() => {
     if (!isScoredMode) return [] as string[]
     const ids = new Set<string>()
@@ -546,7 +547,6 @@ export default function Monthly({ variant }: { variant: Variant }) {
               wr: winRate(twoVTwoBucket(m.cynGames, month).wins, twoVTwoBucket(m.cynGames, month).losses),
               elo: monthlyElo[m.publicId]?.elo2v2 ?? null,
               eloDelta: monthlyElo[m.publicId]?.eloDelta2v2 ?? null,
-              winScore: winScoreFor(m),
             }))
             .sort((a, b) => {
               if (sortKey === 'wins') return compareNullable(a.b.wins, b.b.wins, sortDir)
@@ -554,13 +554,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'winRatePct') return compareNullable(a.wr, b.wr, sortDir)
               if (sortKey === 'elo') return compareNullable(a.elo, b.elo, sortDir)
               if (sortKey === 'eloDelta') return compareNullable(a.eloDelta, b.eloDelta, sortDir)
-              if (sortKey === 'winScore') return compareNullable(a.winScore, b.winScore, sortDir)
               return (b.eloDelta ?? -9999) - (a.eloDelta ?? -9999) || b.b.wins - a.b.wins
             })
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
+                <table className="w-full min-w-[600px] text-sm">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -570,11 +569,10 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colCurrentElo} sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colEloDelta} sortKey="eloDelta" active={sortKey === 'eloDelta'} dir={sortDir} onClick={onSortClick} />
-                      <SortTh label="Win Score" sortKey="winScore" active={sortKey === 'winScore'} dir={sortDir} onClick={onSortClick} />
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta, winScore }, i) => (
+                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -583,9 +581,6 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
-                        <td className={`px-4 py-3 text-right font-display font-bold ${winScore != null && winScore < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
-                          {winScore == null ? '-' : winScore.toFixed(2)}
-                        </td>
                       </tr>
                     ))}
                   </tbody>

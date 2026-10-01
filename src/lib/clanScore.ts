@@ -49,9 +49,20 @@ export function clanSessionScore({ totalPlayerCount, numTeams, clanPlayerCount, 
   return won ? clanMemberRatio * difficulty : clanMemberRatio / difficulty
 }
 
-/** Whether a game is eligible for clan scoring at all (Team mode, not Humans vs Nations, has a determinable team count). */
-export function isClanScoreEligible(g: Pick<PlayerGame, 'mode' | 'playerTeams' | 'totalPlayers'>): boolean {
-  return g.mode === 'Team' && deriveNumTeams(g.playerTeams, g.totalPlayers) != null && !!g.totalPlayers
+/**
+ * Whether a game is eligible for clan scoring at all (Team mode, not Humans
+ * vs Nations, has a determinable team count, and NOT a 2v2 ranked match).
+ * The 2v2 exclusion was confirmed directly against OpenFront's own real
+ * `GET /public/clan/:tag/sessions` endpoint - a 2v2 ranked game has
+ * `mode: 'Team'` same as a regular team lobby, but OpenFront's own backend
+ * does not list it as a clan session (checked 3 known [CYN] 2v2 games by
+ * date window; none appeared). 478 of 1384 rows (34.5%) in
+ * cyn_clan_score_ledger were 2v2 games incorrectly scored as if they
+ * counted - see scripts/compute-clan-score-ledger.mjs's own fix for the
+ * cleanup of those existing rows.
+ */
+export function isClanScoreEligible(g: Pick<PlayerGame, 'mode' | 'playerTeams' | 'totalPlayers' | 'rankedType'>): boolean {
+  return g.mode === 'Team' && g.rankedType !== '2v2' && deriveNumTeams(g.playerTeams, g.totalPlayers) != null && !!g.totalPlayers
 }
 
 export interface ClanScoreLedgerEntry {

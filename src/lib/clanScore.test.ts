@@ -47,13 +47,16 @@ describe('clanSessionScore', () => {
 
 describe('isClanScoreEligible', () => {
   it('accepts a real Team game with a determinable team count', () => {
-    expect(isClanScoreEligible({ mode: 'Team', playerTeams: 'Trios', totalPlayers: 24 })).toBe(true)
+    expect(isClanScoreEligible({ mode: 'Team', playerTeams: 'Trios', totalPlayers: 24, rankedType: 'unranked' })).toBe(true)
   })
   it('rejects non-Team modes', () => {
-    expect(isClanScoreEligible({ mode: 'Free For All', playerTeams: '4', totalPlayers: 20 })).toBe(false)
+    expect(isClanScoreEligible({ mode: 'Free For All', playerTeams: '4', totalPlayers: 20, rankedType: 'unranked' })).toBe(false)
   })
   it('rejects Humans Vs Nations', () => {
-    expect(isClanScoreEligible({ mode: 'Team', playerTeams: 'Humans Vs Nations', totalPlayers: 100 })).toBe(false)
+    expect(isClanScoreEligible({ mode: 'Team', playerTeams: 'Humans Vs Nations', totalPlayers: 100, rankedType: 'unranked' })).toBe(false)
+  })
+  it('rejects 2v2 ranked games - confirmed not a real clan session on OpenFront\'s own backend despite sharing mode: "Team"', () => {
+    expect(isClanScoreEligible({ mode: 'Team', playerTeams: '2', totalPlayers: 4, rankedType: '2v2' })).toBe(false)
   })
 })
 

@@ -99,6 +99,12 @@ function buildClanScoreLedger(games, now) {
 
 const UPSERT_BATCH_SIZE = 500
 
+// PostgREST caps an unpaginated select at 1000 rows by default - same
+// landmine documented in worker/clanLedger.js's own comment (confirmed
+// live there as the actual cause of real rows silently going missing).
+// Paged defensively here too for the stale-row cleanup scan below.
+const SUPABASE_PAGE_SIZE = 1000
+
 async function main() {
   const url = process.env.VITE_SUPABASE_URL
   const key = process.env.VITE_SUPABASE_ANON_KEY
@@ -139,7 +145,16 @@ async function main() {
   const byGameId = new Map()
   for (const row of gamesRows ?? []) {
     for (const g of row.games ?? []) {
-      if (g.clanTag !== CLAN_TAG || g.mode !== 'Team' || g.result === 'incomplete') continue
+      // rankedType === '2v2' exclusion: confirmed directly against
+      // OpenFront's own real GET /public/clan/:tag/sessions endpoint - a
+      // 2v2 ranked game has mode: 'Team' same as a regular team lobby, but
+      // OpenFront's own backend does NOT count it as a clan session (3
+      // known [CYN] 2v2 games checked by date window, none appeared).
+      // Before this fix, 478 of 1384 rows (34.5%) in cyn_clan_score_ledger
+      // were 2v2 games scored as if they counted - cleaned up below by the
+      // post-upsert delete step, which removes anything no longer eligible
+      // regardless of why.
+      if (g.clanTag !== CLAN_TAG || g.mode !== 'Team' || g.rankedType === '2v2' || g.result === 'incomplete') continue
       const existing = byGameId.get(g.gameId)
       if (existing) {
         existing.clanPlayerCount++
@@ -205,11 +220,39 @@ async function main() {
     written += batch.length
   }
 
+  // Deletes any row whose game_id ISN'T in this run's freshly computed
+  // ledger - the upsert above only ever adds/updates rows, so without this
+  // a game that's no longer eligible (today: 2v2 games from before this
+  // fix; in general: any future eligibility-rule change, or a game that
+  // turns out to have been miscounted) stays in the table forever. Makes
+  // this genuinely a full recompute, matching what this file's own header
+  // comment already claims.
+  const currentIds = new Set(ledger.map((e) => e.gameId))
+  const staleIds = []
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data: existingRows, error: existingError } = await supabase
+      .from('cyn_clan_score_ledger')
+      .select('game_id')
+      .order('game_id', { ascending: true })
+      .range(from, from + SUPABASE_PAGE_SIZE - 1)
+    if (existingError) throw existingError
+    for (const row of existingRows ?? []) if (!currentIds.has(row.game_id)) staleIds.push(row.game_id)
+    if (!existingRows || existingRows.length < SUPABASE_PAGE_SIZE) break
+  }
+  let deleted = 0
+  for (let i = 0; i < staleIds.length; i += UPSERT_BATCH_SIZE) {
+    const chunk = staleIds.slice(i, i + UPSERT_BATCH_SIZE)
+    const { error: deleteError } = await supabase.from('cyn_clan_score_ledger').delete().in('game_id', chunk)
+    if (deleteError) throw deleteError
+    deleted += chunk.length
+  }
+
   console.log(
     JSON.stringify(
       {
         eligibleGamesConsidered: byGameId.size,
         ledgerEntriesWritten: written,
+        staleEntriesDeleted: deleted,
         latestRatio: ledger.length ? ledger[ledger.length - 1].ratioAfter : null,
       },
       null,

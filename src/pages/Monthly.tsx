@@ -257,15 +257,17 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // system - see clanScore.ts) needs the real per-game clan score, which
   // isn't derivable from a PlayerGame alone (it depends on the WHOLE clan's
   // player count in that specific game, total players and team count - the
-  // same ledger Home.tsx's Latest Games table already reads). Only the
-  // member's own WON team games this month count - a loss contributes
-  // nothing, same as the old points system never penalized a loss either.
-  const teamWinGameIds = useMemo(() => {
+  // same ledger Home.tsx's Latest Games table already reads). Covers both
+  // wins AND losses this month now - a loss subtracts its score instead of
+  // contributing nothing, so Win Score can go negative (see winScoreFor
+  // below), which is the point: it should read as worse than not having
+  // played at all, not the same as it.
+  const teamGameIds = useMemo(() => {
     if (variant !== 'team') return [] as string[]
     const ids = new Set<string>()
     for (const m of data?.members ?? []) {
       for (const g of m.cynGames) {
-        if (isTeam(g) && g.type !== 'Private' && g.result === 'victory' && monthKeyOf(g.start) === month) ids.add(g.gameId)
+        if (isTeam(g) && g.type !== 'Private' && (g.result === 'victory' || g.result === 'defeat') && monthKeyOf(g.start) === month) ids.add(g.gameId)
       }
     }
     return [...ids]
@@ -273,13 +275,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
   const [teamLedger, setTeamLedger] = useState<Map<string, ClanScoreRow>>(new Map())
   useEffect(() => {
-    if (teamWinGameIds.length === 0) {
+    if (teamGameIds.length === 0) {
       setTeamLedger(new Map())
       return
     }
-    fetchClanScoreLedger(teamWinGameIds).then(setTeamLedger)
+    fetchClanScoreLedger(teamGameIds).then(setTeamLedger)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamWinGameIds.join(',')])
+  }, [teamGameIds.join(',')])
 
   if (!profile) return <RegistrationGate />
 
@@ -294,18 +296,26 @@ export default function Monthly({ variant }: { variant: Variant }) {
   }
 
   // Sum of the real clan Win Score (clanScore.ts) across this member's own
-  // won team games this month - see teamWinGameIds/teamLedger above. A game
-  // missing from the ledger (not clan-score-eligible, or the cron hasn't
-  // reached it yet) simply contributes 0, same as any other "no score to
-  // show" case elsewhere on the site.
-  const winScoreFor = (m: MemberStats): number => {
+  // team games this month - see teamGameIds/teamLedger above. A win adds its
+  // score, a loss SUBTRACTS it, so this can land negative - deliberately: a
+  // negative Win Score is a real, worse-than-nothing result and must read
+  // as one, not collapse into the same "-" shown for not having played at
+  // all (see `played` below, used by the render instead of `score > 0`/`!==
+  // 0` to decide between the two). A game missing from the ledger (not
+  // clan-score-eligible, or the cron hasn't reached it yet) simply
+  // contributes 0 either way, same as any other "no score to show" case
+  // elsewhere on the site.
+  const winScoreFor = (m: MemberStats): { score: number; played: boolean } => {
     let total = 0
+    let played = false
     for (const g of m.cynGames) {
-      if (!isTeam(g) || g.type === 'Private' || g.result !== 'victory' || monthKeyOf(g.start) !== month) continue
+      if (!isTeam(g) || g.type === 'Private' || monthKeyOf(g.start) !== month) continue
+      if (g.result !== 'victory' && g.result !== 'defeat') continue
+      played = true
       const row = teamLedger.get(g.gameId)
-      if (row?.won) total += row.score
+      if (row) total += row.won ? row.score : -row.score
     }
-    return Math.round(total * 100) / 100
+    return { score: Math.round(total * 100) / 100, played }
   }
 
   const title =
@@ -412,8 +422,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
               if (sortKey === 'kills') return compareNullable(a.r.kills, b.r.kills, sortDir)
               if (sortKey === 'avgGold') return compareNullable(a.r.avgGold, b.r.avgGold, sortDir)
-              if (sortKey === 'winScore') return compareNullable(a.winScore, b.winScore, sortDir)
-              return b.winScore - a.winScore || b.r.wins - a.r.wins
+              if (sortKey === 'winScore') return compareNullable(a.winScore.score, b.winScore.score, sortDir)
+              return b.winScore.score - a.winScore.score || b.r.wins - a.r.wins
             })
           return (
             <>
@@ -424,7 +434,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   emoji={EMOJI.wrench}
                   title={t.monthly.titleTeamGrinder}
                   metric={t.monthly.metricHighestWinScore}
-                  leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.winScore })))}
+                  leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.winScore.score })))}
                   fmt={(n) => n.toFixed(2)}
                 />
               </div>
@@ -453,7 +463,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
-                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{winScore > 0 ? winScore.toFixed(2) : '-'}</td>
+                          <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore.score < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
+                            {winScore.played ? winScore.score.toFixed(2) : '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

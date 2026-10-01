@@ -353,21 +353,36 @@ export default function Home() {
           />
           <div className="panel px-5 py-4">
             <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.home.mostImprovedTitle}</p>
-            {mostImproved.length === 0 ? (
-              <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
-            ) : (
-              <ul className="space-y-0.5">
-                {mostImproved.map((mi) => {
-                  const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-                  return (
-                    <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
-                      <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
-                      <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
+            {(() => {
+              // Excludes anyone with no CYN game in the last 30 days - a
+              // member who left the clan a while ago can still show a
+              // snapshot delta this week purely from the cron backfilling
+              // older CYN-tagged games it hadn't fetched yet (a data
+              // catch-up, not a real "improved this week"), and the same
+              // filter also naturally excludes someone who's simply gone
+              // quiet without having formally left. Doesn't touch the main
+              // roster table - that one intentionally keeps every
+              // ever-registered member, past or present.
+              const visibleMostImproved = mostImproved.filter((mi) => {
+                const member = data?.members.find((m) => m.publicId === mi.openfrontId)
+                return member && member.gamesLast30d > 0
+              })
+              return visibleMostImproved.length === 0 ? (
+                <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {visibleMostImproved.map((mi) => {
+                    const member = data?.members.find((m) => m.publicId === mi.openfrontId)
+                    return (
+                      <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
+                        <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
+                        <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )
+            })()}
           </div>
         </div>
       </section>

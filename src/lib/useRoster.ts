@@ -7,6 +7,7 @@ import { fetchAllChatMessageCounts, fetchAllSupporters } from './chat'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
 import { loadPersistedRoster, savePersistedRoster } from './rosterCache'
+import { supabase } from './supabase'
 
 // Numeric fields worth showing a "+N" delta for after a manual refresh.
 const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2', 'bumpCount'] as const
@@ -162,6 +163,34 @@ export function useRoster(enabled = true): RosterState {
       alive = false
     }
   }, [enabled, load, backgroundReload])
+
+  // Live updates without a manual reload: cyn_roster_cache is a single row
+  // (id=1) rewritten in full on every scan/ledger cron tick - a real
+  // Postgres UPDATE on it is a reliable, low-volume ("once per tick, not
+  // once per changed field") signal that fresh data is worth fetching. Uses
+  // the same gentle backgroundReload() the initial-mount silent reload
+  // already uses (resolves from short-TTL local caches when still valid)
+  // rather than refresh()'s more aggressive clear-everything path - an open
+  // tab picking up new data on its own should be no heavier than a normal
+  // background reload, not a forced full refetch every single tick.
+  //
+  // Requires cyn_roster_cache to be added to Supabase's `supabase_realtime`
+  // publication (one-time SQL, not a schema change this file can make
+  // itself) - silently does nothing if that hasn't been done yet or if
+  // Realtime is otherwise unreachable, same as this hook's other
+  // best-effort network paths.
+  useEffect(() => {
+    if (!enabled || !supabase) return
+    const channel = supabase
+      .channel('cyn_roster_cache-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cyn_roster_cache', filter: 'id=eq.1' }, () => {
+        backgroundReload()
+      })
+      .subscribe()
+    return () => {
+      supabase?.removeChannel(channel)
+    }
+  }, [enabled, backgroundReload])
 
   return { data, loading, refreshing, error, lastUpdated, deltas, refresh }
 }

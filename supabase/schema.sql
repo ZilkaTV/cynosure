@@ -1487,3 +1487,16 @@ create policy "members can update cyn_game_night_rsvps"
 drop policy if exists "anyone can insert cyn_inner_circle" on public.cyn_inner_circle;
 drop policy if exists "anyone can delete cyn_inner_circle" on public.cyn_inner_circle;
 drop policy if exists "anyone can update cyn_inner_circle" on public.cyn_inner_circle;
+
+-- ============================================================
+-- LIVE UPDATES: lets src/lib/useRoster.ts's Realtime subscription (see its
+-- own comment) actually receive change events for cyn_roster_cache. Tables
+-- aren't included in Supabase's `supabase_realtime` publication by default -
+-- this is what turns the feature on. The row's own RLS select policy
+-- ("public can read cyn_roster_cache") still applies on top of this; this
+-- just makes Postgres emit the change events at all. Safe/cheap: this is a
+-- single row (id=1), so this is at most one event per cron tick, never a
+-- per-visitor cost.
+-- ============================================================
+
+alter publication supabase_realtime add table public.cyn_roster_cache;

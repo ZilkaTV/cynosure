@@ -129,6 +129,21 @@ export async function submitEventEntry(params: {
   if (!params.gameLink.trim()) return { ok: false, message: 'Please paste the game link.' }
   if (!params.screenshotFile) return { ok: false, message: 'Please attach a screenshot of the win screen.' }
 
+  // Mirrors the event-screenshots bucket's own file_size_limit/
+  // allowed_mime_types (see supabase/schema.sql) - checked here too so a
+  // mismatched file gets a clear, specific message before even attempting
+  // the upload, instead of a raw Supabase rejection error after the fact.
+  // The bucket-level limit is still the real enforcement; this is just a
+  // friendlier first check, not a replacement for it.
+  const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+  const MAX_SIZE_BYTES = 5 * 1024 * 1024
+  if (!ALLOWED_TYPES.includes(params.screenshotFile.type)) {
+    return { ok: false, message: 'Screenshot must be a PNG, JPEG, or WebP image.' }
+  }
+  if (params.screenshotFile.size > MAX_SIZE_BYTES) {
+    return { ok: false, message: 'Screenshot must be under 5MB.' }
+  }
+
   const ext = params.screenshotFile.name.split('.').pop() || 'png'
   const path = `${params.eventId}/${params.openfrontId}-${Date.now()}.${ext}`
 

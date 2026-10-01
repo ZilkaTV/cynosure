@@ -1517,3 +1517,23 @@ alter publication supabase_realtime add table public.cyn_roster_cache;
 
 create policy "anyone can delete cyn_clan_score_ledger"
   on public.cyn_clan_score_ledger for delete to public using (true);
+
+-- ============================================================
+-- SECURITY FIX: the event-screenshots storage bucket's own RLS policy
+-- ("anyone can upload event screenshots" ... with check (bucket_id =
+-- 'event-screenshots')) never restricted file type or size - confirmed
+-- live, and the client (src/lib/events.ts's submitEventEntry) never did
+-- either, just checked that SOME file was selected. Anyone with the anon
+-- key (shipped in our own JS bundle) could upload arbitrary files - not
+-- just images, any type/size up to Supabase's own platform ceiling - to a
+-- PUBLIC bucket, using our storage as free hosting for whatever they liked.
+-- Fixed at the bucket level (Supabase enforces these before an upload is
+-- even accepted, regardless of what any client sends) rather than only in
+-- an RLS policy - a stricter backstop than the client-side validation
+-- added alongside this in src/lib/events.ts.
+-- ============================================================
+
+update storage.buckets
+set file_size_limit = 5242880, -- 5MB - generous for a phone screenshot, nowhere near enough to be useful as free file hosting
+    allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp']
+where id = 'event-screenshots';

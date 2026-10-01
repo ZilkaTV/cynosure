@@ -298,14 +298,17 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // Sum of the real clan Win Score (clanScore.ts) across this member's own
   // team games this month - see teamGameIds/teamLedger above. A win adds its
   // score, a loss SUBTRACTS it, so this can land negative - deliberately: a
-  // negative Win Score is a real, worse-than-nothing result and must read
-  // as one, not collapse into the same "-" shown for not having played at
-  // all (see `played` below, used by the render instead of `score > 0`/`!==
-  // 0` to decide between the two). A game missing from the ledger (not
-  // clan-score-eligible, or the cron hasn't reached it yet) simply
-  // contributes 0 either way, same as any other "no score to show" case
-  // elsewhere on the site.
-  const winScoreFor = (m: MemberStats): { score: number; played: boolean } => {
+  // negative Win Score is a real, worse-than-nothing result (someone who
+  // played and lost, however badly) and has to outrank "-" (someone who
+  // didn't play a single team game this month) both in what's SHOWN and in
+  // how the column SORTS. Returning `null` for "didn't play" and a real
+  // number otherwise (same convention as colElo/colEloDelta already use)
+  // means the existing `compareNullable` helper does the right thing for
+  // free: a null always sorts to the bottom regardless of direction, so
+  // even the most negative real score still outranks it. A game missing
+  // from the ledger (not clan-score-eligible, or the cron hasn't reached it
+  // yet) simply contributes 0 to the sum either way.
+  const winScoreFor = (m: MemberStats): number | null => {
     let total = 0
     let played = false
     for (const g of m.cynGames) {
@@ -315,7 +318,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
       const row = teamLedger.get(g.gameId)
       if (row) total += row.won ? row.score : -row.score
     }
-    return { score: Math.round(total * 100) / 100, played }
+    return played ? Math.round(total * 100) / 100 : null
   }
 
   const title =
@@ -422,8 +425,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
               if (sortKey === 'kills') return compareNullable(a.r.kills, b.r.kills, sortDir)
               if (sortKey === 'avgGold') return compareNullable(a.r.avgGold, b.r.avgGold, sortDir)
-              if (sortKey === 'winScore') return compareNullable(a.winScore.score, b.winScore.score, sortDir)
-              return b.winScore.score - a.winScore.score || b.r.wins - a.r.wins
+              if (sortKey === 'winScore') return compareNullable(a.winScore, b.winScore, sortDir)
+              const winScoreDesc = compareNullable(a.winScore, b.winScore, -1)
+              return winScoreDesc !== 0 ? winScoreDesc : b.r.wins - a.r.wins
             })
           return (
             <>
@@ -434,7 +438,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   emoji={EMOJI.wrench}
                   title={t.monthly.titleTeamGrinder}
                   metric={t.monthly.metricHighestWinScore}
-                  leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.winScore.score })))}
+                  leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.winScore ?? 0 })))}
                   fmt={(n) => n.toFixed(2)}
                 />
               </div>
@@ -463,8 +467,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
-                          <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore.score < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
-                            {winScore.played ? winScore.score.toFixed(2) : '-'}
+                          <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore != null && winScore < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
+                            {winScore == null ? '-' : winScore.toFixed(2)}
                           </td>
                         </tr>
                       ))}

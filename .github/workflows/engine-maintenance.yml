@@ -78,7 +78,7 @@ jobs:
       # (gitignored, ~1GB) and just `fetch`es it on later calls - without this
       # cache, running every 30 minutes would re-clone that from scratch on
       # every single run, which is both slow and wasteful.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .vendor-cache
           key: vendor-cache-openfrontio

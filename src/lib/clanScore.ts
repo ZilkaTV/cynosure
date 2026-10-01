@@ -23,7 +23,7 @@
 // taken seriously as a member, this should track the real number closely,
 // but isn't guaranteed to match OpenFront's own total exactly.
 
-import { deriveNumTeams, type PlayerGame, type GameDetail } from './openfront'
+import { deriveNumTeams, fetchRosterCacheRow, type PlayerGame, type GameDetail } from './openfront'
 import { supabase } from './supabase'
 
 export { deriveNumTeams }
@@ -203,11 +203,6 @@ export interface ClanLeaderboardEntry {
   weightedWLRatio: number
 }
 
-interface RosterCacheClanRow {
-  clan_leaderboard: ClanLeaderboardEntry | null
-  clan_leaderboard_top: TopClanEntry[] | null
-}
-
 /** One row of the top-N clans overall (see fetchTopClanLeaderboard) - the same shape as ClanLeaderboardEntry, plus which clan it is. */
 export interface TopClanEntry extends ClanLeaderboardEntry {
   clanTag: string
@@ -221,12 +216,14 @@ export interface TopClanEntry extends ClanLeaderboardEntry {
  * file's per-game history (which is all-time and never decays, on purpose -
  * see buildClanScoreLedger's own comment) - this is the one place on the
  * site meant to match that live, ever-changing number exactly.
+ *
+ * Reads the same shared cyn_roster_cache row as fetchRankedMap/
+ * fetchFfaLeaderboard in openfront.ts (GET /api/roster, KV-cached - see
+ * that function's own comment) instead of its own Supabase query.
  */
 export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard').eq('id', 1).maybeSingle()
-  if (error || !data) return null
-  return (data as RosterCacheClanRow).clan_leaderboard
+  const row = await fetchRosterCacheRow()
+  return (row?.clan_leaderboard as ClanLeaderboardEntry | null) ?? null
 }
 
 /**
@@ -235,10 +232,8 @@ export async function fetchClanLeaderboardEntry(): Promise<ClanLeaderboardEntry 
  * fetchClanLeaderboardEntry - feeds the Win Score decay forecast panel.
  */
 export async function fetchTopClanLeaderboard(): Promise<TopClanEntry[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.from('cyn_roster_cache').select('clan_leaderboard_top').eq('id', 1).maybeSingle()
-  if (error || !data) return []
-  return (data as RosterCacheClanRow).clan_leaderboard_top ?? []
+  const row = await fetchRosterCacheRow()
+  return (row?.clan_leaderboard_top as TopClanEntry[] | null) ?? []
 }
 
 // ── Win Score decay forecast (no new games assumed) ─────────────────────────

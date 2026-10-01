@@ -246,6 +246,8 @@ interface RosterCacheRow {
   ranked_1v1: Record<string, RankedEntry>
   ranked_2v2: Record<string, RankedEntry>
   ffa_leaderboard: Record<string, number>
+  clan_leaderboard: unknown
+  clan_leaderboard_top: unknown
 }
 
 // Both leaderboard maps below now come from ONE shared row (see
@@ -253,17 +255,30 @@ interface RosterCacheRow {
 // OpenFront/trackerfront live on a cache miss - the 5-minute cron
 // (scripts/refresh-details.mjs) already does that scan every run anyway (for
 // elo snapshots) and writes the result here, so the browser never needs to.
-// Fetched once and reused by both fetchRankedMap and fetchFfaLeaderboard
-// below rather than one query each.
+// Fetched once and reused by fetchRankedMap/fetchFfaLeaderboard here AND by
+// fetchClanLeaderboardEntry/fetchTopClanLeaderboard in clanScore.ts, via
+// GET /api/roster (worker/roster.js) rather than querying Supabase
+// directly: that route serves from a Cloudflare KV mirror of this exact
+// row (refreshed every ~10 min by the Worker's own scheduled() handler),
+// so a page load doesn't pay a Supabase round-trip for data that only
+// changes once per cron cycle. Falls back to Supabase itself if the Worker
+// route is ever unreachable, so a KV/Worker hiccup degrades to the old
+// behavior rather than breaking the page.
 let rosterCacheRow: Promise<RosterCacheRow | null> | null = null
 
-async function fetchRosterCacheRow(): Promise<RosterCacheRow | null> {
+export async function fetchRosterCacheRow(): Promise<RosterCacheRow | null> {
   if (!rosterCacheRow) {
     rosterCacheRow = (async () => {
+      try {
+        const res = await fetch('/api/roster')
+        if (res.ok) return (await res.json()) as RosterCacheRow
+      } catch {
+        // fall through to the direct Supabase read below
+      }
       if (!supabase) return null
       const { data, error } = await supabase
         .from('cyn_roster_cache')
-        .select('ranked_1v1, ranked_2v2, ffa_leaderboard')
+        .select('ranked_1v1, ranked_2v2, ffa_leaderboard, clan_leaderboard, clan_leaderboard_top')
         .eq('id', 1)
         .maybeSingle()
       if (error || !data) return null

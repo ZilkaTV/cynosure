@@ -78,6 +78,15 @@
   "triggers": {
     "crons": ["*/10 * * * *"]
   },
+  // Edge-replicated read cache in front of Supabase for the hottest,
+  // cron-populated, every-visitor-reads-it table (cyn_roster_cache) - see
+  // worker/roster.js's own comment for the full reasoning. Supabase stays
+  // the source of truth; this Worker's own scheduled() handler refreshes
+  // KV from it every 10 minutes (native binding, no extra API token
+  // needed), and GET /api/roster serves reads from KV with a direct
+  // Supabase fallback if KV is ever empty. Created via
+  // `npx wrangler kv namespace create ROSTER_KV`.
+  "kv_namespaces": [{ "binding": "ROSTER_KV", "id": "0754ea7dec454164872c2aca1c81a41d" }],
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

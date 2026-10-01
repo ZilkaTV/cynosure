@@ -11,22 +11,27 @@ import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
 import { handleHelpChat } from './help-chat.js'
 import { handleDiscordAuthCallback } from './discord-auth.js'
+import { withSecurityHeaders } from './securityHeaders.js'
+import { handleRoster, refreshRosterKv } from './roster.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url)
 
-    if (pathname.startsWith('/api/of/')) return handleOf(request, env)
-    if (pathname.startsWith('/api/tf/')) return handleTf(request, env)
-    if (pathname === '/api/help-chat') return handleHelpChat(request, env)
-    if (pathname === '/api/auth/discord/callback') return handleDiscordAuthCallback(request, env)
+    if (pathname.startsWith('/api/of/')) return withSecurityHeaders(await handleOf(request, env))
+    if (pathname.startsWith('/api/tf/')) return withSecurityHeaders(await handleTf(request, env))
+    if (pathname === '/api/help-chat') return withSecurityHeaders(await handleHelpChat(request, env))
+    if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
+    if (pathname === '/api/roster') return withSecurityHeaders(await handleRoster(request, env, ctx))
 
-    return new Response(JSON.stringify({ error: 'not_found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return withSecurityHeaders(
+      new Response(JSON.stringify({ error: 'not_found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
   },
 
   // Fired every 10 minutes by the Cron Trigger declared in wrangler.jsonc -
@@ -44,14 +49,56 @@ export default {
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(dispatch(env, 'refresh-details'))
-    ctx.waitUntil(dispatch(env, 'collect-metrics'))
-    ctx.waitUntil(dispatch(env, 'clan-score-ledger'))
-    ctx.waitUntil(dispatch(env, 'engine-maintenance'))
+    ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
+    ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
+    ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
+    ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
+    // Refreshes the KV mirror of cyn_roster_cache every tick too - see
+    // roster.js's own comment. Independent of the dispatches above: this
+    // reads whatever Supabase already has (written by the PREVIOUS cron
+    // run), it doesn't wait for this tick's dispatched runs to finish.
+    ctx.waitUntil(refreshRosterKv(env))
   },
 }
 
-async function dispatch(env, eventType) {
+// GitHub only keeps ONE pending (queued-but-not-started) run per
+// repository_dispatch event_type's concurrency group - a newer dispatch
+// SILENTLY REPLACES an already-queued one rather than erroring, even with
+// `cancel-in-progress: false` in the workflow's own concurrency block
+// (that setting only protects a run that has actually STARTED). Confirmed
+// against real OpenFrontIO CI tooling: with every workflow here dispatched
+// every 5-30 minutes while some (engine-maintenance especially) can run
+// 15+ minutes, a dispatch arriving while the previous one is still queued
+// - not yet started - used to vanish with no error anywhere, a plausible
+// contributor to the "Max Tiles backfill silent for hours" bug chased
+// earlier. Checking first and skipping the dispatch entirely when a run is
+// already queued or in progress means there is never a second pending run
+// to lose - the next tick ten minutes later tries again regardless.
+async function isWorkflowBusy(env, workflowFile) {
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/runs?per_page=5`, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_PAT}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'cynosure-cron-trigger',
+    },
+  })
+  if (!res.ok) {
+    // A Cloudflare/GitHub hiccup on the status check itself must never
+    // block the dispatch - worst case under a false "not busy" is the
+    // exact pre-existing behavior (GitHub silently drops the extra
+    // dispatch), never a missed run that this check could have prevented.
+    console.error(`GitHub run-status check (${workflowFile}) failed: ${res.status}`)
+    return false
+  }
+  const { workflow_runs: runs } = await res.json()
+  return (runs ?? []).some((run) => run.status !== 'completed')
+}
+
+async function dispatch(env, eventType, workflowFile) {
+  if (await isWorkflowBusy(env, workflowFile)) {
+    console.log(`Skipping dispatch (${eventType}): ${workflowFile} already queued or running`)
+    return
+  }
   return fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
     method: 'POST',
     headers: {

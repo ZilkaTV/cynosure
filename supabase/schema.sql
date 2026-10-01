@@ -1464,3 +1464,26 @@ create policy "members can upsert cyn_game_night_rsvps"
 
 create policy "members can update cyn_game_night_rsvps"
   on public.cyn_game_night_rsvps for update to authenticated using (true) with check (true);
+
+-- ============================================================
+-- SECURITY FIX: cyn_inner_circle gates the Metrics dashboard (member/VC/
+-- message counts - see src/lib/metrics.ts's useIsInnerCircle()), unlike
+-- every other "anyone can insert/update" cache table in this file. Its
+-- old `to public with check (true)` write policies meant any site visitor
+-- could grant themselves Metrics access directly via the anon key already
+-- shipped in the site's own JS bundle (supabase.from('cyn_inner_circle')
+-- .insert({openfront_id: 'their_own_id'}) - no login needed). Every other
+-- admin/access-control table in this file (e.g. cyn_event_admins) already
+-- gates writes behind `to authenticated` + an auth.uid()-based check; this
+-- one couldn't use that pattern because its only writer,
+-- scripts/discord-role-sync.mjs, is a GitHub Actions script with no real
+-- user session - exactly the case Supabase's service role key exists for.
+-- discord-role-sync.mjs now writes this table with SUPABASE_SERVICE_ROLE_KEY
+-- (bypasses RLS entirely, never sent to the client), so no public write
+-- policy is needed here at all anymore - the row is simply inaccessible to
+-- write from the browser/anon key from this point on.
+-- ============================================================
+
+drop policy if exists "anyone can insert cyn_inner_circle" on public.cyn_inner_circle;
+drop policy if exists "anyone can delete cyn_inner_circle" on public.cyn_inner_circle;
+drop policy if exists "anyone can update cyn_inner_circle" on public.cyn_inner_circle;

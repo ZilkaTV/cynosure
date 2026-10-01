@@ -194,6 +194,7 @@ async function postMessage(botToken, channelId, content) {
 async function main() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const botToken = process.env.DISCORD_BOT_TOKEN
   const roleIdsJson = process.env.DISCORD_WINS_ROLE_IDS
   if (!supabaseUrl || !supabaseKey || !botToken || !roleIdsJson) {
@@ -205,6 +206,18 @@ async function main() {
   const allConfiguredRoleIds = new Set(Object.values(roleIdByTier))
 
   const supabase = createClient(supabaseUrl, supabaseKey)
+  // cyn_inner_circle gates the Metrics dashboard, unlike every other table
+  // this script writes - the anon key used everywhere else above can no
+  // longer write to it at all (its old `to public with check (true)`
+  // policies let anyone self-grant Metrics access via the anon key already
+  // shipped in the site's own JS bundle; those policies are now dropped).
+  // The service role key bypasses RLS entirely and is only ever used
+  // server-side, here - never sent to the client. If the secret isn't
+  // configured yet, inner-circle sync is skipped with a clear warning
+  // rather than silently failing per member against a policy that no
+  // longer exists.
+  const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
+  if (!supabaseAdmin) console.error('SUPABASE_SERVICE_ROLE_KEY not set - skipping cyn_inner_circle sync this run')
 
   const { data: members, error: membersError } = await supabase
     .from('cyn_members')
@@ -318,23 +331,26 @@ async function main() {
       rolesByMember.set(m.openfront_id, currentRoles)
 
       // Isolated in its own try/catch - a cyn_inner_circle write failure
-      // (e.g. a missing RLS policy, confirmed to happen live once already)
       // must never abort the wins-tier/games-role sync below for this
       // member just because the unrelated Metrics-dashboard gating flag
-      // couldn't be updated this run.
+      // couldn't be updated this run. Uses supabaseAdmin (service role),
+      // not the anon client the rest of this script uses - see that
+      // variable's own comment.
       const wantsInnerCircle = currentRoles.has(INNER_CIRCLE_ROLE_ID)
-      try {
-        if (wantsInnerCircle) {
-          const { error: innerCircleError } = await supabase
-            .from('cyn_inner_circle')
-            .upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
-          if (innerCircleError) throw new Error(`cyn_inner_circle upsert for ${m.openfront_id}: ${innerCircleError.message}`)
-        } else {
-          const { error: innerCircleError } = await supabase.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
-          if (innerCircleError) throw new Error(`cyn_inner_circle delete for ${m.openfront_id}: ${innerCircleError.message}`)
+      if (supabaseAdmin) {
+        try {
+          if (wantsInnerCircle) {
+            const { error: innerCircleError } = await supabaseAdmin
+              .from('cyn_inner_circle')
+              .upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+            if (innerCircleError) throw new Error(`cyn_inner_circle upsert for ${m.openfront_id}: ${innerCircleError.message}`)
+          } else {
+            const { error: innerCircleError } = await supabaseAdmin.from('cyn_inner_circle').delete().eq('openfront_id', m.openfront_id)
+            if (innerCircleError) throw new Error(`cyn_inner_circle delete for ${m.openfront_id}: ${innerCircleError.message}`)
+          }
+        } catch (innerCircleErr) {
+          console.error(`cyn_inner_circle sync failed for ${m.openfront_id} (non-fatal):`, innerCircleErr)
         }
-      } catch (innerCircleErr) {
-        console.error(`cyn_inner_circle sync failed for ${m.openfront_id} (non-fatal):`, innerCircleErr)
       }
 
       // Wins-tier roles are mutually exclusive (only the target tier is

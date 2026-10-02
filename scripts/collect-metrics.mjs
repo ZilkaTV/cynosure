@@ -128,7 +128,11 @@ async function fetchJoinsToday(botToken, today) {
 
 async function main() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
+  // Prefer the service-role key: the metrics RPCs/tables are cron-only, so once
+  // the pending lockdown SQL in supabase/schema.sql revokes anon access this
+  // key is the only one that can write them. Falls back to the anon key so the
+  // job keeps working until that SQL has been applied.
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
   const botToken = process.env.DISCORD_BOT_TOKEN
   const channelsJson = process.env.DISCORD_METRICS_CHANNELS
   if (!supabaseUrl || !supabaseKey || !botToken || !channelsJson) {

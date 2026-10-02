@@ -1647,3 +1647,20 @@ create policy "members can insert own cyn_game_night_rsvps" on public.cyn_game_n
   with check (openfront_id = public.cyn_my_openfront_id());
 create policy "members can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
   using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());
+
+
+-- ============================================================
+-- Lock down the cron-only metrics objects (pending - run once in the SQL
+-- Editor AFTER the collect-metrics workflow has run once with
+-- SUPABASE_SERVICE_ROLE_KEY, which it now prefers). Until then anyone holding
+-- the public anon key could call the security-definer RPCs or hit the open
+-- insert/update policies and poison the inner-circle dashboard numbers.
+-- service_role bypasses RLS, so no replacement policy is needed.
+-- ============================================================
+drop policy if exists "anyone can insert cyn_metrics_daily" on public.cyn_metrics_daily;
+drop policy if exists "anyone can update cyn_metrics_daily" on public.cyn_metrics_daily;
+drop policy if exists "anyone can insert cyn_metrics_channel_state" on public.cyn_metrics_channel_state;
+drop policy if exists "anyone can update cyn_metrics_channel_state" on public.cyn_metrics_channel_state;
+revoke execute on function public.cyn_upsert_metrics_daily(date, integer, integer, jsonb, integer, integer, integer, integer, integer) from public, anon, authenticated;
+revoke execute on function public.cyn_upsert_metrics_channel_state(text, text) from public, anon, authenticated;
+revoke execute on function public.cyn_get_metrics_channel_state(text) from public, anon, authenticated;

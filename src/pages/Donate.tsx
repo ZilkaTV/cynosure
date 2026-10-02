@@ -9,7 +9,7 @@ export default function Donate() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 py-10 text-center">
-      <Link to="/" className="inline-block text-sm text-slate-400 hover:text-accent-light">
+      <Link to="/" className="inline-block py-2 text-sm text-slate-400 hover:text-accent-light">
         {t.donate.backLink}
       </Link>
 

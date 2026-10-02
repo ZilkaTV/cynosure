@@ -72,3 +72,32 @@ export async function giveReaction(gameId: string, fromOpenfrontId: string, toOp
   }
   return { ok: true, message: 'Reaction added!' }
 }
+
+/**
+ * How many reactions each game has received (distinct giver + emoji pairs, so a
+ * reaction left on a multi-member game counts once, not once per recipient).
+ * Reads the whole reactions table in pages - it is small - for the History
+ * "Reactions" tab, which lists the most reacted games first.
+ */
+export async function fetchReactionTotals(): Promise<Record<string, number>> {
+  if (!supabase) return {}
+  const PAGE = 1000
+  const seen = new Set<string>()
+  const totals: Record<string, number> = {}
+  for (let from = 0; from < 20 * PAGE; from += PAGE) {
+    const { data, error } = await supabase
+      .from('cyn_kudos')
+      .select('game_id, from_openfront_id, emoji')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error || !data) break
+    for (const row of data as { game_id: string; from_openfront_id: string; emoji: string }[]) {
+      const key = `${row.game_id}|${row.from_openfront_id}|${row.emoji}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      totals[row.game_id] = (totals[row.game_id] ?? 0) + 1
+    }
+    if (data.length < PAGE) break
+  }
+  return totals
+}

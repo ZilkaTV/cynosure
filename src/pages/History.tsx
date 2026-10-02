@@ -7,6 +7,7 @@ import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
 import { ReactionCell } from '../components/ReactionCell'
 import { useReactions } from '../lib/useReactions'
+import { fetchReactionTotals } from '../lib/reactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
@@ -15,7 +16,7 @@ import { cleanDisplayName } from '../lib/displayName'
 
 const PAGE_SIZE = 40
 
-type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'private' | 'incomplete'
+type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'private' | 'incomplete' | 'reacted'
 
 function modeLabel(g: PlayerGame): string {
   return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
@@ -36,6 +37,7 @@ function fmtDuration(s: number): string {
 // entirely (see isIncompleteRanked) so they don't clutter the normal
 // lists, but are still reachable here on purpose rather than just gone.
 function matchesFilter(g: PlayerGame, filter: Filter): boolean {
+  if (filter === 'reacted') return true
   if (filter === 'incomplete') return g.result === 'incomplete'
   if (filter === 'private') return g.type === 'Private'
   if (g.type === 'Private' || isIncompleteRanked(g)) return false
@@ -96,13 +98,22 @@ export default function History() {
     }
     return [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
   }, [data])
-  const filteredGames = useMemo(
-    () =>
-      allGames.filter(
-        ({ g, members }) => matchesFilter(g, filter) && (playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)),
-      ),
-    [allGames, filter, playerFilter],
-  )
+  // The "Reactions" tab: loaded the first time it is opened, then every game that
+  // has at least one reaction, most reacted first (newest first among equals).
+  const [reactionTotals, setReactionTotals] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    if (filter === 'reacted' && reactionTotals === null) fetchReactionTotals().then(setReactionTotals)
+  }, [filter, reactionTotals])
+  const filteredGames = useMemo(() => {
+    const byPlayer = ({ members }: { members: { publicId: string }[] }) => playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)
+    if (filter === 'reacted') {
+      const totals = reactionTotals ?? {}
+      return allGames
+        .filter((game) => (totals[game.g.gameId] ?? 0) > 0 && byPlayer(game))
+        .sort((a, b) => (totals[b.g.gameId] ?? 0) - (totals[a.g.gameId] ?? 0) || new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
+    }
+    return allGames.filter((game) => matchesFilter(game.g, filter) && byPlayer(game))
+  }, [allGames, filter, playerFilter, reactionTotals])
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
   const reactionsApi = useReactions(visibleGames.map(({ g }) => g.gameId))
@@ -149,6 +160,7 @@ export default function History() {
     { key: '2v2', label: t.history.filter2v2 },
     { key: 'private', label: t.history.filterPrivate },
     { key: 'incomplete', label: t.history.filterIncomplete },
+    { key: 'reacted', label: t.history.filterReacted },
   ]
 
   return (

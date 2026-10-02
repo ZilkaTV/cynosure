@@ -15,6 +15,12 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
+# Least privilege: this job only checks out the repo and talks to Supabase/
+# Discord with its own secrets - it never pushes or touches issues/PRs. Explicit
+# so it doesn't depend on the repo-wide default staying read-only.
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest

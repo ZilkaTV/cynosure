@@ -9,7 +9,6 @@
 // routes (assets.not_found_handling: "single-page-application").
 import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
-import { handleHelpChat } from './help-chat.js'
 import { handleDiscordAuthCallback } from './discord-auth.js'
 import { withSecurityHeaders } from './securityHeaders.js'
 import { handleRoster, refreshRosterKv } from './roster.js'
@@ -25,7 +24,10 @@ export default {
 
     if (pathname.startsWith('/api/of/')) return withSecurityHeaders(await handleOf(request, env))
     if (pathname.startsWith('/api/tf/')) return withSecurityHeaders(await handleTf(request, env))
-    if (pathname === '/api/help-chat') return withSecurityHeaders(await handleHelpChat(request, env))
+    // Help chat was retired (widget removed); answer 410 so nothing can reach the old AI/DB path.
+    if (pathname === '/api/help-chat') {
+      return withSecurityHeaders(new Response(JSON.stringify({ error: 'gone' }), { status: 410, headers: { 'Content-Type': 'application/json' } }))
+    }
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await handleRoster(request, env, ctx))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await handleClanLedger(request, env, ctx))

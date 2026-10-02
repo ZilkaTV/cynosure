@@ -1,83 +1,9 @@
-// ── Clan chat ────────────────────────────────────────────────────────────────
-// A public, registered-members-only chat - separate from the private AI
-// help-chat (see help.ts). Real enforcement (identity, length, 60s cooldown,
-// profanity block) lives in a Postgres trigger on cyn_clan_chat_messages
-// (see supabase/schema.sql) - everything here is a thin client plus instant
-// UX feedback, never the source of truth.
+// ── Clan chat: moderators, supporters, message counts ───────────────────────
+// The chat UI (widget, posting, deleting) was retired; the cyn_clan_chat_messages
+// table and its per-member message counts stay for the roster. What is left here
+// is the moderator/supporter bookkeeping and the counts the roster reads.
 
 import { supabase } from './supabase'
-import type { Profile } from './profiles'
-
-export interface ChatMessage {
-  id: number
-  author_openfront_id: string
-  author_name: string
-  content: string
-  created_at: string
-}
-
-const FETCH_LIMIT = 100
-
-/** Most recent messages, oldest first (ready to render top-to-bottom). */
-export async function fetchChatMessages(): Promise<ChatMessage[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('cyn_clan_chat_messages')
-    .select('id, author_openfront_id, author_name, content, created_at')
-    .order('created_at', { ascending: false })
-    .limit(FETCH_LIMIT)
-  if (error || !data) return []
-  return (data as ChatMessage[]).reverse()
-}
-
-export interface PostMessageResult {
-  ok: boolean
-  kind?: 'rate_limited' | 'blocked_content' | 'invalid_length' | 'auth_expired' | 'generic'
-  message: string
-}
-
-function classifyError(message: string): PostMessageResult['kind'] {
-  if (message.includes('rate_limited')) return 'rate_limited'
-  if (message.includes('blocked_content')) return 'blocked_content'
-  if (message.includes('invalid_length')) return 'invalid_length'
-  // RLS rejection (42501, or the raw message when not mapped to that code) -
-  // this table requires `to authenticated`, so this means the session
-  // Supabase has right now isn't recognized as signed in, not a real
-  // moderation/rate-limit rejection from the trigger.
-  if (message.includes('row-level security')) return 'auth_expired'
-  return 'generic'
-}
-
-export async function postChatMessage(profile: Profile, content: string): Promise<PostMessageResult> {
-  if (!supabase) return { ok: false, kind: 'generic', message: 'Backend not connected.' }
-  // Proactively nudges the client to refresh an expired-but-still-
-  // refreshable session before attempting the write below - a tab left
-  // open/backgrounded for hours (a known recurring cause here - see
-  // useSession.ts's own tracking comment) otherwise surfaces as a confusing
-  // raw "row-level security policy" Postgres error instead of the actual
-  // "you got signed out" cause. getSession() already triggers supabase-js's
-  // internal refresh when the stored session is expired but its refresh
-  // token is still valid.
-  await supabase.auth.getSession()
-  const { error } = await supabase.from('cyn_clan_chat_messages').insert({
-    author_openfront_id: profile.openfront_id,
-    author_name: profile.in_game_name,
-    content,
-  })
-  if (error) {
-    const kind = classifyError(error.message)
-    if (kind === 'auth_expired') return { ok: false, kind, message: 'Your session expired - sign out and back in with Discord, then try again.' }
-    return { ok: false, kind, message: error.message }
-  }
-  return { ok: true, message: 'Sent.' }
-}
-
-export async function deleteChatMessage(id: number): Promise<PostMessageResult> {
-  if (!supabase) return { ok: false, message: 'Backend not connected.' }
-  const { error } = await supabase.from('cyn_clan_chat_messages').delete().eq('id', id)
-  if (error) return { ok: false, message: error.message }
-  return { ok: true, message: 'Deleted.' }
-}
 
 // ── moderators (mirrors cyn_event_admins in events.ts) ──────────────────────
 
@@ -160,49 +86,4 @@ export async function removeSupporter(openfrontId: string): Promise<ModeratorAct
   const { error } = await supabase.from('cyn_supporters').delete().eq('openfront_id', openfrontId)
   if (error) return { ok: false, message: `Couldn't remove: ${error.message}` }
   return { ok: true, message: 'Supporter removed.' }
-}
-
-// ── cooldown (client-side UX only - the DB trigger is what actually enforces it) ──
-
-const COOLDOWN_KEY = 'cyn:chatLastSentAt'
-const COOLDOWN_MS = 60_000
-
-/** Seconds left before another message can be sent, or 0 if none. */
-export function chatCooldownRemaining(): number {
-  try {
-    const last = Number(localStorage.getItem(COOLDOWN_KEY) ?? 0)
-    const remaining = Math.ceil((last + COOLDOWN_MS - Date.now()) / 1000)
-    return Math.max(0, remaining)
-  } catch {
-    return 0
-  }
-}
-
-export function markChatSent(): void {
-  try {
-    localStorage.setItem(COOLDOWN_KEY, String(Date.now()))
-  } catch {
-    /* private-mode/quota - cooldown just won't persist across a reload */
-  }
-}
-
-// ── profanity filter (instant client feedback only - see cyn_chat_before_insert
-// in schema.sql for the actual enforcement; keep these two lists in sync by hand) ──
-
-const CLIENT_BLOCKLIST =
-  /nigg(er|a)|faggot|retard|chink|spic|kike|coon|tranny|cunt|hurensohn|schlampe|missgeburt|untermensch|fotze|wichser|arschloch|behindert|salope|connard|encule|batard|negre|bougnoule|pute/
-
-const LEETSPEAK: Record<string, string> = { '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '7': 't', $: 's', '@': 'a', '!': 'i' }
-
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .split('')
-    .map((c) => LEETSPEAK[c] ?? c)
-    .join('')
-    .replace(/[^a-z]/g, '')
-}
-
-export function containsBlockedWord(text: string): boolean {
-  return CLIENT_BLOCKLIST.test(normalize(text))
 }

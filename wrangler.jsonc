@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cynosure",
   "compatibility_date": "2026-08-15",
-  // @supabase/supabase-js and @anthropic-ai/sdk (used by worker/help-chat.js)
+  // @supabase/supabase-js
   // have historically needed Node built-in shims (node:crypto, node:stream,
   // etc.) that only Workers' Node compat layer provides.
   "compatibility_flags": ["nodejs_compat"],

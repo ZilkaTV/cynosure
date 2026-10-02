@@ -1776,3 +1776,19 @@ create policy "members can insert own cyn_game_night_rsvps" on public.cyn_game_n
   with check (openfront_id = public.cyn_my_openfront_id());
 create policy "members can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
   using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());
+
+-- ============================================================
+-- Block H (pending): members can take back their own reactions, and a game
+-- night can only be created for a future time.
+-- ============================================================
+drop policy if exists "members can remove own cyn_kudos" on public.cyn_kudos;
+create policy "members can remove own cyn_kudos" on public.cyn_kudos for delete to authenticated
+  using (from_openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "inner circle can create own cyn_game_nights" on public.cyn_game_nights;
+create policy "inner circle can create own cyn_game_nights" on public.cyn_game_nights for insert to authenticated
+  with check (
+    created_by = public.cyn_my_openfront_id()
+    and public.cyn_is_inner_circle()
+    and starts_at > now() - interval '5 minutes'
+  );

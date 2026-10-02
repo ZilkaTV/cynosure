@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchReactions, giveReaction, type GameReactions, type GiveReactionResult } from './reactions'
+import { fetchReactions, giveReaction, removeReaction, type GameReactions, type GiveReactionResult } from './reactions'
 import { useProfile } from './useProfile'
 import { useMemberNames } from './useMemberNames'
 
@@ -11,6 +11,7 @@ export interface ReactionsApi {
   myId: string | null
   names: Record<string, string>
   give: (gameId: string, memberIds: string[], emoji: string) => Promise<GiveReactionResult>
+  remove: (gameId: string, emoji: string) => Promise<GiveReactionResult>
 }
 
 /**
@@ -75,5 +76,18 @@ export function useReactions(gameIds: string[]): ReactionsApi {
     [myId, load],
   )
 
-  return { reactions, myId, names, give }
+  const remove = useCallback(
+    async (gameId: string, emoji: string) => {
+      if (!myId) return { ok: false, message: 'Sign in first.' }
+      const result = await removeReaction(gameId, myId, emoji)
+      if (result.ok) {
+        await load()
+        channelRef.current?.postMessage('changed')
+      }
+      return result
+    },
+    [myId, load],
+  )
+
+  return { reactions, myId, names, give, remove }
 }

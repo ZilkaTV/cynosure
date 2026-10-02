@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createGameNight, deleteGameNight, setRsvp, unansweredGameNights, useGameNights, type RsvpStatus } from '../lib/gameNights'
 import { useLanguage } from '../i18n/LanguageContext'
+import { formatLocal, formatUtc, relativeUntil, timePresets, toLocalInputValue } from '../lib/gameNightTime'
 import { useMemberNames } from '../lib/useMemberNames'
 import { useProfile } from '../lib/useProfile'
 
@@ -19,7 +20,7 @@ function idsByStatus(rsvps: Record<string, RsvpStatus>): Record<RsvpStatus, stri
  * hover lists; an id without a known name falls back to the raw id.
  */
 export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId: string; canCreate?: boolean }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { nights, refresh: load } = useGameNights()
   const names = useMemberNames()
   const [creating, setCreating] = useState(false)
@@ -53,12 +54,32 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
 
       {canCreate && creating && (
         <div className="flex flex-col gap-2 rounded-lg border border-base-700 bg-base-800/60 p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {timePresets().map((p) => (
+              <button
+                key={p.kind + p.time}
+                type="button"
+                onClick={() => setStartsAt(p.value)}
+                className={`rounded-md px-2 py-1 text-xs transition-colors ${startsAt === p.value ? 'bg-accent font-semibold text-base-950' : 'bg-base-700/60 text-slate-300 hover:bg-base-700'}`}
+              >
+                {p.kind === 'today' ? t.home.gameNightsPresetToday(p.time) : t.home.gameNightsPresetTomorrow(p.time)}
+              </button>
+            ))}
+          </div>
           <input
             type="datetime-local"
             value={startsAt}
+            min={toLocalInputValue(new Date())}
+            step={900}
             onChange={(e) => setStartsAt(e.target.value)}
             className="rounded border border-base-600 bg-base-900 px-2 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
           />
+          {startsAt && !isNaN(new Date(startsAt).getTime()) && (
+            <p className="text-[11px] text-slate-400">
+              {formatLocal(new Date(startsAt).toISOString(), language)} · {formatUtc(new Date(startsAt).toISOString(), language)}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-500">{t.home.gameNightsLocalNote}</p>
           <input
             type="text"
             value={note}
@@ -74,6 +95,10 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
             <button
               onClick={async () => {
                 setError(null)
+                if (new Date(startsAt).getTime() <= Date.now()) {
+                  setError(t.home.gameNightsPast)
+                  return
+                }
                 const r = await createGameNight(startsAt, note, openfrontId)
                 if (r.ok) {
                   setCreating(false)
@@ -84,7 +109,7 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
                   setError(r.message)
                 }
               }}
-              disabled={!startsAt}
+              disabled={!startsAt || new Date(startsAt).getTime() <= Date.now()}
               className="btn-ghost !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t.home.gameNightsPost}
@@ -106,7 +131,8 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-white">
-                  {new Date(n.startsAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {formatLocal(n.startsAt, language)}
+                  {relativeUntil(n.startsAt) && <span className="ml-2 text-xs font-normal text-slate-400">{t.home.gameNightsStartsIn(relativeUntil(n.startsAt))}</span>}
                 </p>
                 {n.note && <p className="text-xs text-slate-400">{n.note}</p>}
                 {unanswered && (

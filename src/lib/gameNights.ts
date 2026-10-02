@@ -72,6 +72,7 @@ export interface GameNightResult {
 export async function createGameNight(startsAt: string, note: string, createdBy: string): Promise<GameNightResult> {
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
   if (!startsAt) return { ok: false, message: 'Pick a date/time first.' }
+  if (new Date(startsAt).getTime() <= Date.now()) return { ok: false, message: 'Pick a time in the future.' }
 
   await supabase.auth.getSession()
 

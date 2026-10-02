@@ -38,6 +38,15 @@ export interface GiveReactionResult {
   message: string
 }
 
+/** Takes back the signed-in member's own `emoji` on a game (all recipient rows of that reaction). */
+export async function removeReaction(gameId: string, fromOpenfrontId: string, emoji: string): Promise<GiveReactionResult> {
+  if (!supabase) return { ok: false, message: 'Backend not connected.' }
+  await supabase.auth.getSession()
+  const { error } = await supabase.from('cyn_kudos').delete().eq('game_id', gameId).eq('from_openfront_id', fromOpenfrontId).eq('emoji', emoji)
+  if (error) return { ok: false, message: `Couldn't remove: ${error.message}` }
+  return { ok: true, message: 'Reaction removed.' }
+}
+
 /** Leaves `emoji` from `fromOpenfrontId` on every clan member in one game, skipping the giver themselves. */
 export async function giveReaction(gameId: string, fromOpenfrontId: string, toOpenfrontIds: string[], emoji: string): Promise<GiveReactionResult> {
   if (!supabase) return { ok: false, message: 'Backend not connected.' }

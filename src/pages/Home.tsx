@@ -263,6 +263,12 @@ export default function Home() {
     return count
   }, [allGamesForStreak])
 
+  // Memoized so StatsTable's own sort memo (keyed on `columns`) actually
+  // holds between renders - a fresh array every render made it re-sort the
+  // whole roster on every unrelated state change (kudos click, background
+  // reload, ...).
+  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
+
   useEffect(() => {
     fetchMostImproved().then(setMostImproved)
   }, [])
@@ -325,7 +331,6 @@ export default function Home() {
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
-  const columns = makeColumns(data?.members ?? [], deltas, t)
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   return (

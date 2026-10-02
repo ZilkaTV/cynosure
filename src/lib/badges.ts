@@ -161,21 +161,49 @@ function fastestSpeedrunner(members: MemberStats[]): { id: string; name: string;
   return best
 }
 
-export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape): Badge[] {
-  const mk = currentMonthKey()
+// The roster-wide "who leads each category" lookups below scan EVERY
+// member's full game history (ffaMonthly/teamMonthly walk cynGames), and
+// computeBadges used to redo all of it for every single row it was called
+// for - once per table row at render time, then again per COMPARISON when
+// the badges column is sorted. Measured on a synthetic 36-member x
+// 700-game roster: ~2.9 seconds for ONE Home-table render. The result only
+// depends on the roster (and the current month), not on which member's
+// badges are being built, so it's computed once per roster array. Keyed by
+// array identity (WeakMap): a refreshed roster is a new array, so stale
+// leaders can't survive a data change, and old rosters are garbage-collected
+// along with their cache entry.
+type Leaders = ReturnType<typeof computeLeaders>
+const leadersCache = new WeakMap<MemberStats[], { month: string; leaders: Leaders }>()
+
+function computeLeaders(all: MemberStats[], mk: string) {
   const ffa = (x: MemberStats) => ffaMonthly(x, mk)
   const team = (x: MemberStats) => teamMonthly(x, mk, {})
+  return {
+    mostWins: leader(all, (x) => x.allWins),
+    mostTwoVTwoWins: leader(all, (x) => x.twoVTwoWins),
+    predator: leader(all, (x) => ffa(x).avgKills ?? 0),
+    pro: leader(all, (x) => ffa(x).winstreak),
+    grinder: leader(all, (x) => ffa(x).points),
+    marine: leader(all, (x) => team(x).avgGold ?? 0),
+    destroyer: leader(all, (x) => team(x).kills ?? 0),
+    teamGrinder: leader(all, (x) => team(x).points),
+    fastest: fastestSpeedrunner(all),
+  }
+}
+
+function getLeaders(all: MemberStats[]): Leaders {
+  const mk = currentMonthKey()
+  const hit = leadersCache.get(all)
+  if (hit && hit.month === mk) return hit.leaders
+  const leaders = computeLeaders(all, mk)
+  leadersCache.set(all, { month: mk, leaders })
+  return leaders
+}
+
+export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape): Badge[] {
   const b = t.badges
 
-  const mostWins = leader(all, (x) => x.allWins)
-  const mostTwoVTwoWins = leader(all, (x) => x.twoVTwoWins)
-  const predator = leader(all, (x) => ffa(x).avgKills ?? 0)
-  const pro = leader(all, (x) => ffa(x).winstreak)
-  const grinder = leader(all, (x) => ffa(x).points)
-  const marine = leader(all, (x) => team(x).avgGold ?? 0)
-  const destroyer = leader(all, (x) => team(x).kills ?? 0)
-  const teamGrinder = leader(all, (x) => team(x).points)
-  const fastest = fastestSpeedrunner(all)
+  const { mostWins, mostTwoVTwoWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
 
   const starTier = tierFromRank(m.rank1v1)
   const star2v2Tier = tierFromRank(m.rank2v2)

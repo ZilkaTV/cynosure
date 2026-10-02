@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
@@ -78,21 +78,32 @@ export default function History() {
   // string - with its own leftover suffix - specifically on the games that
   // couldn't reconstruct, looking like two different people across rows of
   // the same table.
-  const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string; username: string }[] }>()
-  for (const m of data?.members ?? []) {
-    for (const g of m.cynGames) {
-      const existing = byGameId.get(g.gameId)
-      if (existing) existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
-      else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
+  // Memoized: this walks every member's full game history and sorts the
+  // result, and it used to rerun on EVERY render - any filter click, "show
+  // more", or a background roster reload - even though it only depends on
+  // the roster data. allGames needs just `data`; the filtered list adds the
+  // two filter inputs.
+  const allGames = useMemo(() => {
+    const byGameId = new Map<string, { g: PlayerGame; members: { publicId: string; name: string; username: string }[] }>()
+    for (const m of data?.members ?? []) {
+      for (const g of m.cynGames) {
+        const existing = byGameId.get(g.gameId)
+        if (existing) existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
+        else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
+      }
     }
-  }
-  const allGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
-  const filteredGames = allGames.filter(
-    ({ g, members }) => matchesFilter(g, filter) && (playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)),
+    return [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
+  }, [data])
+  const filteredGames = useMemo(
+    () =>
+      allGames.filter(
+        ({ g, members }) => matchesFilter(g, filter) && (playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)),
+      ),
+    [allGames, filter, playerFilter],
   )
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
-  const sortedMembers = [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name))
+  const sortedMembers = useMemo(() => [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [data])
 
   // Batches one lookup per page of newly-revealed rows instead of one per
   // row - keyed on the visible gameIds themselves (stable string, not the

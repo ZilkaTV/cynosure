@@ -188,7 +188,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               to={n.to}
               end={n.end}
               className={({ isActive }) =>
-                `nav-link whitespace-nowrap !px-2 !py-1.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''}`
+                `nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''}`
               }
             >
               <span className="sm:hidden">{n.shortLabel}</span>
@@ -198,7 +198,11 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="w-full px-4 py-8 sm:px-8">{children}</main>
+      <main className="w-full px-4 py-8 sm:px-8">
+        {/* Pages title themselves with <h2> (SectionHeading) and the layout had no <h1> at all - screen readers and crawlers got a page with no top-level heading. */}
+        <h1 className="sr-only">{CLAN_NAME}</h1>
+        {children}
+      </main>
 
       <footer className="mt-16 border-t border-base-700 py-8 text-center text-sm text-slate-500">
         <p>

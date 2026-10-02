@@ -26,6 +26,7 @@ import {
 } from '../lib/clanScore'
 import { computeClanStreak } from '../lib/streak'
 import { fetchMostImproved, type MostImproved } from '../lib/trends'
+import { GameNightsCard } from '../components/GameNightsCard'
 import { fetchReactions, giveReaction, REACTION_EMOJIS, type GameReactions } from '../lib/reactions'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
@@ -268,6 +269,9 @@ export default function Home() {
   // holds between renders - a fresh array every render made it re-sort the
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
+  // openfront id -> display name, for the "who is going" hover lists on the game nights card.
+  const memberNames = useMemo(() => Object.fromEntries((data?.members ?? []).map((m) => [m.publicId, m.name])), [data])
+
   const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
 
   useEffect(() => {
@@ -438,6 +442,12 @@ export default function Home() {
         </section>
       )}
 
+
+      {me && (
+        <section className="mx-auto max-w-xl">
+          <GameNightsCard openfrontId={me.publicId} names={memberNames} />
+        </section>
+      )}
 
       {recentGames.length > 0 && (
         <section className="space-y-4">

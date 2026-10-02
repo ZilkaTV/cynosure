@@ -1760,3 +1760,19 @@ create policy "inner circle can insert own cyn_game_night_rsvps" on public.cyn_g
 create policy "inner circle can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
   using (openfront_id = public.cyn_my_openfront_id() and public.cyn_is_inner_circle())
   with check (openfront_id = public.cyn_my_openfront_id() and public.cyn_is_inner_circle());
+
+-- ============================================================
+-- Block G (pending): game nights are posted/removed by the inner circle only
+-- (Metrics page), but every signed-in member can see them and RSVP.
+-- ============================================================
+drop policy if exists "inner circle can read cyn_game_nights" on public.cyn_game_nights;
+create policy "members can read cyn_game_nights" on public.cyn_game_nights for select to authenticated using (true);
+
+drop policy if exists "inner circle can read cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+drop policy if exists "inner circle can insert own cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+drop policy if exists "inner circle can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+create policy "members can read cyn_game_night_rsvps" on public.cyn_game_night_rsvps for select to authenticated using (true);
+create policy "members can insert own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+create policy "members can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());

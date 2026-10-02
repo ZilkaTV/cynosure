@@ -8,6 +8,7 @@ import {
   fetchGameDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
+  fetchRankedEstimates,
   type PlayerGame,
   type RankedEntry,
 } from './openfront'
@@ -50,6 +51,9 @@ export interface MemberStats {
   elo2v2: number | null
   peakElo2v2: number | null
   eloInTop100_2v2: boolean
+  // TeamStats.pro estimates, only set when the member is NOT in the official top 100 (see fetchRankedEstimates).
+  eloEstimate: number | null
+  elo2v2Estimate: number | null
   eloMonthDelta2v2: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   rank2v2: number | null // global 2v2 ladder position (top 100), for star badges
@@ -316,10 +320,11 @@ export async function buildRoster(
   supporters: string[] = [],
 ): Promise<RosterResult> {
   const registeredWithId = registered.filter((r) => r.openfront_id)
-  const [{ oneVOne: ranked, twoVTwo: ranked2v2 }, ffaLb, gamesById] = await Promise.all([
+  const [{ oneVOne: ranked, twoVTwo: ranked2v2 }, ffaLb, gamesById, estimates] = await Promise.all([
     fetchRankedMap(),
     fetchFfaLeaderboard(),
     fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
+    fetchRankedEstimates(),
   ])
 
   const raw = registeredWithId.map((r) => ({
@@ -435,6 +440,8 @@ export async function buildRoster(
       elo2v2,
       peakElo2v2: r2?.peakElo ?? null,
       eloInTop100_2v2: !!r2,
+      eloEstimate: r ? null : (estimates.oneVOne[input.openfront_id] ?? null),
+      elo2v2Estimate: r2 ? null : (estimates.twoVTwo[input.openfront_id] ?? null),
       eloMonthDelta2v2: eloMonthDelta(input.openfront_id, elo2v2, '2v2'),
       rank1v1: r?.rank ?? null,
       rank2v2: r2?.rank ?? null,

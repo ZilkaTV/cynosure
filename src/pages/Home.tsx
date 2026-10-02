@@ -97,14 +97,20 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       align: 'right',
       render: (m) =>
         m.elo == null ? (
-          <span className="text-slate-600">-</span>
+          m.eloEstimate != null ? (
+            <span title={t.home.eloEstimateHint} className="cursor-help tabular-nums text-slate-400">
+              ~{m.eloEstimate}
+            </span>
+          ) : (
+            <span className="text-slate-600">-</span>
+          )
         ) : (
           <span className="font-display font-bold tabular-nums text-gold-light">
             {m.elo}
             <RefreshDelta value={deltas[m.publicId]?.elo} />
           </span>
         ),
-      sortValue: (m) => m.elo ?? -1,
+      sortValue: (m) => m.elo ?? m.eloEstimate ?? -1,
     },
     {
       key: 'peak',
@@ -131,14 +137,20 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       align: 'right',
       render: (m) =>
         m.elo2v2 == null ? (
-          <span className="text-slate-600">-</span>
+          m.elo2v2Estimate != null ? (
+            <span title={t.home.eloEstimateHint} className="cursor-help tabular-nums text-slate-400">
+              ~{m.elo2v2Estimate}
+            </span>
+          ) : (
+            <span className="text-slate-600">-</span>
+          )
         ) : (
           <span className="font-display font-bold tabular-nums text-gold-light">
             {m.elo2v2}
             <RefreshDelta value={deltas[m.publicId]?.elo2v2} />
           </span>
         ),
-      sortValue: (m) => m.elo2v2 ?? -1,
+      sortValue: (m) => m.elo2v2 ?? m.elo2v2Estimate ?? -1,
     },
     {
       key: 'peak2v2',

@@ -501,7 +501,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
               m,
               b: oneVoneBucket(m.cynGames, month),
               wr: winRate(oneVoneBucket(m.cynGames, month).wins, oneVoneBucket(m.cynGames, month).losses),
-              elo: monthlyElo[m.publicId]?.elo ?? null,
+              elo: monthlyElo[m.publicId]?.elo ?? m.eloEstimate ?? null,
+              eloEstimated: monthlyElo[m.publicId]?.elo == null && m.eloEstimate != null,
               eloDelta: monthlyElo[m.publicId]?.eloDelta ?? null,
             }))
             .sort((a, b) => {
@@ -528,14 +529,14 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {rows.map(({ m, b, wr, elo, eloDelta, eloEstimated }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${eloEstimated ? 'text-slate-400' : 'text-gold-light'}`} title={eloEstimated ? t.home.eloEstimateHint : undefined}>{elo == null ? <span className="text-slate-600">-</span> : eloEstimated ? `~${elo}` : elo}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
                     ))}
@@ -552,7 +553,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
               m,
               b: twoVTwoBucket(m.cynGames, month),
               wr: winRate(twoVTwoBucket(m.cynGames, month).wins, twoVTwoBucket(m.cynGames, month).losses),
-              elo: monthlyElo[m.publicId]?.elo2v2 ?? null,
+              elo: monthlyElo[m.publicId]?.elo2v2 ?? m.elo2v2Estimate ?? null,
+              eloEstimated: monthlyElo[m.publicId]?.elo2v2 == null && m.elo2v2Estimate != null,
               eloDelta: monthlyElo[m.publicId]?.eloDelta2v2 ?? null,
             }))
             .sort((a, b) => {
@@ -579,14 +581,14 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {rows.map(({ m, b, wr, elo, eloDelta, eloEstimated }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${eloEstimated ? 'text-slate-400' : 'text-gold-light'}`} title={eloEstimated ? t.home.eloEstimateHint : undefined}>{elo == null ? <span className="text-slate-600">-</span> : eloEstimated ? `~${elo}` : elo}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
                     ))}

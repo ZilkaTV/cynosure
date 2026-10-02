@@ -300,6 +300,37 @@ export async function fetchRankedMap(): Promise<{ oneVOne: Record<string, Ranked
   return result
 }
 
+// ── estimated ranked ELO for members outside the official top 100 ───────────
+
+export interface RankedEstimates {
+  oneVOne: Record<string, number>
+  twoVTwo: Record<string, number>
+}
+
+/**
+ * ELO estimates (by TeamStats.pro, via our /api/ranked-estimates) for members who are
+ * not on OpenFront's official top-100 ladders. Optional: any failure yields empty
+ * maps and the site simply shows no estimate.
+ */
+export async function fetchRankedEstimates(): Promise<RankedEstimates> {
+  const empty: RankedEstimates = { oneVOne: {}, twoVTwo: {} }
+  const key = `${CACHE_NS}:rankedest1`
+  const cached = cacheGet<RankedEstimates>(key)
+  if (cached) return cached
+  try {
+    const res = await fetch('/api/ranked-estimates')
+    if (!res.ok) return empty
+    const body = (await res.json()) as Record<string, Record<string, { elo: number }> | string>
+    const pick = (ladder: unknown): Record<string, number> =>
+      Object.fromEntries(Object.entries((ladder as Record<string, { elo: number }>) ?? {}).map(([id, v]) => [id, v.elo]).filter(([, elo]) => typeof elo === 'number'))
+    const result = { oneVOne: pick(body['1v1']), twoVTwo: pick(body['2v2']) }
+    cacheSet(key, result)
+    return result
+  } catch {
+    return empty
+  }
+}
+
 // ── trackerfront FFA leaderboard (for FFA ship badges) ──────────────────────
 
 /** Map of display_name → FFA leaderboard position (global top 100). Cached. */

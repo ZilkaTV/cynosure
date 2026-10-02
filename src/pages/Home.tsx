@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Emoji } from '../components/Emoji'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -26,7 +25,8 @@ import {
 } from '../lib/clanScore'
 import { computeClanStreak } from '../lib/streak'
 import { fetchMostImproved, type MostImproved } from '../lib/trends'
-import { fetchReactions, giveReaction, REACTION_EMOJIS, type GameReactions } from '../lib/reactions'
+import { ReactionCell } from '../components/ReactionCell'
+import { useReactions } from '../lib/useReactions'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -207,9 +207,6 @@ export default function Home() {
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
   const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
-  const [reactions, setReactions] = useState<GameReactions>({ byGame: {} })
-  const [reactionBusy, setReactionBusy] = useState<string | null>(null)
-  const [reactionPickerGame, setReactionPickerGame] = useState<string | null>(null)
 
   // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
   // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
@@ -275,11 +272,7 @@ export default function Home() {
     fetchMostImproved().then(setMostImproved)
   }, [])
 
-  useEffect(() => {
-    if (recentGames.length === 0) return
-    fetchReactions(recentGames.map(({ g }) => g.gameId)).then(setReactions)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentGames.map(({ g }) => g.gameId).join(',')])
+  const reactionsApi = useReactions(recentGames.map(({ g }) => g.gameId))
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
@@ -468,8 +461,6 @@ export default function Home() {
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
-                    const gameReactions = reactions.byGame[g.gameId] ?? {}
-                    const canReact = !!me && memberIds.some((id) => id !== me.publicId)
                     return (
                       <tr
                         key={g.gameId}
@@ -490,49 +481,7 @@ export default function Home() {
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                        <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex flex-wrap items-center justify-end gap-1">
-                            {reactionPickerGame === g.gameId && me
-                              ? REACTION_EMOJIS.map((emoji) => (
-                                  <button
-                                    key={emoji}
-                                    disabled={reactionBusy === g.gameId || !!gameReactions[emoji]?.has(me.publicId)}
-                                    onClick={async () => {
-                                      setReactionBusy(g.gameId)
-                                      const r = await giveReaction(g.gameId, me.publicId, memberIds, emoji)
-                                      if (r.ok) fetchReactions(recentGames.map(({ g: rg }) => rg.gameId)).then(setReactions)
-                                      setReactionBusy(null)
-                                      setReactionPickerGame(null)
-                                    }}
-                                    className="rounded-md p-1 transition-colors hover:bg-base-700 disabled:cursor-not-allowed disabled:opacity-40"
-                                    aria-label={emoji}
-                                  >
-                                    <Emoji char={emoji} className="h-5 w-5" />
-                                  </button>
-                                ))
-                              : REACTION_EMOJIS.filter((emoji) => gameReactions[emoji]?.size).map((emoji) => (
-                                  <span
-                                    key={emoji}
-                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs tabular-nums ${
-                                      me && gameReactions[emoji]?.has(me.publicId) ? 'bg-accent/20 text-accent-light' : 'bg-base-700/60 text-slate-300'
-                                    }`}
-                                  >
-                                    <Emoji char={emoji} className="h-3.5 w-3.5" />
-                                    {gameReactions[emoji].size}
-                                  </span>
-                                ))}
-                            {canReact && (
-                              <button
-                                onClick={() => setReactionPickerGame(reactionPickerGame === g.gameId ? null : g.gameId)}
-                                className="rounded-md px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-base-700 hover:text-white"
-                                title={t.home.reactionButton}
-                                aria-label={t.home.reactionButton}
-                              >
-                                {reactionPickerGame === g.gameId ? '✕' : '+'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        <ReactionCell gameId={g.gameId} memberIds={memberIds} api={reactionsApi} />
                       </tr>
                     )
                   })}

@@ -5,6 +5,8 @@ import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
+import { ReactionCell } from '../components/ReactionCell'
+import { useReactions } from '../lib/useReactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
@@ -103,6 +105,7 @@ export default function History() {
   )
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
+  const reactionsApi = useReactions(visibleGames.map(({ g }) => g.gameId))
   const sortedMembers = useMemo(() => [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [data])
 
   // Batches one lookup per page of newly-revealed rows instead of one per
@@ -193,7 +196,7 @@ export default function History() {
         ) : (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -205,6 +208,7 @@ export default function History() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                    <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -244,6 +248,7 @@ export default function History() {
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
+                        <ReactionCell gameId={g.gameId} memberIds={members.map((m) => m.publicId)} api={reactionsApi} />
                       </tr>
                     )
                   })}

@@ -5,6 +5,7 @@
 // RSVP going/maybe/not_going - matches the common guild/clan-platform RSVP
 // pattern this site didn't have before.
 
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 export interface GameNight {
@@ -106,4 +107,80 @@ export async function setRsvp(gameNightId: number, openfrontId: string, status: 
     return { ok: false, message: `Couldn't save: ${error.message}` }
   }
   return { ok: true, message: 'RSVP saved.' }
+}
+
+// ── shared store ────────────────────────────────────────────────────────────
+// The sidebar card, the Metrics card and the tab-title reminder all show the
+// same game nights; one cached copy, refreshed on focus, every few minutes and
+// when another tab of this browser changes something (BroadcastChannel).
+
+const CHANNEL = 'cyn-gamenights'
+const REFRESH_MS = 5 * 60 * 1000
+let cache: GameNightWithRsvps[] | null = null
+let inflight: Promise<void> | null = null
+const listeners = new Set<() => void>()
+let channel: BroadcastChannel | null = null
+
+function ensureChannel() {
+  if (channel) return
+  try {
+    channel = new BroadcastChannel(CHANNEL)
+    channel.onmessage = () => {
+      refreshGameNights()
+    }
+  } catch {
+    /* BroadcastChannel unavailable - focus/interval refresh still works */
+  }
+}
+
+/** Re-reads the game nights; pass true after changing one so other tabs of this browser refresh too. */
+export function refreshGameNights(broadcast = false): Promise<void> {
+  if (!inflight) {
+    inflight = fetchGameNights()
+      .then((data) => {
+        cache = data
+        listeners.forEach((l) => l())
+      })
+      .catch(() => {})
+      .finally(() => {
+        inflight = null
+      })
+  }
+  if (broadcast) {
+    ensureChannel()
+    channel?.postMessage('changed')
+  }
+  return inflight
+}
+
+export function useGameNights(enabled = true): { nights: GameNightWithRsvps[] | null; refresh: () => Promise<void> } {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (!enabled) return
+    const l = () => bump((n) => n + 1)
+    listeners.add(l)
+    ensureChannel()
+    refreshGameNights()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshGameNights()
+    }
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = setInterval(onVisible, REFRESH_MS)
+    return () => {
+      listeners.delete(l)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(timer)
+    }
+  }, [enabled])
+  const refresh = useCallback(() => refreshGameNights(true), [])
+  return { nights: enabled ? cache : null, refresh }
+}
+
+/** Upcoming game nights the given member hasn't answered yet. */
+export function unansweredGameNights(nights: GameNightWithRsvps[] | null, openfrontId: string | null | undefined): GameNightWithRsvps[] {
+  if (!nights || !openfrontId) return []
+  const now = Date.now()
+  return nights.filter((n) => new Date(n.startsAt).getTime() > now && !n.rsvps[openfrontId])
 }

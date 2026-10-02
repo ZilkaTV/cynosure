@@ -83,8 +83,6 @@ export default function Metrics() {
   // people with no human in the loop risks false positives and reads as
   // spam/bot behavior - this surfaces the list to an Inner Circle member
   // instead, who decides whether/how to reach out.
-  const memberNames = useMemo(() => Object.fromEntries((roster?.members ?? []).map((m) => [m.publicId, m.name])), [roster])
-
   const quietMembers = useMemo(() => {
     const now = Date.now()
     return (roster?.members ?? [])
@@ -121,7 +119,7 @@ export default function Metrics() {
       <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.title} center />
       {profile && (
         <div className="mx-auto mb-8 max-w-xl">
-          <GameNightsCard openfrontId={profile.openfront_id} canCreate names={memberNames} />
+          <GameNightsCard openfrontId={profile.openfront_id} canCreate />
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

@@ -4,6 +4,7 @@ import CynLogo from './CynLogo'
 import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
+import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
@@ -139,6 +140,7 @@ function AccountMenu() {
 export default function Layout({ children }: { children: ReactNode }) {
   const { t } = useLanguage()
   const { profile } = useProfile()
+  useGameNightReminder()
   const isInnerCircle = useIsInnerCircle()
 
   useEffect(() => {

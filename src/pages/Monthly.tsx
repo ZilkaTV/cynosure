@@ -4,6 +4,8 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
+import { ReactionCell } from '../components/ReactionCell'
+import { useReactions } from '../lib/useReactions'
 import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -37,13 +39,15 @@ const LATEST_GAMES_COUNT = 10
 
 /** Latest N distinct clan games of one mode within a given month, deduped across members (same pattern as Home.tsx's recent-games list). */
 function latestModeGames(members: MemberStats[], month: string, isMode: (g: PlayerGame) => boolean) {
-  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[] }>()
+  const byGameId = new Map<string, { g: PlayerGame; memberNames: string[]; memberIds: string[] }>()
   for (const m of members) {
     for (const g of m.cynGames) {
       if (g.type === 'Private' || !isMode(g) || monthKeyOf(g.start) !== month) continue
       const existing = byGameId.get(g.gameId)
-      if (existing) existing.memberNames.push(m.name)
-      else byGameId.set(g.gameId, { g, memberNames: [m.name] })
+      if (existing) {
+        existing.memberNames.push(m.name)
+        existing.memberIds.push(m.publicId)
+      } else byGameId.set(g.gameId, { g, memberNames: [m.name], memberIds: [m.publicId] })
     }
   }
   return [...byGameId.values()]
@@ -165,17 +169,18 @@ function LatestGamesSection({
 }: {
   eyebrow: string
   title: string
-  games: { g: PlayerGame; memberNames: string[] }[]
+  games: { g: PlayerGame; memberNames: string[]; memberIds: string[] }[]
   onOpenGame: (gameId: string) => void
   t: TranslationShape
 }) {
+  const reactionsApi = useReactions(games.map(({ g }) => g.gameId))
   if (games.length === 0) return null
   return (
     <section className="space-y-4">
       <SectionHeading center eyebrow={eyebrow} title={title} />
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[660px] text-sm">
             <thead>
               <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -183,10 +188,11 @@ function LatestGamesSection({
                 <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                 <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                 <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
               </tr>
             </thead>
             <tbody>
-              {games.map(({ g, memberNames }) => (
+              {games.map(({ g, memberNames, memberIds }) => (
                 <tr
                   key={g.gameId}
                   onClick={() => onOpenGame(g.gameId)}
@@ -203,6 +209,7 @@ function LatestGamesSection({
                   >
                     {g.result}
                   </td>
+                  <ReactionCell gameId={g.gameId} memberIds={memberIds} api={reactionsApi} />
                 </tr>
               ))}
             </tbody>

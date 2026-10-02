@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createGameNight, deleteGameNight, fetchGameNights, setRsvp, type GameNightWithRsvps, type RsvpStatus } from '../lib/gameNights'
+import { useState } from 'react'
+import { createGameNight, deleteGameNight, setRsvp, unansweredGameNights, useGameNights, type RsvpStatus } from '../lib/gameNights'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useMemberNames } from '../lib/useMemberNames'
 import { useProfile } from '../lib/useProfile'
-import { fetchRegistered, type Profile } from '../lib/profiles'
 
 const STATUSES: RsvpStatus[] = ['going', 'maybe', 'not_going']
 
@@ -18,26 +18,30 @@ function idsByStatus(rsvps: Record<string, RsvpStatus>): Record<RsvpStatus, stri
  * can post or remove one. `names` maps openfront id -> display name for the
  * hover lists; an id without a known name falls back to the raw id.
  */
-export function GameNightsCard({ openfrontId, canCreate = false, names = {} }: { openfrontId: string; canCreate?: boolean; names?: Record<string, string> }) {
+export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId: string; canCreate?: boolean }) {
   const { t } = useLanguage()
-  const [nights, setNights] = useState<GameNightWithRsvps[] | null>(null)
+  const { nights, refresh: load } = useGameNights()
+  const names = useMemberNames()
   const [creating, setCreating] = useState(false)
   const [startsAt, setStartsAt] = useState('')
   const [note, setNote] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = () => fetchGameNights().then(setNights)
-  useEffect(() => {
-    load()
-  }, [])
-
+  const unansweredCount = unansweredGameNights(nights, openfrontId).length
   const label = (status: RsvpStatus) => (status === 'going' ? t.home.gameNightsGoing : status === 'maybe' ? t.home.gameNightsMaybe : t.home.gameNightsNotGoing)
 
   return (
     <div className="panel flex flex-col gap-3 px-5 py-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t.home.gameNightsTitle}</p>
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {t.home.gameNightsTitle}
+          {unansweredCount > 0 && (
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-signal-red px-1 text-[10px] font-bold text-white motion-safe:animate-pulse">
+              {unansweredCount}
+            </span>
+          )}
+        </p>
         {canCreate && !creating && (
           <button onClick={() => setCreating(true)} className="text-xs text-accent-light hover:text-accent">
             {t.home.gameNightsCreateButton}
@@ -96,14 +100,20 @@ export function GameNightsCard({ openfrontId, canCreate = false, names = {} }: {
       {nights?.map((n) => {
         const byStatus = idsByStatus(n.rsvps)
         const myStatus = n.rsvps[openfrontId]
+        const unanswered = !myStatus && new Date(n.startsAt).getTime() > Date.now()
         return (
-          <div key={n.id} className="flex flex-col gap-2 rounded-lg border border-base-700 bg-base-800/40 p-3">
+          <div key={n.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${unanswered ? 'border-signal-red/70 bg-signal-red/5' : 'border-base-700 bg-base-800/40'}`}>
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-white">
                   {new Date(n.startsAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </p>
                 {n.note && <p className="text-xs text-slate-400">{n.note}</p>}
+                {unanswered && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-signal-red px-2 py-0.5 text-[11px] font-semibold text-white motion-safe:animate-pulse">
+                    {'\u25CF'} {t.home.gameNightsUnanswered}
+                  </span>
+                )}
               </div>
               {canCreate && n.createdBy === openfrontId && (
                 <button
@@ -169,16 +179,10 @@ export function GameNightsCard({ openfrontId, canCreate = false, names = {} }: {
  */
 export function GameNightsSidebar() {
   const { profile } = useProfile()
-  const [members, setMembers] = useState<Profile[]>([])
-  useEffect(() => {
-    if (!profile) return
-    fetchRegistered().then(setMembers).catch(() => {})
-  }, [profile])
-  const names = useMemo(() => Object.fromEntries(members.map((m) => [m.openfront_id, m.in_game_name])), [members])
   if (!profile) return null
   return (
     <div className="mt-4">
-      <GameNightsCard openfrontId={profile.openfront_id} names={names} />
+      <GameNightsCard openfrontId={profile.openfront_id} />
     </div>
   )
 }

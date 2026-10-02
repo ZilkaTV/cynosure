@@ -1,5 +1,5 @@
 // ── Daily quests ─────────────────────────────────────────────────────────────
-// 5 daily quests, reset at midnight UTC. A member clicks "Claim" and the site
+// Daily quests, reset at midnight UTC. A member clicks "Claim" and the site
 // checks the requirement against already-loaded OpenFront/roster data (no
 // separate "server" - the browser has the same data a server would use), then
 // awards XP. A quest can only be claimed once per member per day - enforced
@@ -24,12 +24,17 @@ function isToday(iso: string | null): boolean {
   return !!iso && iso.slice(0, 10) === todayKey()
 }
 
+/** Extra facts a quest can need beyond the roster data (loaded by the Quests page). */
+export interface QuestContext {
+  reactedToday: boolean
+}
+
 export interface QuestDef {
   id: string
   name: string
   description: string
   xp: number
-  check: (m: MemberStats, coopByGame: Record<string, boolean>) => boolean
+  check: (m: MemberStats, coopByGame: Record<string, boolean>, ctx: QuestContext) => boolean
 }
 
 export const QUESTS: QuestDef[] = [
@@ -80,6 +85,13 @@ export const QUESTS: QuestDef[] = [
     check: (m) => m.cynGames.some((g) => is2v2(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
   },
   {
+    id: 'react_game',
+    name: 'Hype Man',
+    description: 'React to a clan game',
+    xp: 10,
+    check: (_m, _coop, ctx) => ctx.reactedToday,
+  },
+  {
     id: 'speedrun_post',
     name: 'Against the Clock',
     description: 'Submit a speedrun (any result)',
@@ -118,10 +130,11 @@ export async function claimQuest(
   quest: QuestDef,
   member: MemberStats,
   coopByGame: Record<string, boolean>,
+  ctx: QuestContext,
 ): Promise<ClaimResult> {
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
 
-  if (!quest.check(member, coopByGame)) {
+  if (!quest.check(member, coopByGame, ctx)) {
     return { ok: false, message: "Not completed yet today - come back once you've done it." }
   }
 

@@ -287,6 +287,7 @@ export const translations = {
         ranked_win: { name: 'Duelist', description: 'Win 1 ranked 1v1' },
         ranked_2v2_win: { name: 'Tag Team', description: 'Win 1 ranked 2v2' },
         speedrun_post: { name: 'Against the Clock', description: 'Submit a speedrun (any result)' },
+        react_game: { name: 'Hype Man', description: 'React to a clan game' },
       },
     },
     trends: {
@@ -928,6 +929,7 @@ export const translations = {
         ranked_win: { name: 'Duelist', description: 'Gewinne 1 Ranked-1v1' },
         ranked_2v2_win: { name: 'Tag Team', description: 'Gewinne 1 Ranked-2v2' },
         speedrun_post: { name: 'Against the Clock', description: 'Reiche einen Speedrun ein (egal welches Ergebnis)' },
+        react_game: { name: 'Hype Man', description: 'Reagiere auf ein Clan-Spiel' },
       },
     },
     trends: {
@@ -1570,6 +1572,7 @@ export const translations = {
         ranked_win: { name: 'Duelist', description: 'Gagne 1 partie 1v1 ranked' },
         ranked_2v2_win: { name: 'Tag Team', description: 'Gagne 1 partie 2v2 ranked' },
         speedrun_post: { name: 'Against the Clock', description: 'Soumets un speedrun (peu importe le résultat)' },
+        react_game: { name: 'Hype Man', description: 'Réagis à une partie du clan' },
       },
     },
     trends: {

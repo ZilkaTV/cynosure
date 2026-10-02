@@ -101,3 +101,11 @@ export async function fetchReactionTotals(): Promise<Record<string, number>> {
   }
   return totals
 }
+
+/** Did this member leave a reaction on any game today (UTC day, like the daily quest reset)? */
+export async function fetchReactedToday(openfrontId: string): Promise<boolean> {
+  if (!supabase) return false
+  const startOfDay = new Date().toISOString().slice(0, 10) + 'T00:00:00Z'
+  const { data, error } = await supabase.from('cyn_kudos').select('id').eq('from_openfront_id', openfrontId).gte('created_at', startOfDay).limit(1)
+  return !error && (data?.length ?? 0) > 0
+}

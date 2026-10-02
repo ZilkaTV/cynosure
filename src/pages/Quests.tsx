@@ -4,6 +4,7 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner, LastUpdated, useCountdown } from '../components/ui'
 import { QUESTS, fetchClaimsToday, claimQuest, todayKey, nextResetAt } from '../lib/quests'
+import { fetchReactedToday } from '../lib/reactions'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -12,6 +13,7 @@ export default function Quests() {
   const { t } = useLanguage()
   const { data, loading, lastUpdated, refreshing, refresh } = useRoster(!!profile)
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
+  const [reactedToday, setReactedToday] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
   const resetCountdown = useCountdown(nextResetAt())
@@ -19,7 +21,10 @@ export default function Quests() {
   const me = data?.members.find((m) => m.publicId === profile?.openfront_id)
 
   useEffect(() => {
-    if (profile) fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
+    if (profile) {
+      fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
+      fetchReactedToday(profile.openfront_id).then(setReactedToday)
+    }
   }, [profile, data])
 
   if (!profile) return <RegistrationGate />
@@ -32,7 +37,7 @@ export default function Quests() {
     if (!profile || !me) return
     const quest = QUESTS.find((q) => q.id === questId)!
     setBusyId(questId)
-    const r = await claimQuest(profile.openfront_id, quest, me, coop)
+    const r = await claimQuest(profile.openfront_id, quest, me, coop, { reactedToday })
     setMsg((m) => ({ ...m, [questId]: r.message }))
     setBusyId(null)
     if (r.ok) {
@@ -74,7 +79,7 @@ export default function Quests() {
         <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
         <div className="space-y-3">
           {QUESTS.map((q) => {
-            const done = q.check(me, coop)
+            const done = q.check(me, coop, { reactedToday })
             const claimed = claimedToday.has(q.id)
             const qt = t.quests.items[q.id as keyof typeof t.quests.items]
             return (

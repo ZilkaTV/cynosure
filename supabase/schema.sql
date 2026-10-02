@@ -1537,3 +1537,62 @@ update storage.buckets
 set file_size_limit = 5242880, -- 5MB - generous for a phone screenshot, nowhere near enough to be useful as free file hosting
     allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp']
 where id = 'event-screenshots';
+
+-- ============================================================
+-- SECURITY FIX: cyn_members.discord_user_id was client-supplied and
+-- unverified, and scripts/discord-role-sync.mjs trusts it for BOTH Discord
+-- roles and the cyn_inner_circle (Metrics dashboard) gate. Any signed-in
+-- member could set their own row's discord_user_id to an Inner Circle
+-- member's Discord snowflake and the next sync run would insert their
+-- openfront_id into cyn_inner_circle. Two changes:
+--  1. the trigger now overwrites discord_user_id with the caller's REAL
+--     Discord id from their auth user (set server-side by
+--     worker/discord-auth.js as user_metadata.provider_id), whatever the
+--     client sent;
+--  2. the update policy only lets a member edit their OWN row (or claim an
+--     unclaimed one) instead of `using (true)` - previously any signed-in
+--     member could edit ANY member's row (the trigger only protected
+--     user_id itself).
+-- All 36 existing rows are already claimed (checked live), so tightening
+-- the update policy locks nobody out.
+-- ============================================================
+
+create or replace function public.cyn_members_fill_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  real_discord_id text;
+begin
+  if tg_op = 'INSERT' then
+    if auth.uid() is not null then
+      new.user_id := auth.uid();
+    end if;
+  elsif tg_op = 'UPDATE' then
+    if auth.uid() is not null and (old.user_id is null or old.user_id = auth.uid()) then
+      new.user_id := auth.uid();
+    else
+      new.user_id := old.user_id;
+    end if;
+  end if;
+
+  -- Only for the caller's own row: take the Discord id from the verified
+  -- auth user, never from the request body.
+  if auth.uid() is not null and new.user_id = auth.uid() then
+    select u.raw_user_meta_data ->> 'provider_id' into real_discord_id
+    from auth.users u where u.id = auth.uid();
+    if real_discord_id is not null then
+      new.discord_user_id := real_discord_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop policy if exists "members can update cyn_members" on public.cyn_members;
+create policy "members can update own cyn_members"
+  on public.cyn_members for update to authenticated
+  using (user_id is null or user_id = auth.uid())
+  with check (user_id = auth.uid());

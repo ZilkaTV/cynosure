@@ -74,7 +74,7 @@ async function fetchJson(url, opts) {
 
 async function fetchRegisteredMembers() {
   const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_members?select=openfront_id,in_game_name`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    headers: { apikey: SUPABASE_ANON_KEY },
   })
   return rows
 }

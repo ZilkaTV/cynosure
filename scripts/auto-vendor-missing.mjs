@@ -58,7 +58,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } })
+  const res = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY } })
   if (!res.ok) throw new Error(`${url} -> ${res.status}`)
   return res.json()
 }

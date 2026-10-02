@@ -71,7 +71,7 @@ async function fetchJson(url, opts) {
 
 async function fetchRegisteredMembers() {
   return fetchJson(`${SUPABASE_URL}/rest/v1/cyn_members?select=openfront_id,in_game_name`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    headers: { apikey: SUPABASE_ANON_KEY },
   })
 }
 
@@ -89,7 +89,7 @@ async function fetchRecentGameIds() {
   for (const m of members) {
     const rows = await fetchJson(
       `${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=games&openfront_id=eq.${encodeURIComponent(m.openfront_id)}`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+      { headers: { apikey: SUPABASE_ANON_KEY } },
     )
     for (const g of rows[0]?.games ?? []) {
       if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer' || g.type === 'Private') continue
@@ -117,7 +117,7 @@ async function fetchCoveredGameIds(ids, computeLogicVersion) {
     const filter = chunk.map((id) => `"${id}"`).join(',')
     const rows = await fetchJson(
       `${SUPABASE_URL}/rest/v1/cyn_game_tile_stats?select=game_id&game_id=in.(${filter})&compute_logic_version=eq.${computeLogicVersion}`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+      { headers: { apikey: SUPABASE_ANON_KEY } },
     )
     for (const r of rows) covered.add(r.game_id)
   }
@@ -185,7 +185,6 @@ async function main() {
           method: 'POST',
           headers: {
             apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
             Prefer: 'resolution=merge-duplicates',
           },

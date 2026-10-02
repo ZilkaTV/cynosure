@@ -87,6 +87,9 @@ export async function handleMemberGames(request, env) {
   const idsParam = url.searchParams.get('ids') ?? ''
   const ids = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
   if (ids.length === 0) return jsonResponse({})
+  // ~40 members today; this only exists so a request can't ask for an
+  // unbounded number of per-member KV reads / a huge Supabase .in() fallback.
+  if (ids.length > 150) return jsonResponse({ error: 'too_many_ids', max: 150 }, 413)
 
   const result = {}
   const missing = []

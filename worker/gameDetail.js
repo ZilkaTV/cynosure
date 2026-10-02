@@ -39,6 +39,14 @@ const KV_TTL_SECONDS = 60 * 24 * 60 * 60
 // affects correctness, only how fast the cache fills in.
 const MAX_WARM_PER_REQUEST = 20
 
+// Hard cap on ids per request. Unbounded, one request could ask for
+// thousands of games: every one not yet warmed in KV falls through to a
+// single Supabase .in() query at ~60KB per row, i.e. a cheap, repeatable way
+// to burn the Supabase egress quota (already exceeded once - see the
+// 187% overage this endpoint was built to fix). The client chunks its
+// batches under this (src/lib/openfront.ts), so legitimate use never hits it.
+const MAX_IDS_PER_REQUEST = 200
+
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
 }
@@ -61,6 +69,7 @@ export async function handleGameDetail(request, env, ctx) {
   const idsParam = url.searchParams.get('ids') ?? ''
   const ids = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
   if (ids.length === 0) return jsonResponse({})
+  if (ids.length > MAX_IDS_PER_REQUEST) return jsonResponse({ error: 'too_many_ids', max: MAX_IDS_PER_REQUEST }, 413)
 
   const result = {}
   const missing = []

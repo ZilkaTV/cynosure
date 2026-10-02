@@ -588,11 +588,18 @@ async function fetchSharedGameDetailsBatch(gameIds: string[]): Promise<Map<strin
   const result = new Map<string, GameDetail>()
   if (gameIds.length === 0) return result
 
+  // Chunked under the Worker's per-request id cap (worker/gameDetail.js's
+  // MAX_IDS_PER_REQUEST = 200) - a roster build can need ~300 games at once.
   try {
-    const res = await fetch(`/api/game-detail?ids=${encodeURIComponent(gameIds.join(','))}`)
-    if (res.ok) {
-      const data = (await res.json()) as Record<string, GameDetail>
-      for (const [gameId, detail] of Object.entries(data)) result.set(gameId, detail)
+    const CHUNK = 150
+    const chunks: string[][] = []
+    for (let i = 0; i < gameIds.length; i += CHUNK) chunks.push(gameIds.slice(i, i + CHUNK))
+    const responses = await Promise.all(chunks.map((c) => fetch(`/api/game-detail?ids=${encodeURIComponent(c.join(','))}`)))
+    if (responses.every((r) => r.ok)) {
+      for (const res of responses) {
+        const data = (await res.json()) as Record<string, GameDetail>
+        for (const [gameId, detail] of Object.entries(data)) result.set(gameId, detail)
+      }
       return result
     }
   } catch {

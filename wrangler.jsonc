@@ -26,7 +26,7 @@
   // entry is unambiguously reliable where the dashboard form was not.
   "vars": {
     "VITE_SUPABASE_URL": "https://mynrwxjtqmcyubeyryge.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15bnJ3eGp0cW1jeXViZXlyeWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NDk1MzUsImV4cCI6MjA5OTQyNTUzNX0.O2HrmGSN_XnNF2AsWUv7tA5JPIiLV2dQQ24Zxg1V-a8"
+    "VITE_SUPABASE_ANON_KEY": "sb_publishable_Mchbjopqw70BRPB5XM0RJw_8r2FESKU"
   },
   // cynclan.com's Custom Domain was originally added via the dashboard
   // (Domänen tab), which worked fine there. www.cynclan.com's dashboard

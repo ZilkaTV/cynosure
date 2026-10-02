@@ -55,7 +55,7 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
 
       {canCreate && creating && (
         <div className="flex flex-col gap-2 rounded-lg border border-base-700 bg-base-800/60 p-3">
-          <GameNightTimePicker value={startsAt} onChange={setStartsAt} />
+          <GameNightTimePicker onChange={setStartsAt} />
           <input
             type="text"
             value={note}

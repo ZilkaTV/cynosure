@@ -9,25 +9,48 @@
 // in src/lib/openfront.ts and src/lib/replaySimCore.ts) - without this,
 // anyone could use this Worker as a free, unauthenticated open proxy to any
 // path on api.openfront.io.
+//
+// Each allowed path also lists the ONLY query params it forwards (see
+// buildTarget). Forwarding url.search verbatim meant any visitor could append
+// arbitrary ?x=<random> to an allowed path: every distinct query string is
+// its own edge-cache key, so that's an unbounded supply of cache misses, each
+// a real request to OpenFront - defeating the "~one upstream request per URL
+// per window" protection this proxy exists for, and risking OpenFront
+// rate-limiting this Worker for everyone. Path segments are restricted to
+// [A-Za-z0-9_-] too (the old [^/]+ also matched encoded slashes/dots, i.e. a
+// path-traversal-shaped input).
+const SEG = '[A-Za-z0-9_-]+'
 const ALLOWED_PATHS = [
-  /^leaderboard\/ranked$/,
-  /^public\/player\/[^/]+\/games$/,
-  /^public\/game\/[^/]+$/,
-  /^public\/clans\/leaderboard$/,
+  { re: /^leaderboard\/ranked$/, params: ['page'] },
+  { re: new RegExp(`^public/player/${SEG}/games$`), params: ['filter', 'cursor'] },
+  { re: new RegExp(`^public/game/${SEG}$`), params: ['turns'] },
+  { re: /^public\/clans\/leaderboard$/, params: [] },
 ]
+
+function buildTarget(path, search) {
+  const rule = ALLOWED_PATHS.find((r) => r.re.test(path))
+  if (!rule) return null
+  const incoming = new URLSearchParams(search)
+  const out = new URLSearchParams()
+  for (const key of rule.params) {
+    const v = incoming.get(key)
+    if (v !== null && v.length <= 200) out.set(key, v)
+  }
+  const qs = out.toString()
+  return `https://api.openfront.io/${path}${qs ? `?${qs}` : ''}`
+}
 
 export async function handleOf(request) {
   const url = new URL(request.url)
   const path = url.pathname.replace(/^\/api\/of\//, '')
 
-  if (!ALLOWED_PATHS.some((re) => re.test(path))) {
+  const target = buildTarget(path, url.search)
+  if (!target) {
     return new Response(JSON.stringify({ error: 'path_not_allowed' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-
-  const target = `https://api.openfront.io/${path}${url.search}`
 
   try {
     // A missing/generic User-Agent is a common trigger for a Cloudflare-
@@ -60,8 +83,10 @@ export async function handleOf(request) {
         'Cache-Control': upstream.ok ? 's-maxage=1800, stale-while-revalidate=86400' : 'no-store',
       },
     })
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'proxy_failed', message: String(e) }), {
+  } catch {
+    // Deliberately no error detail in the body - String(e) used to be
+    // echoed back, which can leak internal fetch/runtime messages.
+    return new Response(JSON.stringify({ error: 'proxy_failed' }), {
       status: 502,
       headers: { 'Content-Type': 'application/json' },
     })

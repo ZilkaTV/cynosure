@@ -19,6 +19,7 @@ import {
   isEventAdmin,
   submitEventEntry,
   reviewSubmission,
+  safeHttpUrl,
   CATEGORY_POINTS,
   type EventTeam,
   type EventSubmission,
@@ -391,12 +392,18 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
                     <span className="text-slate-400">{categoryLabel(t, s.category)}</span>
                   </div>
                   <p className="text-xs text-slate-500">{new Date(s.created_at).toLocaleString('en-GB')}</p>
-                  <a href={s.game_link} target="_blank" rel="noreferrer" className="block truncate text-xs text-accent-light hover:text-accent">
-                    {s.game_link}
-                  </a>
-                  <a href={s.screenshot_url} target="_blank" rel="noreferrer">
-                    <img src={s.screenshot_url} alt={t.events.winScreenAlt} className="max-h-48 rounded-lg border border-base-700" />
-                  </a>
+                  {safeHttpUrl(s.game_link) ? (
+                    <a href={safeHttpUrl(s.game_link)!} target="_blank" rel="noreferrer" className="block truncate text-xs text-accent-light hover:text-accent">
+                      {s.game_link}
+                    </a>
+                  ) : (
+                    <span className="block truncate text-xs text-signal-red">{s.game_link} (blocked: not an http(s) link)</span>
+                  )}
+                  {safeHttpUrl(s.screenshot_url) && (
+                    <a href={safeHttpUrl(s.screenshot_url)!} target="_blank" rel="noreferrer">
+                      <img src={safeHttpUrl(s.screenshot_url)!} alt={t.events.winScreenAlt} className="max-h-48 rounded-lg border border-base-700" />
+                    </a>
+                  )}
                   <div className="flex gap-2 pt-1">
                     <button onClick={() => onReview(s.id, 'accepted')} className="rounded-lg bg-signal-green/15 px-3 py-1.5 text-xs font-semibold text-signal-green hover:bg-signal-green/25">
                       {t.events.accept}

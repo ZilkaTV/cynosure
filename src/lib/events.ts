@@ -127,6 +127,7 @@ export async function submitEventEntry(params: {
 }): Promise<SubmitEntryResult> {
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
   if (!params.gameLink.trim()) return { ok: false, message: 'Please paste the game link.' }
+  if (!safeHttpUrl(params.gameLink.trim())) return { ok: false, message: 'The game link must be a valid http(s) URL.' }
   if (!params.screenshotFile) return { ok: false, message: 'Please attach a screenshot of the win screen.' }
 
   // Mirrors the event-screenshots bucket's own file_size_limit/
@@ -173,4 +174,23 @@ export async function reviewSubmission(id: string, decision: 'accepted' | 'denie
     .update({ status: decision, reviewed_by: reviewerDiscord, reviewed_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
+}
+
+/**
+ * Returns the URL only if it's a plain http(s) URL, else null. game_link and
+ * screenshot_url are visitor-supplied and cyn_event_submissions accepts
+ * public inserts, so a row can be written straight through the anon key with
+ * no client validation at all - e.g. `javascript:` as a game_link, which
+ * becomes stored XSS the moment an admin clicks it in the review list. Used
+ * at render time (the real defense, since it also covers rows that never
+ * went through submitEventEntry) as well as on submit.
+ */
+export function safeHttpUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null
+  } catch {
+    return null
+  }
 }

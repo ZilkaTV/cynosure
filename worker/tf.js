@@ -16,7 +16,10 @@ export async function handleTf(request) {
     })
   }
 
-  const target = `https://trackerfront.com/${path}${url.search}`
+  // No query params forwarded - the one allowed endpoint takes none, and
+  // passing url.search through made every distinct ?x=<random> its own edge
+  // cache key (see worker/of.js for the full reasoning).
+  const target = `https://trackerfront.com/${path}`
 
   try {
     // Same fix as worker/of.js - a realistic User-Agent avoids the target's
@@ -38,8 +41,8 @@ export async function handleTf(request) {
         'Cache-Control': upstream.ok ? 's-maxage=1800, stale-while-revalidate=86400' : 'no-store',
       },
     })
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'proxy_failed', message: String(e) }), {
+  } catch {
+    return new Response(JSON.stringify({ error: 'proxy_failed' }), {
       status: 502,
       headers: { 'Content-Type': 'application/json' },
     })

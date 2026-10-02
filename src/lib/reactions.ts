@@ -12,6 +12,9 @@ import { supabase } from './supabase'
 // The heart is written with escapes so its U+FE0F variation selector can't get lost in an editor.
 export const REACTION_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💪', '😂'] as const
 
+// What the one-click heart button on a game without reactions leaves (same code points as in REACTION_EMOJIS).
+export const DEFAULT_REACTION = '\u2764\uFE0F'
+
 export interface GameReactions {
   // gameId -> emoji -> openfront ids of everyone who left that emoji on the game
   byGame: Record<string, Record<string, Set<string>>>

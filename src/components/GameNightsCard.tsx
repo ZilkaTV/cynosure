@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createGameNight, deleteGameNight, setRsvp, unansweredGameNights, useGameNights, type RsvpStatus } from '../lib/gameNights'
 import { useLanguage } from '../i18n/LanguageContext'
-import { formatLocal, formatUtc, relativeUntil, timePresets, toLocalInputValue } from '../lib/gameNightTime'
+import { GameNightTimePicker } from './GameNightTimePicker'
+import { formatLocal, relativeUntil } from '../lib/gameNightTime'
 import { useMemberNames } from '../lib/useMemberNames'
 import { useProfile } from '../lib/useProfile'
 
@@ -54,32 +55,7 @@ export function GameNightsCard({ openfrontId, canCreate = false }: { openfrontId
 
       {canCreate && creating && (
         <div className="flex flex-col gap-2 rounded-lg border border-base-700 bg-base-800/60 p-3">
-          <div className="flex flex-wrap gap-1.5">
-            {timePresets().map((p) => (
-              <button
-                key={p.kind + p.time}
-                type="button"
-                onClick={() => setStartsAt(p.value)}
-                className={`rounded-md px-2 py-1 text-xs transition-colors ${startsAt === p.value ? 'bg-accent font-semibold text-base-950' : 'bg-base-700/60 text-slate-300 hover:bg-base-700'}`}
-              >
-                {p.kind === 'today' ? t.home.gameNightsPresetToday(p.time) : t.home.gameNightsPresetTomorrow(p.time)}
-              </button>
-            ))}
-          </div>
-          <input
-            type="datetime-local"
-            value={startsAt}
-            min={toLocalInputValue(new Date())}
-            step={900}
-            onChange={(e) => setStartsAt(e.target.value)}
-            className="rounded border border-base-600 bg-base-900 px-2 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
-          />
-          {startsAt && !isNaN(new Date(startsAt).getTime()) && (
-            <p className="text-[11px] text-slate-400">
-              {formatLocal(new Date(startsAt).toISOString(), language)} · {formatUtc(new Date(startsAt).toISOString(), language)}
-            </p>
-          )}
-          <p className="text-[11px] text-slate-500">{t.home.gameNightsLocalNote}</p>
+          <GameNightTimePicker value={startsAt} onChange={setStartsAt} />
           <input
             type="text"
             value={note}

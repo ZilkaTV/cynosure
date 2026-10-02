@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Emoji } from './Emoji'
-import { REACTION_EMOJIS } from '../lib/reactions'
+import { DEFAULT_REACTION, REACTION_EMOJIS } from '../lib/reactions'
 import type { ReactionsApi } from '../lib/useReactions'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -68,12 +68,27 @@ export function ReactionCell({ gameId, memberIds, api }: { gameId: string; membe
                 >
                   {content}
                 </button>
+              ) : canReact ? (
+                <button key={emoji} disabled={busy} onClick={() => toggle(emoji)} title={who.join(', ')} className={`${chipClass} transition-colors hover:bg-base-600/70 disabled:cursor-not-allowed`}>
+                  {content}
+                </button>
               ) : (
                 <span key={emoji} title={who.join(', ')} className={`${chipClass} cursor-help`}>
                   {content}
                 </span>
               )
             })}
+        {canReact && !picking && REACTION_EMOJIS.every((emoji) => !perEmoji[emoji]?.size) && (
+          <button
+            disabled={busy}
+            onClick={() => toggle(DEFAULT_REACTION)}
+            className="rounded-md p-1 opacity-60 transition hover:bg-base-700 hover:opacity-100 disabled:cursor-not-allowed"
+            title={t.home.reactionButton}
+            aria-label={DEFAULT_REACTION}
+          >
+            <Emoji char={DEFAULT_REACTION} className="h-5 w-5" />
+          </button>
+        )}
         {canReact && (
           <button
             onClick={() => setPicking((p) => !p)}

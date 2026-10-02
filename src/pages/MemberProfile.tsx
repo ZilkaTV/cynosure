@@ -233,8 +233,8 @@ export default function MemberProfile() {
       <section>
         <SectionHeading center eyebrow={t.memberProfile.lifetimeEyebrow} title={t.memberProfile.careerTitle(CLAN_TAG)} />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-          <StatCard label={t.memberProfile.stat1v1Elo} value={m.elo ?? (m.eloEstimate != null ? `~${m.eloEstimate}` : '-')} accent="gold" sub={m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined} />
-          <StatCard label={t.memberProfile.stat2v2Elo} value={m.elo2v2 ?? (m.elo2v2Estimate != null ? `~${m.elo2v2Estimate}` : '-')} accent="gold" sub={m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined} />
+          <StatCard label={t.memberProfile.stat1v1Elo} value={m.elo ?? '-'} accent="gold" sub={m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined} />
+          <StatCard label={t.memberProfile.stat2v2Elo} value={m.elo2v2 ?? '-'} accent="gold" sub={m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined} />
           <StatCard label={t.memberProfile.statFfaWins} value={m.ffaWins} accent="purple" />
           <StatCard label={t.memberProfile.statTeamWins} value={m.teamWins} accent="purple" />
           <StatCard label={t.memberProfile.stat1v1Wins} value={m.rankedWins} accent="purple" />
@@ -244,9 +244,7 @@ export default function MemberProfile() {
           <StatCard label={t.memberProfile.statGamesTotal} value={m.clanGamesTotal} accent="plain" />
         </div>
         {m.elo == null && (
-          <p className="mt-2 text-center text-xs text-slate-500">
-            {m.eloEstimate != null || m.elo2v2Estimate != null ? t.memberProfile.estimatedEloNote : t.memberProfile.noEloNote}
-          </p>
+          <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
         )}
       </section>
 

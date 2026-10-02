@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createGameNight, deleteGameNight, fetchGameNights, setRsvp, type GameNightWithRsvps, type RsvpStatus } from '../lib/gameNights'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useProfile } from '../lib/useProfile'
+import { fetchRegistered, type Profile } from '../lib/profiles'
 
 const STATUSES: RsvpStatus[] = ['going', 'maybe', 'not_going']
 
@@ -132,7 +134,7 @@ export function GameNightsCard({ openfrontId, canCreate = false, names = {} }: {
               })}
             </div>
 
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {STATUSES.map((status) => (
                 <button
                   key={status}
@@ -156,6 +158,27 @@ export function GameNightsCard({ openfrontId, canCreate = false, names = {} }: {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * The always-visible card in the left column under the Discord widget (every
+ * page that uses StatsShell). Shown to registered members only; viewing and
+ * RSVPs only, posting lives on the inner-circle Metrics page.
+ */
+export function GameNightsSidebar() {
+  const { profile } = useProfile()
+  const [members, setMembers] = useState<Profile[]>([])
+  useEffect(() => {
+    if (!profile) return
+    fetchRegistered().then(setMembers).catch(() => {})
+  }, [profile])
+  const names = useMemo(() => Object.fromEntries(members.map((m) => [m.openfront_id, m.in_game_name])), [members])
+  if (!profile) return null
+  return (
+    <div className="mt-4">
+      <GameNightsCard openfrontId={profile.openfront_id} names={names} />
     </div>
   )
 }

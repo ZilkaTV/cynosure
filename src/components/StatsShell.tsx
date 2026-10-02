@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
+import { GameNightsSidebar } from './GameNightsCard'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -48,6 +49,7 @@ export function StatsShell({ children }: { children: ReactNode }) {
       </div>
       <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
         <DiscordWidget />
+        <GameNightsSidebar />
       </aside>
       <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
         <UsefulLinks />

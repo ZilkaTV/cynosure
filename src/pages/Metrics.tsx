@@ -7,6 +7,8 @@ import {
   useIsInnerCircle,
   getTodayMetrics,
   getMetricsHistory,
+  getDiscordStatus,
+  type DiscordStatus,
   metricsHistoryToCsv,
   type TodayMetrics,
   type DailyMetricsRow,
@@ -20,16 +22,6 @@ import { CLAN_TAG } from '../config'
 const QUIET_AFTER_DAYS = 14
 
 const HISTORY_DAYS = 30
-
-/** One point per day from today (0) out to `days`, projecting pure 30-day-half-life decay off `currentScore` - fed straight into TrendChart. */
-function forecastCurve(currentScore: number, days: number): { date: string; value: number }[] {
-  const points = []
-  const today = Date.now()
-  for (let d = 0; d <= days; d++) {
-    points.push({ date: new Date(today + d * 86_400_000).toISOString(), value: currentScore - forecastWinScoreLoss(currentScore, d) })
-  }
-  return points
-}
 
 function downloadCsv(rows: DailyMetricsRow[]) {
   const csv = metricsHistoryToCsv(rows)
@@ -61,11 +53,13 @@ export default function Metrics() {
   const [topClans, setTopClans] = useState<TopClanEntry[]>([])
   const [forecastClanTag, setForecastClanTag] = useState<string>('')
   const [forecastDays, setForecastDays] = useState<number>(1)
+  const [discordStatus, setDiscordStatus] = useState<Record<string, DiscordStatus> | null>(null)
 
   useEffect(() => {
     if (!isInnerCircle || !session) return
     getTodayMetrics().then(setMetrics)
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
+    getDiscordStatus().then(setDiscordStatus)
     fetchTopClanLeaderboard().then((top) => {
       setTopClans(top)
       // Defaults to our own clan, not whoever happens to be #1 overall -
@@ -88,8 +82,11 @@ export default function Metrics() {
     return (roster?.members ?? [])
       .map((m) => ({ id: m.publicId, name: m.name, daysSince: m.lastGame ? Math.floor((now - new Date(m.lastGame).getTime()) / 86_400_000) : null }))
       .filter((m) => m.daysSince === null || m.daysSince >= QUIET_AFTER_DAYS)
+      // Only people who are still on the Discord server and hold the Cynosure role.
+      // Until the first sync filled the status table, nothing is filtered.
+      .filter((m) => !discordStatus || Object.keys(discordStatus).length === 0 || (discordStatus[m.id]?.inGuild && discordStatus[m.id]?.hasCynRole))
       .sort((a, b) => (b.daysSince ?? Infinity) - (a.daysSince ?? Infinity))
-  }, [roster])
+  }, [roster, discordStatus])
 
   if (!isInnerCircle) {
     return (
@@ -237,14 +234,6 @@ export default function Metrics() {
                     <StatCard label="Win Score Now" value={clan.weightedWins.toFixed(1)} accent="plain" />
                     <StatCard label="Points Lost" value={`-${loss.toFixed(1)}`} accent="gold" />
                     <StatCard label="Projected" value={projected.toFixed(1)} accent="purple" />
-                  </div>
-                  <div className="mt-5">
-                    <TrendChart
-                      points={forecastCurve(clan.weightedWins, forecastDays)}
-                      color="#f59e0b"
-                      formatValue={(v) => v.toFixed(1)}
-                      emptyLabel={t.trends.emptyLabel}
-                    />
                   </div>
                 </>
               )

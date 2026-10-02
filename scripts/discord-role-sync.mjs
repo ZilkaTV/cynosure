@@ -36,6 +36,8 @@ const GAMES_100_ROLE_ID = '1545145526649884802'
 // below purely as a byproduct of the per-member roles fetch this script
 // already does for the wins/games roles, no extra Discord call needed.
 const INNER_CIRCLE_ROLE_ID = '1367284321270108280'
+// The base clan role. The Metrics page only lists members who are on the server AND hold it.
+const CYN_ROLE_ID = '1367283915936763944'
 
 // Highest threshold first - same 9 tiers/thresholds as WINS_TIERS in
 // src/lib/badges.ts. Keep these two lists in sync by hand if the tiers ever
@@ -303,6 +305,8 @@ async function main() {
     ]),
   )
 
+  // openfront_id -> { in_guild, has_cyn_role }, written to cyn_member_discord_status at the end.
+  const discordStatus = new Map()
   let checked = 0
   let skippedNoDiscordId = 0
   let updated = 0
@@ -312,6 +316,7 @@ async function main() {
   for (const m of members ?? []) {
     if (!m.discord_user_id) {
       skippedNoDiscordId++
+      discordStatus.set(m.openfront_id, { in_guild: false, has_cyn_role: false })
       continue
     }
     checked++
@@ -324,12 +329,14 @@ async function main() {
       const memberRes = await discordFetch(botToken, `/guilds/${DISCORD_GUILD_ID}/members/${m.discord_user_id}`)
       if (memberRes.status === 404) {
         // Left the server, or a stale/incorrect ID - nothing to sync.
+        discordStatus.set(m.openfront_id, { in_guild: false, has_cyn_role: false })
         continue
       }
       if (!memberRes.ok) throw new Error(`GET member ${m.discord_user_id}: ${memberRes.status}`)
       const memberData = await memberRes.json()
       const currentRoles = new Set(memberData.roles ?? [])
       rolesByMember.set(m.openfront_id, currentRoles)
+      discordStatus.set(m.openfront_id, { in_guild: true, has_cyn_role: currentRoles.has(CYN_ROLE_ID) })
 
       // Isolated in its own try/catch - a cyn_inner_circle write failure
       // must never abort the wins-tier/games-role sync below for this
@@ -495,6 +502,17 @@ async function main() {
       await reassignRole(MASTER_ROLE_ID, masterWinners)
     } catch (err) {
       console.error('Hero/Master of Cyn monthly reassignment failed (non-fatal):', err)
+    }
+  }
+
+  // Non-fatal and isolated like the inner-circle sync: the Metrics "Gone Quiet" list reads this.
+  if (supabaseAdmin && discordStatus.size > 0) {
+    try {
+      const rows = [...discordStatus].map(([openfront_id, s]) => ({ openfront_id, ...s, updated_at: new Date().toISOString() }))
+      const { error: statusError } = await supabaseAdmin.from('cyn_member_discord_status').upsert(rows, { onConflict: 'openfront_id' })
+      if (statusError) throw new Error(statusError.message)
+    } catch (statusErr) {
+      console.error('cyn_member_discord_status sync failed (non-fatal):', statusErr)
     }
   }
 

@@ -1818,3 +1818,22 @@ $$;
 drop trigger if exists trg_cyn_site_visits_throttle on public.cyn_site_visits;
 create trigger trg_cyn_site_visits_throttle before insert on public.cyn_site_visits
   for each row execute function public.cyn_site_visits_throttle();
+
+-- ============================================================
+-- Block J (pending): who is on the Discord server and holds the Cynosure role.
+-- Written every 30 min by scripts/discord-role-sync.mjs (service role), read by
+-- the Metrics "Gone Quiet" list (inner circle only) so people who left the
+-- server or lack the role are not listed.
+-- ============================================================
+create table if not exists public.cyn_member_discord_status (
+  openfront_id text primary key references public.cyn_members(openfront_id) on delete cascade,
+  in_guild boolean not null,
+  has_cyn_role boolean not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cyn_member_discord_status enable row level security;
+
+drop policy if exists "inner circle can read cyn_member_discord_status" on public.cyn_member_discord_status;
+create policy "inner circle can read cyn_member_discord_status" on public.cyn_member_discord_status for select to authenticated
+  using (public.cyn_is_inner_circle());

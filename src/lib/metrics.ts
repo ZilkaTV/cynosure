@@ -161,3 +161,22 @@ export function logSiteVisit(isMember: boolean) {
   }
   supabase.from('cyn_site_visits').insert({ is_member: isMember }).then(() => {})
 }
+
+export interface DiscordStatus {
+  inGuild: boolean
+  hasCynRole: boolean
+}
+
+/**
+ * openfront id -> whether the member is on the Discord server and holds the
+ * Cynosure role, as last synced by scripts/discord-role-sync.mjs. Empty until
+ * that table exists and the first sync ran (callers then don't filter).
+ */
+export async function getDiscordStatus(): Promise<Record<string, DiscordStatus>> {
+  if (!supabase) return {}
+  const { data, error } = await supabase.from('cyn_member_discord_status').select('openfront_id, in_guild, has_cyn_role')
+  if (error || !data) return {}
+  return Object.fromEntries(
+    (data as { openfront_id: string; in_guild: boolean; has_cyn_role: boolean }[]).map((r) => [r.openfront_id, { inGuild: r.in_guild, hasCynRole: r.has_cyn_role }]),
+  )
+}

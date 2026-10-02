@@ -1596,3 +1596,74 @@ create policy "members can update own cyn_members"
   on public.cyn_members for update to authenticated
   using (user_id is null or user_id = auth.uid())
   with check (user_id = auth.uid());
+
+-- ============================================================
+-- INTEGRITY FIX: ownership checks on the self-reported member tables.
+-- Every "members can ..." policy below used `to authenticated with check
+-- (true)` - proves "signed in with SOME Discord account" and nothing about
+-- WHICH member the row belongs to, so any signed-in account could write
+-- rows for ANY openfront_id: overwrite someone else's speedrun, set their
+-- XP, bump on their behalf, delete another member's game night, or give
+-- kudos "from" a member who never did. Now each write must be for the
+-- caller's own openfront_id (resolved server-side from cyn_members.user_id,
+-- which the existing trigger stamps and protects). All 36 members are
+-- claimed (checked live), so nobody is locked out. NOT covered by this (and
+-- not coverable by RLS): a member editing their OWN numbers (xp, bump
+-- count) - those stay self-reported by design.
+-- ============================================================
+
+create or replace function public.cyn_my_openfront_id()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select m.openfront_id from public.cyn_members m where m.user_id = auth.uid() limit 1
+$$;
+
+revoke all on function public.cyn_my_openfront_id() from public;
+grant execute on function public.cyn_my_openfront_id() to authenticated;
+
+drop policy if exists "members can upsert cyn_speedruns" on public.cyn_speedruns;
+drop policy if exists "members can update cyn_speedruns" on public.cyn_speedruns;
+create policy "members can insert own cyn_speedruns" on public.cyn_speedruns for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+create policy "members can update own cyn_speedruns" on public.cyn_speedruns for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "members can upsert cyn_bumps" on public.cyn_bumps;
+drop policy if exists "members can update cyn_bumps" on public.cyn_bumps;
+create policy "members can insert own cyn_bumps" on public.cyn_bumps for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+create policy "members can update own cyn_bumps" on public.cyn_bumps for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "members can upsert cyn_xp" on public.cyn_xp;
+drop policy if exists "members can update cyn_xp" on public.cyn_xp;
+create policy "members can insert own cyn_xp" on public.cyn_xp for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+create policy "members can update own cyn_xp" on public.cyn_xp for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "members can insert cyn_quest_claims" on public.cyn_quest_claims;
+create policy "members can insert own cyn_quest_claims" on public.cyn_quest_claims for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "members can give cyn_kudos" on public.cyn_kudos;
+create policy "members can give own cyn_kudos" on public.cyn_kudos for insert to authenticated
+  with check (from_openfront_id = public.cyn_my_openfront_id());
+
+drop policy if exists "members can create cyn_game_nights" on public.cyn_game_nights;
+drop policy if exists "members can delete cyn_game_nights" on public.cyn_game_nights;
+create policy "members can create own cyn_game_nights" on public.cyn_game_nights for insert to authenticated
+  with check (created_by = public.cyn_my_openfront_id());
+create policy "creators can delete own cyn_game_nights" on public.cyn_game_nights for delete to authenticated
+  using (created_by = public.cyn_my_openfront_id());
+
+drop policy if exists "members can upsert cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+drop policy if exists "members can update cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+create policy "members can insert own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id());
+create policy "members can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id()) with check (openfront_id = public.cyn_my_openfront_id());

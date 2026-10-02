@@ -9,7 +9,8 @@
 import { supabase } from './supabase'
 
 // Keep in sync with the check constraint on cyn_kudos.emoji in schema.sql.
-export const REACTION_EMOJIS = ['🔥', '👏', '🎉', '💪', '😂'] as const
+// The heart is written with escapes so its U+FE0F variation selector can't get lost in an editor.
+export const REACTION_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💪', '😂'] as const
 
 export interface GameReactions {
   // gameId -> emoji -> openfront ids of everyone who left that emoji on the game

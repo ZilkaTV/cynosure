@@ -1700,7 +1700,7 @@ grant select (openfront_id, in_game_name, timezone, discord_username, nationalit
 -- ============================================================
 alter table public.cyn_kudos add column if not exists emoji text not null default '🎉';
 alter table public.cyn_kudos drop constraint if exists cyn_kudos_emoji_check;
-alter table public.cyn_kudos add constraint cyn_kudos_emoji_check check (emoji in ('🔥', '👏', '🎉', '💪', '😂'));
+alter table public.cyn_kudos add constraint cyn_kudos_emoji_check check (emoji in (U&'\+01F44D', U&'\2764\FE0F', U&'\+01F525', U&'\+01F44F', U&'\+01F389', U&'\+01F4AA', U&'\+01F602'));
 
 do $$
 declare c text;

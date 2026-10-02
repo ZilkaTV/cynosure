@@ -35,6 +35,13 @@ const MAX_HISTORY_MESSAGES = 40 // bounds the Claude call on a very long-running
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
 const RATE_LIMIT_MAX = 15 // messages per IP per window
 
+// Backstop across ALL visitors. The per-IP limit above is trivially beaten by
+// anyone with many IPs, and every message here is a billed Claude call with up
+// to 4096 output tokens - this bounds the worst-case hourly spend no matter how
+// many addresses the traffic comes from.
+const GLOBAL_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const GLOBAL_RATE_LIMIT_MAX = 200
+
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
 }
@@ -51,17 +58,17 @@ function clientIp(request) {
  * the same IP (read-then-write) - acceptable here since the goal is only to
  * bound runaway cost/volume, not to enforce an exact limit.
  */
-async function checkRateLimit(supabase, key) {
+async function checkRateLimit(supabase, key, max = RATE_LIMIT_MAX, windowMs = RATE_LIMIT_WINDOW_MS) {
   const now = Date.now()
   const { data } = await supabase.from('cyn_help_rate_limit').select('window_start, count').eq('rate_key', key).maybeSingle()
 
-  if (!data || now - new Date(data.window_start).getTime() > RATE_LIMIT_WINDOW_MS) {
+  if (!data || now - new Date(data.window_start).getTime() > windowMs) {
     await supabase
       .from('cyn_help_rate_limit')
       .upsert({ rate_key: key, window_start: new Date(now).toISOString(), count: 1 }, { onConflict: 'rate_key' })
     return true
   }
-  if (data.count >= RATE_LIMIT_MAX) return false
+  if (data.count >= max) return false
   await supabase.from('cyn_help_rate_limit').update({ count: data.count + 1 }).eq('rate_key', key)
   return true
 }
@@ -155,7 +162,21 @@ export async function handleHelpChat(request, env) {
     return jsonResponse({ error: 'missing_visitor_key' }, 400)
   }
 
+  // imageUrl is client-supplied and goes straight to Claude as a URL to fetch and
+  // is later rendered to admins - only our own help-chat-images bucket is a
+  // legitimate value (see src/lib/help.ts), anything else would let the public
+  // point our billed Claude key at arbitrary URLs.
+  if (imageUrl != null && imageUrl !== '') {
+    const allowedPrefix = `${supabaseUrl}/storage/v1/object/public/help-chat-images/`
+    if (typeof imageUrl !== 'string' || !imageUrl.startsWith(allowedPrefix)) {
+      return jsonResponse({ error: 'invalid_image_url' }, 400)
+    }
+  }
+
   if (!(await checkRateLimit(supabase, clientIp(request)))) {
+    return jsonResponse({ error: 'rate_limited' }, 429)
+  }
+  if (!(await checkRateLimit(supabase, 'global', GLOBAL_RATE_LIMIT_MAX, GLOBAL_RATE_LIMIT_WINDOW_MS))) {
     return jsonResponse({ error: 'rate_limited' }, 429)
   }
 

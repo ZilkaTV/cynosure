@@ -26,6 +26,15 @@ export default {
           light: '#eed699',
           dark: '#b0913f',
         },
+        // Muted-text greys, lightened for WCAG AA on the dark backgrounds: the
+        // stock slate-500/600 measured 3.7-4.2:1 and 2.3-2.7:1 against base-800/950
+        // (AA needs 4.5:1). Only ever used as text colour here; hierarchy vs
+        // slate-400 (#94a3b8) is preserved.
+        slate: {
+          500: '#8391a9',
+          600: '#76849d',
+        },
+
         signal: {
           green: '#33d17a',
           red: '#f0556b',

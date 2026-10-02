@@ -1664,3 +1664,14 @@ drop policy if exists "anyone can update cyn_metrics_channel_state" on public.cy
 revoke execute on function public.cyn_upsert_metrics_daily(date, integer, integer, jsonb, integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke execute on function public.cyn_upsert_metrics_channel_state(text, text) from public, anon, authenticated;
 revoke execute on function public.cyn_get_metrics_channel_state(text) from public, anon, authenticated;
+
+-- ============================================================
+-- Help widget is no longer mounted (removed from Layout), so nobody should be
+-- uploading to or listing help-chat-images any more. Confirmed live: anon could
+-- LIST this bucket (support screenshots enumerable) and upload to it. Dropping
+-- both policies stops listing + uploads; already-shared public URLs keep
+-- working (public bucket). Pending - re-create the two policies from the
+-- bucket block above if the help widget is ever brought back.
+-- ============================================================
+drop policy if exists "public can view help chat images" on storage.objects;
+drop policy if exists "anyone can upload help chat images" on storage.objects;

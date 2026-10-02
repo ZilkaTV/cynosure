@@ -204,7 +204,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <footer className="mt-16 border-t border-base-700 py-8 text-center text-sm text-slate-500">
+      <footer className="mt-16 border-t border-base-700 pb-24 pt-8 text-center text-sm text-slate-500 sm:pb-8">
         <p>
           [{CLAN_TAG}] {CLAN_NAME} · {t.footer.clanDescriptor} ·{' '}
           <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" className="text-accent-light hover:text-accent">

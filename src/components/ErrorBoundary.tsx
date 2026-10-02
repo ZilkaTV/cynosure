@@ -12,6 +12,30 @@ interface State {
   hasError: boolean
 }
 
+// After a deploy, an already-open tab still points at the OLD hashed chunk
+// filenames. The server answers those with the SPA's index.html (HTTP 200,
+// text/html - confirmed live), so the dynamic import fails and the visitor
+// used to land on the generic crash page, needing a manual reload to get
+// the new build. Treat exactly that failure as "a new version is out" and
+// reload once automatically. The sessionStorage timestamp stops a reload
+// loop if the chunk is genuinely broken rather than just stale.
+const CHUNK_RELOAD_KEY = 'cyn:chunkReloadAt'
+const CHUNK_ERROR_RE = /dynamically imported module|importing a module script failed|loading chunk|loading css chunk/i
+
+function reloadOnceForStaleChunk(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  if (!CHUNK_ERROR_RE.test(message)) return false
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0)
+    if (Date.now() - last < 60_000) return false
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+  } catch {
+    return false
+  }
+  window.location.reload()
+  return true
+}
+
 // Class component because React only supports error boundaries via
 // componentDidCatch/getDerivedStateFromError - there's no hook equivalent.
 // Localized text is passed in as a prop from the functional wrapper below,
@@ -24,6 +48,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
   }
 
   componentDidCatch(error: unknown) {
+    if (reloadOnceForStaleChunk(error)) return
     console.error('Uncaught render error:', error)
   }
 

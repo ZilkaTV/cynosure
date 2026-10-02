@@ -1792,3 +1792,29 @@ create policy "inner circle can create own cyn_game_nights" on public.cyn_game_n
     and public.cyn_is_inner_circle()
     and starts_at > now() - interval '5 minutes'
   );
+
+-- ============================================================
+-- Block I (pending, optional): cap how fast anonymous page-view rows can be
+-- written. Anyone can insert into cyn_site_visits (it counts visits), so
+-- spamming it would just inflate the number; this drops inserts silently once
+-- 120 rows landed in the last minute (a real day's traffic is far below that).
+-- ============================================================
+create index if not exists cyn_site_visits_visited_at_idx on public.cyn_site_visits (visited_at);
+
+create or replace function public.cyn_site_visits_throttle()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (select count(*) from public.cyn_site_visits where visited_at > now() - interval '1 minute') >= 120 then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cyn_site_visits_throttle on public.cyn_site_visits;
+create trigger trg_cyn_site_visits_throttle before insert on public.cyn_site_visits
+  for each row execute function public.cyn_site_visits_throttle();

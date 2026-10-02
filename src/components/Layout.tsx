@@ -47,6 +47,13 @@ const ChartIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+const CalendarIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+)
+
 const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -164,6 +171,12 @@ export default function Layout({ children }: { children: ReactNode }) {
           </Link>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
+            {isInnerCircle && (
+              <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.home.gameNightsTitle}>
+                <CalendarIcon />
+                <span className="hidden sm:inline">{t.home.gameNightsTitle}</span>
+              </Link>
+            )}
             {isInnerCircle && (
               <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.metrics.navLabel}>
                 <ChartIcon />

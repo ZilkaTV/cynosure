@@ -3,5 +3,6 @@ Allow: /
 Disallow: /api/
 Disallow: /admin/
 Disallow: /metrics
+Disallow: /game-nights
 
 Sitemap: https://cynclan.com/sitemap.xml

@@ -1690,3 +1690,73 @@ drop policy if exists "members can post cyn_clan_chat_messages" on public.cyn_cl
 revoke select on public.cyn_members from anon;
 grant select (openfront_id, in_game_name, timezone, discord_username, nationality, created_at, updated_at)
   on public.cyn_members to anon;
+
+-- ============================================================
+-- Block F (pending): emoji reactions + Game Nights for the inner circle only.
+-- 1. cyn_kudos becomes "reactions": one row per (game, giver, recipient, emoji)
+--    with an emoji from a fixed set. Existing rows keep the old 🎉.
+-- 2. Game nights (and their RSVPs) are only readable/writable by inner-circle
+--    members (same gate as the Metrics page); the public read policies go.
+-- ============================================================
+alter table public.cyn_kudos add column if not exists emoji text not null default '🎉';
+alter table public.cyn_kudos drop constraint if exists cyn_kudos_emoji_check;
+alter table public.cyn_kudos add constraint cyn_kudos_emoji_check check (emoji in ('🔥', '👏', '🎉', '💪', '😂'));
+
+do $$
+declare c text;
+begin
+  for c in
+    select con.conname
+    from pg_constraint con
+    where con.conrelid = 'public.cyn_kudos'::regclass
+      and con.contype = 'u'
+      and (
+        select array_agg(att.attname::text order by att.attname::text)
+        from pg_attribute att
+        where att.attrelid = con.conrelid and att.attnum = any (con.conkey)
+      ) = array['from_openfront_id', 'game_id', 'to_openfront_id']
+  loop
+    execute format('alter table public.cyn_kudos drop constraint %I', c);
+  end loop;
+end $$;
+
+alter table public.cyn_kudos drop constraint if exists cyn_kudos_unique_reaction;
+alter table public.cyn_kudos add constraint cyn_kudos_unique_reaction unique (game_id, from_openfront_id, to_openfront_id, emoji);
+
+create or replace function public.cyn_is_inner_circle()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.cyn_members m
+    join public.cyn_inner_circle ic on ic.openfront_id = m.openfront_id
+    where m.user_id = auth.uid()
+  )
+$$;
+
+revoke all on function public.cyn_is_inner_circle() from public;
+grant execute on function public.cyn_is_inner_circle() to authenticated;
+
+drop policy if exists "public can read cyn_game_nights" on public.cyn_game_nights;
+drop policy if exists "members can create own cyn_game_nights" on public.cyn_game_nights;
+drop policy if exists "creators can delete own cyn_game_nights" on public.cyn_game_nights;
+create policy "inner circle can read cyn_game_nights" on public.cyn_game_nights for select to authenticated
+  using (public.cyn_is_inner_circle());
+create policy "inner circle can create own cyn_game_nights" on public.cyn_game_nights for insert to authenticated
+  with check (created_by = public.cyn_my_openfront_id() and public.cyn_is_inner_circle());
+create policy "inner circle creators can delete own cyn_game_nights" on public.cyn_game_nights for delete to authenticated
+  using (created_by = public.cyn_my_openfront_id() and public.cyn_is_inner_circle());
+
+drop policy if exists "public can read cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+drop policy if exists "members can insert own cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+drop policy if exists "members can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps;
+create policy "inner circle can read cyn_game_night_rsvps" on public.cyn_game_night_rsvps for select to authenticated
+  using (public.cyn_is_inner_circle());
+create policy "inner circle can insert own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for insert to authenticated
+  with check (openfront_id = public.cyn_my_openfront_id() and public.cyn_is_inner_circle());
+create policy "inner circle can update own cyn_game_night_rsvps" on public.cyn_game_night_rsvps for update to authenticated
+  using (openfront_id = public.cyn_my_openfront_id() and public.cyn_is_inner_circle())
+  with check (openfront_id = public.cyn_my_openfront_id() and public.cyn_is_inner_circle());

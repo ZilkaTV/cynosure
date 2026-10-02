@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Emoji } from '../components/Emoji'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -11,7 +12,6 @@ import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
-import { GameNightsCard } from '../components/GameNightsCard'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
@@ -26,7 +26,7 @@ import {
 } from '../lib/clanScore'
 import { computeClanStreak } from '../lib/streak'
 import { fetchMostImproved, type MostImproved } from '../lib/trends'
-import { fetchKudos, giveKudos, type KudosCounts } from '../lib/kudos'
+import { fetchReactions, giveReaction, REACTION_EMOJIS, type GameReactions } from '../lib/reactions'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
@@ -207,8 +207,9 @@ export default function Home() {
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
   const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
-  const [kudos, setKudos] = useState<KudosCounts>({ totals: {}, givenByGame: {} })
-  const [kudosBusy, setKudosBusy] = useState<string | null>(null)
+  const [reactions, setReactions] = useState<GameReactions>({ byGame: {} })
+  const [reactionBusy, setReactionBusy] = useState<string | null>(null)
+  const [reactionPickerGame, setReactionPickerGame] = useState<string | null>(null)
 
   // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
   // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
@@ -265,7 +266,7 @@ export default function Home() {
 
   // Memoized so StatsTable's own sort memo (keyed on `columns`) actually
   // holds between renders - a fresh array every render made it re-sort the
-  // whole roster on every unrelated state change (kudos click, background
+  // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
   const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
 
@@ -275,7 +276,7 @@ export default function Home() {
 
   useEffect(() => {
     if (recentGames.length === 0) return
-    fetchKudos(recentGames.map(({ g }) => g.gameId)).then(setKudos)
+    fetchReactions(recentGames.map(({ g }) => g.gameId)).then(setReactions)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentGames.map(({ g }) => g.gameId).join(',')])
 
@@ -437,11 +438,6 @@ export default function Home() {
         </section>
       )}
 
-      {me && (
-        <section className="mx-auto max-w-xl">
-          <GameNightsCard openfrontId={me.publicId} />
-        </section>
-      )}
 
       {recentGames.length > 0 && (
         <section className="space-y-4">
@@ -460,7 +456,7 @@ export default function Home() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
-                    {me && <th className="px-4 py-3 text-right font-semibold"></th>}
+                    <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,9 +466,8 @@ export default function Home() {
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
-                    const kudosTotal = memberIds.reduce((sum, id) => sum + (kudos.totals[id] ?? 0), 0)
-                    const alreadyGiven = me ? memberIds.some((id) => kudos.givenByGame[`${g.gameId}:${id}`]?.has(me.publicId)) : false
-                    const canGiveKudos = me && memberIds.some((id) => id !== me.publicId)
+                    const gameReactions = reactions.byGame[g.gameId] ?? {}
+                    const canReact = !!me && memberIds.some((id) => id !== me.publicId)
                     return (
                       <tr
                         key={g.gameId}
@@ -493,27 +488,49 @@ export default function Home() {
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                        {me && (
-                          <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                            {canGiveKudos && (
+                        <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            {reactionPickerGame === g.gameId && me
+                              ? REACTION_EMOJIS.map((emoji) => (
+                                  <button
+                                    key={emoji}
+                                    disabled={reactionBusy === g.gameId || !!gameReactions[emoji]?.has(me.publicId)}
+                                    onClick={async () => {
+                                      setReactionBusy(g.gameId)
+                                      const r = await giveReaction(g.gameId, me.publicId, memberIds, emoji)
+                                      if (r.ok) fetchReactions(recentGames.map(({ g: rg }) => rg.gameId)).then(setReactions)
+                                      setReactionBusy(null)
+                                      setReactionPickerGame(null)
+                                    }}
+                                    className="rounded-md p-1 transition-colors hover:bg-base-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label={emoji}
+                                  >
+                                    <Emoji char={emoji} className="h-5 w-5" />
+                                  </button>
+                                ))
+                              : REACTION_EMOJIS.filter((emoji) => gameReactions[emoji]?.size).map((emoji) => (
+                                  <span
+                                    key={emoji}
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs tabular-nums ${
+                                      me && gameReactions[emoji]?.has(me.publicId) ? 'bg-accent/20 text-accent-light' : 'bg-base-700/60 text-slate-300'
+                                    }`}
+                                  >
+                                    <Emoji char={emoji} className="h-3.5 w-3.5" />
+                                    {gameReactions[emoji].size}
+                                  </span>
+                                ))}
+                            {canReact && (
                               <button
-                                disabled={alreadyGiven || kudosBusy === g.gameId}
-                                onClick={async () => {
-                                  setKudosBusy(g.gameId)
-                                  const r = await giveKudos(g.gameId, me.publicId, memberIds)
-                                  if (r.ok) fetchKudos(recentGames.map(({ g: rg }) => rg.gameId)).then(setKudos)
-                                  setKudosBusy(null)
-                                }}
-                                className={`rounded-md px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed ${
-                                  alreadyGiven ? 'text-gold-light opacity-70' : 'text-slate-400 hover:bg-base-700 hover:text-gold-light'
-                                }`}
-                                title={t.home.kudosButton}
+                                onClick={() => setReactionPickerGame(reactionPickerGame === g.gameId ? null : g.gameId)}
+                                className="rounded-md px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-base-700 hover:text-white"
+                                title={t.home.reactionButton}
+                                aria-label={t.home.reactionButton}
                               >
-                                🎉 {kudosTotal > 0 ? kudosTotal : ''}
+                                {reactionPickerGame === g.gameId ? '✕' : '+'}
                               </button>
                             )}
-                          </td>
-                        )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}

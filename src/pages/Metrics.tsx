@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, SectionHeading, StatCard, Spinner, MemberNameLink } from '../components/ui'
 import TrendChart from '../components/TrendChart'
-import { GameNightsCard } from '../components/GameNightsCard'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
   useIsInnerCircle,
@@ -14,7 +13,6 @@ import {
   type DailyMetricsRow,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
-import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { fetchTopClanLeaderboard, forecastWinScoreLoss, type TopClanEntry } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
@@ -46,7 +44,6 @@ export default function Metrics() {
   // otherwise read back as misleading all-zero metrics instead of a clear
   // reason. Checked separately here so that case gets its own message.
   const session = useSession()
-  const { profile } = useProfile()
   const { data: roster } = useRoster(isInnerCircle)
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
@@ -114,11 +111,6 @@ export default function Metrics() {
   return (
     <div className="mx-auto max-w-5xl">
       <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.title} center />
-      {profile && (
-        <div className="mx-auto mb-8 max-w-xl">
-          <GameNightsCard openfrontId={profile.openfront_id} canCreate />
-        </div>
-      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard label={t.metrics.memberCount} value={metrics.memberCount ?? '-'} />
         <StatCard label={t.metrics.presenceCount} value={metrics.presenceCount ?? '-'} />
@@ -263,14 +255,6 @@ export default function Metrics() {
         </Card>
       </div>
 
-      {profile && (
-        <div className="mt-10">
-          <SectionHeading eyebrow={t.metrics.eyebrow} title={t.home.gameNightsTitle} />
-          <div className="mx-auto max-w-xl">
-            <GameNightsCard openfrontId={profile.openfront_id} />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

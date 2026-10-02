@@ -136,13 +136,13 @@ export async function submitEventEntry(params: {
   // the upload, instead of a raw Supabase rejection error after the fact.
   // The bucket-level limit is still the real enforcement; this is just a
   // friendlier first check, not a replacement for it.
-  const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
-  const MAX_SIZE_BYTES = 5 * 1024 * 1024
+  const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+  const MAX_SIZE_BYTES = 8 * 1024 * 1024
   if (!ALLOWED_TYPES.includes(params.screenshotFile.type)) {
-    return { ok: false, message: 'Screenshot must be a PNG, JPEG, or WebP image.' }
+    return { ok: false, message: 'Screenshot must be a PNG, JPEG, WebP or GIF image.' }
   }
   if (params.screenshotFile.size > MAX_SIZE_BYTES) {
-    return { ok: false, message: 'Screenshot must be under 5MB.' }
+    return { ok: false, message: 'Screenshot must be under 8MB.' }
   }
 
   const ext = params.screenshotFile.name.split('.').pop() || 'png'

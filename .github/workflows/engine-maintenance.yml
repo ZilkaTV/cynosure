@@ -65,9 +65,9 @@ jobs:
   maintain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: 'npm'
@@ -78,7 +78,7 @@ jobs:
       # (gitignored, ~1GB) and just `fetch`es it on later calls - without this
       # cache, running every 30 minutes would re-clone that from scratch on
       # every single run, which is both slow and wasteful.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .vendor-cache
           key: vendor-cache-openfrontio

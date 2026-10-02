@@ -1675,3 +1675,18 @@ revoke execute on function public.cyn_get_metrics_channel_state(text) from publi
 -- ============================================================
 drop policy if exists "public can view help chat images" on storage.objects;
 drop policy if exists "anyone can upload help chat images" on storage.objects;
+
+-- ============================================================
+-- Retire the clan chat + hide Discord ids from the public key (pending).
+-- 1. Chat UI is gone: no new posts. Existing rows/counts/moderators stay.
+-- 2. cyn_members was readable by the public anon key in full, including
+--    discord_user_id (Discord snowflake) and user_id (auth uuid). The anon role
+--    now only gets the columns the public site actually shows. Signed-in
+--    members (role authenticated) and the service role are unaffected, and
+--    scripts/discord-role-sync.mjs reads with the service role.
+-- ============================================================
+drop policy if exists "members can post cyn_clan_chat_messages" on public.cyn_clan_chat_messages;
+
+revoke select on public.cyn_members from anon;
+grant select (openfront_id, in_game_name, timezone, discord_username, nationality, created_at, updated_at)
+  on public.cyn_members to anon;

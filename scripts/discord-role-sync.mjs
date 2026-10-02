@@ -219,7 +219,8 @@ async function main() {
   const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
   if (!supabaseAdmin) console.error('SUPABASE_SERVICE_ROLE_KEY not set - skipping cyn_inner_circle sync this run')
 
-  const { data: members, error: membersError } = await supabase
+  // Service role when available: discord_user_id is no longer readable with the public key.
+  const { data: members, error: membersError } = await (supabaseAdmin ?? supabase)
     .from('cyn_members')
     .select('openfront_id, discord_user_id, discord_username')
   if (membersError) throw membersError

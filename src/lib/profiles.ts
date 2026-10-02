@@ -151,7 +151,8 @@ export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {
     const { data, error } = await supabase
       .from('cyn_members')
-      .select('openfront_id, in_game_name, timezone, discord_username, discord_user_id, nationality')
+      // discord_user_id is deliberately not requested here: this roster read uses the public key, and the Discord id is only shown to signed-in members.
+      .select('openfront_id, in_game_name, timezone, discord_username, nationality')
     if (error) throw error
     return (data as Profile[]) ?? []
   }

@@ -10,6 +10,7 @@
 // it is roster-specific) under its own key prefix rather than provisioning
 // a separate namespace for every cached table.
 import { createClient } from '@supabase/supabase-js'
+import { kvGet, kvPut } from './kvSafe.js'
 
 const KV_KEY = 'cyn_clan_score_ledger:v1'
 const KV_TTL_SECONDS = 30 * 60
@@ -83,14 +84,14 @@ export async function handleClanLedger(request, env, ctx) {
 
   let rows = null
   if (env.ROSTER_KV) {
-    const cached = await env.ROSTER_KV.get(KV_KEY)
+    const cached = await kvGet(env.ROSTER_KV, KV_KEY)
     if (cached) rows = JSON.parse(cached)
   }
   if (rows === null) {
     rows = await fetchWholeLedger(env)
     if (rows === null) return jsonResponse({ error: 'ledger_unavailable' }, 502)
     if (env.ROSTER_KV) {
-      const warm = env.ROSTER_KV.put(KV_KEY, JSON.stringify(rows), { expirationTtl: KV_TTL_SECONDS })
+      const warm = kvPut(env.ROSTER_KV, KV_KEY, JSON.stringify(rows), { expirationTtl: KV_TTL_SECONDS })
       if (ctx) ctx.waitUntil(warm)
       else await warm
     }

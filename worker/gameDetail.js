@@ -17,6 +17,7 @@
 // forever"), so lazy warm-on-first-read is sufficient - there's nothing to
 // keep in sync.
 import { createClient } from '@supabase/supabase-js'
+import { kvGet, kvPut } from './kvSafe.js'
 
 const KV_PREFIX = 'game-detail:v1:'
 // Generous and somewhat arbitrary, since the DATA itself never goes stale -
@@ -74,7 +75,7 @@ export async function handleGameDetail(request, env, ctx) {
   const result = {}
   const missing = []
   if (env.ROSTER_KV) {
-    const values = await Promise.all(ids.map((id) => env.ROSTER_KV.get(`${KV_PREFIX}${id}`)))
+    const values = await Promise.all(ids.map((id) => kvGet(env.ROSTER_KV, `${KV_PREFIX}${id}`)))
     ids.forEach((id, i) => {
       if (values[i]) result[id] = JSON.parse(values[i])
       else missing.push(id)
@@ -95,7 +96,7 @@ export async function handleGameDetail(request, env, ctx) {
         // cold for another request to pick up later.
         const warm = Promise.all(
           rows.slice(0, MAX_WARM_PER_REQUEST).map((row) =>
-            env.ROSTER_KV.put(`${KV_PREFIX}${row.game_id}`, JSON.stringify(row.detail), { expirationTtl: KV_TTL_SECONDS }).catch(() => {}),
+            kvPut(env.ROSTER_KV, `${KV_PREFIX}${row.game_id}`, JSON.stringify(row.detail), { expirationTtl: KV_TTL_SECONDS }),
           ),
         )
         if (ctx) ctx.waitUntil(warm)

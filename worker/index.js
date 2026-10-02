@@ -11,6 +11,7 @@ import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
 import { handleDiscordAuthCallback } from './discord-auth.js'
 import { withSecurityHeaders } from './securityHeaders.js'
+import { edgeCached } from './kvSafe.js'
 import { handleRoster, refreshRosterKv } from './roster.js'
 import { handleClanLedger, refreshClanLedgerKv } from './clanLedger.js'
 import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
@@ -29,10 +30,10 @@ export default {
       return withSecurityHeaders(new Response(JSON.stringify({ error: 'gone' }), { status: 410, headers: { 'Content-Type': 'application/json' } }))
     }
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
-    if (pathname === '/api/roster') return withSecurityHeaders(await handleRoster(request, env, ctx))
-    if (pathname === '/api/clan-ledger') return withSecurityHeaders(await handleClanLedger(request, env, ctx))
-    if (pathname === '/api/member-games') return withSecurityHeaders(await handleMemberGames(request, env))
-    if (pathname === '/api/game-detail') return withSecurityHeaders(await handleGameDetail(request, env, ctx))
+    if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
+    if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
+    if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 300, () => handleMemberGames(request, env)))
+    if (pathname === '/api/game-detail') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleGameDetail(request, env, ctx)))
 
     return withSecurityHeaders(
       new Response(JSON.stringify({ error: 'not_found' }), {

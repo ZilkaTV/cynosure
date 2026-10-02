@@ -19,6 +19,7 @@
 // watermark (stored as its own KV key) keeps write volume proportional to
 // how many members actually got new games since the last tick.
 import { createClient } from '@supabase/supabase-js'
+import { kvGet } from './kvSafe.js'
 
 const KV_PREFIX = 'member-games:v1:'
 const SYNC_MARKER_KEY = `${KV_PREFIX}_sync_marker`
@@ -94,7 +95,7 @@ export async function handleMemberGames(request, env) {
   const result = {}
   const missing = []
   if (env.ROSTER_KV) {
-    const values = await Promise.all(ids.map((id) => env.ROSTER_KV.get(`${KV_PREFIX}${id}`)))
+    const values = await Promise.all(ids.map((id) => kvGet(env.ROSTER_KV, `${KV_PREFIX}${id}`)))
     ids.forEach((id, i) => {
       if (values[i]) result[id] = JSON.parse(values[i])
       else missing.push(id)

@@ -12,6 +12,7 @@
 // direct Supabase read only on a genuine KV miss (first deploy, or the
 // namespace was cleared) so a cold cache never means a broken page.
 import { createClient } from '@supabase/supabase-js'
+import { kvGet, kvPut } from './kvSafe.js'
 
 const KV_KEY = 'cyn_roster_cache:v1'
 // Comfortably longer than the 10-minute refresh cycle: an occasional missed
@@ -53,14 +54,14 @@ export async function handleRoster(request, env, ctx) {
   if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed' }, 405)
 
   if (env.ROSTER_KV) {
-    const cached = await env.ROSTER_KV.get(KV_KEY)
+    const cached = await kvGet(env.ROSTER_KV, KV_KEY)
     if (cached) return new Response(cached, { headers: { 'Content-Type': 'application/json', 'X-Cache': 'kv' } })
   }
 
   const { data, error } = await supabaseClient(env).from('cyn_roster_cache').select(ROSTER_COLUMNS).eq('id', 1).maybeSingle()
   if (error || !data) return jsonResponse({ error: 'roster_unavailable' }, 502)
   if (env.ROSTER_KV) {
-    const warm = env.ROSTER_KV.put(KV_KEY, JSON.stringify(data), { expirationTtl: KV_TTL_SECONDS })
+    const warm = kvPut(env.ROSTER_KV, KV_KEY, JSON.stringify(data), { expirationTtl: KV_TTL_SECONDS })
     if (ctx) ctx.waitUntil(warm)
     else await warm
   }

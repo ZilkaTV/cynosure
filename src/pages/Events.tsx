@@ -136,24 +136,9 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  // Collapsed state is remembered per event in this browser.
-  const openKey = `cyn:event-open:${event.id}`
-  const [open, setOpen] = useState(() => {
-    try {
-      return localStorage.getItem(openKey) !== '0'
-    } catch {
-      return true
-    }
-  })
-  const toggleOpen = () => {
-    const next = !open
-    setOpen(next)
-    try {
-      localStorage.setItem(openKey, next ? '1' : '0')
-    } catch {
-      /* private mode */
-    }
-  }
+  // Collapsed on every page load; the arrow button expands it.
+  const [open, setOpen] = useState(false)
+  const toggleOpen = () => setOpen((o) => !o)
 
   const load = useCallback(async () => {
     const [teamsResult, submissionsResult, adminResult] = await Promise.all([

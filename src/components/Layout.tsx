@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import CynLogo from './CynLogo'
 import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
@@ -12,98 +12,16 @@ import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 
-/**
- * A nav entry that opens a small menu. The panel is positioned with `fixed`
- * from the button's rectangle because the nav row scrolls horizontally on
- * small screens (overflow-x-auto), which would clip an absolutely positioned
- * panel.
- */
-function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: string; items: { to: string; label: string }[] }) {
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ left: 0, top: 0 })
-  const wrapRef = useRef<HTMLSpanElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const { pathname } = useLocation()
-  const active = items.some((i) => pathname === i.to || pathname.startsWith(i.to + '/'))
-
-  useEffect(() => setOpen(false), [pathname])
-
-  useEffect(() => {
-    if (!open) return
-    const close = () => setOpen(false)
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close()
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
-    }
-  }, [open])
-
-  const toggle = () => {
-    if (!open && buttonRef.current) {
-      const r = buttonRef.current.getBoundingClientRect()
-      setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 184)), top: r.bottom + 4 })
-    }
-    setOpen((o) => !o)
-  }
-
-  return (
-    <span ref={wrapRef} className="inline-block">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={toggle}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${active ? 'nav-link-active' : ''}`}
-      >
-        <span className="sm:hidden">{shortLabel}</span>
-        <span className="hidden sm:inline">{label}</span>
-        <span aria-hidden="true" className="ml-1 text-[10px] opacity-70">
-          {open ? '\u25B2' : '\u25BC'}
-        </span>
-      </button>
-      {open && (
-        <div role="menu" style={{ position: 'fixed', left: pos.left, top: pos.top }} className="z-50 w-44 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
-          {items.map((i) => (
-            <Link key={i.to} to={i.to} role="menuitem" className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {i.label}
-            </Link>
-          ))}
-        </div>
-      )}
-    </span>
-  )
-}
-
 function navItems(t: TranslationShape) {
   return [
-    { to: '/', label: t.nav.overview, shortLabel: t.nav.shortOverview, end: true, children: undefined as { to: string; label: string }[] | undefined },
+    { to: '/', label: t.nav.overview, shortLabel: t.nav.shortOverview, end: true },
     { to: '/monthly/ffa', label: t.nav.monthlyFfa, shortLabel: t.nav.shortFfa },
     { to: '/monthly/team', label: t.nav.monthlyTeam, shortLabel: t.nav.shortTeam },
     { to: '/monthly/1v1', label: t.nav.monthly1v1, shortLabel: t.nav.short1v1 },
     { to: '/monthly/2v2', label: t.nav.monthly2v2, shortLabel: t.nav.short2v2 },
-    {
-      to: '/events',
-      label: t.nav.events,
-      shortLabel: t.nav.shortEvents,
-      children: [
-        { to: '/events', label: t.nav.events },
-        { to: '/speedrun', label: t.nav.speedrun },
-        { to: '/quests', label: t.nav.quests },
-      ],
-    },
-    { to: '/clan', label: t.nav.clan, shortLabel: t.nav.shortClan },
+    { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
+    { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
+    { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
   ]
@@ -278,10 +196,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* sub navigation - centred */}
         <nav className="mx-auto flex max-w-7xl items-center justify-center gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:gap-1 sm:px-6">
-          {navItems(t).map((n) =>
-            n.children ? (
-              <NavDropdown key={n.to} label={n.label} shortLabel={n.shortLabel} items={n.children} />
-            ) : (
+          {navItems(t).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -293,8 +208,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <span className="sm:hidden">{n.shortLabel}</span>
               <span className="hidden sm:inline">{n.label}</span>
             </NavLink>
-            ),
-          )}
+          ))}
         </nav>
       </header>
 

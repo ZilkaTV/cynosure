@@ -461,16 +461,34 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
 export default function Events() {
   const { profile } = useProfile()
   const { t } = useLanguage()
+  // Default to the running event, else the most recent one in the list.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   if (!profile) return <RegistrationGate />
+  const selected = EVENTS.find((ev) => ev.id === selectedId) ?? EVENTS.find((ev) => ev.status === 'live') ?? EVENTS[0]
 
   return (
     <StatsShell>
       <section className="space-y-6">
         <SectionHeading center eyebrow={t.events.eyebrow} title={t.events.title} />
         {EVENTS.length === 0 && <Card className="text-center text-sm text-slate-400">{t.events.noEvents}</Card>}
-        {EVENTS.map((e) => (
-          <EventCard key={e.id} event={e} t={t} />
-        ))}
+        {/* With several events a dropdown picks which one to show; a single event needs no picker. */}
+        {EVENTS.length > 1 && (
+          <div className="flex justify-center">
+            <select
+              value={selected.id}
+              onChange={(ev) => setSelectedId(ev.target.value)}
+              aria-label={t.events.title}
+              className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
+            >
+              {EVENTS.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {selected && <EventCard key={selected.id} event={selected} t={t} />}
       </section>
     </StatsShell>
   )

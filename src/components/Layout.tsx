@@ -103,6 +103,7 @@ function navItems(t: TranslationShape) {
         { to: '/quests', label: t.nav.quests },
       ],
     },
+    { to: '/clan', label: t.nav.clan, shortLabel: t.nav.shortClan },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
   ]

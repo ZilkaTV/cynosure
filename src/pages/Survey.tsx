@@ -65,7 +65,7 @@ function emptyAnswers(): SurveyAnswers {
   return a
 }
 
-export default function Survey() {
+function SurveyForm() {
   const session = useSession()
   const isAdmin = useIsAdmin()
 
@@ -415,4 +415,17 @@ export default function Survey() {
       )}
     </div>
   )
+}
+
+/** The survey is admin-only for now (same rule as the results page). */
+export default function Survey() {
+  const isAdmin = useIsAdmin()
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-lg py-16 text-center">
+        <p className="text-slate-400">Admins only.</p>
+      </div>
+    )
+  }
+  return <SurveyForm />
 }

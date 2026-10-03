@@ -21,6 +21,7 @@ const History = lazy(() => import('./pages/History'))
 const Donate = lazy(() => import('./pages/Donate'))
 const Metrics = lazy(() => import('./pages/Metrics'))
 const GameNights = lazy(() => import('./pages/GameNights'))
+const Clan = lazy(() => import('./pages/Clan'))
 const Survey = lazy(() => import('./pages/Survey'))
 const SurveyResults = lazy(() => import('./pages/SurveyResults'))
 
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/metrics" element={<Metrics />} />
             <Route path="/game-nights" element={<GameNights />} />
+            <Route path="/clan" element={<Clan />} />
             <Route path="/survey" element={<Survey />} />
             <Route path="/survey/results" element={<SurveyResults />} />
             <Route path="*" element={<NotFound />} />

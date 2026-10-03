@@ -136,6 +136,25 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
+  // Collapsed state is remembered per event in this browser.
+  const openKey = `cyn:event-open:${event.id}`
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(openKey) !== '0'
+    } catch {
+      return true
+    }
+  })
+  const toggleOpen = () => {
+    const next = !open
+    setOpen(next)
+    try {
+      localStorage.setItem(openKey, next ? '1' : '0')
+    } catch {
+      /* private mode */
+    }
+  }
+
   const load = useCallback(async () => {
     const [teamsResult, submissionsResult, adminResult] = await Promise.all([
       fetchEventTeams(event.id).catch(() => []),
@@ -206,11 +225,26 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
     <div className="panel space-y-6 p-6">
       {/* header */}
       <div>
-        <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
-        <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
-        <p className="mt-1 text-sm text-slate-500">
-          {fmtDate(event.start)} - {fmtDate(event.end)}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
+            <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {fmtDate(event.start)} - {fmtDate(event.end)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleOpen}
+            aria-expanded={open}
+            aria-label={event.name}
+            className="mt-1 shrink-0 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-slate-300 hover:bg-base-700 hover:text-white"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
         {event.status === 'ended' && event.winner && (
           <p className="mt-3 rounded-xl border border-gold/40 bg-gold/10 px-4 py-2.5 text-center font-display text-sm font-bold text-gold-light">
             🏆 {t.events.winner}: {event.winner}
@@ -218,6 +252,8 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
         )}
       </div>
 
+      {open && (
+        <>
       {/* rules */}
       <div>
         <BlockLabel>{t.events.rules}</BlockLabel>
@@ -453,6 +489,8 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             </div>
           </Card>
         </div>
+      )}
+        </>
       )}
     </div>
   )

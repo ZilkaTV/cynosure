@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
-import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, type SubmitResult } from '../lib/speedruns'
+import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, type SubmitResult } from '../lib/speedruns'
 import { useLanguage } from '../i18n/LanguageContext'
+
+const WATCH_POLL_MS = 20_000
+const WATCH_MAX_MS = 90 * 60 * 1000
+// OpenFront opens straight on its solo menu with this hash; the Steam app id is from its store page.
+const OPENFRONT_SOLO_URL = 'https://openfront.io/#modal=single-player'
+const OPENFRONT_STEAM_URL = 'steam://run/3560670'
 
 export default function Speedrun() {
   const { profile } = useProfile()
@@ -14,6 +20,53 @@ export default function Speedrun() {
   const [link, setLink] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<SubmitResult | null>(null)
+  // Set when the player pressed one of the Start buttons: the page then polls for their finished run.
+  const [watchSince, setWatchSince] = useState<number | null>(null)
+  const [timedOut, setTimedOut] = useState(false)
+  const handled = useRef(new Set<string>())
+  const profileId = profile?.openfront_id
+  const profileName = profile?.in_game_name
+
+  useEffect(() => {
+    if (watchSince == null || !profileId || !profileName) return
+    let inFlight = false
+    const tick = async () => {
+      if (inFlight) return
+      if (Date.now() - watchSince > WATCH_MAX_MS) {
+        setWatchSince(null)
+        setTimedOut(true)
+        return
+      }
+      inFlight = true
+      try {
+        const games = await fetchRecentSoloGames(profileId)
+        // 5 min of tolerance for clock differences between this device and OpenFront.
+        const g = games.find(
+          (x) => !handled.current.has(x.gameId) && x.map === 'Australia' && x.result === 'victory' && Date.parse(x.start) >= watchSince - 5 * 60 * 1000,
+        )
+        if (!g) return
+        handled.current.add(g.gameId)
+        setWatchSince(null)
+        setBusy(true)
+        const r = await submitSpeedrun(profileId, g.gameId, profileName)
+        setResult(r)
+        setBusy(false)
+        if (r.ok && r.best) refresh()
+      } catch {
+        /* temporary network / rate-limit problem - the next tick tries again */
+      } finally {
+        inFlight = false
+      }
+    }
+    const timer = setInterval(tick, WATCH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [watchSince, profileId, profileName, refresh])
+
+  const startWatching = () => {
+    setResult(null)
+    setTimedOut(false)
+    setWatchSince(Date.now())
+  }
 
   if (!profile) return <RegistrationGate />
 
@@ -48,6 +101,37 @@ export default function Speedrun() {
             <span className="font-semibold text-white">{t.speedrun.introNationsDisabled}</span> {t.speedrun.introSuffix}
           </p>
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.startTitle} />
+        <Card className="space-y-3 text-center">
+          <div className="flex flex-wrap justify-center gap-3">
+            <a href={OPENFRONT_SOLO_URL} target="_blank" rel="noreferrer" onClick={startWatching} className="btn-accent">
+              {t.speedrun.startBrowser}
+            </a>
+            <a href={OPENFRONT_STEAM_URL} onClick={startWatching} className="rounded-lg border border-base-600 bg-base-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-base-700">
+              {t.speedrun.startSteam}
+            </a>
+          </div>
+          <p className="text-sm text-slate-300">{t.speedrun.startSteps}</p>
+          <p className="text-xs text-slate-500">{t.speedrun.startNote}</p>
+          {watchSince != null && (
+            <p className="flex flex-wrap items-center justify-center gap-3 text-sm text-gold-light">
+              <span>{t.speedrun.watching}</span>
+              <button type="button" onClick={() => setWatchSince(null)} className="text-xs text-slate-400 underline hover:text-white">
+                {t.speedrun.watchStop}
+              </button>
+            </p>
+          )}
+          {timedOut && <p className="text-sm text-slate-400">{t.speedrun.watchTimeout}</p>}
+          {result && watchSince == null && (
+            <p className={`text-sm ${result.ok ? 'text-signal-green' : 'text-signal-red'}`}>
+              {result.ok ? '✓ ' : '✗ '}
+              {result.message}
+            </p>
+          )}
+        </Card>
       </section>
 
       <section className="space-y-4">

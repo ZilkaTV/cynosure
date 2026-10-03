@@ -122,6 +122,20 @@ export function replayToolUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
 
+export interface RecentSoloGame {
+  gameId: string
+  start: string
+  map: string
+  result: 'victory' | 'defeat' | 'incomplete'
+}
+
+/** The player's newest solo games (via the Worker, edge-cached for 15 s), newest first. */
+export async function fetchRecentSoloGames(openfrontId: string): Promise<RecentSoloGame[]> {
+  const res = await fetch(`/api/solo-latest?id=${encodeURIComponent(openfrontId)}`)
+  if (!res.ok) throw new Error(`solo games ${res.status}`)
+  return ((await res.json()) as { games: RecentSoloGame[] }).games
+}
+
 export interface SubmitResult {
   ok: boolean
   message: string

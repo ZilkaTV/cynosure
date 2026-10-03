@@ -383,7 +383,12 @@ async function main() {
   }
   const supabase = createClient(url, key)
 
-  const { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id')
+  // claimed = registered on the site. Clan members who never registered (rows added by
+  // scripts/sync-clan-members.mjs) are scanned too, but after every registered member and
+  // only a few per run, so they can never slow the registered members' refresh down.
+  // Until SQL block K exists the column is missing - then every row counts as registered.
+  let { data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id, claimed')
+  if (regError) ({ data: registeredRaw, error: regError } = await supabase.from('cyn_members').select('openfront_id'))
   if (regError) throw regError
 
   // A transient OpenFront/trackerfront hiccup (confirmed live: the ranked
@@ -471,11 +476,16 @@ async function main() {
   // member got starved every single run - not bad luck, a standing bias.
   // Shuffling here spreads that pressure across a different member each
   // run instead of parking it permanently on one.
-  const registered = [...(registeredRaw ?? [])]
-  for (let i = registered.length - 1; i > 0; i--) {
+  const shuffled = [...(registeredRaw ?? [])]
+  for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[registered[i], registered[j]] = [registered[j], registered[i]]
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
+  const UNCLAIMED_PER_RUN = 12
+  const registered = [
+    ...shuffled.filter((r) => r.claimed !== false),
+    ...shuffled.filter((r) => r.claimed === false).slice(0, UNCLAIMED_PER_RUN),
+  ]
 
   // Not a stateless invocation the way the old Vercel function was, but the
   // reasoning still applies (unlike the browser's own permanent "last known

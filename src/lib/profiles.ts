@@ -18,6 +18,8 @@ export interface Profile {
   discord_username?: string
   discord_user_id?: string
   nationality?: string
+  // false = listed from OpenFront's clan list but never registered here (see scripts/sync-clan-members.mjs)
+  claimed?: boolean
 }
 
 const LOCAL_KEY = 'cyn:profile'
@@ -149,12 +151,13 @@ export async function fetchByDiscord(discordUsername: string): Promise<Profile |
 /** The full registered roster (for name/timezone enrichment). */
 export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('cyn_members')
-      // discord_user_id is deliberately not requested here: this roster read uses the public key, and the Discord id is only shown to signed-in members.
-      .select('openfront_id, in_game_name, timezone, discord_username, nationality')
+    // discord_user_id is deliberately not requested here: this roster read uses the public key, and the Discord id is only shown to signed-in members.
+    const cols = 'openfront_id, in_game_name, timezone, discord_username, nationality'
+    let { data, error } = await supabase.from('cyn_members').select(cols + ', claimed')
+    // Until SQL block K (cyn_members.claimed) exists the first read fails - fall back to the old columns.
+    if (error) ({ data, error } = await supabase.from('cyn_members').select(cols))
     if (error) throw error
-    return (data as Profile[]) ?? []
+    return (data as unknown as Profile[]) ?? []
   }
   const local = getLocalProfile()
   return local ? [local] : []

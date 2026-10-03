@@ -1837,3 +1837,56 @@ alter table public.cyn_member_discord_status enable row level security;
 drop policy if exists "inner circle can read cyn_member_discord_status" on public.cyn_member_discord_status;
 create policy "inner circle can read cyn_member_discord_status" on public.cyn_member_discord_status for select to authenticated
   using (public.cyn_is_inner_circle());
+
+-- ============================================================
+-- Block K (pending): all OpenFront clan members live in cyn_members.
+-- scripts/sync-clan-members.mjs (service role) inserts every member of the
+-- OpenFront clan list who has not registered here, with user_id null. `claimed`
+-- tells registered members (user_id set) from those rows: it always follows
+-- user_id, and registering later simply claims the row (the existing update
+-- policy already allows claiming a row whose user_id is null).
+-- ============================================================
+alter table public.cyn_members add column if not exists claimed boolean not null default true;
+
+create or replace function public.cyn_members_fill_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  real_discord_id text;
+begin
+  if tg_op = 'INSERT' then
+    if auth.uid() is not null then
+      new.user_id := auth.uid();
+    end if;
+  elsif tg_op = 'UPDATE' then
+    if auth.uid() is not null and (old.user_id is null or old.user_id = auth.uid()) then
+      new.user_id := auth.uid();
+    else
+      new.user_id := old.user_id;
+    end if;
+  end if;
+
+  if auth.uid() is not null and new.user_id = auth.uid() then
+    select u.raw_user_meta_data ->> 'provider_id' into real_discord_id
+    from auth.users u where u.id = auth.uid();
+    if real_discord_id is not null then
+      new.discord_user_id := real_discord_id;
+    end if;
+  end if;
+
+  new.claimed := (new.user_id is not null);
+  -- A clan member who registers later counts as registered from now (metrics use created_at).
+  if tg_op = 'UPDATE' and old.user_id is null and new.user_id is not null then
+    new.created_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+update public.cyn_members set claimed = (user_id is not null);
+
+-- The public key may read the new flag too (it only reads the columns granted earlier).
+grant select (claimed) on public.cyn_members to anon;

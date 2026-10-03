@@ -246,6 +246,7 @@ export default function MemberProfile() {
         {m.elo == null && (
           <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
         )}
+        {!m.claimed && <p className="mt-2 text-center text-xs text-slate-400">{t.memberProfile.unregisteredNote}</p>}
       </section>
 
       <section>

@@ -19,7 +19,13 @@ export interface RosterInput {
   timezone?: string
   discord_username?: string
   nationality?: string
+  claimed?: boolean
 }
+
+// Ids of roster members who are in the clan but not registered here (set by buildRoster),
+// so a name link anywhere can mark them without every table passing the flag along.
+let unclaimedIds = new Set<string>()
+export const isUnclaimedMember = (publicId: string) => unclaimedIds.has(publicId)
 
 export interface Bucket {
   wins: number
@@ -33,6 +39,8 @@ export interface MemberStats {
   timezone?: string
   discord?: string
   nationality?: string
+  // false = in the OpenFront clan list but not registered on this site
+  claimed: boolean
   // OpenFront's account-username system (see splitAccountUsername in
   // openfront.ts) - only known when the member is on a ranked leaderboard
   // (that's the only endpoint that returns it), null otherwise.
@@ -373,7 +381,7 @@ export async function buildRoster(
     if (d) coopByGame[id] = d.players.filter((p) => p.clanTag === CLAN_TAG).length >= 2
   }
 
-  const members: MemberStats[] = raw.map(({ input, games }) => {
+  const allMembers: MemberStats[] = raw.map(({ input, games }) => {
     const r: RankedEntry | undefined = ranked[input.openfront_id]
     const r2: RankedEntry | undefined = ranked2v2[input.openfront_id]
     const ffaWins = games.filter((g) => isFfa(g) && isVictory(g)).length
@@ -422,6 +430,7 @@ export async function buildRoster(
       timezone: input.timezone,
       discord: input.discord_username,
       nationality: input.nationality,
+      claimed: input.claimed !== false,
       accountUsername: r?.accountUsername ?? r2?.accountUsername ?? null,
       ffaWins,
       teamWins,
@@ -460,6 +469,11 @@ export async function buildRoster(
       detailByGame,
     }
   })
+
+  // Clan members who never registered are listed once they have played with the tag;
+  // the ones without a single [CYN] game would only add empty rows.
+  const members = allMembers.filter((m) => m.claimed || m.clanGamesTotal > 0)
+  unclaimedIds = new Set(members.filter((m) => !m.claimed).map((m) => m.publicId))
 
   members.sort((a, b) => b.allWins - a.allWins || (b.elo ?? -1) - (a.elo ?? -1))
 

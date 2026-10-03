@@ -191,6 +191,7 @@ async function main() {
   const { count: clanRegistrationsToday } = await supabase
     .from('cyn_members')
     .select('openfront_id', { count: 'exact', head: true })
+    .not('user_id', 'is', null) // clan members listed by scripts/sync-clan-members.mjs have no account yet
     .gte('created_at', todayStart)
 
   const { error: dailyError } = await supabase.rpc('cyn_upsert_metrics_daily', {

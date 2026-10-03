@@ -481,10 +481,16 @@ async function main() {
     const j = Math.floor(Math.random() * (i + 1))
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
+  // Two unregistered members go FIRST every run (their first full-history scan is slow, so
+  // more would eat the registered members' budget, but with none first they would hardly
+  // ever be reached); the registered ones follow, then a few more unregistered if time is left.
   const UNCLAIMED_PER_RUN = 12
+  const UNCLAIMED_FIRST = 2
+  const unclaimed = shuffled.filter((r) => r.claimed === false).slice(0, UNCLAIMED_PER_RUN)
   const registered = [
+    ...unclaimed.slice(0, UNCLAIMED_FIRST),
     ...shuffled.filter((r) => r.claimed !== false),
-    ...shuffled.filter((r) => r.claimed === false).slice(0, UNCLAIMED_PER_RUN),
+    ...unclaimed.slice(UNCLAIMED_FIRST),
   ]
 
   // Not a stateless invocation the way the old Vercel function was, but the

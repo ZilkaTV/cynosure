@@ -62,25 +62,21 @@ export default {
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
   async scheduled(event, env, ctx) {
-    // The Cron Trigger still ticks every 10 minutes, but the heavy jobs only run on some ticks:
-    // each of them reads the large cyn_member_games_cache table (about 1.5 MB per read) and
-    // Supabase's free plan caps egress at 5.5 GB a month. Every 10 min was ~480 full reads a day.
-    //   :00 / :30  refresh-details + engine-maintenance (member scan, Max Tiles backfill)
-    //   :00        clan-score-ledger (decays by the clock, hourly is plenty)
-    //   :10 / :40  KV mirrors (roster, member games) pick up what the scan wrote
-    //   :10        ledger KV mirror picks up the hourly recompute
-    //   every tick collect-metrics (small)
+    // Ticks every 10 minutes. refresh-details reads only a slim per-member digest now
+    // (cyn_member_games_digest, ~0.25 MB), so it can run every tick again. What still reads the
+    // full games table (~1.5 MB per read) runs less often, because Supabase's free plan caps
+    // egress at 5.5 GB a month:
+    //   every tick  refresh-details, collect-metrics, roster + member-games KV mirrors
+    //   :00 / :30   engine-maintenance (Max Tiles backfill, itself gated on recent changes)
+    //   :00         clan-score-ledger (decays by the clock, hourly is plenty)
+    //   :10         ledger KV mirror picks up the hourly recompute
     const minute = new Date(event.scheduledTime).getUTCMinutes()
-    if (minute % 30 === 0) {
-      ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
-      ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
-    }
+    ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
+    if (minute % 30 === 0) ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
     if (minute === 0) ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
-    if (minute % 30 === 10) {
-      ctx.waitUntil(refreshRosterKv(env))
-      ctx.waitUntil(refreshMemberGamesKv(env))
-    }
+    ctx.waitUntil(refreshRosterKv(env))
+    ctx.waitUntil(refreshMemberGamesKv(env))
     if (minute === 10) ctx.waitUntil(refreshClanLedgerKv(env))
   },
 }

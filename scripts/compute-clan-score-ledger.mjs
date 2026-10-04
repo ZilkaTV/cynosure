@@ -128,12 +128,24 @@ async function main() {
   // own comment). A harmless, always-true filter keyed to the current
   // second makes the request URL genuinely different every run, defeating
   // any exact-URL cache without changing which rows come back.
-  const { data: gamesRows, error } = await supabase
-    .from('cyn_member_games_cache')
-    .select('games')
-    .gte('updated_at', '1970-01-01T00:00:00Z')
-    .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
-  if (error) throw error
+  // Read a few members at a time: the whole table is ~12 MB of JSON, and one query for all of
+  // it ran into Postgres' statement timeout (code 57014) once the unregistered clan members
+  // were added - that was the daily "Compute clan score ledger" failure mail.
+  const { data: memberRows, error: memberError } = await supabase.from('cyn_member_games_cache').select('openfront_id').order('openfront_id', { ascending: true })
+  if (memberError) throw memberError
+  const gamesRows = []
+  const MEMBERS_PER_QUERY = 10
+  for (let i = 0; i < (memberRows ?? []).length; i += MEMBERS_PER_QUERY) {
+    const ids = memberRows.slice(i, i + MEMBERS_PER_QUERY).map((m) => m.openfront_id)
+    const { data, error } = await supabase
+      .from('cyn_member_games_cache')
+      .select('games')
+      .in('openfront_id', ids)
+      .gte('updated_at', '1970-01-01T00:00:00Z')
+      .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
+    if (error) throw error
+    gamesRows.push(...(data ?? []))
+  }
 
   // One entry per gameId (not per member) - clanPlayerCount is how many
   // DIFFERENT registered members' own cache includes this same gameId under
@@ -143,7 +155,7 @@ async function main() {
   // game share the same team (and therefore the same result), so any one
   // of them is representative.
   const byGameId = new Map()
-  for (const row of gamesRows ?? []) {
+  for (const row of gamesRows) {
     for (const g of row.games ?? []) {
       // rankedType === '2v2' exclusion: confirmed directly against
       // OpenFront's own real GET /public/clan/:tag/sessions endpoint - a

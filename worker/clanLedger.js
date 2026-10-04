@@ -10,10 +10,11 @@
 // it is roster-specific) under its own key prefix rather than provisioning
 // a separate namespace for every cached table.
 import { createClient } from '@supabase/supabase-js'
-import { kvGet, kvPut } from './kvSafe.js'
+import { kvGet, kvPut, kvPutIfChanged } from './kvSafe.js'
 
 const KV_KEY = 'cyn_clan_score_ledger:v1'
-const KV_TTL_SECONDS = 30 * 60
+// The ledger is recomputed hourly and refreshRosterKv-style writes only happen on change, so keep it long.
+const KV_TTL_SECONDS = 6 * 60 * 60
 
 const LEDGER_COLUMNS = 'game_id, won, score, ratio_before, ratio_after'
 
@@ -59,7 +60,7 @@ export async function refreshClanLedgerKv(env) {
   if (!env.ROSTER_KV) return
   const rows = await fetchWholeLedger(env)
   if (rows === null) return
-  await env.ROSTER_KV.put(KV_KEY, JSON.stringify(rows), { expirationTtl: KV_TTL_SECONDS })
+  await kvPutIfChanged(env.ROSTER_KV, KV_KEY, JSON.stringify(rows), { expirationTtl: KV_TTL_SECONDS })
 }
 
 /**

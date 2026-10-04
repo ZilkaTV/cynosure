@@ -19,7 +19,7 @@
 // watermark (stored as its own KV key) keeps write volume proportional to
 // how many members actually got new games since the last tick.
 import { createClient } from '@supabase/supabase-js'
-import { kvGet } from './kvSafe.js'
+import { kvGet, kvPut } from './kvSafe.js'
 
 const KV_PREFIX = 'member-games:v1:'
 const SYNC_MARKER_KEY = `${KV_PREFIX}_sync_marker`
@@ -54,7 +54,7 @@ const PAGE_SIZE = 1000
 export async function refreshMemberGamesKv(env) {
   if (!env.ROSTER_KV) return
   const supabase = supabaseClient(env)
-  const since = (await env.ROSTER_KV.get(SYNC_MARKER_KEY)) ?? '1970-01-01T00:00:00Z'
+  const since = (await kvGet(env.ROSTER_KV, SYNC_MARKER_KEY)) ?? '1970-01-01T00:00:00Z'
   const nextMarker = new Date().toISOString()
 
   const changed = []
@@ -73,8 +73,10 @@ export async function refreshMemberGamesKv(env) {
     if (!data || data.length < PAGE_SIZE) break
   }
 
-  await Promise.all(changed.map((row) => env.ROSTER_KV.put(`${KV_PREFIX}${row.openfront_id}`, JSON.stringify(row.games), { expirationTtl: KV_TTL_SECONDS })))
-  await env.ROSTER_KV.put(SYNC_MARKER_KEY, nextMarker, { expirationTtl: KV_TTL_SECONDS * 7 })
+  // Nothing changed -> no KV write at all (the marker stays where it is; the next query finds the same empty set).
+  if (changed.length === 0) return
+  await Promise.all(changed.map((row) => kvPut(env.ROSTER_KV, `${KV_PREFIX}${row.openfront_id}`, JSON.stringify(row.games), { expirationTtl: KV_TTL_SECONDS })))
+  await kvPut(env.ROSTER_KV, SYNC_MARKER_KEY, nextMarker, { expirationTtl: KV_TTL_SECONDS * 7 })
 }
 
 /**

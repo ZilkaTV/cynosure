@@ -57,3 +57,15 @@ export async function edgeCached(request, ctx, ttlSeconds, handler) {
   }
   return response.status === 200 ? toClient(response) : response
 }
+
+/**
+ * Writes only when the stored value differs. Free-tier KV allows 1000 writes a day, and the
+ * scheduled refreshes run every 10 minutes: rewriting an unchanged value each tick used up the
+ * whole budget. A read is far cheaper (100k a day), so compare first.
+ */
+export async function kvPutIfChanged(kv, key, value, options) {
+  const current = await kvGet(kv, key)
+  if (current === value) return false
+  await kvPut(kv, key, value, options)
+  return true
+}

@@ -61,19 +61,27 @@ export default {
   // unreliability showed up there too) - each fires its own
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
+  async scheduled(event, env, ctx) {
+    // The Cron Trigger still ticks every 10 minutes, but the heavy jobs only run on some ticks:
+    // each of them reads the large cyn_member_games_cache table (about 1.5 MB per read) and
+    // Supabase's free plan caps egress at 5.5 GB a month. Every 10 min was ~480 full reads a day.
+    //   :00 / :30  refresh-details + engine-maintenance (member scan, Max Tiles backfill)
+    //   :00        clan-score-ledger (decays by the clock, hourly is plenty)
+    //   :10 / :40  KV mirrors (roster, member games) pick up what the scan wrote
+    //   :10        ledger KV mirror picks up the hourly recompute
+    //   every tick collect-metrics (small)
+    const minute = new Date(event.scheduledTime).getUTCMinutes()
+    if (minute % 30 === 0) {
+      ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
+      ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
+    }
+    if (minute === 0) ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
-    ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
-    ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
-    // Refreshes the three KV read-caches every tick too - see roster.js's,
-    // clanLedger.js's and memberGames.js's own comments. Independent of the
-    // dispatches above: these read whatever Supabase already has (written
-    // by the PREVIOUS cron run), they don't wait for this tick's dispatched
-    // runs to finish.
-    ctx.waitUntil(refreshRosterKv(env))
-    ctx.waitUntil(refreshClanLedgerKv(env))
-    ctx.waitUntil(refreshMemberGamesKv(env))
+    if (minute % 30 === 10) {
+      ctx.waitUntil(refreshRosterKv(env))
+      ctx.waitUntil(refreshMemberGamesKv(env))
+    }
+    if (minute === 10) ctx.waitUntil(refreshClanLedgerKv(env))
   },
 }
 

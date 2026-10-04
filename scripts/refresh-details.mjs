@@ -553,13 +553,27 @@ async function main() {
     const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
     for (const g of games) byGameId.set(g.gameId, g)
     const mergedGames = [...byGameId.values()]
-    await supabase
-      .from('cyn_member_games_cache')
-      .upsert(
-        { openfront_id: r.openfront_id, games: mergedGames, updated_at: new Date().toISOString() },
-        { onConflict: 'openfront_id' },
-      )
-      .then(() => {}, () => {})
+    // Only write when something actually changed (a new game, or a changed field on a known one).
+    // An unconditional upsert bumped updated_at on every member every run, which made the Worker's
+    // KV sync re-read and re-write every row each tick - the cause of the daily KV write limit
+    // and of most of the Supabase egress. Keys are compared one by one because jsonb storage
+    // reorders them, so a plain JSON.stringify comparison would always differ.
+    const oldById = new Map(existingGames.map((g) => [g.gameId, g]))
+    const gamesChanged =
+      mergedGames.length !== existingGames.length ||
+      mergedGames.some((g) => {
+        const old = oldById.get(g.gameId)
+        return !old || Object.keys(g).some((k) => JSON.stringify(old[k]) !== JSON.stringify(g[k]))
+      })
+    if (gamesChanged) {
+      await supabase
+        .from('cyn_member_games_cache')
+        .upsert(
+          { openfront_id: r.openfront_id, games: mergedGames, updated_at: new Date().toISOString() },
+          { onConflict: 'openfront_id' },
+        )
+        .then(() => {}, () => {})
+    }
 
     // One row per member per day (upsert on conflict), refined every time
     // this job touches that member - by end of day it holds the last

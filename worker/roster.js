@@ -12,14 +12,16 @@
 // direct Supabase read only on a genuine KV miss (first deploy, or the
 // namespace was cleared) so a cold cache never means a broken page.
 import { createClient } from '@supabase/supabase-js'
-import { kvGet, kvPut } from './kvSafe.js'
+import { kvGet, kvPut, kvPutIfChanged } from './kvSafe.js'
 
 const KV_KEY = 'cyn_roster_cache:v1'
 // Comfortably longer than the 10-minute refresh cycle: an occasional missed
 // scheduled() tick (a Cloudflare hiccup, not the GitHub-dispatch issue this
 // same deploy also fixes) should still serve the last-good snapshot rather
 // than fall through to Supabase on every request.
-const KV_TTL_SECONDS = 30 * 60
+// Long on purpose: refreshRosterKv only writes when the roster changed, so an unchanged value is
+// not re-written (and its TTL not renewed) every tick; a visitor miss just falls back to Supabase.
+const KV_TTL_SECONDS = 6 * 60 * 60
 
 const ROSTER_COLUMNS = 'ranked_1v1, ranked_2v2, ffa_leaderboard, clan_leaderboard, clan_leaderboard_top'
 
@@ -39,7 +41,7 @@ export async function refreshRosterKv(env) {
     console.error('refreshRosterKv: Supabase read failed', error)
     return
   }
-  await env.ROSTER_KV.put(KV_KEY, JSON.stringify(data), { expirationTtl: KV_TTL_SECONDS })
+  await kvPutIfChanged(env.ROSTER_KV, KV_KEY, JSON.stringify(data), { expirationTtl: KV_TTL_SECONDS })
 }
 
 /**

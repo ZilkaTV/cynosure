@@ -24,7 +24,7 @@ name: Refresh game-detail cache
 # queue.
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"
   repository_dispatch:
     types: [refresh-details]
   workflow_dispatch: {}

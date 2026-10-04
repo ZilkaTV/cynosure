@@ -150,6 +150,22 @@ async function main() {
   try {
     const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
 
+    // Reading every member's game list is ~1.5 MB of Supabase egress (free plan: 5.5 GB a month),
+    // so only do it when new games arrived recently, plus a full pass every 6 hours to retry
+    // transient failures. FORCE_BACKFILL=1 skips this check (manual runs).
+    if (!process.env.FORCE_BACKFILL) {
+      const newest = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=updated_at&order=updated_at.desc&limit=1`, {
+        headers: { apikey: SUPABASE_ANON_KEY },
+      })
+      const newestMs = newest[0]?.updated_at ? new Date(newest[0].updated_at).getTime() : 0
+      const recentlyChanged = Date.now() - newestMs < 70 * 60_000
+      const fullPassSlot = new Date().getUTCHours() % 6 === 0
+      if (!recentlyChanged && !fullPassSlot) {
+        console.log('No game list changed in the last 70 minutes and this is not a 6-hourly full pass - skipping the backfill check.')
+        return
+      }
+    }
+
     console.log(`Finding recent (last ${daysBack}d) real CYN games missing from cyn_game_tile_stats at logic version ${core.COMPUTE_LOGIC_VERSION}...`)
     const recentIds = await fetchRecentGameIds()
     const covered = await fetchCoveredGameIds(recentIds, core.COMPUTE_LOGIC_VERSION)

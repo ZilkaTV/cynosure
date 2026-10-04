@@ -500,8 +500,22 @@ async function main() {
   // first and unioning by gameId before every upsert makes this cache
   // monotonic - a bad pass under rate limiting can only fail to add new
   // games, it can never make previously-cached ones disappear for everyone.
-  const { data: existingGamesRows } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
-  const existingGamesByMember = new Map((existingGamesRows ?? []).map((r) => [r.openfront_id, r.games]))
+  // Reading the whole cyn_member_games_cache table here (~1.5 MB per run) was the main source of
+  // Supabase egress. The cyn_member_games_digest view (supabase/schema.sql, block L) returns only
+  // what a run needs per member - the newest game ids, the game count, the win count and the few
+  // games that decide which details to cache - about a tenth of the size. A member's full row is
+  // then fetched only when a scan actually found something new. If the view does not exist yet,
+  // fall back to reading the full table like before.
+  const { data: digestRows, error: digestError } = await supabase
+    .from('cyn_member_games_digest')
+    .select('openfront_id, game_count, recent, all_wins, want_games')
+  const digestByMember = digestError ? null : new Map((digestRows ?? []).map((r) => [r.openfront_id, r]))
+  if (digestError) console.warn('cyn_member_games_digest unavailable, reading the full games table:', digestError.message)
+  const fullRowsByMember = new Map()
+  if (!digestByMember) {
+    const { data: existingGamesRows } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
+    for (const r of existingGamesRows ?? []) fullRowsByMember.set(r.openfront_id, r.games)
+  }
 
   const mk = currentMonthKey()
   const wantDetail = new Set()
@@ -513,8 +527,13 @@ async function main() {
   // pulled out so the worker pool below can run several of these
   // concurrently instead of one full paginated fetch at a time.
   async function scanOneMember(r) {
-    const existingGames = existingGamesByMember.get(r.openfront_id) ?? []
-    const knownGameIds = new Set(existingGames.map((g) => g.gameId))
+    const digest = digestByMember?.get(r.openfront_id) ?? null
+    // Digest mode: ids/signatures of the newest games only (enough for the early stop, see
+    // fetchPlayerGames: it stops at the first page that is entirely known).
+    const recentSigs = new Set(digest?.recent ?? [])
+    const knownGameIds = digestByMember ? new Set((digest?.recent ?? []).map((x) => x.split(':')[0])) : new Set((fullRowsByMember.get(r.openfront_id) ?? []).map((g) => g.gameId))
+    let existingGames = digestByMember ? null : (fullRowsByMember.get(r.openfront_id) ?? [])
+    const existingCount = digestByMember ? (digest?.game_count ?? 0) : existingGames.length
     let games
     try {
       games = await fetchPlayerGames(r.openfront_id, knownGameIds)
@@ -536,8 +555,8 @@ async function main() {
     // write here (existing row, including its updated_at, is left exactly
     // as-is) means the next run's shuffle just retries this member normally
     // instead of a false "already current" reading.
-    if (games.length === 0 && existingGames.length > 0) {
-      console.warn(`Suspicious empty fetch for ${r.openfront_id} (has ${existingGames.length} cached games) - likely a transient failure, skipping this run's write`)
+    if (games.length === 0 && existingCount > 0) {
+      console.warn(`Suspicious empty fetch for ${r.openfront_id} (has ${existingCount} cached games) - likely a transient failure, skipping this run's write`)
       membersScanFailed++
       return
     }
@@ -550,53 +569,69 @@ async function main() {
     // every run means a visitor's browser can read it back in one query
     // instead. Unioned against whatever's already cached (see above) so
     // this write can only grow the list, never shrink it.
-    const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
-    for (const g of games) byGameId.set(g.gameId, g)
-    const mergedGames = [...byGameId.values()]
-    // Only write when something actually changed (a new game, or a changed field on a known one).
-    // An unconditional upsert bumped updated_at on every member every run, which made the Worker's
-    // KV sync re-read and re-write every row each tick - the cause of the daily KV write limit
-    // and of most of the Supabase egress. Keys are compared one by one because jsonb storage
-    // reorders them, so a plain JSON.stringify comparison would always differ.
-    const oldById = new Map(existingGames.map((g) => [g.gameId, g]))
-    const gamesChanged =
-      mergedGames.length !== existingGames.length ||
-      mergedGames.some((g) => {
-        const old = oldById.get(g.gameId)
-        return !old || Object.keys(g).some((k) => JSON.stringify(old[k]) !== JSON.stringify(g[k]))
-      })
-    if (gamesChanged) {
-      await supabase
-        .from('cyn_member_games_cache')
-        .upsert(
-          { openfront_id: r.openfront_id, games: mergedGames, updated_at: new Date().toISOString() },
-          { onConflict: 'openfront_id' },
-        )
-        .then(() => {}, () => {})
-    }
-
-    // One row per member per day (upsert on conflict), refined every time
-    // this job touches that member - by end of day it holds the last
-    // values seen, which is all a daily-granularity trend graph needs.
-    // Computed straight from mergedGames (union of every game this cache has
-    // ever seen for this member, see above) - already monotonic on its own
-    // by construction, so no extra historical-max clamp is layered on top
-    // here. There used to be one (Math.max against every past snapshot's
-    // all_wins) - removed after confirming directly it was actively
-    // harmful, not just redundant: a past bug elsewhere had briefly written
-    // an inflated all_wins for several members (values mathematically
-    // impossible given how many CYN games those members have EVER had
-    // cached, e.g. more recorded "wins" than total CYN games), and the
-    // clamp then preserved that bad ceiling forever - every later, correctly
-    // computed (lower) value kept losing to Math.max against the old
-    // inflated one, silently freezing the roster's own displayed win count
-    // above what mergedGames actually supports. mergedGames' own union
-    // guarantees the real monotonicity this needs; a second clamp sourced
-    // from historical rows can only ever preserve old bad data, never
-    // detect or correct it.
+    // Digest mode: when every game this scan returned is already known (same id and result), nothing
+    // changed - the win count and the detail-relevant games come straight from the digest and the
+    // member's full row is never read or written.
+    const unchanged = digestByMember != null && games.every((g) => recentSigs.has(`${g.gameId}:${g.result}`))
     let allWins = 0
-    for (const g of mergedGames) {
-      if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
+    let cynGames
+    if (unchanged) {
+      allWins = digest?.all_wins ?? 0
+      cynGames = digest?.want_games ?? []
+    } else {
+      if (digestByMember) {
+        const { data: fullRow } = await supabase.from('cyn_member_games_cache').select('games').eq('openfront_id', r.openfront_id).maybeSingle()
+        existingGames = fullRow?.games ?? []
+      }
+      const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
+      for (const g of games) byGameId.set(g.gameId, g)
+      const mergedGames = [...byGameId.values()]
+      // Only write when something actually changed (a new game, or a changed field on a known one).
+      // An unconditional upsert bumped updated_at on every member every run, which made the Worker's
+      // KV sync re-read and re-write every row each tick - the cause of the daily KV write limit
+      // and of most of the Supabase egress. Keys are compared one by one because jsonb storage
+      // reorders them, so a plain JSON.stringify comparison would always differ.
+      const oldById = new Map(existingGames.map((g) => [g.gameId, g]))
+      const gamesChanged =
+        mergedGames.length !== existingGames.length ||
+        mergedGames.some((g) => {
+          const old = oldById.get(g.gameId)
+          return !old || Object.keys(g).some((k) => JSON.stringify(old[k]) !== JSON.stringify(g[k]))
+        })
+      if (gamesChanged) {
+        await supabase
+          .from('cyn_member_games_cache')
+          .upsert(
+            { openfront_id: r.openfront_id, games: mergedGames, updated_at: new Date().toISOString() },
+            { onConflict: 'openfront_id' },
+          )
+          .then(() => {}, () => {})
+      }
+
+      // One row per member per day (upsert on conflict), refined every time
+      // this job touches that member - by end of day it holds the last
+      // values seen, which is all a daily-granularity trend graph needs.
+      // Computed straight from mergedGames (union of every game this cache has
+      // ever seen for this member, see above) - already monotonic on its own
+      // by construction, so no extra historical-max clamp is layered on top
+      // here. There used to be one (Math.max against every past snapshot's
+      // all_wins) - removed after confirming directly it was actively
+      // harmful, not just redundant: a past bug elsewhere had briefly written
+      // an inflated all_wins for several members (values mathematically
+      // impossible given how many CYN games those members have EVER had
+      // cached, e.g. more recorded "wins" than total CYN games), and the
+      // clamp then preserved that bad ceiling forever - every later, correctly
+      // computed (lower) value kept losing to Math.max against the old
+      // inflated one, silently freezing the roster's own displayed win count
+      // above what mergedGames actually supports. mergedGames' own union
+      // guarantees the real monotonicity this needs; a second clamp sourced
+      // from historical rows can only ever preserve old bad data, never
+      // detect or correct it.
+      allWins = 0
+      for (const g of mergedGames) {
+        if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
+      }
+      cynGames = mergedGames.filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
     }
     await supabase
       .from('cyn_member_snapshots')
@@ -616,7 +651,6 @@ async function main() {
     // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
     // pass here can't also make wantDetail miss a team win or this
     // month's game that a previous run already knew about.
-    const cynGames = mergedGames.filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
     for (const g of cynGames) {
       const isTeam = g.mode === 'Team'
       const isFfa = g.mode === 'Free For All'

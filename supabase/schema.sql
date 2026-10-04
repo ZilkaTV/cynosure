@@ -1890,3 +1890,52 @@ update public.cyn_members set claimed = (user_id is not null);
 
 -- The public key may read the new flag too (it only reads the columns granted earlier).
 grant select (claimed) on public.cyn_members to anon;
+
+-- Block L (pending): slim per-member digest of cyn_member_games_cache.
+-- scripts/refresh-details.mjs read the whole games table (~1.5 MB over the wire) on every run, which
+-- used up Supabase's free egress. This view returns only what a run needs per member:
+--   recent      newest 300 games (plus the newest 100 ranked ones) as "gameId:result" - for the early stop
+--   game_count  number of cached games - for the "suspicious empty fetch" guard
+--   all_wins    CYN-tagged, non-Singleplayer victories - for the daily snapshot
+--   want_games  CYN-tagged, non-Singleplayer games that decide which details get cached
+--               (newest 20, every Team victory, everything from the current UTC month)
+-- security_invoker: the base table's RLS (public read) applies, nothing new is exposed.
+create or replace view public.cyn_member_games_digest
+with (security_invoker = true) as
+select
+  c.openfront_id,
+  jsonb_array_length(c.games) as game_count,
+  coalesce((
+    select jsonb_agg(x.sig order by x.started desc)
+    from (
+      (select (e.g ->> 'gameId') || ':' || coalesce(e.g ->> 'result', '') as sig, e.g ->> 'start' as started
+         from jsonb_array_elements(c.games) as e(g)
+         order by e.g ->> 'start' desc
+         limit 300)
+      union
+      (select (e.g ->> 'gameId') || ':' || coalesce(e.g ->> 'result', '') as sig, e.g ->> 'start' as started
+         from jsonb_array_elements(c.games) as e(g)
+         where e.g ->> 'rankedType' is distinct from 'unranked'
+         order by e.g ->> 'start' desc
+         limit 100)
+    ) x
+  ), '[]'::jsonb) as recent,
+  (
+    select count(*)::int
+    from jsonb_array_elements(c.games) as e(g)
+    where e.g ->> 'clanTag' = 'CYN' and e.g ->> 'type' is distinct from 'Singleplayer' and e.g ->> 'result' = 'victory'
+  ) as all_wins,
+  coalesce((
+    select jsonb_agg(jsonb_build_object('gameId', w.g ->> 'gameId', 'mode', w.g ->> 'mode', 'result', w.g ->> 'result', 'start', w.g ->> 'start'))
+    from (
+      select e.g, row_number() over (order by e.g ->> 'start' desc) as rn
+      from jsonb_array_elements(c.games) as e(g)
+      where e.g ->> 'clanTag' = 'CYN' and e.g ->> 'type' is distinct from 'Singleplayer'
+    ) w
+    where w.rn <= 20
+       or (w.g ->> 'mode' = 'Team' and w.g ->> 'result' = 'victory')
+       or left(w.g ->> 'start', 7) = to_char(timezone('utc', now()), 'YYYY-MM')
+  ), '[]'::jsonb) as want_games
+from public.cyn_member_games_cache c;
+
+grant select on public.cyn_member_games_digest to anon, authenticated, service_role;

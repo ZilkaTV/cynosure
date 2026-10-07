@@ -21,6 +21,18 @@ import { handleSoloLatest } from './soloLatest.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
+async function supabaseRestricted(env) {
+  try {
+    const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/cyn_roster_cache?select=id&limit=1`, {
+      headers: { apikey: env.VITE_SUPABASE_ANON_KEY },
+      signal: AbortSignal.timeout(8000),
+    })
+    return res.status === 402
+  } catch {
+    return false
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url)
@@ -34,10 +46,10 @@ export default {
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
-    if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 300, () => handleMemberGames(request, env)))
+    if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleMemberGames(request, env)))
     if (pathname === '/api/clan-members') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleClanMembers(request)))
     if (pathname === '/api/solo-latest') return withSecurityHeaders(await edgeCached(request, ctx, 15, () => handleSoloLatest(request)))
-    if (pathname === '/api/game-detail') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleGameDetail(request, env, ctx)))
+    if (pathname === '/api/game-detail') return withSecurityHeaders(await edgeCached(request, ctx, 86400, () => handleGameDetail(request, env, ctx)))
 
     return withSecurityHeaders(
       new Response(JSON.stringify({ error: 'not_found' }), {
@@ -70,6 +82,13 @@ export default {
     //   :00 / :30   engine-maintenance (Max Tiles backfill, itself gated on recent changes)
     //   :00         clan-score-ledger (decays by the clock, hourly is plenty)
     //   :10         ledger KV mirror picks up the hourly recompute
+    // Supabase answers 402 while the project is restricted for exceeding its free egress quota.
+    // Every job would just fail (and mail a failure notice each time), so wait quietly instead; the
+    // first tick after the restriction is lifted resumes everything.
+    if (await supabaseRestricted(env)) {
+      console.warn('Supabase project is restricted (HTTP 402) - skipping all scheduled jobs this tick')
+      return
+    }
     const minute = new Date(event.scheduledTime).getUTCMinutes()
     ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
     if (minute % 30 === 0) ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))

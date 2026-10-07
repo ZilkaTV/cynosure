@@ -21,7 +21,7 @@ const KV_KEY = 'cyn_roster_cache:v1'
 // than fall through to Supabase on every request.
 // Long on purpose: refreshRosterKv only writes when the roster changed, so an unchanged value is
 // not re-written (and its TTL not renewed) every tick; a visitor miss just falls back to Supabase.
-const KV_TTL_SECONDS = 6 * 60 * 60
+const KV_TTL_SECONDS = 7 * 24 * 60 * 60
 
 const ROSTER_COLUMNS = 'ranked_1v1, ranked_2v2, ffa_leaderboard, clan_leaderboard, clan_leaderboard_top'
 

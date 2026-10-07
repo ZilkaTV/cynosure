@@ -49,9 +49,12 @@ export async function edgeCached(request, ctx, ttlSeconds, handler) {
     /* cache unavailable - fall through to the handler */
   }
   const response = await handler()
+  // A handler may shorten the edge lifetime of one answer with X-Edge-Ttl (e.g. game details that are
+  // not all cached yet).
   if (response.status === 200) {
+    const ttl = Number(response.headers.get('X-Edge-Ttl')) || ttlSeconds
     const stored = new Response(response.clone().body, response)
-    stored.headers.set('Cache-Control', `public, max-age=${ttlSeconds}`)
+    stored.headers.set('Cache-Control', `public, max-age=${ttl}`)
     const put = cache.put(key, stored).catch(() => {})
     if (ctx) ctx.waitUntil(put)
   }

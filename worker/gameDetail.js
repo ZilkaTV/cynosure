@@ -105,5 +105,12 @@ export async function handleGameDetail(request, env, ctx) {
     }
   }
 
-  return jsonResponse(result)
+  // Game details never change once cached, so a complete answer may sit in the edge cache for a day
+  // (that is what keeps the per-game KV reads down: 200 reads per request on every miss used up the
+  // free 100k reads a day). An answer that is missing some game is kept for only 5 minutes, so a
+  // detail that arrives later is picked up soon.
+  const complete = ids.every((id) => result[id] !== undefined)
+  const res = jsonResponse(result)
+  if (!complete) res.headers.set('X-Edge-Ttl', '300')
+  return res
 }

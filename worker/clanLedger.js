@@ -14,7 +14,7 @@ import { kvGet, kvPut, kvPutIfChanged } from './kvSafe.js'
 
 const KV_KEY = 'cyn_clan_score_ledger:v1'
 // The ledger is recomputed hourly and refreshRosterKv-style writes only happen on change, so keep it long.
-const KV_TTL_SECONDS = 6 * 60 * 60
+const KV_TTL_SECONDS = 7 * 24 * 60 * 60
 
 const LEDGER_COLUMNS = 'game_id, won, score, ratio_before, ratio_after'
 

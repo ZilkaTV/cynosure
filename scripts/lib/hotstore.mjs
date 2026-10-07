@@ -3,17 +3,43 @@
 // every full read counted against the free 5.5 GB monthly egress - which got the project locked.
 // D1 has no egress charge and resets its (generous) daily limits every day.
 //
-// The scripts talk to D1 through Cloudflare's REST API. Enabled when these env vars are set:
-//   CLOUDFLARE_API_TOKEN   token with "D1 Edit"
-//   CLOUDFLARE_ACCOUNT_ID
-//   D1_DATABASE_ID
-// Without them every function reports hotEnabled() === false and callers keep using Supabase.
+// Two transports, picked by env vars:
+//   Worker  HOT_API_SECRET (+ optional HOT_API_BASE) - the scripts call the site's own Worker
+//           (worker/hotApi.js), which owns the D1 binding. No Cloudflare API token needed.
+//   REST    CLOUDFLARE_API_TOKEN (D1 Edit) + CLOUDFLARE_ACCOUNT_ID + D1_DATABASE_ID - Cloudflare's
+//           D1 REST API directly (used for the one-off migration from a laptop).
+// With neither set hotEnabled() is false and callers keep using Supabase.
 
 const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID
 const DB = process.env.D1_DATABASE_ID
 const TOKEN = process.env.CLOUDFLARE_API_TOKEN
+const SECRET = process.env.HOT_API_SECRET
+const BASE = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev'
 
-export const hotEnabled = () => Boolean(ACCOUNT && DB && TOKEN)
+const viaWorker = () => Boolean(SECRET)
+export const hotEnabled = () => viaWorker() || Boolean(ACCOUNT && DB && TOKEN)
+
+async function api(method, path, { query: q, body } = {}) {
+  const url = new URL(`${BASE}/api/internal/hot/${path}`)
+  for (const [k, v] of Object.entries(q ?? {})) url.searchParams.set(k, String(v))
+  let lastErr
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json', 'User-Agent': 'CynosureCron/1.0' },
+        body,
+        signal: AbortSignal.timeout(120000),
+      })
+      if (!res.ok) throw new Error(`hot api ${method} ${path} -> ${res.status}`)
+      return await res.json()
+    } catch (err) {
+      lastErr = err
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
+    }
+  }
+  throw lastErr
+}
 
 async function query(sql, params = []) {
   const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/d1/database/${DB}/query`, {
@@ -34,19 +60,30 @@ const chunk = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, 
 
 /** Digest for every member: { openfront_id, game_count, updated_at, digest } (digest is parsed JSON or null). */
 export async function hotListMemberDigests() {
+  if (viaWorker()) return await api('GET', 'digests')
   const rows = await query('SELECT openfront_id, game_count, updated_at, digest FROM member_games')
   return rows.map((r) => ({ ...r, digest: r.digest ? JSON.parse(r.digest) : null }))
 }
 
 export async function hotGetMemberGames(openfrontId) {
+  if (viaWorker()) return (await api('GET', 'games', { query: { ids: openfrontId } }))[openfrontId] ?? null
   const rows = await query('SELECT games FROM member_games WHERE openfront_id = ?', [openfrontId])
   return rows[0] ? JSON.parse(rows[0].games) : null
 }
 
 /** [{ openfront_id, games }] for every member (hourly jobs: ledger, role sync). */
 export async function hotGetAllMemberGames() {
-  const ids = (await query('SELECT openfront_id FROM member_games ORDER BY openfront_id')).map((r) => r.openfront_id)
+  const ids = viaWorker()
+    ? (await api('GET', 'digests')).map((r) => r.openfront_id).filter((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id)).sort()
+    : (await query('SELECT openfront_id FROM member_games ORDER BY openfront_id')).map((r) => r.openfront_id)
   const out = []
+  if (viaWorker()) {
+    for (const part of chunk(ids, 10)) {
+      const got = await api('GET', 'games', { query: { ids: part.join(',') } })
+      for (const [openfront_id, games] of Object.entries(got)) out.push({ openfront_id, games })
+    }
+    return out
+  }
   for (const part of chunk(ids, 10)) {
     const rows = await query(`SELECT openfront_id, games FROM member_games WHERE openfront_id IN (${part.map(() => '?').join(',')})`, part)
     for (const r of rows) out.push({ openfront_id: r.openfront_id, games: JSON.parse(r.games) })
@@ -55,11 +92,18 @@ export async function hotGetAllMemberGames() {
 }
 
 export async function hotNewestMemberUpdate() {
+  if (viaWorker()) return (await api('GET', 'newest')).newest
   const rows = await query('SELECT MAX(updated_at) AS newest FROM member_games')
   return rows[0]?.newest ?? null
 }
 
 export async function hotPutMemberGames(openfrontId, games, digest) {
+  if (viaWorker()) {
+    // body = digest json, newline, games json (the Worker stores both as text, no parsing)
+    await api('PUT', 'games', { query: { id: openfrontId, count: games.length }, body: `${JSON.stringify(digest)}
+${JSON.stringify(games)}` })
+    return
+  }
   await query(
     'INSERT INTO member_games (openfront_id, games, game_count, updated_at, digest) VALUES (?, ?, ?, ?, ?) ' +
       'ON CONFLICT(openfront_id) DO UPDATE SET games = excluded.games, game_count = excluded.game_count, updated_at = excluded.updated_at, digest = excluded.digest',
@@ -70,12 +114,20 @@ export async function hotPutMemberGames(openfrontId, games, digest) {
 // ── game details ─────────────────────────────────────────────────────────────
 
 export async function hotListDetailIds() {
+  if (viaWorker()) return await api('GET', 'detail-ids')
   return (await query('SELECT game_id FROM game_detail')).map((r) => r.game_id)
 }
 
 /** Map of gameId -> detail for the requested ids. */
 export async function hotGetDetails(ids) {
   const out = new Map()
+  if (viaWorker()) {
+    for (const part of chunk(ids, 50)) {
+      const got = await api('GET', 'details', { query: { ids: part.join(',') } })
+      for (const [id, detail] of Object.entries(got)) out.set(id, detail)
+    }
+    return out
+  }
   for (const part of chunk(ids, 50)) {
     const rows = await query(`SELECT game_id, detail FROM game_detail WHERE game_id IN (${part.map(() => '?').join(',')})`, part)
     for (const r of rows) out.set(r.game_id, JSON.parse(r.detail))
@@ -85,10 +137,15 @@ export async function hotGetDetails(ids) {
 
 /** Ids of cached details still in the old shape (no winnerClientIds), see refresh-details.mjs. */
 export async function hotListOldShapeDetailIds(limit) {
+  if (viaWorker()) return await api('GET', 'old-shape', { query: { limit } })
   return (await query("SELECT game_id FROM game_detail WHERE json_extract(detail, '$.winnerClientIds') IS NULL LIMIT ?", [limit])).map((r) => r.game_id)
 }
 
 export async function hotPutDetail(gameId, detail) {
+  if (viaWorker()) {
+    await api('PUT', 'detail', { query: { id: gameId }, body: JSON.stringify(detail) })
+    return
+  }
   await query('INSERT INTO game_detail (game_id, detail) VALUES (?, ?) ON CONFLICT(game_id) DO UPDATE SET detail = excluded.detail', [gameId, JSON.stringify(detail)])
 }
 

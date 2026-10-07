@@ -98,6 +98,20 @@ export function saveLocalProfile(p: Profile): boolean {
   }
 }
 
+/**
+ * People paste their OpenFront profile link ("https://openfront.io/#modal=profile&publicID=AbCd1234")
+ * instead of the bare id; one member ended up registered under the whole URL. Accept both.
+ */
+export function normalizeOpenfrontId(input: string): string {
+  const t = input.trim()
+  const m = t.match(/publicID=([A-Za-z0-9_-]+)/i) ?? t.match(/\/(?:player|profile)\/([A-Za-z0-9_-]+)/i)
+  return m ? m[1] : t
+}
+
+export function isValidOpenfrontId(id: string): boolean {
+  return /^[A-Za-z0-9_-]{4,40}$/.test(id)
+}
+
 export function clearLocalProfile() {
   try {
     localStorage.removeItem(LOCAL_KEY)

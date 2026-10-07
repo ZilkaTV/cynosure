@@ -381,6 +381,7 @@ export const translations = {
       nationalityRequired: 'Please pick your nationality before registering.',
       openfrontId: 'OpenFront public id',
       findIdHelp: "Find your public id in OpenFront under your profile - it's the code in your player URL.",
+      invalidId: "That doesn't look like an OpenFront public id. Paste the code from your profile link (the part after publicID=).",
       notClanMember: (tag: string) =>
         `Couldn't find a recent game played with the [${tag}] tag on this id - only current clan members can register. Play at least one game with the tag first.`,
       storageBlocked:
@@ -1049,6 +1050,7 @@ export const translations = {
       nationalityRequired: 'Bitte wähle deine Nationalität, bevor du dich registrierst.',
       openfrontId: 'Öffentliche OpenFront-ID',
       findIdHelp: 'Du findest deine öffentliche ID in OpenFront in deinem Profil - es ist der Code in deiner Spieler-URL.',
+      invalidId: 'Das sieht nicht wie eine OpenFront-ID aus. Füge den Code aus deinem Profil-Link ein (der Teil nach publicID=).',
       notClanMember: (tag: string) =>
         `Auf dieser ID wurde kein aktuelles Spiel mit dem [${tag}]-Tag gefunden - nur aktuelle Clanmitglieder können sich registrieren. Spiel erst ein Spiel mit dem Tag.`,
       storageBlocked:
@@ -1717,6 +1719,7 @@ export const translations = {
       nationalityRequired: 'Choisis ta nationalité avant de t\'inscrire.',
       openfrontId: 'ID public OpenFront',
       findIdHelp: "Trouve ton ID public dans OpenFront sous ton profil - c'est le code dans l'URL de ton joueur.",
+      invalidId: "Ceci ne ressemble pas à un identifiant OpenFront. Colle le code de ton lien de profil (la partie après publicID=).",
       notClanMember: (tag: string) =>
         `Aucune partie récente avec le tag [${tag}] trouvée pour cet ID - seuls les membres actuels du clan peuvent s'inscrire. Joue d'abord une partie avec le tag.`,
       storageBlocked:

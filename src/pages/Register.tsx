@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
-import { hasBackend, saveProfile, saveLocalProfile, clearLocalProfile, getRemembered, fetchByDiscord } from '../lib/profiles'
+import { hasBackend, saveProfile, saveLocalProfile, clearLocalProfile, getRemembered, fetchByDiscord, normalizeOpenfrontId, isValidOpenfrontId } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName, discordUserId } from '../lib/useSession'
@@ -128,7 +128,12 @@ export default function Register() {
     setBusy(true)
     setError(null)
     try {
-      const id = openfrontId.trim()
+      const id = normalizeOpenfrontId(openfrontId)
+      if (!isValidOpenfrontId(id)) {
+        setError(t.register.invalidId)
+        setBusy(false)
+        return
+      }
       // OpenFront's own clan-member list needs a logged-in OpenFront session
       // to query (401 without one) - there's no way to check current
       // membership directly. The closest public signal: since a recent

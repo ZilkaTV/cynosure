@@ -467,6 +467,13 @@ async function main() {
   const { data: xpRows } = await supabase.from('cyn_xp').select('openfront_id, xp')
   const xpByMember = new Map((xpRows ?? []).map((r) => [r.openfront_id, r.xp]))
   const snapshotDate = new Date().toISOString().slice(0, 10)
+  // Today's snapshot rows, read once: a member whose values did not change since the last run gets
+  // no write (it used to be one upsert per member per run, ~16k requests a day in Supabase's logs).
+  const { data: todaysSnapshots } = await supabase
+    .from('cyn_member_snapshots')
+    .select('openfront_id, elo, elo_2v2, all_wins, xp')
+    .eq('snapshot_date', snapshotDate)
+  const snapshotByMember = new Map((todaysSnapshots ?? []).map((r) => [r.openfront_id, r]))
 
   // Confirmed live: the member scan runs sequentially (one full paginated
   // fetch per member, not in parallel), so whoever Supabase happens to
@@ -633,20 +640,27 @@ async function main() {
       }
       cynGames = mergedGames.filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
     }
-    await supabase
-      .from('cyn_member_snapshots')
-      .upsert(
-        {
-          openfront_id: r.openfront_id,
-          snapshot_date: snapshotDate,
-          elo: snapshotRanked1v1.get(r.openfront_id)?.elo ?? null,
-          elo_2v2: snapshotRanked2v2.get(r.openfront_id)?.elo ?? null,
-          all_wins: allWins,
-          xp: xpByMember.get(r.openfront_id) ?? 0,
-        },
-        { onConflict: 'openfront_id,snapshot_date' },
-      )
-      .then(() => {}, () => {})
+    const snapshotRow = {
+      openfront_id: r.openfront_id,
+      snapshot_date: snapshotDate,
+      elo: snapshotRanked1v1.get(r.openfront_id)?.elo ?? null,
+      elo_2v2: snapshotRanked2v2.get(r.openfront_id)?.elo ?? null,
+      all_wins: allWins,
+      xp: xpByMember.get(r.openfront_id) ?? 0,
+    }
+    const prevSnapshot = snapshotByMember.get(r.openfront_id)
+    const snapshotUnchanged =
+      prevSnapshot != null &&
+      prevSnapshot.elo === snapshotRow.elo &&
+      prevSnapshot.elo_2v2 === snapshotRow.elo_2v2 &&
+      prevSnapshot.all_wins === snapshotRow.all_wins &&
+      prevSnapshot.xp === snapshotRow.xp
+    if (!snapshotUnchanged) {
+      await supabase
+        .from('cyn_member_snapshots')
+        .upsert(snapshotRow, { onConflict: 'openfront_id,snapshot_date' })
+        .then(() => {}, () => {})
+    }
 
     // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
     // pass here can't also make wantDetail miss a team win or this

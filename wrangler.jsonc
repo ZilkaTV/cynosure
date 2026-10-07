@@ -28,7 +28,7 @@
     "VITE_SUPABASE_URL": "https://mynrwxjtqmcyubeyryge.supabase.co",
     "VITE_SUPABASE_ANON_KEY": "sb_publishable_Mchbjopqw70BRPB5XM0RJw_8r2FESKU",
     // "1" = the Worker reads member game lists / game details from D1 (worker/hotStore.js). Flip only once the cron scripts write to D1.
-    "USE_D1": "0"
+    "USE_D1": "1"
   },
   // cynclan.com's Custom Domain was originally added via the dashboard
   // (Domänen tab), which worked fine there. www.cynclan.com's dashboard

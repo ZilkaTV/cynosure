@@ -804,8 +804,11 @@ async function main() {
   const OLD_SHAPE_BACKFILL_PER_RUN = 150
   let oldShapeFixed = 0
   try {
+    // In D1 this scans every stored detail (json_extract), so it only runs once an hour; the old-shape backlog is long cleared.
     const oldShapeRows = HOT
-      ? (await hotListOldShapeDetailIds(OLD_SHAPE_BACKFILL_PER_RUN)).map((game_id) => ({ game_id }))
+      ? new Date().getUTCMinutes() < 10
+        ? (await hotListOldShapeDetailIds(OLD_SHAPE_BACKFILL_PER_RUN)).map((game_id) => ({ game_id }))
+        : []
       : (await supabase.from('cyn_game_detail_cache').select('game_id').is('detail->winnerClientIds', null).limit(OLD_SHAPE_BACKFILL_PER_RUN)).data
     for (const row of oldShapeRows ?? []) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) break

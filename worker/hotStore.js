@@ -64,3 +64,9 @@ export function joinJsonObject(map) {
   }
   return `${out}}`
 }
+
+/** A small cached document (roster / ledger) as JSON text, or null. */
+export async function d1Blob(env, key) {
+  const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(key).first()
+  return row?.value ?? null
+}

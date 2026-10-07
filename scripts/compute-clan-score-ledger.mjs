@@ -23,7 +23,7 @@
 // Runs on a schedule via .github/workflows/clan-score-ledger.yml.
 
 import { createClient } from '@supabase/supabase-js'
-import { hotEnabled, hotGetAllMemberGames, hotGetDetails } from './lib/hotstore.mjs'
+import { hotEnabled, hotGetAllMemberGames, hotGetDetails, hotPutBlob } from './lib/hotstore.mjs'
 
 const CLAN_TAG = 'CYN'
 
@@ -240,6 +240,14 @@ async function main() {
     const { error: upsertError } = await supabase.from('cyn_clan_score_ledger').upsert(batch, { onConflict: 'game_id' })
     if (upsertError) throw upsertError
     written += batch.length
+  }
+
+  // The Worker serves /api/clan-ledger from D1 (worker/clanLedger.js): publish the same five columns it used to mirror into KV.
+  if (HOT) {
+    await hotPutBlob(
+      'ledger',
+      JSON.stringify(ledger.map((e) => ({ game_id: e.gameId, won: e.won, score: e.score, ratio_before: e.ratioBefore, ratio_after: e.ratioAfter }))),
+    ).catch((err) => console.error('ledger blob write to D1 failed:', err))
   }
 
   // Deletes any row whose game_id ISN'T in this run's freshly computed

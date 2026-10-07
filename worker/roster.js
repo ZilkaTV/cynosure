@@ -13,6 +13,7 @@
 // namespace was cleared) so a cold cache never means a broken page.
 import { createClient } from '@supabase/supabase-js'
 import { kvGet, kvPut, kvPutIfChanged } from './kvSafe.js'
+import { useD1, d1Blob } from './hotStore.js'
 
 const KV_KEY = 'cyn_roster_cache:v1'
 // Comfortably longer than the 10-minute refresh cycle: an occasional missed
@@ -35,7 +36,7 @@ function supabaseClient(env) {
 
 /** Called from scheduled() every ~10 minutes - refreshes the KV mirror from Supabase. */
 export async function refreshRosterKv(env) {
-  if (!env.ROSTER_KV) return
+  if (!env.ROSTER_KV || useD1(env)) return
   const { data, error } = await supabaseClient(env).from('cyn_roster_cache').select(ROSTER_COLUMNS).eq('id', 1).maybeSingle()
   if (error || !data) {
     console.error('refreshRosterKv: Supabase read failed', error)
@@ -54,6 +55,15 @@ export async function refreshRosterKv(env) {
  */
 export async function handleRoster(request, env, ctx) {
   if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed' }, 405)
+
+  if (useD1(env)) {
+    try {
+      const doc = await d1Blob(env, 'roster')
+      if (doc) return new Response(doc, { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1' } })
+    } catch (err) {
+      console.error('D1 roster read failed, falling back:', err?.message ?? err)
+    }
+  }
 
   if (env.ROSTER_KV) {
     const cached = await kvGet(env.ROSTER_KV, KV_KEY)

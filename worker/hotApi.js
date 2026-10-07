@@ -11,6 +11,7 @@
 //   GET  /api/internal/hot/details?ids=a,b             {"a":{...},"b":{...}}  (<= 50 ids)
 //   PUT  /api/internal/hot/detail?id=X                 body: <detail json>
 //   GET  /api/internal/hot/old-shape?limit=N           ["gameId", ...]
+//   PUT  /api/internal/hot/blob?key=roster|ledger       body: <json text>   (small cached documents)
 import { d1MemberGames, d1GameDetails, joinJsonObject } from './hotStore.js'
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/
@@ -89,6 +90,16 @@ export async function handleHotApi(request, env, pathname) {
               'ON CONFLICT(openfront_id) DO UPDATE SET games = excluded.games, game_count = excluded.game_count, updated_at = excluded.updated_at, digest = excluded.digest',
           )
           .bind(id, games, count, new Date().toISOString(), digest)
+          .run()
+        return json(200, { ok: true })
+      }
+      if (op === 'blob') {
+        const key = url.searchParams.get('key') ?? ''
+        if (!['roster', 'ledger'].includes(key)) return json(400, { error: 'bad_key' })
+        const body = await request.text()
+        await db
+          .prepare('INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+          .bind(key, body, new Date().toISOString())
           .run()
         return json(200, { ok: true })
       }

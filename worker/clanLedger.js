@@ -11,6 +11,7 @@
 // a separate namespace for every cached table.
 import { createClient } from '@supabase/supabase-js'
 import { kvGet, kvPut, kvPutIfChanged } from './kvSafe.js'
+import { useD1, d1Blob } from './hotStore.js'
 
 const KV_KEY = 'cyn_clan_score_ledger:v1'
 // The ledger is recomputed hourly and refreshRosterKv-style writes only happen on change, so keep it long.
@@ -57,7 +58,7 @@ async function fetchWholeLedger(env) {
 
 /** Called from scheduled() every ~10 minutes. */
 export async function refreshClanLedgerKv(env) {
-  if (!env.ROSTER_KV) return
+  if (!env.ROSTER_KV || useD1(env)) return
   const rows = await fetchWholeLedger(env)
   if (rows === null) return
   await kvPutIfChanged(env.ROSTER_KV, KV_KEY, JSON.stringify(rows), { expirationTtl: KV_TTL_SECONDS })
@@ -84,7 +85,15 @@ export async function handleClanLedger(request, env, ctx) {
   if (gameIds.size === 0) return jsonResponse({})
 
   let rows = null
-  if (env.ROSTER_KV) {
+  if (useD1(env)) {
+    try {
+      const doc = await d1Blob(env, 'ledger')
+      if (doc) rows = JSON.parse(doc)
+    } catch (err) {
+      console.error('D1 ledger read failed, falling back:', err?.message ?? err)
+    }
+  }
+  if (rows === null && env.ROSTER_KV) {
     const cached = await kvGet(env.ROSTER_KV, KV_KEY)
     if (cached) rows = JSON.parse(cached)
   }

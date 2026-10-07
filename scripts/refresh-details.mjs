@@ -27,7 +27,7 @@
 // live fallback, and writes back to this same shared table when it does.
 
 import { createClient } from '@supabase/supabase-js'
-import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, computeDigest } from './lib/hotstore.mjs'
+import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, hotPutBlob, computeDigest } from './lib/hotstore.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -464,6 +464,19 @@ async function main() {
       { onConflict: 'id' },
     )
     .then(() => {}, () => {})
+  // The Worker serves /api/roster from D1 (worker/roster.js); same five columns it used to mirror into KV.
+  if (hotEnabled()) {
+    await hotPutBlob(
+      'roster',
+      JSON.stringify({
+        ranked_1v1: nextRanked1v1,
+        ranked_2v2: nextRanked2v2,
+        ffa_leaderboard: nextFfaLeaderboard,
+        clan_leaderboard: nextClanLeaderboard,
+        clan_leaderboard_top: nextClanLeaderboardTop,
+      }),
+    ).catch((err) => console.error('roster blob write to D1 failed:', err))
+  }
 
   const { data: xpRows } = await supabase.from('cyn_xp').select('openfront_id, xp')
   const xpByMember = new Map((xpRows ?? []).map((r) => [r.openfront_id, r.xp]))

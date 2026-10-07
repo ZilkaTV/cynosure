@@ -169,3 +169,16 @@ export function computeDigest(games, clanTag) {
     .map((g) => ({ gameId: g.gameId, mode: g.mode, result: g.result, start: g.start }))
   return { recent: [...recent], all_wins: cyn.filter((g) => g.result === 'victory').length, want_games: want }
 }
+
+// ── small cached documents (roster, ledger) ──────────────────────────────────
+
+export async function hotPutBlob(key, text) {
+  if (viaWorker()) {
+    await api('PUT', 'blob', { query: { key }, body: text })
+    return
+  }
+  await query(
+    'INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+    [key, text, new Date().toISOString()],
+  )
+}

@@ -23,6 +23,7 @@
 // Runs on a schedule via .github/workflows/clan-score-ledger.yml.
 
 import { createClient } from '@supabase/supabase-js'
+import { hotEnabled, hotGetAllMemberGames, hotGetDetails } from './lib/hotstore.mjs'
 
 const CLAN_TAG = 'CYN'
 
@@ -128,23 +129,29 @@ async function main() {
   // own comment). A harmless, always-true filter keyed to the current
   // second makes the request URL genuinely different every run, defeating
   // any exact-URL cache without changing which rows come back.
-  // Read a few members at a time: the whole table is ~12 MB of JSON, and one query for all of
-  // it ran into Postgres' statement timeout (code 57014) once the unregistered clan members
-  // were added - that was the daily "Compute clan score ledger" failure mail.
-  const { data: memberRows, error: memberError } = await supabase.from('cyn_member_games_cache').select('openfront_id').order('openfront_id', { ascending: true })
-  if (memberError) throw memberError
+  const HOT = hotEnabled()
   const gamesRows = []
-  const MEMBERS_PER_QUERY = 10
-  for (let i = 0; i < (memberRows ?? []).length; i += MEMBERS_PER_QUERY) {
-    const ids = memberRows.slice(i, i + MEMBERS_PER_QUERY).map((m) => m.openfront_id)
-    const { data, error } = await supabase
-      .from('cyn_member_games_cache')
-      .select('games')
-      .in('openfront_id', ids)
-      .gte('updated_at', '1970-01-01T00:00:00Z')
-      .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
-    if (error) throw error
-    gamesRows.push(...(data ?? []))
+  if (HOT) {
+    // Cloudflare D1 (see scripts/lib/hotstore.mjs): no Supabase egress.
+    gamesRows.push(...(await hotGetAllMemberGames()))
+  } else {
+    // Read a few members at a time: the whole table is ~12 MB of JSON, and one query for all of
+    // it ran into Postgres' statement timeout (code 57014) once the unregistered clan members
+    // were added - that was the daily "Compute clan score ledger" failure mail.
+    const { data: memberRows, error: memberError } = await supabase.from('cyn_member_games_cache').select('openfront_id').order('openfront_id', { ascending: true })
+    if (memberError) throw memberError
+    const MEMBERS_PER_QUERY = 10
+    for (let i = 0; i < (memberRows ?? []).length; i += MEMBERS_PER_QUERY) {
+      const ids = memberRows.slice(i, i + MEMBERS_PER_QUERY).map((m) => m.openfront_id)
+      const { data, error } = await supabase
+        .from('cyn_member_games_cache')
+        .select('games')
+        .in('openfront_id', ids)
+        .gte('updated_at', '1970-01-01T00:00:00Z')
+        .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
+      if (error) throw error
+      gamesRows.push(...(data ?? []))
+    }
   }
 
   // One entry per gameId (not per member) - clanPlayerCount is how many
@@ -198,11 +205,14 @@ async function main() {
   const gameIds = [...byGameId.keys()]
   for (let i = 0; i < gameIds.length; i += 200) {
     const chunk = gameIds.slice(i, i + 200)
-    const { data: detailRows, error: detailError } = await supabase
-      .from('cyn_game_detail_cache')
-      .select('game_id, detail')
-      .in('game_id', chunk)
-    if (detailError) throw detailError
+    let detailRows
+    if (HOT) {
+      detailRows = [...(await hotGetDetails(chunk))].map(([game_id, detail]) => ({ game_id, detail }))
+    } else {
+      const { data, error: detailError } = await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', chunk)
+      if (detailError) throw detailError
+      detailRows = data
+    }
     for (const row of detailRows ?? []) {
       const trueCount = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length
       if (trueCount > 0) byGameId.get(row.game_id).clanPlayerCount = trueCount

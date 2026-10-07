@@ -27,6 +27,7 @@
 // live fallback, and writes back to this same shared table when it does.
 
 import { createClient } from '@supabase/supabase-js'
+import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, computeDigest } from './lib/hotstore.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -513,9 +514,15 @@ async function main() {
   // games that decide which details to cache - about a tenth of the size. A member's full row is
   // then fetched only when a scan actually found something new. If the view does not exist yet,
   // fall back to reading the full table like before.
-  const { data: digestRows, error: digestError } = await supabase
-    .from('cyn_member_games_digest')
-    .select('openfront_id, game_count, recent, all_wins, want_games')
+  // With Cloudflare D1 configured (scripts/lib/hotstore.mjs) the digests come from there instead.
+  const HOT = hotEnabled()
+  let digestRows
+  let digestError = null
+  if (HOT) {
+    digestRows = (await hotListMemberDigests()).map((r) => ({ openfront_id: r.openfront_id, game_count: r.game_count, ...(r.digest ?? { recent: [], all_wins: 0, want_games: [] }) }))
+  } else {
+    ;({ data: digestRows, error: digestError } = await supabase.from('cyn_member_games_digest').select('openfront_id, game_count, recent, all_wins, want_games'))
+  }
   const digestByMember = digestError ? null : new Map((digestRows ?? []).map((r) => [r.openfront_id, r]))
   if (digestError) console.warn('cyn_member_games_digest unavailable, reading the full games table:', digestError.message)
   const fullRowsByMember = new Map()
@@ -587,8 +594,12 @@ async function main() {
       cynGames = digest?.want_games ?? []
     } else {
       if (digestByMember) {
-        const { data: fullRow } = await supabase.from('cyn_member_games_cache').select('games').eq('openfront_id', r.openfront_id).maybeSingle()
-        existingGames = fullRow?.games ?? []
+        if (HOT) {
+          existingGames = (await hotGetMemberGames(r.openfront_id)) ?? []
+        } else {
+          const { data: fullRow } = await supabase.from('cyn_member_games_cache').select('games').eq('openfront_id', r.openfront_id).maybeSingle()
+          existingGames = fullRow?.games ?? []
+        }
       }
       const byGameId = new Map(existingGames.map((g) => [g.gameId, g]))
       for (const g of games) byGameId.set(g.gameId, g)
@@ -606,6 +617,9 @@ async function main() {
           return !old || Object.keys(g).some((k) => JSON.stringify(old[k]) !== JSON.stringify(g[k]))
         })
       if (gamesChanged) {
+        // D1 is primary when configured; Supabase keeps a best-effort mirror (only on real changes,
+        // so it costs no egress) as the fallback if the Worker ever has to switch back.
+        if (HOT) await hotPutMemberGames(r.openfront_id, mergedGames, computeDigest(mergedGames, CLAN_TAG))
         await supabase
           .from('cyn_member_games_cache')
           .upsert(
@@ -720,13 +734,23 @@ async function main() {
   // MAX_GAMES_PER_RUN budget re-fetching games that never needed it, well
   // before ever reaching genuinely new/missing ones.
   const existing = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id').range(from, from + 999)
-    if (error) throw error
-    existing.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+  if (HOT) {
+    existing.push(...(await hotListDetailIds()).map((game_id) => ({ game_id })))
+  } else {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id').range(from, from + 999)
+      if (error) throw error
+      existing.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
   }
   const alreadyCached = new Set(existing.map((r) => r.game_id))
+
+  // D1 primary (when configured) + best-effort Supabase mirror.
+  async function putDetail(gameId, detail) {
+    if (HOT) await hotPutDetail(gameId, detail)
+    await supabase.from('cyn_game_detail_cache').upsert({ game_id: gameId, detail }, { onConflict: 'game_id' }).then(() => {}, () => {})
+  }
 
   const missing = [...wantDetail].filter((id) => !alreadyCached.has(id)).slice(0, MAX_GAMES_PER_RUN)
 
@@ -739,7 +763,7 @@ async function main() {
     try {
       const detail = await fetchGameDetail(gameId)
       if (detail) {
-        await supabase.from('cyn_game_detail_cache').upsert({ game_id: gameId, detail }, { onConflict: 'game_id' })
+        await putDetail(gameId, detail)
         fetched++
       }
     } catch (err) {
@@ -767,17 +791,15 @@ async function main() {
   const OLD_SHAPE_BACKFILL_PER_RUN = 150
   let oldShapeFixed = 0
   try {
-    const { data: oldShapeRows } = await supabase
-      .from('cyn_game_detail_cache')
-      .select('game_id')
-      .is('detail->winnerClientIds', null)
-      .limit(OLD_SHAPE_BACKFILL_PER_RUN)
+    const oldShapeRows = HOT
+      ? (await hotListOldShapeDetailIds(OLD_SHAPE_BACKFILL_PER_RUN)).map((game_id) => ({ game_id }))
+      : (await supabase.from('cyn_game_detail_cache').select('game_id').is('detail->winnerClientIds', null).limit(OLD_SHAPE_BACKFILL_PER_RUN)).data
     for (const row of oldShapeRows ?? []) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) break
       try {
         const detail = await fetchGameDetail(row.game_id)
         if (detail) {
-          await supabase.from('cyn_game_detail_cache').upsert({ game_id: row.game_id, detail }, { onConflict: 'game_id' })
+          await putDetail(row.game_id, detail)
           oldShapeFixed++
         }
       } catch (err) {

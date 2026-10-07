@@ -26,7 +26,9 @@
   // entry is unambiguously reliable where the dashboard form was not.
   "vars": {
     "VITE_SUPABASE_URL": "https://mynrwxjtqmcyubeyryge.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "sb_publishable_Mchbjopqw70BRPB5XM0RJw_8r2FESKU"
+    "VITE_SUPABASE_ANON_KEY": "sb_publishable_Mchbjopqw70BRPB5XM0RJw_8r2FESKU",
+    // "1" = the Worker reads member game lists / game details from D1 (worker/hotStore.js). Flip only once the cron scripts write to D1.
+    "USE_D1": "0"
   },
   // cynclan.com's Custom Domain was originally added via the dashboard
   // (Domänen tab), which worked fine there. www.cynclan.com's dashboard
@@ -87,6 +89,10 @@
   // Supabase fallback if KV is ever empty. Created via
   // `npx wrangler kv namespace create ROSTER_KV`.
   "kv_namespaces": [{ "binding": "ROSTER_KV", "id": "0754ea7dec454164872c2aca1c81a41d" }],
+  // Cloudflare D1 for the two big cron-written tables (member game lists, per-game details) - no
+  // egress charges, daily limits that reset. See worker/hotStore.js and scripts/lib/hotstore.mjs.
+  // USE_D1 (in "vars" above) switches the Worker's reads over once the scripts write there.
+  "d1_databases": [{ "binding": "HOT_DB", "database_name": "cynosure-hot", "database_id": "ded1012f-9c6c-476b-8776-046d7abd99f4" }],
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

@@ -20,6 +20,7 @@
 // needed here.
 
 import { createClient } from '@supabase/supabase-js'
+import { hotEnabled, hotGetAllMemberGames, hotGetDetails } from './lib/hotstore.mjs'
 
 const DISCORD_GUILD_ID = '1367283444823883776' // same value as DISCORD_GUILD_ID in src/config.ts
 const CLAN_TAG = 'CYN'
@@ -296,8 +297,15 @@ async function main() {
   // non-Singleplayer). This table's own games arrays only ever grow (see
   // refresh-details.mjs's union-before-upsert), so a plain count here is
   // always at least as fresh as what the site itself shows.
-  const { data: gamesRows, error: gamesError } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
-  if (gamesError) throw gamesError
+  // Cloudflare D1 when configured (no Supabase egress), else the Supabase table.
+  let gamesRows
+  if (hotEnabled()) {
+    gamesRows = await hotGetAllMemberGames()
+  } else {
+    const { data, error: gamesError } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
+    if (gamesError) throw gamesError
+    gamesRows = data
+  }
   const totalGamesByMember = new Map(
     (gamesRows ?? []).map((r) => [
       r.openfront_id,
@@ -474,10 +482,9 @@ async function main() {
       }
       const coopByGame = {}
       if (teamWinGameIds.size > 0) {
-        const { data: detailRows } = await supabase
-          .from('cyn_game_detail_cache')
-          .select('game_id, detail')
-          .in('game_id', [...teamWinGameIds])
+        const detailRows = hotEnabled()
+          ? [...(await hotGetDetails([...teamWinGameIds]))].map(([game_id, detail]) => ({ game_id, detail }))
+          : (await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', [...teamWinGameIds])).data
         for (const row of detailRows ?? []) {
           coopByGame[row.game_id] = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length >= 2
         }

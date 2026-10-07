@@ -20,6 +20,7 @@
 // how many members actually got new games since the last tick.
 import { createClient } from '@supabase/supabase-js'
 import { kvGet, kvPut } from './kvSafe.js'
+import { useD1, d1MemberGames, joinJsonObject } from './hotStore.js'
 
 const KV_PREFIX = 'member-games:v1:'
 const SYNC_MARKER_KEY = `${KV_PREFIX}_sync_marker`
@@ -52,7 +53,7 @@ function supabaseClient(env) {
 const PAGE_SIZE = 1000
 
 export async function refreshMemberGamesKv(env) {
-  if (!env.ROSTER_KV) return
+  if (!env.ROSTER_KV || useD1(env)) return
   const supabase = supabaseClient(env)
   const since = (await kvGet(env.ROSTER_KV, SYNC_MARKER_KEY)) ?? '1970-01-01T00:00:00Z'
   const nextMarker = new Date().toISOString()
@@ -93,6 +94,17 @@ export async function handleMemberGames(request, env) {
   // ~40 members today; this only exists so a request can't ask for an
   // unbounded number of per-member KV reads / a huge Supabase .in() fallback.
   if (ids.length > 150) return jsonResponse({ error: 'too_many_ids', max: 150 }, 413)
+
+  // D1 is the source of truth once the cron scripts write there (see hotStore.js); the KV/Supabase
+  // path below stays as the fallback if D1 ever errors.
+  if (useD1(env)) {
+    try {
+      const rows = await d1MemberGames(env, ids)
+      return new Response(joinJsonObject(rows), { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1' } })
+    } catch (err) {
+      console.error('D1 member-games read failed, falling back:', err?.message ?? err)
+    }
+  }
 
   const result = {}
   const missing = []

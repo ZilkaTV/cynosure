@@ -23,6 +23,7 @@
 // needs to run (or didn't manage to vendor everything).
 
 import { createServer } from 'vite'
+import { hotEnabled, hotGetAllMemberGames, hotNewestMemberUpdate } from './lib/hotstore.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -83,20 +84,28 @@ async function fetchRegisteredMembers() {
 // games, nothing to backfill" - confirmed in the run log while 18 of the 25
 // newest CYN games had no Max Tiles row at all.
 async function fetchRecentGameIds() {
-  const members = await fetchRegisteredMembers()
   const cutoff = Date.now() - daysBack * 86_400_000
   const ids = new Set()
-  for (const m of members) {
-    const rows = await fetchJson(
-      `${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=games&openfront_id=eq.${encodeURIComponent(m.openfront_id)}`,
-      { headers: { apikey: SUPABASE_ANON_KEY } },
-    )
-    for (const g of rows[0]?.games ?? []) {
+  const collect = (games) => {
+    for (const g of games ?? []) {
       if (g.clanTag !== CLAN_TAG || g.type === 'Singleplayer' || g.type === 'Private') continue
       if (g.result === 'incomplete') continue
       if (new Date(g.start).getTime() < cutoff) continue
       ids.add(g.gameId)
     }
+  }
+  if (hotEnabled()) {
+    // Cloudflare D1 (see scripts/lib/hotstore.mjs): no Supabase egress.
+    for (const row of await hotGetAllMemberGames()) collect(row.games)
+    return [...ids]
+  }
+  const members = await fetchRegisteredMembers()
+  for (const m of members) {
+    const rows = await fetchJson(
+      `${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=games&openfront_id=eq.${encodeURIComponent(m.openfront_id)}`,
+      { headers: { apikey: SUPABASE_ANON_KEY } },
+    )
+    collect(rows[0]?.games)
   }
   return [...ids]
 }
@@ -154,10 +163,10 @@ async function main() {
     // so only do it when new games arrived recently, plus a full pass every 6 hours to retry
     // transient failures. FORCE_BACKFILL=1 skips this check (manual runs).
     if (!process.env.FORCE_BACKFILL) {
-      const newest = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=updated_at&order=updated_at.desc&limit=1`, {
-        headers: { apikey: SUPABASE_ANON_KEY },
-      })
-      const newestMs = newest[0]?.updated_at ? new Date(newest[0].updated_at).getTime() : 0
+      const newestAt = hotEnabled()
+        ? await hotNewestMemberUpdate()
+        : (await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=updated_at&order=updated_at.desc&limit=1`, { headers: { apikey: SUPABASE_ANON_KEY } }))[0]?.updated_at
+      const newestMs = newestAt ? new Date(newestAt).getTime() : 0
       const recentlyChanged = Date.now() - newestMs < 70 * 60_000
       const fullPassSlot = new Date().getUTCHours() % 6 === 0
       if (!recentlyChanged && !fullPassSlot) {

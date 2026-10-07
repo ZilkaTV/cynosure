@@ -18,6 +18,7 @@
 // keep in sync.
 import { createClient } from '@supabase/supabase-js'
 import { kvGet, kvPut } from './kvSafe.js'
+import { useD1, d1GameDetails, joinJsonObject } from './hotStore.js'
 
 const KV_PREFIX = 'game-detail:v1:'
 // Generous and somewhat arbitrary, since the DATA itself never goes stale -
@@ -71,6 +72,18 @@ export async function handleGameDetail(request, env, ctx) {
   const ids = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
   if (ids.length === 0) return jsonResponse({})
   if (ids.length > MAX_IDS_PER_REQUEST) return jsonResponse({ error: 'too_many_ids', max: MAX_IDS_PER_REQUEST }, 413)
+
+  if (useD1(env)) {
+    try {
+      const rows = await d1GameDetails(env, ids)
+      const res = new Response(joinJsonObject(rows), { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1' } })
+      // Same rule as below: a complete answer may sit in the edge cache for a day, a partial one for 5 minutes.
+      if (ids.some((id) => !rows.has(id))) res.headers.set('X-Edge-Ttl', '300')
+      return res
+    } catch (err) {
+      console.error('D1 game-detail read failed, falling back:', err?.message ?? err)
+    }
+  }
 
   const result = {}
   const missing = []

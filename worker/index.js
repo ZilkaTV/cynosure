@@ -76,29 +76,18 @@ export default {
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
   async scheduled(event, env, ctx) {
-    // Ticks every 10 minutes. refresh-details reads only a slim per-member digest now
-    // (cyn_member_games_digest, ~0.25 MB), so it can run every tick again. What still reads the
-    // full games table (~1.5 MB per read) runs less often, because Supabase's free plan caps
-    // egress at 5.5 GB a month:
-    //   every tick  refresh-details, collect-metrics, roster + member-games KV mirrors
-    //   :00 / :30   engine-maintenance (Max Tiles backfill, itself gated on recent changes)
-    //   :00         clan-score-ledger (decays by the clock, hourly is plenty)
-    //   :10         ledger KV mirror picks up the hourly recompute
-    // Supabase answers 402 while the project is restricted for exceeding its free egress quota.
-    // Every job would just fail (and mail a failure notice each time), so wait quietly instead; the
-    // first tick after the restriction is lifted resumes everything.
-    if (await supabaseRestricted(env)) {
-      console.warn('Supabase project is restricted (HTTP 402) - skipping all scheduled jobs this tick')
-      return
-    }
-    const minute = new Date(event.scheduledTime).getUTCMinutes()
+    // Ticks every 10 minutes and every job runs on every tick. That is affordable now that the big
+    // data (member game lists, game details, roster, ledger) lives in Cloudflare D1 instead of
+    // Supabase, whose free egress limit is what forced the slower cadence on 2026-10-04.
+    // A workflow that is still running is skipped by dispatch() (isWorkflowBusy).
     ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
-    if (minute % 30 === 0) ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
-    if (minute === 0) ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
+    ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
+    ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
+    // Fallback KV mirrors (only used if D1 is switched off, see worker/hotStore.js useD1).
     ctx.waitUntil(refreshRosterKv(env))
     ctx.waitUntil(refreshMemberGamesKv(env))
-    if (minute === 10) ctx.waitUntil(refreshClanLedgerKv(env))
+    ctx.waitUntil(refreshClanLedgerKv(env))
   },
 }
 

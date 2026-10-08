@@ -27,7 +27,7 @@
 // live fallback, and writes back to this same shared table when it does.
 
 import { createClient } from '@supabase/supabase-js'
-import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, hotPutBlob, computeDigest } from './lib/hotstore.mjs'
+import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, hotPutBlob, hotGetBlob, computeDigest } from './lib/hotstore.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -433,6 +433,15 @@ async function main() {
     ? await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
     : { byId: new Map(), byId2v2: new Map() }
   // Only a scan that actually returned entries counts as done - a failed attempt is retried on the next run.
+  // GitHub's runners are often refused by OpenFront's bot challenge on this endpoint; the Worker scans the
+  // boards itself every 10 minutes (worker/ranked.js) and keeps them in D1 - use that when our own scan failed.
+  if (rankedMap.size === 0 && hotEnabled()) {
+    const fromWorker = await hotGetBlob('ranked').catch(() => null)
+    if (fromWorker && Date.now() - Date.parse(fromWorker.scanned_at) < 2 * 60 * 60 * 1000) {
+      for (const [id, e] of Object.entries(fromWorker.ranked_1v1 ?? {})) rankedMap.set(id, e)
+      for (const [id, e] of Object.entries(fromWorker.ranked_2v2 ?? {})) rankedMap2v2.set(id, e)
+    }
+  }
   const nextRankedScannedAt = dueForRankedScan && rankedMap.size > 0 ? new Date().toISOString() : (existingRosterCache?.ranked_scanned_at ?? null)
   const ffaLeaderboard = await fetchFfaLeaderboard()
   const { entry: clanLeaderboardEntry, top: clanLeaderboardTop } = await fetchClanLeaderboard()

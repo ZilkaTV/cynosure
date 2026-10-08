@@ -182,3 +182,9 @@ export async function hotPutBlob(key, text) {
     [key, text, new Date().toISOString()],
   )
 }
+
+export async function hotGetBlob(key) {
+  if (viaWorker()) return await api('GET', 'blob', { query: { key } })
+  const rows = await query('SELECT value FROM blobs WHERE key = ?', [key])
+  return rows[0] ? JSON.parse(rows[0].value) : null
+}

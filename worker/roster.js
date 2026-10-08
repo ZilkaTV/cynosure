@@ -59,7 +59,21 @@ export async function handleRoster(request, env, ctx) {
   if (useD1(env)) {
     try {
       const doc = await d1Blob(env, 'roster')
-      if (doc) return new Response(doc, { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1' } })
+      if (doc) {
+        // The Worker refreshes the ranked Elo itself (worker/ranked.js) because GitHub's runners get
+        // OpenFront's bot challenge on that endpoint: overlay the fresher boards on the roster document.
+        const rankedText = await d1Blob(env, 'ranked').catch(() => null)
+        if (rankedText) {
+          const ranked = JSON.parse(rankedText)
+          if (Date.now() - Date.parse(ranked.scanned_at) < 6 * 60 * 60 * 1000) {
+            const merged = JSON.parse(doc)
+            merged.ranked_1v1 = ranked.ranked_1v1
+            merged.ranked_2v2 = ranked.ranked_2v2
+            return new Response(JSON.stringify(merged), { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1+ranked' } })
+          }
+        }
+        return new Response(doc, { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1' } })
+      }
     } catch (err) {
       console.error('D1 roster read failed, falling back:', err?.message ?? err)
     }

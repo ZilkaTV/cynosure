@@ -12,6 +12,7 @@
 //   PUT  /api/internal/hot/detail?id=X                 body: <detail json>
 //   GET  /api/internal/hot/old-shape?limit=N           ["gameId", ...]
 //   PUT  /api/internal/hot/blob?key=roster|ledger       body: <json text>   (small cached documents)
+//   GET  /api/internal/hot/blob?key=roster|ledger|ranked  -> the stored document or null
 import { d1MemberGames, d1GameDetails, joinJsonObject } from './hotStore.js'
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/
@@ -66,6 +67,12 @@ export async function handleHotApi(request, env, pathname) {
         if (!ids) return json(400, { error: 'bad_ids' })
         return json(200, joinJsonObject(await d1GameDetails(env, ids)))
       }
+      if (op === 'blob') {
+        const key = url.searchParams.get('key') ?? ''
+        if (!['roster', 'ledger', 'ranked'].includes(key)) return json(400, { error: 'bad_key' })
+        const row = await db.prepare('SELECT value FROM blobs WHERE key = ?').bind(key).first()
+        return json(200, row?.value ?? 'null')
+      }
       if (op === 'old-shape') {
         const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 500)
         const { results } = await db.prepare("SELECT game_id FROM game_detail WHERE json_extract(detail, '$.winnerClientIds') IS NULL LIMIT ?").bind(limit).all()
@@ -95,7 +102,7 @@ export async function handleHotApi(request, env, pathname) {
       }
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
-        if (!['roster', 'ledger'].includes(key)) return json(400, { error: 'bad_key' })
+        if (!['roster', 'ledger', 'ranked'].includes(key)) return json(400, { error: 'bad_key' })
         const body = await request.text()
         await db
           .prepare('INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')

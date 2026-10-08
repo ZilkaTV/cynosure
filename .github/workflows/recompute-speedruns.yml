@@ -1,0 +1,27 @@
+name: Recompute speedrun times
+
+# Manual only. Re-times every stored speedrun with the engine's win check (see
+# scripts/recompute-speedruns.mjs). Safe to run again.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: recompute-speedruns
+  cancel-in-progress: false
+
+jobs:
+  recompute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - name: Recompute
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/recompute-speedruns.mjs

@@ -840,3 +840,31 @@ export async function computeTilePercentAtTick(gameId: string, atTick: number): 
     return null
   }
 }
+
+/**
+ * The in-game clock reading at the moment OpenFront's own win check (WinCheckExecution) declared
+ * the winner - i.e. the time a player sees when the match is decided (spawn phase excluded, the
+ * same clock `elapsedGameSeconds()` reports). Used for speedruns: the turn log keeps running after
+ * that moment for as long as the player keeps playing/watching, so "time of the last action" can
+ * be many seconds later than the real finish (reported: 5:34 recorded vs 5:21 shown in game).
+ * Returns null if the game couldn't be replayed or no winner was declared within the log.
+ */
+export async function computeWinSeconds(gameId: string): Promise<number | null> {
+  try {
+    const loaded = await loadRunner(gameId)
+    if (!loaded) return null
+    const { runner } = loaded
+    // Not every vendored engine tree has elapsedGameSeconds(), so fall back to counting ticks
+    // (10 per second) minus the 100-tick spawn phase that every Singleplayer game starts with.
+    const game = runner.game as unknown as { elapsedGameSeconds?: () => number }
+    let tick = 0
+    while (runner.executeNextTick()) {
+      tick++
+      if (runner.game.getWinner()) return game.elapsedGameSeconds ? game.elapsedGameSeconds() : Math.max(0, tick - 100) / 10
+    }
+    return null
+  } catch (err) {
+    console.error('Win-time replay failed', err)
+    return null
+  }
+}

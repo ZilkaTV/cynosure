@@ -161,12 +161,17 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
   const v = verifySpeedrun(detail, inGameName)
   if (!v.ok) return { ok: false, message: v.reason ?? 'This game does not meet the speedrun rules.' }
 
-  // OpenFront's duration measures until the connection closes, not until the
-  // game is won - a player can win and then idle/watch/disconnect late,
-  // inflating it well past the real result. Use the last real in-game action
-  // instead, when it's available.
-  const actualSeconds = (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
-  v.seconds = Math.round(actualSeconds)
+  // The clock must stop when the match is DECIDED, not when the connection closes or the player
+  // stops clicking: OpenFront's `duration` runs until the connection closes (can be minutes
+  // later), and the turn log keeps going for as long as the player keeps playing after the win
+  // (a real run showed 5:21 in game but 5:34 by "last action"). Best source: replay the game with
+  // the same engine and read the clock at the moment its own win check fired - shown in game as
+  // the truncated seconds, hence floor. Falls back to the last real action (then to the reported
+  // duration) when the game can't be replayed (old engine version, fetch problems).
+  const { computeWinSeconds } = await import('./replaySimCore')
+  const winSeconds = await computeWinSeconds(gameId).catch(() => null)
+  const actualSeconds = winSeconds ?? (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
+  v.seconds = winSeconds != null ? Math.floor(winSeconds) : Math.round(actualSeconds)
 
   if (!supabase) return { ok: true, message: `Verified (${fmtTime(v.seconds)})! Connect the backend to save times.`, seconds: v.seconds }
 

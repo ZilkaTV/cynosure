@@ -232,7 +232,7 @@ export const translations = {
       verifyAndSubmit: 'Verify & submit',
       openReplayTool: 'Open in replay tool ↗',
       submitNote:
-        "The site pulls the game from OpenFront and checks every rule automatically. Your time is measured up to your last in-game action, not until the connection closes - so idling on the win screen or leaving a replay open afterwards doesn't inflate it. Only your own fastest valid run is kept. Old-version games can't be auto-verified - use the replay tool link above with the game id to check them manually.",
+        "The site pulls the game from OpenFront and checks every rule automatically. Your time is the in-game clock at the moment the match was decided (OpenFront's own win check, found by replaying the game), not until your last click or until the connection closes - so playing on, idling on the win screen or leaving a replay open afterwards doesn't inflate it. Only your own fastest valid run is kept. Old-version games can't be auto-verified - use the replay tool link above with the game id to check them manually.",
       fairnessLabel: 'A note on fairness',
       fairnessText:
         "Solo games run in your own browser, so a player could change the in-game replay speed while playing to shorten the recorded time. OpenFront's public data doesn't expose anything that would reveal this, so it can't be auto-detected. Staff can review a run's replay for anything that looks off, and any confirmed abuse gets a run removed.",
@@ -900,7 +900,7 @@ export const translations = {
       verifyAndSubmit: 'Prüfen & einreichen',
       openReplayTool: 'Im Replay-Tool öffnen ↗',
       submitNote:
-        'Die Seite lädt das Spiel von OpenFront und prüft automatisch jede Regel. Deine Zeit wird bis zu deiner letzten Aktion im Spiel gemessen, nicht bis die Verbindung endet - Rumstehen auf dem Sieges-Screen oder ein offen gelassener Replay verlängert die Zeit also nicht. Nur dein schnellster gültiger Run wird gespeichert. Spiele mit alter Version können nicht automatisch geprüft werden - nutze den Replay-Tool-Link oben mit der Spiel-ID, um sie manuell zu prüfen.',
+        'Die Seite lädt das Spiel von OpenFront und prüft automatisch jede Regel. Deine Zeit ist die Spieluhr in dem Moment, in dem das Match entschieden war (OpenFronts eigene Siegprüfung, per Replay des Spiels ermittelt) - nicht bis zu deinem letzten Klick oder bis die Verbindung endet. Weiterspielen, Rumstehen auf dem Sieges-Screen oder ein offen gelassener Replay verlängert die Zeit also nicht. Nur dein schnellster gültiger Run wird gespeichert. Spiele mit alter Version können nicht automatisch geprüft werden - nutze den Replay-Tool-Link oben mit der Spiel-ID, um sie manuell zu prüfen.',
       fairnessLabel: 'Ein Hinweis zur Fairness',
       fairnessText:
         'Solo-Spiele laufen in deinem eigenen Browser, daher könnte jemand während des Spiels die Replay-Geschwindigkeit ändern, um die aufgezeichnete Zeit zu verkürzen. OpenFronts öffentliche Daten zeigen nichts, was das aufdecken würde, es kann also nicht automatisch erkannt werden. Das Team kann das Replay eines Runs prüfen, wenn etwas verdächtig wirkt, und bestätigter Missbrauch führt zur Entfernung des Runs.',
@@ -1569,7 +1569,7 @@ export const translations = {
       verifyAndSubmit: 'Vérifier & soumettre',
       openReplayTool: "Ouvrir dans l'outil de replay ↗",
       submitNote:
-        "Le site charge la partie depuis OpenFront et vérifie automatiquement chaque règle. Ton temps est mesuré jusqu'à ta dernière action en jeu, pas jusqu'à la fermeture de la connexion - donc rester sur l'écran de victoire ou laisser un replay ouvert ne gonfle pas le temps. Seul ton run valide le plus rapide est conservé. Les parties d'anciennes versions ne peuvent pas être vérifiées automatiquement - utilise le lien de l'outil de replay ci-dessus avec l'ID de la partie pour les vérifier manuellement.",
+        "Le site charge la partie depuis OpenFront et vérifie automatiquement chaque règle. Ton temps est l'horloge du jeu au moment où la partie a été décidée (le contrôle de victoire d'OpenFront, retrouvé en rejouant la partie), pas ta dernière action ni la fermeture de la connexion - donc continuer à jouer, rester sur l'écran de victoire ou laisser un replay ouvert ne gonfle pas le temps. Seul ton run valide le plus rapide est conservé. Les parties d'anciennes versions ne peuvent pas être vérifiées automatiquement - utilise le lien de l'outil de replay ci-dessus avec l'ID de la partie pour les vérifier manuellement.",
       fairnessLabel: "Une remarque sur l'équité",
       fairnessText:
         "Les parties solo tournent dans ton propre navigateur, donc un joueur pourrait changer la vitesse de replay en jouant pour raccourcir le temps enregistré. Les données publiques d'OpenFront ne révèlent rien de tel, donc ça ne peut pas être détecté automatiquement. Le staff peut examiner le replay d'un run si quelque chose semble suspect, et tout abus confirmé entraîne la suppression du run.",

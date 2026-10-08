@@ -210,7 +210,7 @@ const LEADERBOARD_SCAN_PAGES = 3
 // fetchRankedMap()'s own fallback-to-last-known-good still covers the gap
 // with slightly-stale (not broken) Elo either way.
 const RANKED_LEADERBOARD_BASE = 'https://cynclan.com/api/of'
-const RANKED_SCAN_INTERVAL_MS = 60 * 60 * 1000
+const RANKED_SCAN_INTERVAL_MS = 10 * 60 * 1000
 
 // Confirmed live, directly: Node's own fetch() (undici) gets Cloudflare's
 // "Just a moment..." interactive bot-challenge on THIS ONE OpenFront
@@ -263,7 +263,19 @@ async function fetchRankedMap() {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 3000 * attempt))
       try {
-        json = await curlJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
+        // Our own Worker proxy first: since 2026-10 OpenFront's Cloudflare zone answers the GitHub
+        // runners (plain fetch AND curl) with its bot challenge on this endpoint, while requests
+        // coming from our Worker go through. The unique `_t` query param is ignored by the proxy
+        // (it only forwards `page`) but makes the edge-cache key unique, so the Elo is current
+        // instead of up to 30 minutes old. Direct curl stays as the fallback.
+        try {
+          json = await fetchJson(`${RANKED_LEADERBOARD_BASE}/leaderboard/ranked?page=${page}&_t=${Date.now()}`)
+        } catch (proxyErr) {
+          // 400 = OpenFront has no such page (the board is only 2 pages long): not a failure, no fallback.
+          if (String(proxyErr).includes('OpenFront API 400')) throw proxyErr
+          console.warn(`ranked leaderboard via proxy failed (page ${page}), trying curl directly:`, String(proxyErr).slice(0, 160))
+          json = await curlJson(`https://api.openfront.io/leaderboard/ranked?page=${page}`)
+        }
         lastErr = undefined
         break
       } catch (err) {
@@ -420,7 +432,8 @@ async function main() {
   const { byId: rankedMap, byId2v2: rankedMap2v2 } = dueForRankedScan
     ? await fetchRankedMap().catch(() => ({ byId: new Map(), byId2v2: new Map() }))
     : { byId: new Map(), byId2v2: new Map() }
-  const nextRankedScannedAt = dueForRankedScan ? new Date().toISOString() : (existingRosterCache?.ranked_scanned_at ?? null)
+  // Only a scan that actually returned entries counts as done - a failed attempt is retried on the next run.
+  const nextRankedScannedAt = dueForRankedScan && rankedMap.size > 0 ? new Date().toISOString() : (existingRosterCache?.ranked_scanned_at ?? null)
   const ffaLeaderboard = await fetchFfaLeaderboard()
   const { entry: clanLeaderboardEntry, top: clanLeaderboardTop } = await fetchClanLeaderboard()
 

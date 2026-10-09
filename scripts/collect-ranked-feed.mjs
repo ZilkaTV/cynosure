@@ -113,17 +113,23 @@ function buildMatch(game, detail, board) {
 let backfillOnce = true
 
 // ── Elo changes ─────────────────────────────────────────────────────────────
-// OpenFront publishes no Elo change per game, but the top-100 boards move when a game ends. Every pass compares the
-// boards with the previous pass and remembers each change as an event; a finished game then takes the next unused event
-// of each of its own-name players (same ladder, within a few minutes after the game ended) as that player's Elo change.
-// Kept server-side in the blob "ranked-elo" (public ids included - never shown): { snap, events, pending }.
-const EVENT_KEEP_MS = 3 * 3600_000
-const PENDING_KEEP_MS = 25 * 60_000
+// OpenFront publishes no Elo change per game, and its public top-100 boards are cached for up to an hour
+// (Cache-Control: max-age=3600): they change in one step, for everybody who played since the previous step. So every
+// pass compares the boards with the previous pass; when a ladder's board moved, each player's change over that period
+// is matched with the games the player finished in that period. Exactly one game: that game gets the exact change.
+// Several games: the latest of them carries the total and the number of games (shown as a sum). Only players using their
+// own name are tracked. Kept server-side in the blob "ranked-elo" (public ids included - never shown):
+//   { snap, lastChange, batches, pending }
+const PENDING_KEEP_MS = 110 * 60_000
+const BATCH_DELAY_MS = 3 * 60_000
 const compactBoards = (doc) => ({ '1v1': Object.fromEntries(Object.entries(doc.ranked_1v1 ?? {}).map(([id, e]) => [id, e.elo])), '2v2': Object.fromEntries(Object.entries(doc.ranked_2v2 ?? {}).map(([id, e]) => [id, e.elo])) })
 let eloState = null
 
 async function loadEloState() {
-  if (!eloState) eloState = (await hotGetBlob('ranked-elo').catch(() => null)) ?? { snap: null, events: [], pending: [] }
+  if (!eloState) {
+    const saved = await hotGetBlob('ranked-elo').catch(() => null)
+    eloState = { snap: null, lastChange: {}, batches: [], pending: [], ...(saved ?? {}) }
+  }
   return eloState
 }
 
@@ -131,30 +137,42 @@ function diffBoards(state, live, nowMs) {
   const next = compactBoards(live)
   if (state.snap) {
     for (const l of ['1v1', '2v2']) {
+      const list = []
       for (const [pid, elo] of Object.entries(next[l])) {
         const before = state.snap[l]?.[pid]
-        if (before != null && before !== elo) state.events.push({ pid, l, from: before, to: elo, t: nowMs })
+        if (before != null && before !== elo) list.push({ pid, from: before, to: elo })
       }
+      if (list.length === 0) continue
+      // The board that just changed covers everything since the previous change (first time: the last ~65 minutes).
+      const since = state.lastChange[l] ?? nowMs - 65 * 60_000
+      state.lastChange[l] = nowMs
+      state.batches.push({ l, since: since - 5 * 60_000, at: nowMs, list })
     }
   }
   state.snap = next
-  state.events = state.events.filter((e) => nowMs - e.t < EVENT_KEEP_MS)
 }
 
-/** Hands out events to waiting games; returns { gameId -> { k -> change } } for the games that got new changes. */
-function resolvePending(state, nowMs) {
+/** Matches board changes with games (after a short delay so freshly finished games are stored); returns { gameId -> { k -> {d, c} } }. */
+function resolveBatches(state, nowMs) {
   const updates = {}
-  for (const g of [...state.pending].sort((a, b) => a.ended - b.ended)) {
-    for (const o of g.ps) {
-      if (o.d !== undefined) continue
-      const ev = state.events.find((e) => !e.used && e.pid === o.pid && e.l === g.l && e.t >= g.ended - 120_000 && e.t <= g.ended + 15 * 60_000)
-      if (!ev) continue
-      ev.used = true
-      o.d = ev.to - ev.from
-      ;(updates[g.id] ??= {})[o.k] = o.d
+  const open = []
+  for (const batch of state.batches) {
+    if (nowMs - batch.at < BATCH_DELAY_MS) {
+      open.push(batch)
+      continue
+    }
+    for (const entry of batch.list) {
+      const games = state.pending
+        .filter((g) => g.l === batch.l && g.ended >= batch.since && g.ended <= batch.at && g.ps.some((o) => o.pid === entry.pid))
+        .sort((x, y) => x.ended - y.ended)
+      if (games.length === 0) continue
+      const last = games[games.length - 1]
+      const k = last.ps.find((o) => o.pid === entry.pid).k
+      ;(updates[last.id] ??= {})[k] = { d: entry.to - entry.from, ...(games.length > 1 ? { c: games.length } : {}) }
     }
   }
-  state.pending = state.pending.filter((g) => nowMs - g.ended < PENDING_KEEP_MS && g.ps.some((o) => o.d === undefined))
+  state.batches = open
+  state.pending = state.pending.filter((g) => nowMs - g.ended < PENDING_KEEP_MS)
   return updates
 }
 
@@ -221,11 +239,11 @@ async function main() {
     )
   }
   // Elo changes that became known: write them into the stored games, then keep the state for the next pass.
-  const updates = resolvePending(state, Date.now())
+  const updates = resolveBatches(state, Date.now())
   for (const [gameId, byK] of Object.entries(updates)) {
     const { data: row } = await usersDb.from('cyn_ranked_matches').select('players').eq('game_id', gameId).maybeSingle()
     if (!row) continue
-    const players = row.players.map((p) => (p.k && byK[p.k] !== undefined ? { ...p, d: byK[p.k] } : p))
+    const players = row.players.map((p) => (p.k && byK[p.k] !== undefined ? { ...p, ...byK[p.k] } : p))
     await usersDb.from('cyn_ranked_matches').update({ players }).eq('game_id', gameId)
   }
   await hotPutBlob('ranked-elo', JSON.stringify(state)).catch((err) => console.error('could not save the Elo state:', err.message ?? err))
@@ -237,7 +255,7 @@ async function main() {
 
   const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
   await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
-  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), events: state.events.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
+  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 

@@ -449,6 +449,7 @@ const baseTranslations = {
       alertBoth: 'Both',
       alertSound: 'Sound',
       alertHint: 'Red dot on the menu and a blinking tab title when a top-100 game of the chosen ladder finishes. Works while cynclan.com is open in a tab.',
+      eloNote: 'OpenFront publishes the top-100 Elo only about once an hour. The Elo change appears after that update: one game = exact change, several games = a sum (Σ, number of games in brackets).',
       privacyNote: 'Names are shown as used in the game. The exact rank and Elo only appear for players using the name of their own ranked account; anyone playing under another name is shown with a rank band only.',
     },
     planner: {
@@ -1253,6 +1254,7 @@ const baseTranslations = {
       alertBoth: 'Beide',
       alertSound: 'Ton',
       alertHint: 'Roter Punkt im Menü und blinkender Tab-Titel, wenn ein Top-100-Spiel der gewählten Liste endet. Funktioniert, solange cynclan.com in einem Tab offen ist.',
+      eloNote: 'OpenFront veröffentlicht die Top-100-Elo nur etwa einmal pro Stunde. Die Elo-Änderung erscheint nach diesem Update: ein Spiel = genaue Änderung, mehrere Spiele = Summe (Σ, Anzahl der Spiele in Klammern).',
       privacyNote: 'Namen stehen so, wie sie im Spiel benutzt wurden. Genauer Rang und Elo erscheinen nur bei Spielern, die den Namen ihres eigenen Ranked-Kontos benutzen; wer unter einem anderen Namen spielt, wird nur mit einem Rang-Bereich angezeigt.',
     },
     planner: {
@@ -2057,6 +2059,7 @@ const baseTranslations = {
       alertBoth: 'Les deux',
       alertSound: 'Son',
       alertHint: "Point rouge dans le menu et titre d'onglet clignotant quand une partie du top 100 du classement choisi se termine. Fonctionne tant que cynclan.com est ouvert dans un onglet.",
+      eloNote: "OpenFront ne publie l'Elo du top 100 qu'environ une fois par heure. Le changement d'Elo apparaît après cette mise à jour : une partie = changement exact, plusieurs parties = une somme (Σ, nombre de parties entre parenthèses).",
       privacyNote: "Les pseudos sont ceux utilisés en jeu. Le rang exact et l'Elo n'apparaissent que pour les joueurs qui utilisent le nom de leur propre compte classé ; les autres n'ont qu'une tranche de rang.",
     },
     planner: {

@@ -18,7 +18,8 @@ interface FeedPlayer {
   e?: number
   id?: string
   b?: string
-  d?: number // Elo change of this game (only known for top-100 players using their own name)
+  d?: number // Elo change (only for top-100 players using their own name); with `c` it is the total of the last c games
+  c?: number
 }
 interface FeedMatch {
   game_id: string
@@ -63,8 +64,9 @@ function PlayerChip({ p }: { p: FeedPlayer }) {
       )}
       {p.d !== undefined && (
         <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
+          {p.c ? 'Σ ' : ''}
           {p.d > 0 ? '+' : ''}
-          {p.d} Elo
+          {p.d} Elo{p.c ? ` (${p.c})` : ''}
         </span>
       )}
       {p.r == null && p.b && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">{p.b}</span>}
@@ -263,6 +265,7 @@ export default function RankedQueue() {
           </div>
         </div>
 
+        <p className="text-center text-xs text-slate-500">{t.queue.eloNote}</p>
         <p className="text-center text-xs text-slate-500">{t.queue.privacyNote}</p>
         <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
       </section>

@@ -53,16 +53,19 @@ for (const table of TABLES) {
 // Auth users, reduced to the Discord id - emails and tokens are not copied.
 {
   const users = []
+  let body0 = null
   for (let page = 1; ; page++) {
     const res = await sb(`/auth/v1/admin/users?page=${page}&per_page=200`)
     if (!res.ok) throw new Error(`read auth users failed: ${res.status} ${(await res.text()).slice(0, 200)}`)
     const body = await res.json()
     const list = body.users ?? []
+    if (!body0) body0 = list[0]
     for (const u of list) {
       const discord = (u.identities ?? []).find((i) => i.provider === 'discord')
+      const meta = u.user_metadata ?? {}
       users.push({
         id: u.id,
-        discord_user_id: discord?.identity_data?.provider_id ?? discord?.identity_data?.sub ?? discord?.id ?? null,
+        discord_user_id: String(discord?.identity_data?.provider_id ?? discord?.identity_data?.sub ?? discord?.provider_id ?? meta.provider_id ?? meta.sub ?? '') || null,
         created_at: u.created_at ?? null,
         last_sign_in_at: u.last_sign_in_at ?? null,
       })
@@ -72,6 +75,10 @@ for (const table of TABLES) {
   await pushRows('auth_users', users)
   expected.auth_users = users.length
   console.log(`auth_users: ${users.length} rows (${users.filter((u) => u.discord_user_id).length} with a Discord id)`)
+  if (users.length && !users.some((u) => u.discord_user_id)) {
+    const u = body0 ?? {}
+    console.log('shape of first user (keys only):', Object.keys(u).join(','), '| identities:', JSON.stringify((u.identities ?? []).map((i) => Object.keys(i))), '| metadata keys:', Object.keys(u.user_metadata ?? {}).join(','))
+  }
 }
 
 const counts = await (await worker('counts')).json()

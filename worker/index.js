@@ -14,9 +14,9 @@ import { handleDbApi } from './dbApi.js'
 import { withSecurityHeaders } from './securityHeaders.js'
 import { edgeCached } from './kvSafe.js'
 import { handleClanMembers } from './clanMembers.js'
-import { handleRoster, refreshRosterKv } from './roster.js'
-import { handleClanLedger, refreshClanLedgerKv } from './clanLedger.js'
-import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
+import { handleRoster } from './roster.js'
+import { handleClanLedger } from './clanLedger.js'
+import { handleMemberGames } from './memberGames.js'
 import { handleGameDetail } from './gameDetail.js'
 import { handleSoloLatest, handleVerifyOwnership } from './soloLatest.js'
 import { handleHotApi } from './hotApi.js'
@@ -24,18 +24,6 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob } from './ranked.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
-
-async function supabaseRestricted(env) {
-  try {
-    const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/cyn_roster_cache?select=id&limit=1`, {
-      headers: { apikey: env.VITE_SUPABASE_ANON_KEY },
-      signal: AbortSignal.timeout(8000),
-    })
-    return res.status === 402
-  } catch {
-    return false
-  }
-}
 
 export default {
   async fetch(request, env, ctx) {
@@ -94,10 +82,6 @@ export default {
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))
-    // Fallback KV mirrors (only used if D1 is switched off, see worker/hotStore.js useD1).
-    ctx.waitUntil(refreshRosterKv(env))
-    ctx.waitUntil(refreshMemberGamesKv(env))
-    ctx.waitUntil(refreshClanLedgerKv(env))
   },
 }
 

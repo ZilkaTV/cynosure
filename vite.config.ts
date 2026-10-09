@@ -26,7 +26,6 @@ export default defineConfig({
         // across app-only releases.
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
         },
       },
     },

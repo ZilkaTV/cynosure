@@ -156,6 +156,9 @@ export async function hotPutDetail(gameId, detail) {
  * recent (newest 300 + newest 100 ranked, "gameId:result"), all_wins, and want_games
  * (CYN non-Singleplayer games that decide which details get cached).
  */
+// Ranked 1v1 games with a result: their detail (who the opponent was) feeds the Elo estimate (scripts/elo-estimate-*.mjs).
+const isRankedDuel = (g) => g.rankedType === '1v1' && (g.result === 'victory' || g.result === 'defeat')
+
 export function computeDigest(games, clanTag) {
   const byStartDesc = (a, b) => String(b.start).localeCompare(String(a.start))
   const sig = (g) => `${g.gameId}:${g.result ?? ''}`
@@ -167,7 +170,9 @@ export function computeDigest(games, clanTag) {
   const want = cyn
     .filter((g, i) => i < 20 || (g.mode === 'Team' && g.result === 'victory') || String(g.start).slice(0, 7) === month)
     .map((g) => ({ gameId: g.gameId, mode: g.mode, result: g.result, start: g.start }))
-  return { recent: [...recent], all_wins: cyn.filter((g) => g.result === 'victory').length, want_games: want }
+  // Ids of every ranked 1v1 game with a result (any clan tag), for the Elo estimate.
+  const duels = games.filter(isRankedDuel).map((g) => g.gameId)
+  return { recent: [...recent], all_wins: cyn.filter((g) => g.result === 'victory').length, want_games: want, duels }
 }
 
 // ── small cached documents (roster, ledger) ──────────────────────────────────

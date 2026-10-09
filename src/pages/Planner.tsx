@@ -140,6 +140,19 @@ export default function Planner() {
           </div>
           <p className="mt-2 text-center text-xs text-slate-500">{t.planner.formulaNote}</p>
         </div>
+
+        <Card className="mx-auto max-w-3xl space-y-3">
+          <h3 className="font-display text-lg font-bold text-white">{t.planner.userscriptTitle}</h3>
+          <p className="text-sm text-slate-400">{t.planner.userscriptText}</p>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-300">
+            <li>{t.planner.userscriptStep1}</li>
+            <li>{t.planner.userscriptStep2}</li>
+            <li>{t.planner.userscriptStep3}</li>
+          </ol>
+          <a href="/cynosure-lobby-points.user.js" className="btn-accent inline-block">
+            {t.planner.userscriptButton}
+          </a>
+        </Card>
       </section>
     </StatsShell>
   )

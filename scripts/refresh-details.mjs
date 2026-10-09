@@ -568,6 +568,8 @@ async function main() {
 
   const mk = currentMonthKey()
   const wantDetail = new Set()
+  // Lower priority than wantDetail: only fetched once everything above is cached (ranked 1v1 duels for the Elo estimate).
+  const wantDetailLow = new Set()
   let membersScanFailed = 0
   let scanTimedOut = false
   const members = registered
@@ -624,9 +626,11 @@ async function main() {
     const unchanged = digestByMember != null && games.every((g) => recentSigs.has(`${g.gameId}:${g.result}`))
     let allWins = 0
     let cynGames
+    let duelIds = []
     if (unchanged) {
       allWins = digest?.all_wins ?? 0
       cynGames = digest?.want_games ?? []
+      duelIds = digest?.duels ?? []
     } else {
       if (digestByMember) {
         if (HOT) {
@@ -688,6 +692,7 @@ async function main() {
         if (g.clanTag === CLAN_TAG && g.type !== 'Singleplayer' && g.result === 'victory') allWins++
       }
       cynGames = mergedGames.filter((g) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer')
+      duelIds = mergedGames.filter((g) => g.rankedType === '1v1' && (g.result === 'victory' || g.result === 'defeat')).map((g) => g.gameId)
     }
     const snapshotRow = {
       openfront_id: r.openfront_id,
@@ -714,6 +719,8 @@ async function main() {
     // Uses mergedGames (not the possibly-truncated fresh fetch) so a bad
     // pass here can't also make wantDetail miss a team win or this
     // month's game that a previous run already knew about.
+    // Ranked 1v1 games (any tag): the opponent's id is needed for the Elo estimate of members outside the top 100.
+    for (const id of duelIds) wantDetailLow.add(id)
     for (const g of cynGames) {
       const isTeam = g.mode === 'Team'
       const isFfa = g.mode === 'Free For All'
@@ -787,7 +794,7 @@ async function main() {
     await supabase.from('cyn_game_detail_cache').upsert({ game_id: gameId, detail }, { onConflict: 'game_id' }).then(() => {}, () => {})
   }
 
-  const missing = [...wantDetail].filter((id) => !alreadyCached.has(id)).slice(0, MAX_GAMES_PER_RUN)
+  const missing = [...wantDetail, ...wantDetailLow].filter((id) => !alreadyCached.has(id)).slice(0, MAX_GAMES_PER_RUN)
 
   let fetched = 0
   let failed = 0

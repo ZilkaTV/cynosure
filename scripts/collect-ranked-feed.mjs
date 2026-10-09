@@ -124,7 +124,7 @@ function buildMatch(game, detail, board, known) {
     const entryNames = entry ? [normName(entry.accountUsername), normName(entry.username)] : []
     const ownName = entry && entryNames.includes(normName(p.username))
     if (isTop) top++
-    if (ownName) owners.push({ k: hashId(p.publicID), pid: p.publicID })
+    if (ownName) owners.push({ k: hashId(p.publicID), pid: p.publicID, w: winnerIds.has(p.clientID) })
     return {
       n: String(p.username ?? '').slice(0, 40),
       t: p.clanTag ?? null,
@@ -210,8 +210,12 @@ function resolveBatches(state, nowMs) {
         .sort((x, y) => x.ended - y.ended)
       if (games.length === 0) continue
       const last = games[games.length - 1]
-      const k = last.ps.find((o) => o.pid === entry.pid).k
-      ;(updates[last.id] ??= {})[k] = { d: entry.to - entry.from, ...(games.length > 1 ? { c: games.length } : {}) }
+      const me = last.ps.find((o) => o.pid === entry.pid)
+      const d = entry.to - entry.from
+      // One game, but the change points the wrong way (a winner who lost points, a loser who gained): the player also
+      // finished a game that is not stored (played under another name), so this game cannot be given the change.
+      if (games.length === 1 && me.w !== undefined && (me.w ? d < 0 : d > 0)) continue
+      ;(updates[last.id] ??= {})[me.k] = { d, ...(games.length > 1 ? { c: games.length } : {}) }
     }
   }
   state.batches = open

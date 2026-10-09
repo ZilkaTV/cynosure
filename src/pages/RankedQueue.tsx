@@ -6,6 +6,13 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
 
+// The signed-in visitor's own account (GET /api/queue/me): named next to the in-game name when they played under another name.
+interface MyAccount {
+  k: string
+  name: string
+  boards: { '1v1'?: { rank: number; elo: number }; '2v2'?: { rank: number; elo: number } }
+}
+
 // One stored game (see scripts/collect-ranked-feed.mjs): display-ready players only. `r`/`e`/`id` exist only for
 // players using the name of their own ranked account, everyone else carries at most a rank band `b`.
 interface FeedPlayer {
@@ -42,11 +49,23 @@ const LIST_LIMIT = 60
 
 /** In a 1v1 the winner gains exactly what the loser loses: fill in the missing side from the one that is known. */
 function withMirroredElo(m: FeedMatch): FeedPlayer[] {
-  if (m.ladder !== '1v1' || m.players.length !== 2) return m.players
-  const [a, b] = m.players
+  // A single game cannot take points from a winner or give them to a loser: such a change belongs to another game.
+  const hasWinner = m.players.some((p) => p.w)
+  const players = m.players.map((p) => {
+    if (!hasWinner || p.d === undefined || p.c) return p
+    if (p.w ? p.d < 0 : p.d > 0) {
+      const rest = { ...p }
+      delete rest.d
+      delete rest.mirrored
+      return rest
+    }
+    return p
+  })
+  if (m.ladder !== '1v1' || players.length !== 2) return players
+  const [a, b] = players
   if (a.d !== undefined && !a.c && b.d === undefined) return [a, { ...b, d: -a.d, mirrored: true }]
   if (b.d !== undefined && !b.c && a.d === undefined) return [{ ...a, d: -b.d, mirrored: true }, b]
-  return m.players
+  return players
 }
 
 /** A game that did not really take place: no winner or over before anybody could play (spawn phase alone is longer). */
@@ -59,11 +78,15 @@ function fmtDuration(s: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function PlayerChip({ p }: { p: FeedPlayer }) {
+function PlayerChip({ p, mine, ladder }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' }) {
+  // Only the visitor's own account is named - nobody else's other name is ever revealed here.
+  const own = mine && p.k && p.k === mine.k && !p.id ? mine : null
+  const ownBoard = own && ladder ? own.boards[ladder] : undefined
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
       {p.n}
+      {own && <span className="ml-1 text-gold-light">({own.name})</span>}
     </span>
   )
   return (
@@ -88,7 +111,12 @@ function PlayerChip({ p }: { p: FeedPlayer }) {
           {p.d} Elo{p.c ? ` (${p.c})` : ''}
         </span>
       )}
-      {p.r == null && p.b && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
+      {own && ownBoard && p.r == null && (
+        <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
+          #{ownBoard.rank} · {ownBoard.elo}
+        </span>
+      )}
+      {p.r == null && p.b && !(own && ownBoard) && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
     </span>
   )
 }
@@ -100,6 +128,19 @@ export default function RankedQueue() {
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const alert = useQueueAlertSettings()
+  const [me, setMe] = useState<MyAccount | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/queue/me', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j?.k) setMe(j as MyAccount)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -270,7 +311,7 @@ export default function RankedQueue() {
                           <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
-                              <PlayerChip key={j} p={p} />
+                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} />
                             ))}
                           </div>
                         </div>

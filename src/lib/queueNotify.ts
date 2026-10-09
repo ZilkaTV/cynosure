@@ -38,12 +38,13 @@ export function getAlertMode(): QueueAlertMode {
 export const getAlertSound = () => read(SOUND_KEY) !== '0'
 export const markQueueSeen = () => write(SEEN_KEY, new Date().toISOString())
 
-// One audio context for the page, created from a click (browsers only allow sound after a user gesture).
+// One audio context for the page. Browsers only start sound after a user gesture, so it is created from a click: the
+// switches, the test button, and (while an alert is on) the first click / key press anywhere on the site.
 let audio: AudioContext | null = null
 export function primeSound() {
   try {
     audio ??= new AudioContext()
-    void audio.resume()
+    if (audio.state !== 'running') void audio.resume()
   } catch {
     /* no audio available */
   }
@@ -84,20 +85,26 @@ export function testQueueAlert() {
 
 export function playPing() {
   try {
-    if (!audio) return
-    const now = audio.currentTime
-    for (const [i, freq] of [880, 1318].entries()) {
-      const osc = audio.createOscillator()
-      const gain = audio.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, now + i * 0.14)
-      gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.14 + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.14 + 0.22)
-      osc.connect(gain).connect(audio.destination)
-      osc.start(now + i * 0.14)
-      osc.stop(now + i * 0.14 + 0.25)
+    primeSound()
+    const ctx = audio
+    if (!ctx) return
+    const play = () => {
+      const now = ctx.currentTime
+      for (const [i, freq] of [880, 1318].entries()) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0.0001, now + i * 0.14)
+        gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.14 + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.14 + 0.22)
+        osc.connect(gain).connect(ctx.destination)
+        osc.start(now + i * 0.14)
+        osc.stop(now + i * 0.14 + 0.25)
+      }
     }
+    if (ctx.state === 'running') play()
+    else void ctx.resume().then(play).catch(() => {})
   } catch {
     /* ignore */
   }
@@ -188,6 +195,21 @@ export function useQueueAlert(): number {
       lastCount.current = 0
     }
   }, [onPage, location.key])
+
+  // After a reload the saved setting is back but the audio context is not: the first interaction with the site
+  // (click, key, touch) unlocks it, so the sound also plays while another tab or site is in front.
+  useEffect(() => {
+    if (mode === 'off' || !sound) return
+    const unlock = () => primeSound()
+    const events = ['pointerdown', 'keydown', 'touchstart'] as const
+    for (const e of events) window.addEventListener(e, unlock, { passive: true })
+    const resume = () => document.visibilityState === 'visible' && primeSound()
+    document.addEventListener('visibilitychange', resume)
+    return () => {
+      for (const e of events) window.removeEventListener(e, unlock)
+      document.removeEventListener('visibilitychange', resume)
+    }
+  }, [mode, sound])
 
   useEffect(() => {
     if (mode === 'off') {

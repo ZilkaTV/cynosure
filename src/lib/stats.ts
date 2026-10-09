@@ -64,6 +64,7 @@ export interface MemberStats {
   ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   speedrunAttempts: number // how many valid runs this member has submitted
+  speedrunVerified: boolean // the engine replay verified the best run
   speedrunGameId: string | null // game id of their best run, for the leaderboard link
   lastSpeedrunAt: string | null
   tiles3minPercent: number | null // tile share at 3:00 in that same best-time game (not an independent attempt)
@@ -316,7 +317,7 @@ export async function buildRoster(
   registered: RosterInput[],
   speedruns: Record<
     string,
-    { seconds: number; attempts: number; game_id?: string; submitted_at?: string; tiles3min_percent?: number | null }
+    { seconds: number; attempts: number; game_id?: string; submitted_at?: string; tiles3min_percent?: number | null; verified?: boolean }
   > = {},
   bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
@@ -454,6 +455,7 @@ export async function buildRoster(
         null,
       speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
       speedrunAttempts: speedruns[input.openfront_id]?.attempts ?? 0,
+      speedrunVerified: speedruns[input.openfront_id]?.verified ?? false,
       speedrunGameId: speedruns[input.openfront_id]?.game_id ?? null,
       lastSpeedrunAt: speedruns[input.openfront_id]?.submitted_at ?? null,
       tiles3minPercent: speedruns[input.openfront_id]?.tiles3min_percent ?? null,

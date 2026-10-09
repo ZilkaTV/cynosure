@@ -109,6 +109,18 @@ def add_table(name, cols, pk):
 # Finished ranked 1v1/2v2 games with at least one top-100 player (scripts/collect-ranked-feed.mjs, page "Live Ranked Queue").
 # `players` holds display-ready entries only (in-game name, clan tag, side, won, rank/elo only where the in-game name is the
 # account's own name, otherwise just a rank band) - no public ids and no account names of players using another name.
+# Speedrun runs the engine replay verified (time read from the simulation, rules passed). Existing databases get it from
+# worker/d1/002-speedrun-verified.sql (ALTER TABLE is not repeatable, so it is not part of users-schema.sql).
+tables['cyn_speedruns']['cols'].append({'name': 'verified', 'type': 'integer', 'rest': ' not null default 0'})
+
+# Games a member saved from the post-game report ("my profile" lists them).
+add_table('cyn_saved_games', [
+    ('openfront_id', 'text', ' not null'),
+    ('game_id', 'text', ' not null'),
+    ('title', 'text', ''),
+    ('saved_at', 'text', " not null default now()"),
+], ['openfront_id', 'game_id'])
+
 add_table('cyn_ranked_matches', [
     ('game_id', 'text', ' not null'),
     ('ladder', 'text', ' not null'),

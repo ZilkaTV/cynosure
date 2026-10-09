@@ -48,6 +48,33 @@ export function primeSound() {
     /* no audio available */
   }
 }
+export type DesktopPermission = 'granted' | 'denied' | 'default' | 'unsupported'
+export const desktopPermission = (): DesktopPermission => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
+
+/** Asks the browser to allow system notifications (must be called from a click). */
+export async function askDesktopPermission(): Promise<DesktopPermission> {
+  if (typeof Notification === 'undefined') return 'unsupported'
+  try {
+    return await Notification.requestPermission()
+  } catch {
+    return Notification.permission
+  }
+}
+
+function showDesktopNotification(title: string, body: string) {
+  try {
+    if (desktopPermission() !== 'granted') return
+    const n = new Notification(title, { body, tag: 'cyn-queue', icon: '/favicon-64.png' })
+    n.onclick = () => {
+      window.focus()
+      window.location.assign('/queue')
+      n.close()
+    }
+  } catch {
+    /* some browsers only allow notifications from a service worker - the dot and the sound still work */
+  }
+}
+
 /** Plays the sound and shows the dot / blinking title for a few seconds, so the setting can be checked. */
 export function testQueueAlert() {
   primeSound()
@@ -92,6 +119,7 @@ export function useQueueAlertSettings() {
       window.removeEventListener('storage', sync)
     }
   }, [])
+  const [permission, setPermission] = useState<DesktopPermission>(desktopPermission)
   const setMode = useCallback((m: QueueAlertMode) => {
     if (m !== 'off') {
       primeSound()
@@ -99,11 +127,24 @@ export function useQueueAlertSettings() {
     }
     write(MODE_KEY, m)
   }, [])
+  /** One switch per ladder: on asks the browser for permission to show notifications. */
+  const toggle = useCallback(
+    (ladder: '1v1' | '2v2', on: boolean) => {
+      const cur = getAlertMode()
+      const has1 = cur === '1v1' || cur === 'both'
+      const has2 = cur === '2v2' || cur === 'both'
+      const n1 = ladder === '1v1' ? on : has1
+      const n2 = ladder === '2v2' ? on : has2
+      setMode(n1 && n2 ? 'both' : n1 ? '1v1' : n2 ? '2v2' : 'off')
+      if (on) void askDesktopPermission().then(setPermission)
+    },
+    [setMode],
+  )
   const setSound = useCallback((on: boolean) => {
     if (on) primeSound()
     write(SOUND_KEY, on ? '1' : '0')
   }, [])
-  return { mode, sound, setMode, setSound }
+  return { mode, sound, setMode, setSound, toggle, permission, on1v1: mode === '1v1' || mode === 'both', on2v2: mode === '2v2' || mode === 'both' }
 }
 
 /**
@@ -163,7 +204,10 @@ export function useQueueAlert(): number {
       const { count } = await q
       if (!alive || count == null) return
       setUnseen(count)
-      if (count > lastCount.current && sound) playPing()
+      if (count > lastCount.current) {
+        if (sound) playPing()
+        if (document.visibilityState === 'hidden' || !document.hasFocus()) showDesktopNotification(t.queue.tabAlert, t.queue.notifyBody(count - lastCount.current))
+      }
       lastCount.current = count
     }
     void poll()
@@ -174,7 +218,7 @@ export function useQueueAlert(): number {
       clearInterval(timer)
       window.removeEventListener(CHANGED, poll)
     }
-  }, [mode, sound, onPage])
+  }, [mode, sound, onPage, t])
 
   // Blinking tab title while something is unseen.
   const shown = mode === 'off' && !testing ? 0 : testing ? Math.max(unseen, 1) : unseen

@@ -78,6 +78,7 @@ const RULES = {
   cyn_game_tile_stats: { read: PUBLIC, insert: async (row) => row, update: PUBLIC },
   cyn_member_snapshots: { read: PUBLIC },
   cyn_ranked_matches: { read: PUBLIC },
+  cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), delete: own('openfront_id') },
   cyn_chat_message_counts: { read: PUBLIC },
   cyn_inner_circle: { read: PUBLIC },
   cyn_game_nights: {
@@ -228,6 +229,7 @@ function mapError(err) {
   if (err instanceof DbError) return { code: err.code, message: err.message }
   const msg = String(err?.message ?? err)
   if (/UNIQUE constraint failed/i.test(msg)) return { code: '23505', message: 'duplicate key value violates unique constraint' }
+  if (/no such column/i.test(msg)) return { code: '42703', message: msg.slice(0, 200) }
   if (/NOT NULL constraint failed/i.test(msg)) return { code: '23502', message: msg.slice(0, 200) }
   return { code: 'XX000', message: msg.slice(0, 200) }
 }

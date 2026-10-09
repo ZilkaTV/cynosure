@@ -52,6 +52,8 @@ async function main() {
       const seconds = Math.floor(metrics.winSeconds)
       const update = {}
       if (seconds !== row.seconds) update.seconds = seconds
+      // Rules met and the time read from the engine replay: the run counts as verified.
+      if (!problem) update.verified = true
       // Fill in a missing "Tiles @ 3min" (a replay that failed in the browser used to leave it empty). The
       // tile share belongs to the winner of the stored game, i.e. the member's own run.
       const percents = Object.values(metrics.tilePercentByClientId ?? {})

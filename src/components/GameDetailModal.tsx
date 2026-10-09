@@ -5,6 +5,8 @@ import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, otherClanScoresFor
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useProfile } from '../lib/useProfile'
+import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
 import type { TranslationShape } from '../i18n/translations'
 
 function fmt(n: number): string {
@@ -91,6 +93,9 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const { t } = useLanguage()
   const [detail, setDetail] = useState<GameDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const { profile } = useProfile()
+  const saved = useSavedGames(profile?.openfront_id)
+  const isSaved = saved.games.some((g) => g.game_id === gameId)
 
   // Max Tiles replays the whole game to find each player's peak (and their
   // real end-of-game tile count), so it's computed separately and doesn't
@@ -258,7 +263,23 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
       >
         <div className="flex items-center justify-between border-b border-base-700 px-6 py-4">
           <h2 className="font-display text-xl font-bold text-white">{t.gameDetail.title}</h2>
+          <div className="flex items-center gap-2">
+            {profile && gameId && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSaved) void unsaveGame(profile.openfront_id, gameId)
+                  else void saveGame(profile.openfront_id, gameId, detail ? `${detail.map} · ${detail.players.length}` : gameId)
+                }}
+                title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium transition-colors ${isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}
+              >
+                <span aria-hidden>{isSaved ? '★' : '☆'}</span>
+                {isSaved ? t.gameDetail.saved : t.gameDetail.save}
+              </button>
+            )}
           <button onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={t.gameDetail.closeAria}>✕</button>
+          </div>
         </div>
 
         {state === 'loading' && <p className="px-6 py-16 text-center text-slate-400">{t.gameDetail.loading}</p>}

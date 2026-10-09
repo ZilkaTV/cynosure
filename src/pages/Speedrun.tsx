@@ -210,6 +210,7 @@ export default function Speedrun() {
                       </span>
                     </th>
                     <th className="px-4 py-3 text-right font-semibold">{t.speedrun.colBestTime}</th>
+                    <th className="px-4 py-3 text-center font-semibold" title={t.speedrun.verifiedHint}>{t.speedrun.colVerified}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.speedrun.colGame}</th>
                   </tr>
                 </thead>
@@ -228,6 +229,16 @@ export default function Speedrun() {
                       </td>
                       <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">
                         {fmtTime(m.speedrunSeconds ?? 0)}
+                      </td>
+                      <td className="px-4 py-3 text-center" title={m.speedrunVerified ? t.speedrun.verifiedHint : t.speedrun.notVerifiedHint}>
+                        {m.speedrunVerified ? (
+                          <svg viewBox="0 0 24 24" className="mx-auto h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-label={t.speedrun.verifiedHint}>
+                            <circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.12)" strokeWidth="1.5" />
+                            <path d="M7.5 12.5l3 3 6-7" />
+                          </svg>
+                        ) : (
+                          <span className="text-slate-600">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {m.speedrunGameId ? (

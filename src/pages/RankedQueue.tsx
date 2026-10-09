@@ -4,7 +4,7 @@ import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
-import { useQueueAlertSettings, testQueueAlert, type QueueAlertMode } from '../lib/queueNotify'
+import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
 
 // One stored game (see scripts/collect-ranked-feed.mjs): display-ready players only. `r`/`e`/`id` exist only for
 // players using the name of their own ranked account, everyone else carries at most a rank band `b`.
@@ -33,7 +33,15 @@ interface FeedMatch {
 type Ladder = 'all' | '1v1' | '2v2'
 
 const REFRESH_MS = 20_000
+// Traffic light: distinct top-100 players who finished a game in the last 30 minutes.
+const BUSY_FROM = 12
+const MEDIUM_FROM = 5
 const LIST_LIMIT = 60
+
+/** A game that did not really take place: no winner or over before anybody could play (spawn phase alone is longer). */
+export function isAbandoned(m: { duration_s: number | null; players: { w: boolean }[] }): boolean {
+  return (m.duration_s ?? 0) < 45 || !m.players.some((p) => p.w)
+}
 
 function fmtDuration(s: number | null): string {
   if (!s) return '-'
@@ -119,7 +127,7 @@ export default function RankedQueue() {
     return { m5: count(5), m15: count(15), m30: count(30) }
   }, [shown])
 
-  const level = activity.m30 >= 12 ? 'high' : activity.m30 >= 5 ? 'medium' : 'low'
+  const level = activity.m30 >= BUSY_FROM ? 'high' : activity.m30 >= MEDIUM_FROM ? 'medium' : 'low'
 
   return (
     <StatsShell>
@@ -142,17 +150,26 @@ export default function RankedQueue() {
 
         <Card className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
           <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
-          <div className="flex gap-1.5">
-            {(['off', '1v1', '2v2', 'both'] as QueueAlertMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => alert.setMode(m)}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${alert.mode === m ? 'bg-gold text-base-950' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
-              >
-                {m === 'off' ? t.queue.alertOff : m === 'both' ? t.queue.alertBoth : m}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            {(['1v1', '2v2'] as const).map((l) => {
+              const on = l === '1v1' ? alert.on1v1 : alert.on2v2
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  onClick={() => alert.toggle(l, !on)}
+                  className="flex items-center gap-2 text-sm text-slate-200"
+                >
+                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : 'bg-teal-500') : 'bg-base-700'}`}>
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+                  </span>
+                  <span className="font-semibold">{l}</span>
+                  <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
+                </button>
+              )
+            })}
           </div>
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
             <input type="checkbox" checked={alert.sound} onChange={(e) => alert.setSound(e.target.checked)} className="accent-[#8b5cf6]" />
@@ -161,20 +178,33 @@ export default function RankedQueue() {
           <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
             {t.queue.alertTest}
           </button>
+          {alert.permission === 'denied' && (alert.on1v1 || alert.on2v2) && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
           <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
           <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
           <StatCard label={t.queue.active30} value={String(activity.m30)} accent="gold" />
-          <StatCard
-            label={t.queue.level}
-            value={t.queue.levels[level]}
-            accent={level === 'high' ? 'gold' : 'plain'}
-            sub={t.queue.levelNote}
-          />
         </div>
+
+        <Card className="flex items-center gap-4 !py-4">
+          <div className="flex shrink-0 flex-col gap-1.5 rounded-xl bg-base-950 p-2" role="img" aria-label={t.queue.levels[level]}>
+            {(['low', 'medium', 'high'] as const).map((l) => (
+              <span
+                key={l}
+                className={`block h-5 w-5 rounded-full transition-all ${
+                  l === 'low' ? (level === l ? 'bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.7)]' : 'bg-red-950') : l === 'medium' ? (level === l ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]' : 'bg-amber-950') : level === l ? 'bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]' : 'bg-emerald-950'
+                }`}
+              />
+            ))}
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t.queue.level}</div>
+            <div className="font-display text-xl font-bold text-white">{t.queue.levels[level]}</div>
+            <p className="mt-1 text-xs text-slate-400">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
+          </div>
+        </Card>
 
         <div>
           <h3 className="mb-3 font-display text-base font-bold text-white">{t.queue.recent}</h3>
@@ -184,6 +214,7 @@ export default function RankedQueue() {
           <div className="space-y-2">
             {shown.slice(0, LIST_LIMIT).map((m) => {
               const sides = [...new Set(m.players.map((p) => p.s))].sort((a, b) => a - b)
+              const abandoned = isAbandoned(m)
               return (
                 <div
                   key={m.game_id}
@@ -196,10 +227,15 @@ export default function RankedQueue() {
                     setOpenGame(m.game_id)
                   }}
                   onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
-                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${m.ladder === '1v1' ? 'border-l-violet-500' : 'border-l-teal-500'}`}
+                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : m.ladder === '1v1' ? 'border-l-violet-500' : 'border-l-teal-500'}`}
                 >
                   <div className="w-24 shrink-0">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${m.ladder === '1v1' ? 'bg-violet-500/25 text-violet-200' : 'bg-teal-500/25 text-teal-200'}`}>{m.ladder}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${abandoned ? 'bg-slate-600/40 text-slate-300' : m.ladder === '1v1' ? 'bg-violet-500/25 text-violet-200' : 'bg-teal-500/25 text-teal-200'}`}>{m.ladder}</span>
+                    {abandoned && (
+                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
+                        {t.queue.abandoned}
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
                   </div>
                   <div className="w-32 shrink-0 text-xs text-slate-400">
@@ -213,8 +249,8 @@ export default function RankedQueue() {
                       return (
                         <div key={side} className="flex items-center gap-3">
                           {i > 0 && <span className="text-xs text-slate-600">vs</span>}
-                          <div className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 ${won ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
-                            {won && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
+                          <div className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
+                            {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
                               <PlayerChip key={j} p={p} />
                             ))}

@@ -248,7 +248,10 @@ async function main() {
             const { error } = await usersDb.from('cyn_ranked_matches').upsert(dbRow, { onConflict: 'game_id' })
             if (error) throw error
             stored++
-            if (owners.length) state.pending.push({ id: row.game_id, l: row.ladder, ended: Date.parse(row.ended_at), ps: owners })
+            // A cancelled 2v2 changes nobody's Elo; a 1v1 that did not take place still can (a player who never spawned loses
+            // points unless OpenFront saw connection problems) - the board change tells which.
+            const abandoned = (row.duration_s ?? 0) < 45 || !row.players.some((p) => p.w)
+            if (owners.length && !(row.ladder === '2v2' && abandoned)) state.pending.push({ id: row.game_id, l: row.ladder, ended: Date.parse(row.ended_at), ps: owners })
           }
           // Only the old backlog moves the cursor (it is handled oldest-first); fresh games are re-checked until it is cleared.
           if (!freshIds.has(g.game)) newestHandled = Math.max(newestHandled, Date.parse(g.end))

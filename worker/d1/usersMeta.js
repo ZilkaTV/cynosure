@@ -33,7 +33,8 @@ export const USERS_META = {
       "seconds",
       "attempts",
       "submitted_at",
-      "tiles3min_percent"
+      "tiles3min_percent",
+      "verified"
     ]
   },
   "cyn_bumps": {
@@ -385,6 +386,20 @@ export const USERS_META = {
       "in_guild",
       "has_cyn_role",
       "updated_at"
+    ]
+  },
+  "cyn_saved_games": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "openfront_id",
+      "game_id"
+    ],
+    "cols": [
+      "openfront_id",
+      "game_id",
+      "title",
+      "saved_at"
     ]
   },
   "cyn_ranked_matches": {

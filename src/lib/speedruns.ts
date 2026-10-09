@@ -44,6 +44,8 @@ export interface SpeedrunEntry {
   attempts: number
   submitted_at: string
   tiles3min_percent: number | null
+  /** The engine replay read the time and every rule passed (no speed manipulation possible). */
+  verified?: boolean
 }
 
 export function fmtPercent(p: number): string {
@@ -111,12 +113,14 @@ export function verifySpeedrun(
 
 export async function fetchSpeedruns(): Promise<Record<string, SpeedrunEntry>> {
   if (!supabase) return {}
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('cyn_speedruns')
-    .select('openfront_id, game_id, seconds, attempts, submitted_at, tiles3min_percent')
+    .select('openfront_id, game_id, seconds, attempts, submitted_at, tiles3min_percent, verified')
+  // Until the verified column exists (worker/d1/002-speedrun-verified.sql) fall back to the old list of columns.
+  if (error) ({ data, error } = await supabase.from('cyn_speedruns').select('openfront_id, game_id, seconds, attempts, submitted_at, tiles3min_percent'))
   if (error) return {}
   const map: Record<string, SpeedrunEntry> = {}
-  for (const r of (data as SpeedrunEntry[]) ?? []) map[r.openfront_id] = r
+  for (const r of (data as SpeedrunEntry[]) ?? []) map[r.openfront_id] = { ...r, verified: Boolean(r.verified) }
   return map
 }
 
@@ -285,17 +289,18 @@ export async function submitSpeedrun(
     }
   }
 
-  const { error } = await supabase.from('cyn_speedruns').upsert(
-    {
-      openfront_id: openfrontId,
-      game_id: gameId,
-      seconds: v.seconds,
-      attempts,
-      submitted_at: new Date().toISOString(),
-      tiles3min_percent: bestTiles3minPercent,
-    },
-    { onConflict: 'openfront_id' },
-  )
+  // verified = the time comes from the engine replay (not the fallback) and every rule passed above: nothing that speeds
+  // a run up can get through, so the leaderboard shows a check mark.
+  const runRow = {
+    openfront_id: openfrontId,
+    game_id: gameId,
+    seconds: v.seconds,
+    attempts,
+    submitted_at: new Date().toISOString(),
+    tiles3min_percent: bestTiles3minPercent,
+  }
+  let { error } = await supabase.from('cyn_speedruns').upsert({ ...runRow, verified: winSeconds != null }, { onConflict: 'openfront_id' })
+  if (error && error.code === '42703') ({ error } = await supabase.from('cyn_speedruns').upsert(runRow, { onConflict: 'openfront_id' }))
   if (error) return { ok: false, message: `Verified, but saving failed: ${error.message}` }
 
   return { ok: true, message: `New best time: ${fmtTime(v.seconds)}!`, seconds: v.seconds, best: true }

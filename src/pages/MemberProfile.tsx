@@ -32,6 +32,7 @@ import {
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
+import { unsaveGame, useSavedGames } from '../lib/savedGames'
 import { useIsAdmin } from '../lib/useSession'
 import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
 import { isChatModerator, addChatModerator, removeChatModerator, isSupporter, addSupporter, removeSupporter } from '../lib/chat'
@@ -42,6 +43,7 @@ export default function MemberProfile() {
   const { t } = useLanguage()
   const { data, loading, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const savedGames = useSavedGames(profile?.openfront_id)
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
@@ -328,6 +330,30 @@ export default function MemberProfile() {
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={t.memberProfile.statsOverviewTitle(recent.length)} />
         <ProfileStatsOverview member={m} games={recent} />
       </section>
+
+      {profile?.openfront_id === m.publicId && (
+        <section>
+          <SectionHeading center eyebrow={t.memberProfile.savedEyebrow} title={t.memberProfile.savedTitle} />
+          <div className="panel divide-y divide-base-700/60">
+            {savedGames.games.length === 0 ? (
+              <p className="px-5 py-6 text-center text-sm text-slate-500">{t.memberProfile.savedEmpty}</p>
+            ) : (
+              savedGames.games.map((g) => (
+                <div key={g.game_id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
+                  <button type="button" onClick={() => setOpenGame(g.game_id)} className="font-mono text-accent-light underline-offset-2 hover:underline">
+                    {g.game_id}
+                  </button>
+                  <span className="min-w-0 flex-1 truncate text-slate-300">{g.title ?? ''}</span>
+                  <span className="text-xs text-slate-500">{new Date(g.saved_at).toLocaleDateString()}</span>
+                  <button type="button" onClick={() => void unsaveGame(profile.openfront_id, g.game_id)} className="text-xs text-slate-500 hover:text-signal-red">
+                    {t.memberProfile.savedRemove}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={profile?.openfront_id === m.publicId ? t.memberProfile.yourLastGames : t.memberProfile.latestCynGames(CLAN_TAG)} />

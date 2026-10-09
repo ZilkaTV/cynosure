@@ -13,7 +13,16 @@ name: Discord role sync
 on:
   schedule:
     - cron: "*/30 * * * *"
+  # GitHub's own scheduler is unreliable (gaps of up to 7 hours were seen, delaying the speedrun title
+  # hand-over); the Cloudflare Worker's cron dispatches this every 30 minutes as the reliable trigger.
+  repository_dispatch:
+    types: [discord-role-sync]
   workflow_dispatch: {}
+
+# A queued run replaces the previous queued one; never two at once.
+concurrency:
+  group: discord-role-sync
+  cancel-in-progress: false
 
 # Least privilege: this job only checks out the repo and talks to Supabase/
 # Discord with its own secrets - it never pushes or touches issues/PRs. Explicit

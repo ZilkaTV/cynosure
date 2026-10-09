@@ -441,16 +441,26 @@ async function main() {
     const alreadyHolds = fastest ? (rolesByMember.get(fastest.openfront_id)?.has(SPEEDRUN_ROLE_ID) ?? false) : true
     if (fastest && newHolderDiscordId && !alreadyHolds) {
       let previousHolderDiscordId = null
+      let previousHolderSeconds = null
       for (const [openfrontId, roles] of rolesByMember) {
         if (openfrontId === fastest.openfront_id || !roles.has(SPEEDRUN_ROLE_ID)) continue
         previousHolderDiscordId = membersByOpenfrontId.get(openfrontId)?.discord_user_id ?? previousHolderDiscordId
+        previousHolderSeconds = (speedrunRows ?? []).find((r) => r.openfront_id === openfrontId)?.seconds ?? previousHolderSeconds
       }
       await reassignRole(SPEEDRUN_ROLE_ID, new Set([fastest.openfront_id]))
       if (rolesByMember.get(fastest.openfront_id)?.has(SPEEDRUN_ROLE_ID)) {
         const timeStr = fmtSpeedrunTime(fastest.seconds)
+        // Worded from the NEW holder's side. The old text ("<previous> has been overtaken ...") was read as
+        // "<previous> got the new title" by a German reader ("overtaken" ~ "übernommen").
         const content = previousHolderDiscordId
-          ? `<@${previousHolderDiscordId}> has been overtaken in the speedrun!\nThe new title <@&${SPEEDRUN_ROLE_ID}> goes to <@${newHolderDiscordId}> with a new speed time of **${timeStr}**!!\n\nCan you beat that? [cynclan.com](https://cynclan.com/)\n<@&${CLAN_PING_ROLE_ID}>`
-          : `<@${newHolderDiscordId}> claims the first-ever title <@&${SPEEDRUN_ROLE_ID}> with a speed time of **${timeStr}**!!\n\nCan you beat that? [cynclan.com](https://cynclan.com/)\n<@&${CLAN_PING_ROLE_ID}>`
+          ? `🏆 New speedrun record! <@${newHolderDiscordId}> now holds the title <@&${SPEEDRUN_ROLE_ID}> with **${timeStr}** and takes it over from <@${previousHolderDiscordId}>${previousHolderSeconds != null ? ` (${fmtSpeedrunTime(previousHolderSeconds)})` : ''}!
+
+Can you beat that? [cynclan.com](https://cynclan.com/)
+<@&${CLAN_PING_ROLE_ID}>`
+          : `<@${newHolderDiscordId}> claims the first-ever title <@&${SPEEDRUN_ROLE_ID}> with a speed time of **${timeStr}**!!
+
+Can you beat that? [cynclan.com](https://cynclan.com/)
+<@&${CLAN_PING_ROLE_ID}>`
         await postMessage(botToken, INNER_CIRCLE_CHANNEL_ID, content)
       }
     }

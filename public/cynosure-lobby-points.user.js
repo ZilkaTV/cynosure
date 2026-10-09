@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         CYN Lobby Points
 // @namespace    https://cynclan.com/
-// @version      1.3.0
+// @version      1.4.0
 // @description  Shows on every team lobby of openfront.io how many clan points a win or a loss is worth for your clan (OpenFront's own clan-score formula, same as the points planner on cynclan.com).
 // @author       Cynosure [CYN]
 // @match        https://openfront.io/*
+// @match        https://cynclan.com/*
 // @grant        none
 // @run-at       document-idle
 // @updateURL    https://cynclan.com/cynosure-lobby-points.user.js
@@ -15,6 +16,14 @@
 // control panel. Nothing is sent anywhere. Change TAG if you use it for another clan.
 (function () {
   'use strict'
+
+  var VERSION = '1.4.0'
+  // On cynclan.com the script only reports its version, so the points planner can show whether an update is available.
+  if (location.hostname === 'cynclan.com') {
+    document.documentElement.setAttribute('data-cyn-lobby-addon', VERSION)
+    window.dispatchEvent(new CustomEvent('cyn-lobby-addon', { detail: VERSION }))
+    return
+  }
 
   var TAG = 'CYN'
   var KEY = 'cynLobbyPoints.members'
@@ -104,7 +113,9 @@
       '#cyn-lp-panel .r{display:flex;align-items:center;justify-content:space-between;gap:8px}' +
       '#cyn-lp-panel .st{display:flex;align-items:center;gap:6px}' +
       '#cyn-lp-panel .st button{width:24px;height:24px;line-height:22px;border:1px solid #d8b96a;border-radius:7px;color:#eed699;font-size:15px;font-weight:700}' +
-      '#cyn-lp-panel .st b{min-width:16px;text-align:center;font-size:15px;color:#fff}' +
+      '#cyn-lp-panel .st input{all:unset;box-sizing:border-box;width:34px;height:24px;text-align:center;font-size:15px;font-weight:700;color:#fff;' +
+      'border:1px solid rgba(216,185,106,.45);border-radius:7px;background:rgba(0,0,0,.25);cursor:text}' +
+      '#cyn-lp-panel .st input:focus{border-color:#eed699}' +
       '#cyn-lp-panel a{display:block;padding:7px 9px;border-radius:9px;text-align:center;text-decoration:none;font-weight:700;font-size:11px;' +
       'letter-spacing:.04em;color:#1a1405;background:linear-gradient(180deg,#eed699,#b0913f)}' +
       '#cyn-lp-panel a:hover{filter:brightness(1.08)}' +
@@ -165,7 +176,7 @@
       '<div class="h"><img alt="" src="' + LOGO + '"><div class="t"><b>CYNOSURE</b><small>Lobby points</small></div>' +
       '<button type="button" class="min" data-act="toggle" title="Minimise">–</button></div>' +
       '<div class="b"><div class="r"><span>' + TAG + ' players in your team</span><div class="st">' +
-      '<button type="button" data-d="-1">−</button><b id="cyn-lp-n"></b><button type="button" data-d="1">+</button></div></div>' +
+      '<button type="button" data-d="-1">−</button><input id="cyn-lp-n" type="text" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="Number of players"><button type="button" data-d="1">+</button></div></div>' +
       '<a href="' + SITE + '" target="_blank" rel="noopener">cynclan.com → points planner &amp; clan stats</a></div>'
     box.addEventListener('click', function (e) {
       if (justDragged) {
@@ -188,6 +199,26 @@
         write(KEY_COLLAPSED, collapsed ? '1' : '0')
         box.classList.toggle('c', collapsed)
       }
+    })
+    var input = box.querySelector('#cyn-lp-n')
+    // Typed entry: the game listens for keys on the page, so keep them to ourselves.
+    ;['keydown', 'keyup', 'keypress'].forEach(function (ev) {
+      input.addEventListener(ev, function (e) {
+        e.stopPropagation()
+        if (ev === 'keydown' && e.key === 'Enter') input.blur()
+      })
+    })
+    input.addEventListener('input', function () {
+      input.value = input.value.replace(/[^0-9]/g, '')
+      var v = parseInt(input.value, 10)
+      if (v >= 1) {
+        members = clamp(v, 1, MAX_MEMBERS)
+        write(KEY, String(members))
+        run()
+      }
+    })
+    input.addEventListener('blur', function () {
+      input.value = String(members)
     })
     box.classList.toggle('c', collapsed)
     document.body.appendChild(box)
@@ -262,7 +293,7 @@
     injectStyle()
     box = panel()
     var n = box.querySelector('#cyn-lp-n')
-    if (n) n.textContent = String(members)
+    if (n && document.activeElement !== n) n.value = String(members)
     cards.forEach(decorate)
     applyPos(box)
   }

@@ -443,6 +443,10 @@ export const translations = {
       userscriptStep2: 'Click the button below and confirm the installation.',
       userscriptStep3: 'Open openfront.io: every team lobby now shows its points, and a small box in the corner sets how many of your clan are in your team.',
       userscriptButton: 'Install the lobby add-on',
+      userscriptUpdate: 'Update',
+      userscriptUpdateNew: (v: string) => `Version ${v} is available - click to update the add-on`,
+      userscriptUpToDate: (v: string) => `Add-on up to date (v${v})`,
+      userscriptNotDetected: 'Add-on not detected - install it first (or reload this page)',
     },
     memberProfile: {
       loadingMember: 'Loading member…',
@@ -1211,6 +1215,10 @@ export const translations = {
       userscriptStep2: 'Klicke unten auf den Knopf und bestätige die Installation.',
       userscriptStep3: 'Öffne openfront.io: Jede Team-Lobby zeigt jetzt ihre Punkte, und ein kleines Feld in der Ecke stellt ein, wie viele deines Clans in deinem Team sind.',
       userscriptButton: 'Lobby-Add-on installieren',
+      userscriptUpdate: 'Aktualisieren',
+      userscriptUpdateNew: (v: string) => `Version ${v} ist verfügbar - klicken, um das Add-on zu aktualisieren`,
+      userscriptUpToDate: (v: string) => `Add-on aktuell (v${v})`,
+      userscriptNotDetected: 'Add-on nicht erkannt - erst installieren (oder Seite neu laden)',
     },
     memberProfile: {
       loadingMember: 'Mitglied wird geladen…',
@@ -1979,6 +1987,10 @@ export const translations = {
       userscriptStep2: "Clique sur le bouton ci-dessous et confirme l'installation.",
       userscriptStep3: "Ouvre openfront.io : chaque salon par équipes affiche ses points, et un petit encadré dans le coin règle combien de membres de ton clan sont dans ton équipe.",
       userscriptButton: 'Installer le module des salons',
+      userscriptUpdate: 'Mettre à jour',
+      userscriptUpdateNew: (v: string) => `La version ${v} est disponible - cliquer pour mettre à jour le module`,
+      userscriptUpToDate: (v: string) => `Module à jour (v${v})`,
+      userscriptNotDetected: "Module non détecté - installe-le d'abord (ou recharge la page)",
     },
     memberProfile: {
       loadingMember: 'Chargement du membre…',

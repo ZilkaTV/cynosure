@@ -45,7 +45,12 @@ on:
     - cron: "*/30 * * * *"
   repository_dispatch:
     types: [engine-maintenance]
-  workflow_dispatch: {}
+  # Manual run = full backfill pass (skips the "nothing changed recently" shortcut) over the last `days` days.
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'How many days back to check for missing Max Tiles'
+        default: '60'
 
 # A single run can take anywhere from under a minute to ~15+ minutes
 # (cloning/updating OpenFrontIO when a new commit needs vendoring, then
@@ -112,4 +117,5 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           # Cloudflare D1 via the site's own Worker (member game lists + game details). Unset secret = scripts keep using Supabase.
           HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
-        run: node scripts/backfill-tile-stats.mjs
+          FORCE_BACKFILL: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: node scripts/backfill-tile-stats.mjs ${{ inputs.days || 14 }}

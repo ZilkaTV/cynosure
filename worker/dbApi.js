@@ -482,7 +482,8 @@ export async function handleDbApi(request, env, pathname) {
   // does not depend on who asks).
   const ttl = body?.op === 'select' ? READ_CACHE_MS[body.table] : 0
   if (ttl) {
-    const key = JSON.stringify(body)
+    // A time window that slides every millisecond ("since 24 hours ago") would never hit: its key uses the minute.
+    const key = JSON.stringify(body, (k, v) => (!body.count && typeof v === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(v) ? v.slice(0, 16) : v))
     const hit = readCache.get(key)
     if (hit && Date.now() - hit.at < ttl) return json(200, hit.result)
     const result = await runQuery(env, body, user, false)

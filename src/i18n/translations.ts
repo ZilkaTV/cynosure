@@ -442,6 +442,7 @@ const baseTranslations = {
       empty: 'No top-100 games in the last 24 hours yet.',
       loadError: 'Could not load the games right now.',
       winner: 'Winner',
+      openGame: 'Open the post-game report and replay',
       privacyNote: 'Names are shown as used in the game. The exact rank and Elo only appear for players using the name of their own ranked account; anyone playing under another name is shown with a rank band only.',
     },
     planner: {
@@ -1239,6 +1240,7 @@ const baseTranslations = {
       empty: 'In den letzten 24 Stunden gibt es noch keine Top-100-Spiele.',
       loadError: 'Die Spiele konnten gerade nicht geladen werden.',
       winner: 'Sieger',
+      openGame: 'Spielbericht und Replay öffnen',
       privacyNote: 'Namen stehen so, wie sie im Spiel benutzt wurden. Genauer Rang und Elo erscheinen nur bei Spielern, die den Namen ihres eigenen Ranked-Kontos benutzen; wer unter einem anderen Namen spielt, wird nur mit einem Rang-Bereich angezeigt.',
     },
     planner: {
@@ -2036,6 +2038,7 @@ const baseTranslations = {
       empty: 'Aucune partie du top 100 ces dernières 24 heures.',
       loadError: 'Impossible de charger les parties pour le moment.',
       winner: 'Vainqueur',
+      openGame: 'Ouvrir le rapport de partie et le replay',
       privacyNote: "Les pseudos sont ceux utilisés en jeu. Le rang exact et l'Elo n'apparaissent que pour les joueurs qui utilisent le nom de leur propre compte classé ; les autres n'ont qu'une tranche de rang.",
     },
     planner: {

@@ -14,6 +14,7 @@
 //   PUT  /api/internal/hot/blob?key=roster|ledger       body: <json text>   (small cached documents)
 //   GET  /api/internal/hot/blob?key=roster|ledger|ranked  -> the stored document or null
 import { d1MemberGames, d1GameDetails, joinJsonObject } from './hotStore.js'
+import { refreshRankedBlob } from './ranked.js'
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/
 const json = (status, body) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
@@ -67,9 +68,11 @@ export async function handleHotApi(request, env, pathname) {
         if (!ids) return json(400, { error: 'bad_ids' })
         return json(200, joinJsonObject(await d1GameDetails(env, ids)))
       }
+      // Fresh top-100 boards right now (also refreshes the stored copy) - the ranked feed diffs them minute by minute to learn Elo changes.
+      if (op === 'ranked-live') return json(200, JSON.stringify((await refreshRankedBlob(env)) ?? null))
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
-        if (!['roster', 'ledger', 'ranked'].includes(key)) return json(400, { error: 'bad_key' })
+        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo'].includes(key)) return json(400, { error: 'bad_key' })
         const row = await db.prepare('SELECT value FROM blobs WHERE key = ?').bind(key).first()
         return json(200, row?.value ?? 'null')
       }
@@ -102,7 +105,7 @@ export async function handleHotApi(request, env, pathname) {
       }
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
-        if (!['roster', 'ledger', 'ranked'].includes(key)) return json(400, { error: 'bad_key' })
+        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo'].includes(key)) return json(400, { error: 'bad_key' })
         const body = await request.text()
         await db
           .prepare('INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')

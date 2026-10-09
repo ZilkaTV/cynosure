@@ -10,8 +10,9 @@ import { useD1 } from './hotStore.js'
 
 const PAGES = 3 // the board is 2 pages (100 entries) today; a 400 ends the scan early
 
+/** Fetches both top-100 boards, stores them in the D1 blob `ranked` and returns them (null if the scan failed). */
 export async function refreshRankedBlob(env) {
-  if (!useD1(env)) return
+  if (!useD1(env)) return null
   const byMode = { ranked_1v1: {}, ranked_2v2: {} }
   for (let page = 1; page <= PAGES; page++) {
     const res = await fetch(`https://api.openfront.io/leaderboard/ranked?page=${page}`, {
@@ -24,7 +25,7 @@ export async function refreshRankedBlob(env) {
     if (res.status === 400) break
     if (!res.ok) {
       console.error(`ranked leaderboard page ${page}: HTTP ${res.status} - keeping the previous Elo`)
-      return
+      return null
     }
     const json = await res.json()
     for (const e of json['1v1'] ?? []) byMode.ranked_1v1[e.public_id] = e
@@ -32,11 +33,13 @@ export async function refreshRankedBlob(env) {
   }
   if (Object.keys(byMode.ranked_1v1).length === 0 || Object.keys(byMode.ranked_2v2).length === 0) {
     console.error('ranked leaderboard came back empty - keeping the previous Elo')
-    return
+    return null
   }
+  const doc = { ...byMode, scanned_at: new Date().toISOString() }
   await env.HOT_DB.prepare(
     'INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
   )
-    .bind('ranked', JSON.stringify({ ...byMode, scanned_at: new Date().toISOString() }), new Date().toISOString())
+    .bind('ranked', JSON.stringify(doc), new Date().toISOString())
     .run()
+  return doc
 }

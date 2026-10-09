@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
+import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 
@@ -16,6 +17,7 @@ interface FeedPlayer {
   e?: number
   id?: string
   b?: string
+  d?: number // Elo change of this game (only known for top-100 players using their own name)
 }
 interface FeedMatch {
   game_id: string
@@ -58,6 +60,12 @@ function PlayerChip({ p }: { p: FeedPlayer }) {
           {p.e != null ? ` · ${p.e}` : ''}
         </span>
       )}
+      {p.d !== undefined && (
+        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
+          {p.d > 0 ? '+' : ''}
+          {p.d} Elo
+        </span>
+      )}
       {p.r == null && p.b && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">{p.b}</span>}
     </span>
   )
@@ -69,6 +77,7 @@ export default function RankedQueue() {
   const [matches, setMatches] = useState<FeedMatch[] | null>(null)
   const [history, setHistory] = useState<{ ended_at: string; ladder: string }[]>([])
   const [error, setError] = useState(false)
+  const [openGame, setOpenGame] = useState<string | null>(null)
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -190,6 +199,9 @@ export default function RankedQueue() {
                   <div className="w-24 shrink-0">
                     <span className="rounded bg-base-700 px-1.5 py-0.5 text-xs font-bold text-white">{m.ladder}</span>
                     <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
+                    <button type="button" onClick={() => setOpenGame(m.game_id)} title={t.queue.openGame} className="mt-1 font-mono text-[11px] text-accent-light underline-offset-2 hover:underline">
+                      {m.game_id}
+                    </button>
                   </div>
                   <div className="w-32 shrink-0 text-xs text-slate-400">
                     <div className="text-slate-200">{m.map ?? '-'}</div>
@@ -219,6 +231,7 @@ export default function RankedQueue() {
         </div>
 
         <p className="text-center text-xs text-slate-500">{t.queue.privacyNote}</p>
+        <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
       </section>
     </StatsShell>
   )

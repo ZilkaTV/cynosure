@@ -102,11 +102,11 @@ function navItems(t: TranslationShape) {
       ],
     },
     { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
+    { to: '/queue', label: t.nav.queue, shortLabel: t.nav.shortQueue },
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
     { to: '/planner', label: t.nav.planner, shortLabel: t.nav.shortPlanner },
-    { to: '/queue', label: t.nav.queue, shortLabel: t.nav.shortQueue },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
   ]
 }

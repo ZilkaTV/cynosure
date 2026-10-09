@@ -10,7 +10,7 @@
 // A salted hash of the public id is kept so "how many different top-100 players were active" can be counted.
 import crypto from 'node:crypto'
 import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
-import { hotEnabled, hotGetBlob } from './lib/hotstore.mjs'
+import { hotEnabled, hotGetBlob, hotPutBlob } from './lib/hotstore.mjs'
 
 const API = 'https://api.openfront.io/public'
 const UA = 'CynosureClanSite (cynclan.com)'
@@ -55,8 +55,17 @@ async function fetchGames(fromMs, toMs, depth = 0) {
 }
 
 // ── top-100 boards ──────────────────────────────────────────────────────────
-async function loadBoards() {
-  const ranked = await hotGetBlob('ranked').catch(() => null)
+const WORKER = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev'
+
+/** The top-100 boards right now: the Worker scans them itself (GitHub's runners get OpenFront's bot challenge there). */
+async function fetchLiveBoards() {
+  const res = await fetch(`${WORKER}/api/internal/hot/ranked-live`, { headers: { Authorization: `Bearer ${process.env.HOT_API_SECRET}`, 'User-Agent': UA }, signal: AbortSignal.timeout(30000) })
+  if (!res.ok) throw new Error(`ranked-live ${res.status}`)
+  return await res.json()
+}
+
+async function loadBoards(live) {
+  const ranked = live ?? (await hotGetBlob('ranked').catch(() => null))
   const roster = await hotGetBlob('roster').catch(() => null)
   const pick = (k) => (ranked?.[k] && Object.keys(ranked[k]).length ? ranked[k] : roster?.[k]) ?? {}
   return { '1v1': pick('ranked_1v1'), '2v2': pick('ranked_2v2') }
@@ -72,11 +81,13 @@ function buildMatch(game, detail, board) {
   const winner = Array.isArray(info.winner) ? info.winner : []
   const winnerIds = new Set(winner[0] === 'team' ? winner.slice(2) : winner[0] === 'player' ? [winner[1]] : [])
   let top = 0
+  const owners = []
   const out = players.map((p, i) => {
     const entry = p.publicID ? board[p.publicID] : null
     const entryNames = entry ? [normName(entry.accountUsername), normName(entry.username)] : []
     const ownName = entry && entryNames.includes(normName(p.username))
     if (entry) top++
+    if (ownName) owners.push({ k: hashId(p.publicID), pid: p.publicID })
     return {
       n: String(p.username ?? '').slice(0, 40),
       t: p.clanTag ?? null,
@@ -88,6 +99,7 @@ function buildMatch(game, detail, board) {
   })
   if (top === 0) return null
   return {
+    owners,
     game_id: game.game,
     ladder: game.rankedType,
     ended_at: new Date(info.end ?? Date.parse(game.end)).toISOString(),
@@ -100,8 +112,60 @@ function buildMatch(game, detail, board) {
 
 let backfillOnce = true
 
+// ── Elo changes ─────────────────────────────────────────────────────────────
+// OpenFront publishes no Elo change per game, but the top-100 boards move when a game ends. Every pass compares the
+// boards with the previous pass and remembers each change as an event; a finished game then takes the next unused event
+// of each of its own-name players (same ladder, within a few minutes after the game ended) as that player's Elo change.
+// Kept server-side in the blob "ranked-elo" (public ids included - never shown): { snap, events, pending }.
+const EVENT_KEEP_MS = 3 * 3600_000
+const PENDING_KEEP_MS = 25 * 60_000
+const compactBoards = (doc) => ({ '1v1': Object.fromEntries(Object.entries(doc.ranked_1v1 ?? {}).map(([id, e]) => [id, e.elo])), '2v2': Object.fromEntries(Object.entries(doc.ranked_2v2 ?? {}).map(([id, e]) => [id, e.elo])) })
+let eloState = null
+
+async function loadEloState() {
+  if (!eloState) eloState = (await hotGetBlob('ranked-elo').catch(() => null)) ?? { snap: null, events: [], pending: [] }
+  return eloState
+}
+
+function diffBoards(state, live, nowMs) {
+  const next = compactBoards(live)
+  if (state.snap) {
+    for (const l of ['1v1', '2v2']) {
+      for (const [pid, elo] of Object.entries(next[l])) {
+        const before = state.snap[l]?.[pid]
+        if (before != null && before !== elo) state.events.push({ pid, l, from: before, to: elo, t: nowMs })
+      }
+    }
+  }
+  state.snap = next
+  state.events = state.events.filter((e) => nowMs - e.t < EVENT_KEEP_MS)
+}
+
+/** Hands out events to waiting games; returns { gameId -> { k -> change } } for the games that got new changes. */
+function resolvePending(state, nowMs) {
+  const updates = {}
+  for (const g of [...state.pending].sort((a, b) => a.ended - b.ended)) {
+    for (const o of g.ps) {
+      if (o.d !== undefined) continue
+      const ev = state.events.find((e) => !e.used && e.pid === o.pid && e.l === g.l && e.t >= g.ended - 120_000 && e.t <= g.ended + 15 * 60_000)
+      if (!ev) continue
+      ev.used = true
+      o.d = ev.to - ev.from
+      ;(updates[g.id] ??= {})[o.k] = o.d
+    }
+  }
+  state.pending = state.pending.filter((g) => nowMs - g.ended < PENDING_KEEP_MS && g.ps.some((o) => o.d === undefined))
+  return updates
+}
+
 async function main() {
-  const boards = await loadBoards()
+  const live = await fetchLiveBoards().catch((err) => {
+    console.error('live boards unavailable, using the stored copy:', err.message ?? err)
+    return null
+  })
+  const boards = await loadBoards(live)
+  const state = await loadEloState()
+  if (live) diffBoards(state, live, Date.now())
   if (!Object.keys(boards['1v1']).length && !Object.keys(boards['2v2']).length) throw new Error('no top-100 boards available')
 
   const cursorRow = (await usersDb.from('cyn_metrics_channel_state').select('last_message_id').eq('channel_id', CURSOR_ID).maybeSingle()).data
@@ -134,9 +198,11 @@ async function main() {
           const row = buildMatch(g, detail, boards[g.rankedType] ?? {})
           if (!row) skipped++
           else {
-            const { error } = await usersDb.from('cyn_ranked_matches').upsert(row, { onConflict: 'game_id' })
+            const { owners, ...dbRow } = row
+            const { error } = await usersDb.from('cyn_ranked_matches').upsert(dbRow, { onConflict: 'game_id' })
             if (error) throw error
             stored++
+            if (owners.length) state.pending.push({ id: row.game_id, l: row.ladder, ended: Date.parse(row.ended_at), ps: owners })
           }
           newestHandled = Math.max(newestHandled, Date.parse(g.end))
         } catch (err) {
@@ -146,6 +212,16 @@ async function main() {
       }),
     )
   }
+  // Elo changes that became known: write them into the stored games, then keep the state for the next pass.
+  const updates = resolvePending(state, Date.now())
+  for (const [gameId, byK] of Object.entries(updates)) {
+    const { data: row } = await usersDb.from('cyn_ranked_matches').select('players').eq('game_id', gameId).maybeSingle()
+    if (!row) continue
+    const players = row.players.map((p) => (p.k && byK[p.k] !== undefined ? { ...p, d: byK[p.k] } : p))
+    await usersDb.from('cyn_ranked_matches').update({ players }).eq('game_id', gameId)
+  }
+  await hotPutBlob('ranked-elo', JSON.stringify(state)).catch((err) => console.error('could not save the Elo state:', err.message ?? err))
+
   // Everything handled and nothing failed: the next window starts at "now". Otherwise it restarts from the newest
   // handled game (minus the 3-minute overlap above), so a failed or left-over game is tried again.
   if (failed === 0 && todo.length === pendingAll.length) newestHandled = Math.max(newestHandled, now - 60_000)

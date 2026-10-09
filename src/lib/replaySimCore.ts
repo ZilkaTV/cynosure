@@ -868,3 +868,52 @@ export async function computeWinSeconds(gameId: string): Promise<number | null> 
     return null
   }
 }
+
+export interface SpeedrunReplayMetrics {
+  /** In-game clock when the engine's win check fired (null if no winner was declared in the log). */
+  winSeconds: number | null
+  /** clientID -> land share (%) at `tilesAtTick`; null if the game was decided before that tick. */
+  tilePercentByClientId: Record<string, number> | null
+}
+
+/**
+ * Everything a speedrun submission needs from the replay, in ONE pass: the win time and the land
+ * share at a checkpoint tick. Two separate replays in the same JS realm do not work - the vendored
+ * engine keeps module-level state, and a second game started after the first throws
+ * "Cannot read properties of undefined (reading '_borderTiles')" on its first tick (reproduced in
+ * the browser; the symptom was a missing "Tiles @ 3min" and a win time that silently fell back to
+ * the last action). Callers should still run this in a fresh Worker per submission.
+ */
+export async function computeSpeedrunMetrics(gameId: string, tilesAtTick: number): Promise<SpeedrunReplayMetrics | null> {
+  try {
+    const loaded = await loadRunner(gameId)
+    if (!loaded) return null
+    const { runner } = loaded
+    const game = runner.game as unknown as { elapsedGameSeconds?: () => number }
+    const totalLandTiles = runner.game.map().numLandTiles()
+    let tilePercentByClientId: Record<string, number> | null = null
+    let tick = 0
+    while (runner.executeNextTick()) {
+      tick++
+      if (tick === tilesAtTick) {
+        const denom = Math.max(1, totalLandTiles - runner.game.numTilesWithFallout())
+        const percents: Record<string, number> = {}
+        for (const player of runner.game.players()) {
+          const clientId = player.clientID()
+          if (clientId) percents[clientId] = (player.numTilesOwned() / denom) * 100
+        }
+        tilePercentByClientId = percents
+      }
+      if (runner.game.getWinner()) {
+        return {
+          winSeconds: game.elapsedGameSeconds ? game.elapsedGameSeconds() : Math.max(0, tick - 100) / 10,
+          tilePercentByClientId,
+        }
+      }
+    }
+    return { winSeconds: null, tilePercentByClientId }
+  } catch (err) {
+    console.error('Speedrun replay failed', err)
+    return null
+  }
+}

@@ -12,12 +12,15 @@
 // Since this thread never blocks the UI, there's no jank to trade against -
 // yields only need to happen often enough to flush progress messages and
 // let the wall-clock safety cap in computeGameTileStats get checked.
-import { computeGameTileStats } from './replaySimCore'
+import { computeGameTileStats, computeSpeedrunMetrics } from './replaySimCore'
 
 const YIELD_EVERY_TICKS = 300
 
 interface RequestMsg {
   gameId: string
+  // Speedrun submissions (src/lib/speedruns.ts) start their OWN instance of this worker per submission and ask
+  // for the win time + land share at a checkpoint tick in a single pass; no other message carries this field.
+  speedrunTilesAtTick?: number
 }
 
 // Requests are processed strictly one at a time, never interleaved. The
@@ -31,7 +34,11 @@ interface RequestMsg {
 let queue: Promise<unknown> = Promise.resolve()
 
 self.onmessage = (e: MessageEvent<RequestMsg>) => {
-  const { gameId } = e.data
+  const { gameId, speedrunTilesAtTick } = e.data
+  if (speedrunTilesAtTick !== undefined) {
+    void computeSpeedrunMetrics(gameId, speedrunTilesAtTick).then((result) => self.postMessage({ type: 'speedrun-result', result }))
+    return
+  }
   queue = queue.then(() =>
     computeGameTileStats(gameId, {
       yieldEveryTicks: YIELD_EVERY_TICKS,

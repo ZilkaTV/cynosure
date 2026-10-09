@@ -18,7 +18,7 @@ async function main() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing')
   const supabase = createClient(url, key)
-  const { data: rows, error } = await supabase.from('cyn_speedruns').select('openfront_id, game_id, seconds')
+  const { data: rows, error } = await supabase.from('cyn_speedruns').select('openfront_id, game_id, seconds, tiles3min_percent')
   if (error) throw error
 
   const server = await createServer({ root: ROOT, server: { middlewareMode: false, port: 0 } })
@@ -32,17 +32,25 @@ async function main() {
   try {
     const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
     for (const row of rows) {
-      const win = await core.computeWinSeconds(row.game_id)
-      if (win == null) {
+      // Same pass the site does on submission: win time + land share at the 3:00 mark (tick 1900 = 3 min + 100-tick spawn phase).
+      const metrics = await core.computeSpeedrunMetrics(row.game_id, 1900)
+      if (!metrics || metrics.winSeconds == null) {
         console.log(`${row.openfront_id} ${row.game_id}: not replayable, kept ${fmt(row.seconds)}`)
         skipped++
         continue
       }
-      const seconds = Math.floor(win)
-      if (seconds === row.seconds) continue
-      const { error: upErr } = await supabase.from('cyn_speedruns').update({ seconds }).eq('openfront_id', row.openfront_id).eq('game_id', row.game_id)
+      const seconds = Math.floor(metrics.winSeconds)
+      const update = {}
+      if (seconds !== row.seconds) update.seconds = seconds
+      // Fill in a missing "Tiles @ 3min" (a replay that failed in the browser used to leave it empty). The
+      // tile share belongs to the winner of the stored game, i.e. the member's own run.
+      const percents = Object.values(metrics.tilePercentByClientId ?? {})
+      const winnerShare = percents.length ? Math.max(...percents) : null
+      if (row.tiles3min_percent == null && winnerShare != null) update.tiles3min_percent = winnerShare
+      if (Object.keys(update).length === 0) continue
+      const { error: upErr } = await supabase.from('cyn_speedruns').update(update).eq('openfront_id', row.openfront_id).eq('game_id', row.game_id)
       if (upErr) throw upErr
-      console.log(`${row.openfront_id} ${row.game_id}: ${fmt(row.seconds)} -> ${fmt(seconds)}`)
+      console.log(`${row.openfront_id} ${row.game_id}: ${fmt(row.seconds)} -> ${fmt(seconds)}${update.tiles3min_percent != null ? `, tiles@3min ${update.tiles3min_percent.toFixed(1)}%` : ''}`)
       changed++
     }
   } finally {

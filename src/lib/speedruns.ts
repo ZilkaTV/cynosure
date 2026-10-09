@@ -7,6 +7,8 @@
 import { fetchGameDetail, fetchLastActionSeconds, SINGLEPLAYER_SPAWN_PHASE_TURNS, type GameDetail } from './openfront'
 import { supabase } from './supabase'
 import { CLAN_TAG } from '../config'
+import type { SpeedrunReplayMetrics } from './replaySimCore'
+import { createReplayWorker } from './replaySim'
 
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 
@@ -145,6 +147,33 @@ export interface SubmitResult {
   replayUrl?: string
 }
 
+/**
+ * Replays the game once, in a fresh instance of the replay Worker (clean JS realm - the engine cannot replay a second game
+ * in the same realm, and the replay stays off the main thread). Null on any failure or after 3 minutes.
+ */
+function replaySpeedrun(gameId: string): Promise<SpeedrunReplayMetrics | null> {
+  return new Promise((resolve) => {
+    let worker: Worker
+    try {
+      worker = createReplayWorker()
+    } catch {
+      resolve(null)
+      return
+    }
+    const done = (value: SpeedrunReplayMetrics | null) => {
+      clearTimeout(timer)
+      worker.terminate()
+      resolve(value)
+    }
+    const timer = setTimeout(() => done(null), 180_000)
+    worker.onmessage = (e: MessageEvent<{ type: string; result: SpeedrunReplayMetrics | null }>) => {
+      if (e.data.type === 'speedrun-result') done(e.data.result)
+    }
+    worker.onerror = () => done(null)
+    worker.postMessage({ gameId, speedrunTilesAtTick: TILES_AT_TICK })
+  })
+}
+
 export async function submitSpeedrun(openfrontId: string, gameLink: string, inGameName: string): Promise<SubmitResult> {
   const gameId = parseGameId(gameLink)
   if (!gameId) return { ok: false, message: 'Please paste a game link or id.' }
@@ -168,8 +197,8 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
   // the same engine and read the clock at the moment its own win check fired - shown in game as
   // the truncated seconds, hence floor. Falls back to the last real action (then to the reported
   // duration) when the game can't be replayed (old engine version, fetch problems).
-  const { computeWinSeconds } = await import('./replaySimCore')
-  const winSeconds = await computeWinSeconds(gameId).catch(() => null)
+  const replay = await replaySpeedrun(gameId)
+  const winSeconds = replay?.winSeconds ?? null
   const actualSeconds = winSeconds ?? (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
   v.seconds = winSeconds != null ? Math.floor(winSeconds) : Math.round(actualSeconds)
 
@@ -189,11 +218,7 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
   // it's tracked as its own best-ever value. A run under 3 minutes never
   // reaches that mark, so this can legitimately come back null.
   let tiles3minPercent: number | null = null
-  if (v.clientID) {
-    const { computeTilePercentAtTick } = await import('./replaySimCore')
-    const percentByClientId = await computeTilePercentAtTick(gameId, TILES_AT_TICK).catch(() => null)
-    tiles3minPercent = percentByClientId?.[v.clientID] ?? null
-  }
+  if (v.clientID) tiles3minPercent = replay?.tilePercentByClientId?.[v.clientID] ?? null
   const bestTiles3minPercent =
     tiles3minPercent != null && (row?.tiles3min_percent == null || tiles3minPercent > row.tiles3min_percent)
       ? tiles3minPercent

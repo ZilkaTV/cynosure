@@ -128,13 +128,21 @@ interface WorkerProgressMsg {
   totalTicks: number
 }
 
+/**
+ * A brand-new instance of the replay worker (own JS realm). Speedrun submissions use a fresh one per
+ * submission; this is the only place that names the worker file so the bundler builds it once.
+ */
+export function createReplayWorker(): Worker {
+  return new Worker(new URL('./replaySim.worker.ts', import.meta.url), { type: 'module' })
+}
+
 let worker: Worker | null | undefined // undefined = not yet tried, null = unsupported/failed
 const pendingResolvers = new Map<string, (stats: GameTileStats | null) => void>()
 
 function getWorker(): Worker | null {
   if (worker !== undefined) return worker
   try {
-    worker = new Worker(new URL('./replaySim.worker.ts', import.meta.url), { type: 'module' })
+    worker = createReplayWorker()
     worker.onmessage = (e: MessageEvent<WorkerResultMsg | WorkerProgressMsg>) => {
       const data = e.data
       if (data.type === 'progress') {

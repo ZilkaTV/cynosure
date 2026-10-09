@@ -192,6 +192,9 @@ function AccountMenu() {
           <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.myProfile}
           </Link>
+          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            ★ {t.accountMenu.savedGames}
+          </Link>
           <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.settings}
           </Link>

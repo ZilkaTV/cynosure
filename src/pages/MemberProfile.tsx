@@ -44,6 +44,12 @@ export default function MemberProfile() {
   const { data, loading, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
+  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
+  useEffect(() => {
+    if (window.location.hash !== '#saved') return
+    const timer = setTimeout(() => document.getElementById('saved')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400)
+    return () => clearTimeout(timer)
+  }, [id, data])
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
@@ -332,7 +338,7 @@ export default function MemberProfile() {
       </section>
 
       {profile?.openfront_id === m.publicId && (
-        <section>
+        <section id="saved" className="scroll-mt-6">
           <SectionHeading center eyebrow={t.memberProfile.savedEyebrow} title={t.memberProfile.savedTitle} />
           <div className="panel divide-y divide-base-700/60">
             {savedGames.games.length === 0 ? (

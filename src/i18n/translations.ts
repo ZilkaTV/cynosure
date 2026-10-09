@@ -56,6 +56,7 @@ const baseTranslations = {
     },
     accountMenu: {
       ariaLabel: 'Account menu',
+      savedGames: 'Saved games',
       myProfile: 'My profile',
       settings: 'Settings',
       signOut: 'Sign out',
@@ -883,6 +884,7 @@ const baseTranslations = {
     },
     accountMenu: {
       ariaLabel: 'Kontomenü',
+      savedGames: 'Gespeicherte Spiele',
       myProfile: 'Mein Profil',
       settings: 'Einstellungen',
       signOut: 'Abmelden',
@@ -1711,6 +1713,7 @@ const baseTranslations = {
     },
     accountMenu: {
       ariaLabel: 'Menu du compte',
+      savedGames: 'Parties enregistrées',
       myProfile: 'Mon profil',
       settings: 'Paramètres',
       signOut: 'Se déconnecter',

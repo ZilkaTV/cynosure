@@ -43,7 +43,7 @@ const ru: Partial_ = {
     register: 'Регистрация',
     homeAria: 'на главную',
   },
-  accountMenu: { ariaLabel: 'Меню аккаунта', myProfile: 'Мой профиль', settings: 'Настройки', signOut: 'Выйти', adminBadge: 'Админ' },
+  accountMenu: { ariaLabel: 'Меню аккаунта', myProfile: 'Мой профиль', savedGames: 'Сохранённые игры', settings: 'Настройки', signOut: 'Выйти', adminBadge: 'Админ' },
   footer: {
     clanDescriptor: 'клан OpenFront.io',
     discord: 'Discord',
@@ -221,7 +221,7 @@ const it: Partial_ = {
     register: 'Registrati',
     homeAria: 'home',
   },
-  accountMenu: { ariaLabel: 'Menu account', myProfile: 'Il mio profilo', settings: 'Impostazioni', signOut: 'Esci', adminBadge: 'Admin' },
+  accountMenu: { ariaLabel: 'Menu account', myProfile: 'Il mio profilo', savedGames: 'Partite salvate', settings: 'Impostazioni', signOut: 'Esci', adminBadge: 'Admin' },
   footer: {
     clanDescriptor: 'un clan di OpenFront.io',
     discord: 'Discord',
@@ -399,7 +399,7 @@ const es: Partial_ = {
     register: 'Registrarse',
     homeAria: 'inicio',
   },
-  accountMenu: { ariaLabel: 'Menú de cuenta', myProfile: 'Mi perfil', settings: 'Ajustes', signOut: 'Cerrar sesión', adminBadge: 'Admin' },
+  accountMenu: { ariaLabel: 'Menú de cuenta', myProfile: 'Mi perfil', savedGames: 'Partidas guardadas', settings: 'Ajustes', signOut: 'Cerrar sesión', adminBadge: 'Admin' },
   footer: {
     clanDescriptor: 'un clan de OpenFront.io',
     discord: 'Discord',
@@ -577,7 +577,7 @@ const ko: Partial_ = {
     register: '등록',
     homeAria: '홈',
   },
-  accountMenu: { ariaLabel: '계정 메뉴', myProfile: '내 프로필', settings: '설정', signOut: '로그아웃', adminBadge: '관리자' },
+  accountMenu: { ariaLabel: '계정 메뉴', myProfile: '내 프로필', savedGames: '저장한 게임', settings: '설정', signOut: '로그아웃', adminBadge: '관리자' },
   footer: {
     clanDescriptor: 'OpenFront.io 클랜',
     discord: 'Discord',

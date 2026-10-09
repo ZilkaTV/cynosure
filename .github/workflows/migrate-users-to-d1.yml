@@ -1,0 +1,26 @@
+name: Copy user data Supabase to D1
+
+# Manual only. Copies the user tables (members, reactions, quests, game nights, ...) into the D1 database
+# "cynosure" through the Worker and verifies the row counts. Safe to run again. Nothing is switched by this.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: migrate-users-to-d1
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Copy and verify
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
+        run: node scripts/migrate-users-to-d1.mjs

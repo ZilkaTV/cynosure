@@ -92,7 +92,11 @@
   // Cloudflare D1 for the two big cron-written tables (member game lists, per-game details) - no
   // egress charges, daily limits that reset. See worker/hotStore.js and scripts/lib/hotstore.mjs.
   // USE_D1 (in "vars" above) switches the Worker's reads over once the scripts write there.
-  "d1_databases": [{ "binding": "HOT_DB", "database_name": "cynosure-hot", "database_id": "ded1012f-9c6c-476b-8776-046d7abd99f4" }],
+  "d1_databases": [
+    { "binding": "HOT_DB", "database_name": "cynosure-hot", "database_id": "ded1012f-9c6c-476b-8776-046d7abd99f4" },
+    // User data (members, reactions, quests, ...): the migration target away from Supabase, see docs/cloudflare-migration-plan.md.
+    { "binding": "DB", "database_name": "cynosure", "database_id": "179f345a-0929-435f-8365-2656efe52cf8" }
+  ],
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

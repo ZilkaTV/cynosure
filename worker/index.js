@@ -19,6 +19,7 @@ import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
 import { handleGameDetail } from './gameDetail.js'
 import { handleSoloLatest, handleVerifyOwnership } from './soloLatest.js'
 import { handleHotApi } from './hotApi.js'
+import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob } from './ranked.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
@@ -39,6 +40,7 @@ export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url)
 
+    if (pathname.startsWith('/api/internal/users/')) return withSecurityHeaders(await handleUsersApi(request, env, pathname))
     if (pathname.startsWith('/api/internal/hot/')) return withSecurityHeaders(await handleHotApi(request, env, pathname))
     if (pathname.startsWith('/api/of/')) return withSecurityHeaders(await handleOf(request, env))
     if (pathname.startsWith('/api/tf/')) return withSecurityHeaders(await handleTf(request, env))

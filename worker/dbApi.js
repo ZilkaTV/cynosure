@@ -77,6 +77,7 @@ const RULES = {
   },
   cyn_game_tile_stats: { read: PUBLIC, insert: async (row) => row, update: PUBLIC },
   cyn_member_snapshots: { read: PUBLIC },
+  cyn_ranked_matches: { read: PUBLIC },
   cyn_chat_message_counts: { read: PUBLIC },
   cyn_inner_circle: { read: PUBLIC },
   cyn_game_nights: {

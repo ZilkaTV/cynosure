@@ -1,0 +1,30 @@
+name: Ranked feed
+
+# Feeds the "Live Ranked Queue" page (scripts/collect-ranked-feed.mjs). Dispatched every 10 minutes by the Cloudflare
+# Cron Trigger (worker/index.js); each run keeps polling once a minute for about 9 minutes.
+on:
+  repository_dispatch:
+    types: [ranked-feed]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ranked-feed
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Collect ranked games
+        env:
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
+          RANKED_FEED_LOOP_MS: '540000'
+        run: node scripts/collect-ranked-feed.mjs

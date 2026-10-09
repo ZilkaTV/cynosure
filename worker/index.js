@@ -82,6 +82,7 @@ export default {
     ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
     ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
+    ctx.waitUntil(dispatch(env, 'ranked-feed', 'ranked-feed.yml'))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))

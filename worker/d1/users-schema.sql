@@ -214,6 +214,17 @@ CREATE TABLE IF NOT EXISTS cyn_member_discord_status (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+CREATE TABLE IF NOT EXISTS cyn_ranked_matches (
+  game_id TEXT NOT NULL,
+  ladder TEXT NOT NULL,
+  ended_at TEXT NOT NULL,
+  duration_s INTEGER,
+  map TEXT,
+  top_count INTEGER NOT NULL DEFAULT 0,
+  players TEXT NOT NULL DEFAULT '[]',
+  PRIMARY KEY (game_id)
+);
+
 CREATE TABLE IF NOT EXISTS auth_users (
   id TEXT PRIMARY KEY,
   discord_user_id TEXT,

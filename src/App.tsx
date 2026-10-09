@@ -17,6 +17,7 @@ const Speedrun = lazy(() => import('./pages/Speedrun'))
 const Events = lazy(() => import('./pages/Events'))
 const Quests = lazy(() => import('./pages/Quests'))
 const Planner = lazy(() => import('./pages/Planner'))
+const RankedQueue = lazy(() => import('./pages/RankedQueue'))
 const Trends = lazy(() => import('./pages/Trends'))
 const History = lazy(() => import('./pages/History'))
 const Donate = lazy(() => import('./pages/Donate'))
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/events" element={<Events />} />
             <Route path="/quests" element={<Quests />} />
             <Route path="/planner" element={<Planner />} />
+            <Route path="/queue" element={<RankedQueue />} />
             <Route path="/trends" element={<Trends />} />
             <Route path="/history" element={<History />} />
             <Route path="/donate" element={<Donate />} />

@@ -386,5 +386,23 @@ export const USERS_META = {
       "has_cyn_role",
       "updated_at"
     ]
+  },
+  "cyn_ranked_matches": {
+    "json": [
+      "players"
+    ],
+    "bool": [],
+    "pk": [
+      "game_id"
+    ],
+    "cols": [
+      "game_id",
+      "ladder",
+      "ended_at",
+      "duration_s",
+      "map",
+      "top_count",
+      "players"
+    ]
   }
 }

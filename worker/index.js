@@ -78,10 +78,14 @@ export default {
     // data (member game lists, game details, roster, ledger) lives in Cloudflare D1 instead of
     // Supabase, whose free egress limit is what forced the slower cadence on 2026-10-04.
     // A workflow that is still running is skipped by dispatch() (isWorkflowBusy).
-    ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
-    ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
-    ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
-    ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
+    // Until the D1 daily row-read allowance resets (2026-10-10 00:00 UTC) only the queue feed runs, the cache
+    // jobs wait (this check expires by itself).
+    if (event.scheduledTime >= Date.UTC(2026, 9, 10, 0, 5)) {
+      ctx.waitUntil(dispatch(env, 'refresh-details', 'refresh-details-cron.yml'))
+      ctx.waitUntil(dispatch(env, 'engine-maintenance', 'engine-maintenance.yml'))
+      ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
+      ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
+    }
     ctx.waitUntil(dispatch(env, 'ranked-feed', 'ranked-feed.yml'))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))

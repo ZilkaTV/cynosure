@@ -252,7 +252,12 @@ export default function RankedQueue() {
                     <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
                   </div>
                   <div className="w-32 shrink-0 text-xs text-slate-400">
-                    <div className="text-slate-200">{m.map ?? '-'}</div>
+                    <div className="text-slate-200">{(m.map ?? '-').split(' · ')[0]}</div>
+                    {m.map?.includes(' · ') && (
+                      <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${m.map.endsWith('Compact') ? 'bg-amber-500/20 text-amber-300' : 'bg-base-700 text-slate-300'}`}>
+                        {m.map.endsWith('Compact') ? t.queue.mapCompact : t.queue.mapNormal}
+                      </span>
+                    )}
                     <div>{fmtDuration(m.duration_s)}</div>
                   </div>
                   <div className="flex min-w-0 basis-full flex-col gap-2 sm:flex-1 sm:basis-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">

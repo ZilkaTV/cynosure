@@ -91,6 +91,25 @@ async function loadBoards(live) {
 const normName = (s) => String(s ?? '').toLowerCase().replace(/\.\d{3,4}$/, '').replace(/\s+/g, ' ').trim()
 const hashId = (id) => crypto.createHmac('sha256', process.env.HOT_API_SECRET).update(`ranked-feed:${id}`).digest('hex').slice(0, 10)
 
+// The map column holds "<map> · <Normal|Compact>" (the map size of the lobby); older rows without the size are filled in
+// by backfillMapSize below.
+const mapLabel = (config) => (config?.gameMap ? `${config.gameMap} · ${config.gameMapSize === 'Compact' ? 'Compact' : 'Normal'}` : null)
+
+async function backfillMapSize(limit = 40) {
+  const { data } = await usersDb.from('cyn_ranked_matches').select('game_id, map').order('ended_at', { ascending: false }).limit(1500)
+  const todo = (data ?? []).filter((r) => r.map && !r.map.includes(' · ')).slice(0, limit)
+  for (const r of todo) {
+    try {
+      const detail = await getJson(`${API}/game/${encodeURIComponent(r.game_id)}?turns=false`)
+      const label = mapLabel(detail.info?.config)
+      if (label) await usersDb.from('cyn_ranked_matches').update({ map: label }).eq('game_id', r.game_id)
+    } catch (err) {
+      console.error(`map size ${r.game_id}:`, err.message ?? err)
+    }
+  }
+  return todo.length
+}
+
 function buildMatch(game, detail, board, known) {
   const info = detail.info
   const players = info.players ?? []
@@ -122,7 +141,7 @@ function buildMatch(game, detail, board, known) {
     ladder: game.rankedType,
     ended_at: new Date(info.end ?? Date.parse(game.end)).toISOString(),
     duration_s: info.duration ?? Math.round((Date.parse(game.end) - Date.parse(game.start)) / 1000),
-    map: info.config?.gameMap ?? null,
+    map: mapLabel(info.config),
     top_count: top,
     players: out,
   }
@@ -282,9 +301,10 @@ async function main() {
   if (failed === 0 && backlogTodo.length === backlog.length) newestHandled = Math.max(newestHandled, now - 60_000)
   await usersDb.from('cyn_metrics_channel_state').upsert({ channel_id: CURSOR_ID, last_message_id: new Date(newestHandled).toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'channel_id' })
 
+  const sized = await backfillMapSize()
   const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
   await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
-  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
+  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, mapSizeBackfilled: sized, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 

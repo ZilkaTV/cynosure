@@ -20,6 +20,8 @@ interface FeedPlayer {
   b?: string
   d?: number // Elo change (only for top-100 players using their own name); with `c` it is the total of the last c games
   c?: number
+  /** Elo change worked out from the opponent's (1v1 is zero-sum), not measured for this player. */
+  mirrored?: boolean
 }
 interface FeedMatch {
   game_id: string
@@ -37,6 +39,15 @@ const REFRESH_MS = 20_000
 const BUSY_FROM = 12
 const MEDIUM_FROM = 5
 const LIST_LIMIT = 60
+
+/** In a 1v1 the winner gains exactly what the loser loses: fill in the missing side from the one that is known. */
+function withMirroredElo(m: FeedMatch): FeedPlayer[] {
+  if (m.ladder !== '1v1' || m.players.length !== 2) return m.players
+  const [a, b] = m.players
+  if (a.d !== undefined && !a.c && b.d === undefined) return [a, { ...b, d: -a.d, mirrored: true }]
+  if (b.d !== undefined && !b.c && a.d === undefined) return [{ ...a, d: -b.d, mirrored: true }, b]
+  return m.players
+}
 
 /** A game that did not really take place: no winner or over before anybody could play (spawn phase alone is longer). */
 export function isAbandoned(m: { duration_s: number | null; players: { w: boolean }[] }): boolean {
@@ -71,8 +82,8 @@ function PlayerChip({ p }: { p: FeedPlayer }) {
         </span>
       )}
       {p.d !== undefined && (
-        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
-          {p.c ? 'Σ ' : ''}
+        <span title={p.mirrored ? "Elo is zero-sum in 1v1: the opponent’s change, mirrored" : undefined} className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
+          {p.c ? 'Σ ' : p.mirrored ? '≈ ' : ''}
           {p.d > 0 ? '+' : ''}
           {p.d} Elo{p.c ? ` (${p.c})` : ''}
         </span>
@@ -214,7 +225,8 @@ export default function RankedQueue() {
           {matches && shown.length === 0 && <p className="text-sm text-slate-400">{t.queue.empty}</p>}
           <div className="space-y-2">
             {shown.slice(0, LIST_LIMIT).map((m) => {
-              const sides = [...new Set(m.players.map((p) => p.s))].sort((a, b) => a - b)
+              const players = withMirroredElo(m)
+              const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
               const abandoned = isAbandoned(m)
               return (
                 <div
@@ -245,7 +257,7 @@ export default function RankedQueue() {
                   </div>
                   <div className="flex min-w-0 basis-full flex-col gap-2 sm:flex-1 sm:basis-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
                     {sides.map((side, i) => {
-                      const team = m.players.filter((p) => p.s === side)
+                      const team = players.filter((p) => p.s === side)
                       const won = team.some((p) => p.w)
                       return (
                         <div key={side} className="flex w-full items-center gap-3 sm:w-auto">

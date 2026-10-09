@@ -1,4 +1,8 @@
 import { extraTranslations } from './extraLanguages'
+import { restRu } from './rest.ru'
+import { restIt } from './rest.it'
+import { restEs } from './rest.es'
+import { restKo } from './rest.ko'
 
 export type Language = 'en' | 'de' | 'fr' | 'ru' | 'it' | 'es' | 'ko'
 
@@ -760,6 +764,10 @@ const baseTranslations = {
       joinDiscord: 'Join the Discord',
     },
     ui: {
+      siteUpdate: 'Update',
+      siteUpdateAvailable: 'New version available - click to reload',
+      siteUpToDate: 'You are on the latest version',
+      siteUpdateTabAlert: 'New version - please reload!',
       activityVeryActive: (n: number) => `Very active · ${n} games / 30d`,
       activityActive: (n: number) => `Active · ${n} games / 30d`,
       activityLight: (n: number) => `Light · ${n} games / 30d`,
@@ -1532,6 +1540,10 @@ const baseTranslations = {
       joinDiscord: 'Dem Discord beitreten',
     },
     ui: {
+      siteUpdate: 'Update',
+      siteUpdateAvailable: 'Neue Version verfügbar - klicken zum Neuladen',
+      siteUpToDate: 'Du bist auf dem neuesten Stand',
+      siteUpdateTabAlert: 'Neue Version - bitte neu laden!',
       activityVeryActive: (n: number) => `Sehr aktiv · ${n} Spiele / 30 Tg.`,
       activityActive: (n: number) => `Aktiv · ${n} Spiele / 30 Tg.`,
       activityLight: (n: number) => `Wenig aktiv · ${n} Spiele / 30 Tg.`,
@@ -2304,6 +2316,10 @@ const baseTranslations = {
       joinDiscord: 'Rejoindre le Discord',
     },
     ui: {
+      siteUpdate: 'Mise à jour',
+      siteUpdateAvailable: 'Nouvelle version disponible - cliquer pour recharger',
+      siteUpToDate: 'Tu as la dernière version',
+      siteUpdateTabAlert: 'Nouvelle version - recharge la page !',
       activityVeryActive: (n: number) => `Très actif · ${n} parties / 30j`,
       activityActive: (n: number) => `Actif · ${n} parties / 30j`,
       activityLight: (n: number) => `Peu actif · ${n} parties / 30j`,
@@ -2347,8 +2363,8 @@ function mergeOver(base: Plain, over: Plain): Plain {
 
 export const translations: Record<Language, TranslationShape> = {
   ...baseTranslations,
-  ru: mergeOver(baseTranslations.en, extraTranslations.ru as Plain) as TranslationShape,
-  it: mergeOver(baseTranslations.en, extraTranslations.it as Plain) as TranslationShape,
-  es: mergeOver(baseTranslations.en, extraTranslations.es as Plain) as TranslationShape,
-  ko: mergeOver(baseTranslations.en, extraTranslations.ko as Plain) as TranslationShape,
+  ru: mergeOver(mergeOver(baseTranslations.en, extraTranslations.ru as Plain), restRu as Plain) as TranslationShape,
+  it: mergeOver(mergeOver(baseTranslations.en, extraTranslations.it as Plain), restIt as Plain) as TranslationShape,
+  es: mergeOver(mergeOver(baseTranslations.en, extraTranslations.es as Plain), restEs as Plain) as TranslationShape,
+  ko: mergeOver(mergeOver(baseTranslations.en, extraTranslations.ko as Plain), restKo as Plain) as TranslationShape,
 }

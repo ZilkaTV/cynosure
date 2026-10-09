@@ -110,17 +110,21 @@ export default function Planner() {
             <a href={ADDON_URL} className="btn-accent inline-block">
               {t.planner.userscriptButton}
             </a>
-            {addon.outdated ? (
-              <a href={ADDON_URL} className="btn-ghost relative inline-block" title={t.planner.userscriptUpdateNew(addon.latest ?? '')}>
+            {addon.outdated || !addon.installed ? (
+              <a
+                href={ADDON_URL}
+                className="btn-ghost relative inline-block"
+                title={addon.outdated ? t.planner.userscriptUpdateNew(addon.latest ?? '') : t.planner.userscriptNotDetected}
+              >
                 {t.planner.userscriptUpdate}
-                <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
+                {addon.outdated && <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />}
               </a>
             ) : (
               <button
                 type="button"
                 disabled
                 className="btn-ghost inline-block cursor-not-allowed opacity-40"
-                title={addon.installed ? t.planner.userscriptUpToDate(addon.installed) : t.planner.userscriptNotDetected}
+                title={t.planner.userscriptUpToDate(addon.installed ?? '')}
               >
                 {t.planner.userscriptUpdate}
               </button>

@@ -5,6 +5,7 @@ import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
+import { useSiteUpdate } from '../lib/useSiteUpdate'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
@@ -135,6 +136,13 @@ const CalendarIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+const RefreshIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12a9 9 0 1 1-3-6.7" />
+    <path d="M21 3v6h-6" />
+  </svg>
+)
+
 const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -216,6 +224,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { t } = useLanguage()
   const { profile } = useProfile()
   useGameNightReminder()
+  const siteUpdate = useSiteUpdate()
   const isInnerCircle = useIsInnerCircle()
 
   useEffect(() => {
@@ -238,6 +247,22 @@ export default function Layout({ children }: { children: ReactNode }) {
             CynClan.com
           </Link>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={siteUpdate.apply}
+              disabled={!siteUpdate.available}
+              title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+              aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+              className={`btn-ghost relative inline-flex items-center gap-2 !px-3 !py-2 text-sm ${
+                siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'
+              }`}
+            >
+              <RefreshIcon />
+              <span className="hidden sm:inline">{t.ui.siteUpdate}</span>
+              {siteUpdate.available && (
+                <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
+              )}
+            </button>
             <LanguageSwitcher />
             {isInnerCircle && (
               <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.home.gameNightsTitle}>

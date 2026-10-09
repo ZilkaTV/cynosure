@@ -45,12 +45,19 @@ async function getJson(url, tries = 3) {
 // The list endpoint returns at most 1000 games per call (and only 50 without a limit): ask in slices and split a slice
 // again when it comes back full, so no game is missed after a longer gap.
 async function fetchGames(fromMs, toMs, depth = 0) {
-  const url = `${API}/games?start=${encodeURIComponent(new Date(fromMs).toISOString())}&end=${encodeURIComponent(new Date(toMs).toISOString())}&type=Public&limit=1000`
+  // Only ranked games, one ladder per request (the API filters by rankedType), instead of every public game.
+  const all = []
+  for (const rankedType of ['1v1', '2v2']) all.push(...(await fetchLadder(rankedType, fromMs, toMs, depth)))
+  return all
+}
+
+async function fetchLadder(rankedType, fromMs, toMs, depth) {
+  const url = `${API}/games?start=${encodeURIComponent(new Date(fromMs).toISOString())}&end=${encodeURIComponent(new Date(toMs).toISOString())}&type=Public&rankedType=${rankedType}&limit=1000`
   const page = await getJson(url)
   if (page.length < 1000 || depth >= 6 || toMs - fromMs < 60_000) return page
   const mid = Math.floor((fromMs + toMs) / 2)
   const byId = new Map()
-  for (const g of [...(await fetchGames(fromMs, mid, depth + 1)), ...(await fetchGames(mid, toMs, depth + 1))]) byId.set(g.game, g)
+  for (const g of [...(await fetchLadder(rankedType, fromMs, mid, depth + 1)), ...(await fetchLadder(rankedType, mid, toMs, depth + 1))]) byId.set(g.game, g)
   return [...byId.values()]
 }
 

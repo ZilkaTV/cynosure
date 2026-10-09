@@ -142,19 +142,6 @@ const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
-function trackingSince(): string {
-  try {
-    let d = localStorage.getItem('cyn:trackedSince')
-    if (!d) {
-      d = new Date().toISOString()
-      localStorage.setItem('cyn:trackedSince', d)
-    }
-    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-  } catch {
-    return '-'
-  }
-}
-
 function AccountMenu() {
   const { profile, refresh } = useProfile()
   const { t } = useLanguage()
@@ -316,7 +303,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </Link>
         </p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.statsNotice(CLAN_TAG)}</p>
-        <p className="mt-1 text-xs text-slate-600">{t.footer.trackingSince(trackingSince())}</p>
         <p className="mt-1 text-xs text-slate-600">
           {t.footer.badgeIconsCredit}{' '}
           <a href="https://game-icons.net" target="_blank" rel="noreferrer" className="underline hover:text-slate-400">

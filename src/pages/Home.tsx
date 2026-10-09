@@ -332,6 +332,15 @@ export default function Home() {
     <StatsShell>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
+        {data?.oldestGame && (
+          <p className="mb-4 -mt-3 text-center text-xs text-slate-500">
+            {t.home.countingSincePrefix(CLAN_TAG)}{' '}
+            <span className="text-slate-300">
+              {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>{' '}
+            {t.home.countingSinceSuffix}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <StatCard label={t.home.statMembers} value={totals ? totals.members : '…'} accent="plain" />
           <StatCard label={t.home.statTopElo} value={totals?.topElo ?? '…'} accent="gold" />
@@ -409,17 +418,8 @@ export default function Home() {
         )}
         {data && (
           <>
-            <StatsTable members={data.members} columns={columns} defaultSort="all" />
+            <StatsTable members={data.members} columns={columns} defaultSort="all" limit={10} searchable />
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
-            {data.oldestGame && (
-              <p className="text-center text-xs text-slate-500">
-                {t.home.countingSincePrefix(CLAN_TAG)}{' '}
-                <span className="text-slate-300">
-                  {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>{' '}
-                {t.home.countingSinceSuffix}
-              </p>
-            )}
             <p className="text-center text-xs text-slate-500">{t.home.eloNote}</p>
           </>
         )}

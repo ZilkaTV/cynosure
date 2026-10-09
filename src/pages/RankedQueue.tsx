@@ -120,6 +120,7 @@ export default function RankedQueue() {
       const ids = new Set<string>()
       for (const m of shown) {
         if (now - Date.parse(m.ended_at) > mins * 60_000) continue
+        if (isAbandoned(m)) continue
         for (const p of m.players) if (p.k) ids.add(p.k)
       }
       return ids.size
@@ -133,7 +134,7 @@ export default function RankedQueue() {
     <StatsShell>
       <section className="space-y-6">
         <SectionHeading center eyebrow={t.queue.eyebrow} title={t.queue.title} />
-        <p className="mx-auto max-w-2xl text-center text-sm text-slate-400">{t.queue.intro}</p>
+        <p className="mx-auto max-w-2xl text-center text-xs text-slate-400 sm:text-sm">{t.queue.intro}</p>
 
         <div className="flex justify-center gap-2">
           {(['all', '1v1', '2v2'] as Ladder[]).map((l) => (
@@ -242,14 +243,14 @@ export default function RankedQueue() {
                     <div className="text-slate-200">{m.map ?? '-'}</div>
                     <div>{fmtDuration(m.duration_s)}</div>
                   </div>
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  <div className="flex min-w-0 basis-full flex-col gap-2 sm:flex-1 sm:basis-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
                     {sides.map((side, i) => {
                       const team = m.players.filter((p) => p.s === side)
                       const won = team.some((p) => p.w)
                       return (
-                        <div key={side} className="flex items-center gap-3">
-                          {i > 0 && <span className="text-xs text-slate-600">vs</span>}
-                          <div className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
+                        <div key={side} className="flex w-full items-center gap-3 sm:w-auto">
+                          {i > 0 && <span className="w-5 shrink-0 text-center text-xs text-slate-600">vs</span>}
+                          <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
                               <PlayerChip key={j} p={p} />
@@ -259,7 +260,7 @@ export default function RankedQueue() {
                       )
                     })}
                   </div>
-                  <span className="ml-auto shrink-0 pl-4 font-mono text-xs text-slate-500">{m.game_id}</span>
+                  <span className="ml-auto shrink-0 font-mono text-xs text-slate-500 sm:pl-4">{m.game_id}</span>
                 </div>
               )
             })}

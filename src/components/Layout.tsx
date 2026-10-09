@@ -284,9 +284,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="-mt-4 flex flex-col items-center gap-2 px-4 pb-2 sm:-mt-6" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
-          <CynLogo className="h-20 w-20 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 lg:h-32 lg:w-32" />
-          <span className="text-center font-display text-xl font-bold tracking-[0.1em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
+        <Link to="/" className="mt-1 flex flex-row items-center justify-center gap-2.5 px-4 pb-2 sm:-mt-6 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
+          <CynLogo className="h-11 w-11 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
+          <span className="text-center font-display text-lg font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>
         </Link>

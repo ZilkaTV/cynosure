@@ -199,7 +199,8 @@ export function useQueueAlert(): number {
     async function poll() {
       if (onPage) return
       const seen = read(SEEN_KEY) ?? new Date().toISOString()
-      let q = db.from('cyn_ranked_matches').select('game_id', { count: 'exact', head: true }).gt('ended_at', seen)
+      // Cancelled games (21 s, no winner) are not played games and do not alert.
+      let q = db.from('cyn_ranked_matches').select('game_id', { count: 'exact', head: true }).gt('ended_at', seen).gt('duration_s', 45)
       if (mode !== 'both') q = q.eq('ladder', mode)
       const { count } = await q
       if (!alive || count == null) return

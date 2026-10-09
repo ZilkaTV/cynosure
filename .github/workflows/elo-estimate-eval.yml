@@ -1,0 +1,23 @@
+name: Elo estimate evaluation
+
+# Manual. Builds the opponent graph from cached ranked 1v1 games and checks how well a member's Elo can be estimated
+# (leave-one-out on members who are in the official top 100). Prints the errors, changes nothing.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Evaluate
+        env:
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
+        run: |
+          curl -sf https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev/api/roster -o roster.json
+          node scripts/elo-estimate-eval.mjs roster.json edges.json
+          for sd in 250 350 500; do node scripts/elo-estimate-fit.mjs edges.json roster.json $sd; done

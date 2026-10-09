@@ -96,6 +96,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const { profile } = useProfile()
   const saved = useSavedGames(profile?.openfront_id)
   const isSaved = saved.games.some((g) => g.game_id === gameId)
+  const [saveFailed, setSaveFailed] = useState(false)
 
   // Max Tiles replays the whole game to find each player's peak (and their
   // real end-of-game tile count), so it's computed separately and doesn't
@@ -264,12 +265,16 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         <div className="flex items-center justify-between border-b border-base-700 px-6 py-4">
           <h2 className="font-display text-xl font-bold text-white">{t.gameDetail.title}</h2>
           <div className="flex items-center gap-2">
+            {saveFailed && <span className="text-xs text-signal-red">{t.gameDetail.saveFailed}</span>}
             {profile && gameId && (
               <button
                 type="button"
                 onClick={() => {
-                  if (isSaved) void unsaveGame(profile.openfront_id, gameId)
-                  else void saveGame(profile.openfront_id, gameId, detail ? `${detail.map} · ${detail.players.length}` : gameId)
+                  setSaveFailed(false)
+                  const done = isSaved
+                    ? unsaveGame(profile.openfront_id, gameId)
+                    : saveGame(profile.openfront_id, gameId, detail ? `${detail.map} · ${detail.players.length}` : gameId)
+                  void done.then((ok) => setSaveFailed(!ok))
                 }}
                 title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium transition-colors ${isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}

@@ -1,0 +1,81 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;700&display=swap">
+<style>
+html,body{margin:0;width:1280px;overflow:hidden;background:#0a0a13;font-family:Inter,system-ui,sans-serif;color:#ecebf7}
+.bg{position:absolute;inset:0;background:radial-gradient(900px 520px at 0% 0%,rgba(139,92,246,.38),transparent 60%),radial-gradient(800px 600px at 100% 100%,rgba(216,185,106,.2),transparent 60%),#0a0a13}
+.wrap{position:relative;padding:44px 56px 40px}
+.head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px}
+h1{font-family:Cinzel,serif;font-weight:800;font-size:50px;margin:0}
+h1 span{color:#d8b96a}
+.tag{font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:#9a96c8;font-size:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;align-items:start}
+.sec{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px 20px}
+.sec h3{margin:0 0 10px;font-size:14px;letter-spacing:.18em;text-transform:uppercase;color:#d8b96a}
+.sec ul{margin:0;padding:0 0 0 0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.sec li{font-size:18px;line-height:1.3;padding-left:16px;position:relative}
+.sec li:before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;border-radius:50%;background:#8b5cf6}
+.sec li b{color:#fff}
+.v{color:#c4b5fd;font-weight:700}.t{color:#5eead4;font-weight:700}
+.warn{margin-top:18px;border-left:5px solid #d8b96a;background:rgba(216,185,106,.1);border-radius:0 12px 12px 0;padding:14px 20px;font-size:21px}
+</style></head><body>
+<div class="bg"></div>
+<div class="wrap">
+  <div class="head"><h1>Everything we <span>changed</span></h1><div class="tag">CynClan.com · full summary</div></div>
+  <div class="cols">
+
+    <div class="sec"><h3>🎯 Live Ranked Queue (new)</h3><ul>
+      <li>Finished <b>ranked 1v1 + 2v2 games</b> with top-100 players, <span class="v">1v1 violet</span> / <span class="t">2v2 teal</span></li>
+      <li>Map, duration, both teams, <b>winner ✓</b>, rank + Elo, game ID on the right</li>
+      <li><b>Whole row clickable</b> → game report with replay link</li>
+      <li>Refreshes every <b>20 seconds</b>; data from OpenFront's official API</li>
+      <li><b>Elo +/−</b> per game, from the hourly ranking update (several games = a sum)</li>
+      <li>Names as used in game; rank and Elo only for players using their own account name – <b>nobody is unmasked</b></li>
+      <li><b>Abandoned games</b> in grey with a label (2v2: no Elo change; 1v1: no loss on connection problems)</li>
+    </ul></div>
+
+    <div class="sec"><h3>🚦 Traffic light &amp; 🔔 notifications (new)</h3><ul>
+      <li><b>Traffic light:</b> 🔴 under 5 · 🟡 5–11 · 🟢 12+ different top-100 players in 30 min</li>
+      <li><b>Switches</b> for 1v1 and 2v2, on/off – on asks the browser for permission</li>
+      <li>New top-100 game → <b>red dot</b> on the menu, <b>blinking tab title</b>, <b>beep</b>, system <b>pop-up</b></li>
+      <li>Works in background tabs on every page · <b>Test</b> button</li>
+      <li>Cancelled games count for neither light nor alerts</li>
+    </ul></div>
+
+    <div class="sec"><h3>⏱️ Speedrun</h3><ul>
+      <li><b>Verified ✓ column:</b> time replayed in the real engine, all rules met – no speed manipulation possible</li>
+      <li>Time = the in-game clock at the moment the match was decided (fixed 5:34 → 5:21 case)</li>
+      <li>Rules checked automatically: Australia, 400 bots, no nations, no cheats, no timers</li>
+      <li><b>Start buttons</b> for browser and Steam; your run is <b>found automatically</b></li>
+      <li>Progress bar while the replay is calculated</li>
+      <li>Discord record-holder message fixed</li>
+    </ul></div>
+
+    <div class="sec"><h3>👤 Profile &amp; stats</h3><ul>
+      <li><b>Save games</b> from the report ("☆") → <b>My profile → Saved games</b></li>
+      <li>Games broken down by category · <b>win rate by number of teams</b></li>
+      <li>OpenFront <b>lifetime stats</b> on every profile</li>
+      <li><b>Max Tiles</b> computed for old games (3 replays in parallel) and fixed for new ones</li>
+      <li>Clan win-score history completed · top-100 Elo shows reliably again</li>
+    </ul></div>
+
+    <div class="sec"><h3>🧮 Planner, overview &amp; menu</h3><ul>
+      <li><b>Points planner:</b> clan points per lobby layout, presets "max points with 2–8 CYN", <b>decay forecast</b></li>
+      <li>Overview: "tracking since" line, <b>top-10 table</b> (expandable) + <b>search by name or ID</b></li>
+      <li><b>Monthly</b> menu is a dropdown (FFA, Team, 1v1, 2v2)</li>
+      <li>Menu order: Speedrun · Live Ranked Queue · History · Events · Quests · Planner · Trends</li>
+      <li>Events card collapsible · "All members" link in the footer</li>
+    </ul></div>
+
+    <div class="sec"><h3>🌍 Site, languages &amp; phones</h3><ul>
+      <li><b>Russian, Italian, Spanish, Korean</b> added – whole site translated, <b>flags</b> in the switcher</li>
+      <li><b>Update button</b> top right: grey = up to date, red dot + blinking title = new version</li>
+      <li><b>Phones:</b> compact header, game rows stack, no sideways scrolling</li>
+      <li>Header buttons moved to the top-right corner</li>
+      <li>Replay now works in the browser again (a blocked map download is fixed)</li>
+    </ul></div>
+
+  </div>
+  <div class="warn">⚠️ <b>Log in with Discord once again.</b> Your profile and all your data are still there.</div>
+</div>
+</body></html>

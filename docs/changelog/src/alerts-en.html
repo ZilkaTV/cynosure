@@ -1,0 +1,61 @@
+﻿<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;700&display=swap">
+<style>
+html,body{margin:0;width:1280px;height:760px;background:#0a0a13;font-family:Inter,system-ui,sans-serif;color:#fff;overflow:hidden}
+.bg{position:absolute;inset:0;background:radial-gradient(800px 450px at 80% 10%,rgba(139,92,246,.35),transparent 60%),#0a0a13}
+.wrap{position:absolute;inset:0;padding:48px 64px;display:grid;grid-template-columns:1fr 1fr;gap:36px}
+h2{font-family:Cinzel,serif;font-size:40px;margin:0 0 6px}
+p.s{color:#a9a6d4;margin:0 0 22px;font-size:20px}
+.card{background:#12121f;border:1px solid #2a2a45;border-radius:22px;padding:28px}
+.light{display:flex;gap:26px;align-items:center}
+.lamps{background:#05050a;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.l{width:46px;height:46px;border-radius:50%}
+.r{background:#ef4444;box-shadow:0 0 28px 6px rgba(239,68,68,.6)}.y{background:#3a2a07}.gr{background:#052e1f}
+.lvl{font-family:Cinzel,serif;font-size:44px;font-weight:800}
+.rule{color:#a9a6d4;font-size:18px;line-height:1.45;margin-top:6px}
+.sw{display:flex;align-items:center;gap:16px;margin:16px 0;font-size:26px;font-weight:700}
+.tg{width:84px;height:44px;border-radius:99px;position:relative}
+.tg i{position:absolute;top:4px;width:36px;height:36px;border-radius:50%;background:#fff}
+.on{background:#8b5cf6}.on i{left:44px}.on2{background:#14b8a6}.on2 i{left:44px}.off{background:#2b2b44}.off i{left:4px}
+.st{font-size:18px;font-weight:800;margin-left:4px}.stOn{color:#6ee7b7}.stOff{color:#7a78a8}
+.noti{margin-top:22px;background:#1a1a2e;border:1px solid #3a3a60;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center}
+.ico{width:44px;height:44px;border-radius:12px;background:#8b5cf6;display:grid;place-items:center;font-size:24px}
+.nt{font-weight:700;font-size:20px}.nb{color:#a9a6d4;font-size:17px}
+.ab{display:flex;gap:16px;align-items:center;opacity:.55;border-left:6px solid #475569;background:#10101c;border-radius:14px;padding:14px 18px;margin-top:18px}
+.bd{background:#334155;border-radius:6px;padding:3px 9px;font-weight:800;font-size:18px}
+.lab{font-weight:800;letter-spacing:.08em;font-size:15px;color:#94a3b8}
+.match{display:flex;gap:16px;align-items:center;border-left:6px solid #8b5cf6;background:#10101c;border-radius:14px;padding:14px 18px;margin-top:18px}
+.v1{background:rgba(139,92,246,.28);color:#ddd6fe;border-radius:6px;padding:3px 9px;font-weight:800;font-size:18px}
+.elo{background:rgba(52,211,153,.16);color:#6ee7b7;border-radius:6px;padding:3px 9px;font-weight:800;font-size:16px}
+.w{border:1px solid rgba(216,185,106,.6);border-radius:10px;padding:8px 12px;font-size:17px}
+</style></head><body>
+<div class="bg"></div>
+<div class="wrap">
+  <div>
+    <h2>Traffic light &amp; alerts</h2>
+    <p class="s">When is queuing worth it? The light tells you.</p>
+    <div class="card light">
+      <div class="lamps"><div class="l r"></div><div class="l y"></div><div class="l gr"></div></div>
+      <div><div class="lvl">Quiet</div><div class="rule">🔴 fewer than 5 top-100 players in 30 min<br>🟡 5 to 11 · 🟢 12+ = busy</div></div>
+    </div>
+    <div class="card" style="margin-top:22px">
+      <div class="sw"><div class="tg on"><i></i></div>1v1 <span class="st stOn">ON</span></div>
+      <div class="sw"><div class="tg off"><i></i></div>2v2 <span class="st stOff">OFF</span></div>
+      <div class="noti"><div class="ico">🔔</div><div><div class="nt">Top-100 game finished!</div><div class="nb">1 new top-100 game on cynclan.com</div></div></div>
+    </div>
+  </div>
+  <div>
+    <h2>Abandoned games</h2>
+    <p class="s">Shown in grey – no Elo change in 2v2, a note in 1v1. (Example view)</p>
+    <div class="card">
+      <div class="match"><span class="v1">1v1</span><div class="w">✓ WINNER &nbsp;<b>Player A</b> &nbsp;#1 · 2331 &nbsp;<span class="elo">+9 Elo</span></div></div>
+      <div class="ab"><span class="bd">2v2</span><span class="lab">ABANDONED</span><span style="color:#94a3b8;font-size:17px">0:21 · match did not take place</span></div>
+      <p class="s" style="margin:20px 0 0;font-size:17px">1v1: A player who did not spawn can lose Elo – unless OpenFront detects connection problems. Then nobody loses points.</p>
+    </div>
+  </div>
+</div>
+</body></html>
+
+
+

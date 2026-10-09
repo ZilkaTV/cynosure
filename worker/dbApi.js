@@ -78,7 +78,7 @@ const RULES = {
   cyn_game_tile_stats: { read: PUBLIC, insert: async (row) => row, update: PUBLIC },
   cyn_member_snapshots: { read: PUBLIC },
   cyn_ranked_matches: { read: PUBLIC },
-  cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), delete: own('openfront_id') },
+  cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), update: own('openfront_id'), delete: own('openfront_id') },
   cyn_chat_message_counts: { read: PUBLIC },
   cyn_inner_circle: { read: PUBLIC },
   cyn_game_nights: {

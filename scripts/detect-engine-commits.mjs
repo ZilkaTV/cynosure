@@ -61,10 +61,6 @@ const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY
 const CLAN_TAG = loadClanTag()
 const KNOWN_COMMITS = loadKnownCommits()
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY in .env.local')
-  process.exit(1)
-}
 
 async function fetchJson(url, opts) {
   const res = await fetch(url, opts)
@@ -73,10 +69,16 @@ async function fetchJson(url, opts) {
 }
 
 async function fetchRegisteredMembers() {
-  const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_members?select=openfront_id,in_game_name`, {
-    headers: { apikey: SUPABASE_ANON_KEY },
+  const base = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev'
+  const res = await fetch(`${base}/api/db`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table: 'cyn_members', op: 'select', select: 'openfront_id, in_game_name', filters: [], order: [] }),
   })
-  return rows
+  if (!res.ok) throw new Error(`members -> ${res.status}`)
+  const body = await res.json()
+  if (body.error) throw new Error(body.error.message)
+  return body.data ?? []
 }
 
 async function fetchPlayerGames(publicId) {

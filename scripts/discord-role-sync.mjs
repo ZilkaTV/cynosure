@@ -19,8 +19,8 @@
 // accumulating clamp two overlapping runs could race - no concurrency guard
 // needed here.
 
-import { createClient } from '@supabase/supabase-js'
-import { hotEnabled, hotGetAllMemberGames, hotGetDetails } from './lib/hotstore.mjs'
+import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
+import { hotGetAllMemberGames, hotGetDetails } from './lib/hotstore.mjs'
 
 const DISCORD_GUILD_ID = '1367283444823883776' // same value as DISCORD_GUILD_ID in src/config.ts
 const CLAN_TAG = 'CYN'
@@ -195,12 +195,9 @@ async function postMessage(botToken, channelId, content) {
 }
 
 async function main() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const botToken = process.env.DISCORD_BOT_TOKEN
   const roleIdsJson = process.env.DISCORD_WINS_ROLE_IDS
-  if (!supabaseUrl || !supabaseKey || !botToken || !roleIdsJson) {
+  if (!usersDbEnabled() || !botToken || !roleIdsJson) {
     console.error(JSON.stringify({ error: 'missing_config' }))
     process.exitCode = 1
     return
@@ -208,19 +205,9 @@ async function main() {
   const roleIdByTier = JSON.parse(roleIdsJson)
   const allConfiguredRoleIds = new Set(Object.values(roleIdByTier))
 
-  const supabase = createClient(supabaseUrl, supabaseKey)
-  // cyn_inner_circle gates the Metrics dashboard, unlike every other table
-  // this script writes - the anon key used everywhere else above can no
-  // longer write to it at all (its old `to public with check (true)`
-  // policies let anyone self-grant Metrics access via the anon key already
-  // shipped in the site's own JS bundle; those policies are now dropped).
-  // The service role key bypasses RLS entirely and is only ever used
-  // server-side, here - never sent to the client. If the secret isn't
-  // configured yet, inner-circle sync is skipped with a clear warning
-  // rather than silently failing per member against a policy that no
-  // longer exists.
-  const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
-  if (!supabaseAdmin) console.error('SUPABASE_SERVICE_ROLE_KEY not set - skipping cyn_inner_circle sync this run')
+  // User data lives in Cloudflare D1; this client talks to the Worker's internal API (HOT_API_SECRET).
+  const supabase = usersDb
+  const supabaseAdmin = usersDb
 
   // Service role when available: discord_user_id is no longer readable with the public key.
   const { data: members, error: membersError } = await (supabaseAdmin ?? supabase)
@@ -298,14 +285,7 @@ async function main() {
   // refresh-details.mjs's union-before-upsert), so a plain count here is
   // always at least as fresh as what the site itself shows.
   // Cloudflare D1 when configured (no Supabase egress), else the Supabase table.
-  let gamesRows
-  if (hotEnabled()) {
-    gamesRows = await hotGetAllMemberGames()
-  } else {
-    const { data, error: gamesError } = await supabase.from('cyn_member_games_cache').select('openfront_id, games')
-    if (gamesError) throw gamesError
-    gamesRows = data
-  }
+  const gamesRows = await hotGetAllMemberGames()
   const totalGamesByMember = new Map(
     (gamesRows ?? []).map((r) => [
       r.openfront_id,
@@ -492,9 +472,7 @@ Can you beat that? [cynclan.com](https://cynclan.com/)
       }
       const coopByGame = {}
       if (teamWinGameIds.size > 0) {
-        const detailRows = hotEnabled()
-          ? [...(await hotGetDetails([...teamWinGameIds]))].map(([game_id, detail]) => ({ game_id, detail }))
-          : (await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', [...teamWinGameIds])).data
+        const detailRows = [...(await hotGetDetails([...teamWinGameIds]))].map(([game_id, detail]) => ({ game_id, detail }))
         for (const row of detailRows ?? []) {
           coopByGame[row.game_id] = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length >= 2
         }

@@ -24,6 +24,7 @@
 
 import { createServer } from 'vite'
 import { hotEnabled, hotGetAllMemberGames, hotNewestMemberUpdate } from './lib/hotstore.mjs'
+import { usersDb } from './lib/usersdb.mjs'
 import fs from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -61,8 +62,8 @@ const CLAN_TAG = (() => {
   return content.match(/CLAN_TAG\s*=\s*['"]([^'"]+)['"]/)[1]
 })()
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY')
+if (!hotEnabled()) {
+  console.error('Missing HOT_API_SECRET')
   process.exit(1)
 }
 
@@ -70,12 +71,6 @@ async function fetchJson(url, opts) {
   const res = await fetch(url, opts)
   if (!res.ok) throw new Error(`${url} -> ${res.status}`)
   return res.json()
-}
-
-async function fetchRegisteredMembers() {
-  return fetchJson(`${SUPABASE_URL}/rest/v1/cyn_members?select=openfront_id,in_game_name`, {
-    headers: { apikey: SUPABASE_ANON_KEY },
-  })
 }
 
 // Reads each member's game list from our own shared cache
@@ -96,19 +91,7 @@ async function fetchRecentGameIds() {
       ids.add(g.gameId)
     }
   }
-  if (hotEnabled()) {
-    // Cloudflare D1 (see scripts/lib/hotstore.mjs): no Supabase egress.
-    for (const row of await hotGetAllMemberGames()) collect(row.games)
-    return [...ids]
-  }
-  const members = await fetchRegisteredMembers()
-  for (const m of members) {
-    const rows = await fetchJson(
-      `${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=games&openfront_id=eq.${encodeURIComponent(m.openfront_id)}`,
-      { headers: { apikey: SUPABASE_ANON_KEY } },
-    )
-    collect(rows[0]?.games)
-  }
+  for (const row of await hotGetAllMemberGames()) collect(row.games)
   return [...ids]
 }
 
@@ -125,12 +108,9 @@ async function fetchCoveredGameIds(ids, computeLogicVersion) {
   const covered = new Set()
   for (let i = 0; i < ids.length; i += 40) {
     const chunk = ids.slice(i, i + 40)
-    const filter = chunk.map((id) => `"${id}"`).join(',')
-    const rows = await fetchJson(
-      `${SUPABASE_URL}/rest/v1/cyn_game_tile_stats?select=game_id&game_id=in.(${filter})&compute_logic_version=eq.${computeLogicVersion}`,
-      { headers: { apikey: SUPABASE_ANON_KEY } },
-    )
-    for (const r of rows) covered.add(r.game_id)
+    const { data: rows, error } = await usersDb.from('cyn_game_tile_stats').select('game_id').in('game_id', chunk).eq('compute_logic_version', computeLogicVersion)
+    if (error) throw error
+    for (const r of rows ?? []) covered.add(r.game_id)
   }
   return covered
 }
@@ -190,9 +170,7 @@ async function main() {
     // so only do it when new games arrived recently, plus a full pass every 6 hours to retry
     // transient failures. FORCE_BACKFILL=1 skips this check (manual runs).
     if (!process.env.FORCE_BACKFILL) {
-      const newestAt = hotEnabled()
-        ? await hotNewestMemberUpdate()
-        : (await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_member_games_cache?select=updated_at&order=updated_at.desc&limit=1`, { headers: { apikey: SUPABASE_ANON_KEY } }))[0]?.updated_at
+      const newestAt = await hotNewestMemberUpdate()
       const newestMs = newestAt ? new Date(newestAt).getTime() : 0
       const recentlyChanged = Date.now() - newestMs < 70 * 60_000
       const fullPassSlot = new Date().getUTCHours() % 6 === 0
@@ -230,23 +208,21 @@ async function main() {
         if (out?.error === 'no_commit') continue
         if (!out?.stats) continue
         commit = out.commit
-        ok = await fetch(`${SUPABASE_URL}/rest/v1/cyn_game_tile_stats`, {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-            Prefer: 'resolution=merge-duplicates',
-          },
-          body: JSON.stringify({
-            game_id: gameId,
-            vendored_commit: out.commit,
-            compute_logic_version: out.version,
-            max_tiles: out.stats.maxTiles,
-            max_percent: out.stats.maxPercent,
-            final_tiles: out.stats.finalTiles,
-          }),
-        })
-          .then((res) => res.ok)
+        ok = await usersDb
+          .from('cyn_game_tile_stats')
+          .upsert(
+            {
+              game_id: gameId,
+              vendored_commit: out.commit,
+              compute_logic_version: out.version,
+              max_tiles: out.stats.maxTiles,
+              max_percent: out.stats.maxPercent,
+              final_tiles: out.stats.finalTiles,
+              computed_at: new Date().toISOString(),
+            },
+            { onConflict: 'game_id,vendored_commit,compute_logic_version' },
+          )
+          .then((res) => !res.error)
           .catch(() => false)
       }
       if (!commit && !ok) {

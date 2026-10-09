@@ -1,102 +1,46 @@
-// Custom Discord sign-in, replacing Supabase's own built-in Discord OAuth
-// provider (still used nowhere else on this site as of this file's
-// creation). Supabase's managed Discord provider always requests
-// `identify+email` from Discord's own consent screen regardless of the
-// `scopes` option passed to `signInWithOAuth()` client-side - confirmed
-// directly against a real login (the consent screen showed "access your
-// email address" as a granted permission even with `scopes: 'identify'`
-// requested) - and there is no dashboard setting to change that; it's fixed
-// server-side in how Supabase's GoTrue talks to Discord. Nothing on this
-// site ever reads a signed-in visitor's email, so that permission is asked
-// for and granted for no reason.
-//
-// This handler exchanges Discord's OAuth code directly ourselves (requesting
-// ONLY `identify`, see src/lib/discordAuth.ts for where the authorize URL is
-// built), then mints a real Supabase session using the officially documented
-// pattern for custom/unsupported OAuth providers: the Supabase ADMIN API's
-// generateLink(type: 'magiclink') creates-or-finds a Supabase auth user tied
-// to a synthetic, never-emailed "<discord id>@cynclan.invalid" address (the
-// .invalid TLD is reserved by RFC 2606 for exactly this - an address that's
-// guaranteed to never resolve or receive mail), and returns a hashed_token
-// the BROWSER then exchanges itself via supabase.auth.verifyOtp() (see
-// src/lib/discordAuth.ts) to get a normal, fully-valid Supabase session -
-// nothing here ever touches or stores a service-role-authenticated session
-// itself, only Supabase's own client SDK does, exactly as with every other
-// sign-in path on this site.
+// Discord sign-in. The browser is sent to Discord's consent screen asking ONLY for `identify` (no email,
+// see src/lib/discordAuth.ts), Discord redirects back here with a code, and this handler exchanges it itself and
+// issues the site's own session cookie (worker/session.js). Nothing else is stored: the identity is the Discord
+// user id, and everything the site needs about the person (username, avatar) rides inside the signed cookie.
 
-import { createClient } from '@supabase/supabase-js'
+import { signSession, sessionCookie, clearSessionCookie, readSession, readCookie } from './session.js'
 
-// Public by design (a Discord OAuth Client ID is meant to be embedded in
-// client-side code, same as it appears in the authorize URL a browser is
-// sent to) - duplicated here and in src/lib/discordAuth.ts rather than
-// threaded through env, same reasoning as every other small constant
-// duplicated across this repo's separate build boundaries (CLAN_TAG,
-// DISCORD_GUILD_ID, etc.). DISCORD_CLIENT_SECRET below is the real secret
-// and is NOT duplicated - it only ever lives in this Worker's own env.
+// Public by design (a Discord OAuth Client ID is embedded in the authorize URL the browser is sent to).
+// DISCORD_CLIENT_SECRET is the real secret and only ever lives in this Worker's env.
 const DISCORD_CLIENT_ID = '1525830274741571664'
 const DISCORD_REDIRECT_URI = 'https://cynclan.com/api/auth/discord/callback'
 
-// Only ever redirect back to a known page on this same site - `state` is
-// visitor-controlled (it's a URL query param on the Discord redirect), so
-// treating it as an arbitrary redirect target would make this an open
-// redirect. Extend this list if another page grows its own Discord sign-in
-// button.
+// Only ever redirect back to a known page of this site - `state` is visitor-controlled.
 const ALLOWED_REDIRECT_PATHS = new Set(['/register', '/survey'])
 
-function errorRedirect(targetPath, reason) {
+const NONCE_COOKIE = 'cyn_oauth_nonce'
+
+function redirect(targetPath, params, extraHeaders = []) {
   const url = new URL(targetPath, 'https://cynclan.com')
-  url.searchParams.set('discord_auth_error', reason)
-  return Response.redirect(url.toString(), 302)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const headers = new Headers({ Location: url.toString() })
+  for (const [k, v] of extraHeaders) headers.append(k, v)
+  return new Response(null, { status: 302, headers })
 }
 
-/**
- * Finds this Discord account's existing auth.users row, if any (matched by
- * the immutable Discord snowflake id in user_metadata.provider_id, not
- * username - a username can change). Without this, every sign-in would
- * unconditionally target the synthetic "<id>@cynclan.invalid" address,
- * which for anyone who'd already signed in before this custom flow existed
- * (back when Supabase's own Discord provider created a REAL-email user)
- * creates a brand-new SECOND account instead of reusing their real one -
- * confirmed live as a real bug: it silently orphaned that person's existing
- * cyn_survey_responses/cyn_event_admins rows (RLS-invisible under their new
- * session's different auth.uid(), not deleted). If more than one row
- * somehow matches (exactly this bug, before this fix existed), the oldest
- * is treated as canonical - it's the one everything else was already
- * created against.
- */
-async function findExistingUserByDiscordId(supabaseAdmin, discordId) {
-  let oldest = null
-  for (let page = 1; ; page++) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
-    if (error) throw error
-    for (const u of data.users) {
-      if (u.user_metadata?.provider_id === discordId) {
-        if (!oldest || new Date(u.created_at) < new Date(oldest.created_at)) oldest = u
-      }
-    }
-    if (data.users.length < 1000) break
-  }
-  return oldest
-}
+const clearNonce = ['Set-Cookie', `${NONCE_COOKIE}=; Max-Age=0; Path=/api/auth; Secure; SameSite=Lax`]
 
 export async function handleDiscordAuthCallback(request, env) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  // `state` is `<path>|<nonce>` - see src/lib/discordAuth.ts's own comment
-  // on NONCE_STORAGE_KEY. The nonce only matters to the BROWSER (it checks
-  // the echo against what it stored before leaving for Discord - this
-  // Worker has no session of its own to compare against), so it's just
-  // parsed out and passed straight back below, not validated here.
-  const rawState = searchParams.get('state') ?? ''
-  const [rawPath, nonce] = rawState.split('|')
+  // `state` is `<path>|<nonce>`. The same nonce was also stored in a short-lived cookie by the browser before it
+  // left for Discord: an attacker who sends a victim a callback link built from the attacker's own code can't also
+  // plant that cookie, so a mismatch means this callback was not started by this browser (login CSRF).
+  const [rawPath, nonce] = (searchParams.get('state') ?? '').split('|')
   const targetPath = ALLOWED_REDIRECT_PATHS.has(rawPath) ? rawPath : '/'
 
-  if (searchParams.get('error')) {
-    // Most commonly access_denied - the visitor clicked "Cancel" on Discord's
-    // own consent screen, not a real failure on our end.
-    return errorRedirect(targetPath, 'discord_denied')
+  if (searchParams.get('error')) return redirect(targetPath, { discord_auth_error: 'discord_denied' }, [clearNonce])
+  if (!code) return redirect(targetPath, { discord_auth_error: 'missing_code' }, [clearNonce])
+
+  const cookieNonce = readCookie(request, NONCE_COOKIE)
+  if (!nonce || !cookieNonce || nonce !== cookieNonce) {
+    return redirect(targetPath, { discord_auth_error: 'state_mismatch' }, [clearNonce])
   }
-  if (!code) return errorRedirect(targetPath, 'missing_code')
 
   let discordUser
   try {
@@ -113,77 +57,51 @@ export async function handleDiscordAuthCallback(request, env) {
     })
     if (!tokenRes.ok) throw new Error(`Discord token exchange failed: ${tokenRes.status}`)
     const { access_token: accessToken } = await tokenRes.json()
-
-    const userRes = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const userRes = await fetch('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${accessToken}` } })
     if (!userRes.ok) throw new Error(`Discord /users/@me failed: ${userRes.status}`)
     discordUser = await userRes.json()
   } catch (err) {
     console.error('Discord OAuth exchange failed:', err)
-    return errorRedirect(targetPath, 'discord_exchange_failed')
+    return redirect(targetPath, { discord_auth_error: 'discord_exchange_failed' }, [clearNonce])
   }
 
-  const supabaseAdmin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
-
-  // Reuse this Discord account's existing user (whether created by
-  // Supabase's old Discord provider with a real email, or by this flow
-  // before) if one exists - see findExistingUserByDiscordId's own comment.
-  // Only a brand-new Discord id falls back to the synthetic, never-real
-  // "<id>@cynclan.invalid" address (RFC 2606's reserved .invalid TLD).
-  let existingUser
+  let token
   try {
-    existingUser = await findExistingUserByDiscordId(supabaseAdmin, discordUser.id)
+    token = await signSession(env, {
+      id: discordUser.id,
+      // The raw, unique username (e.g. "zjlka"), not the changeable display name - admin and moderator lists are keyed on it.
+      username: discordUser.username,
+      globalName: discordUser.global_name ?? null,
+      avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
+    })
   } catch (err) {
-    console.error('findExistingUserByDiscordId failed:', err)
-    return errorRedirect(targetPath, 'session_mint_failed')
+    console.error('signSession failed:', err)
+    return redirect(targetPath, { discord_auth_error: 'session_mint_failed' }, [clearNonce])
   }
-  const targetEmail = existingUser?.email ?? `discord-${discordUser.id}@cynclan.invalid`
-
-  // Matches exactly what Supabase's own Discord provider used to populate,
-  // so discordDisplayName()/discordUserId() (src/lib/useSession.ts) and
-  // every table keyed off a Discord username elsewhere on this site keep
-  // working unchanged. full_name = Discord's raw, unique "username" field
-  // (not the changeable global_name display name) - see useSession.ts's own
-  // comment on discordDisplayName for why that field specifically.
-  const userMetadata = {
-    full_name: discordUser.username,
-    provider_id: discordUser.id,
-    avatar_url: discordUser.avatar
-      ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-      : null,
-    custom_claims: { global_name: discordUser.global_name ?? null },
+  // An admin/moderator who was added by name before ever signing in gets linked to this Discord id now.
+  if (env.DB) {
+    try {
+      await env.DB.batch([
+        env.DB.prepare('UPDATE cyn_event_admins SET user_id = ? WHERE discord_username = ? AND user_id IS NULL').bind(discordUser.id, discordUser.username),
+        env.DB.prepare('UPDATE cyn_chat_moderators SET user_id = ? WHERE discord_username = ? AND user_id IS NULL').bind(discordUser.id, discordUser.username),
+      ])
+    } catch (err) {
+      console.error('linking admin/moderator rows failed:', err)
+    }
   }
+  return redirect(targetPath, { discord_signed_in: '1' }, [['Set-Cookie', sessionCookie(token)], clearNonce])
+}
 
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: 'magiclink',
-    email: targetEmail,
-    options: { data: userMetadata },
-  })
-  if (error || !data.properties?.hashed_token) {
-    console.error('generateLink failed:', error)
-    return errorRedirect(targetPath, 'session_mint_failed')
+const jsonNoStore = (body, extra = {}) =>
+  new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extra } })
+
+/** GET /api/auth/session -> { user } ; POST /api/auth/logout -> clears the cookie. */
+export async function handleAuthApi(request, env, pathname) {
+  if (pathname === '/api/auth/session' && request.method === 'GET') {
+    return jsonNoStore({ user: await readSession(request, env) })
   }
-
-  // generateLink() only sets user_metadata at first creation, not on repeat
-  // calls for an already-existing user - refreshed explicitly here on every
-  // sign-in so a Discord username/avatar change is picked up instead of
-  // staying frozen at whatever it was the first time someone signed in.
-  await supabaseAdmin.auth.admin.updateUserById(data.user.id, { user_metadata: userMetadata }).catch((err) => {
-    console.error('updateUserById (metadata refresh) failed, continuing with stale metadata:', err)
-  })
-
-  // Only token_hash is needed client-side (see discordAuth.ts's
-  // verifyOtp() call) - Supabase's own VerifyTokenHashParams type doesn't
-  // even accept an email alongside it, confirmed live: passing one caused
-  // the server to reject every verification outright with a 400 ("Only the
-  // token_hash and type should be provided").
-  const redirectUrl = new URL(targetPath, 'https://cynclan.com')
-  redirectUrl.searchParams.set('discord_token_hash', data.properties.hashed_token)
-  // Echoed straight back for the browser's own anti-CSRF check (see
-  // completeDiscordSignIn in discordAuth.ts) - if there's no nonce (an old
-  // link, or state was tampered with), that check fails closed on its own,
-  // nothing extra needed here.
-  if (nonce) redirectUrl.searchParams.set('discord_state_nonce', nonce)
-  return Response.redirect(redirectUrl.toString(), 302)
+  if (pathname === '/api/auth/logout' && request.method === 'POST') {
+    return jsonNoStore({ ok: true }, { 'Set-Cookie': clearSessionCookie() })
+  }
+  return new Response('Not found', { status: 404 })
 }

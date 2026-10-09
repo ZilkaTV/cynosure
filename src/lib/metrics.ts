@@ -103,7 +103,7 @@ export async function getMetricsHistory(days = 30): Promise<DailyMetricsRow[]> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data, error } = await supabase.from('cyn_metrics_daily').select('*').gte('day', since).order('day', { ascending: true })
   if (error || !data) return []
-  return data.map((row) => ({
+  return (data as Record<string, unknown>[]).map((row) => ({
     day: row.day as string,
     memberCount: row.member_count as number | null,
     presenceCount: row.presence_count as number | null,

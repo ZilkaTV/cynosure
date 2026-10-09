@@ -45,8 +45,7 @@ jobs:
 
       - name: Sync OpenFront clan members into cyn_members
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
         run: node scripts/sync-clan-members.mjs
 
       - name: Sync Discord wins-tier roles

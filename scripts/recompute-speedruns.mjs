@@ -3,10 +3,10 @@
 // src/lib/replaySimCore.ts) instead of "time of the last real action", which over-counted any run
 // where the player kept clicking after the win (reported: 5:34 stored vs 5:21 shown in game).
 // Safe to re-run; only rows whose time changes are written. Run via the manual workflow
-// .github/workflows/recompute-speedruns.yml (needs the service role key: members only
-// have RLS access to their own row).
+// .github/workflows/recompute-speedruns.yml (needs HOT_API_SECRET: members can only
+// change their own row through the site).
 import { createServer } from 'vite'
-import { createClient } from '@supabase/supabase-js'
+import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,10 +14,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
 
 async function main() {
-  const url = process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing')
-  const supabase = createClient(url, key)
+  if (!usersDbEnabled()) throw new Error('HOT_API_SECRET missing')
+  const supabase = usersDb
   const { data: rows, error } = await supabase.from('cyn_speedruns').select('openfront_id, game_id, seconds, tiles3min_percent')
   if (error) throw error
 

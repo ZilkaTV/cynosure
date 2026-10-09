@@ -148,10 +148,17 @@ export async function submitEventEntry(params: {
   const ext = params.screenshotFile.name.split('.').pop() || 'png'
   const path = `${params.eventId}/${params.openfrontId}-${Date.now()}.${ext}`
 
-  const { error: uploadError } = await supabase.storage.from('event-screenshots').upload(path, params.screenshotFile)
-  if (uploadError) return { ok: false, message: `Screenshot upload failed: ${uploadError.message}` }
-
-  const { data: pub } = supabase.storage.from('event-screenshots').getPublicUrl(path)
+  // Screenshots still live in Supabase Storage (public bucket, upload allowed with the public key) until they move to
+  // Cloudflare R2 - see docs/cloudflare-migration-plan.md step 6.
+  const sbUrl = import.meta.env.VITE_SUPABASE_URL as string
+  const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const upload = await fetch(`${sbUrl}/storage/v1/object/event-screenshots/${path}`, {
+    method: 'POST',
+    headers: { apikey: sbKey, 'Content-Type': params.screenshotFile.type },
+    body: params.screenshotFile,
+  }).catch(() => null)
+  if (!upload || !upload.ok) return { ok: false, message: 'Screenshot upload failed. Please try again.' }
+  const pub = { publicUrl: `${sbUrl}/storage/v1/object/public/event-screenshots/${path}` }
 
   const { error } = await supabase.from('cyn_event_submissions').insert({
     event_id: params.eventId,

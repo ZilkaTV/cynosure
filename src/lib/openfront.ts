@@ -5,7 +5,6 @@
 // keeps us under OpenFront's strict rate limits.
 
 import { CACHE_TTL_MS, CLAN_TAG } from '../config'
-import { supabase } from './supabase'
 import { cleanDisplayName } from './displayName'
 
 const API_BASE = '/api/of'
@@ -273,16 +272,9 @@ export async function fetchRosterCacheRow(): Promise<RosterCacheRow | null> {
         const res = await fetch('/api/roster')
         if (res.ok) return (await res.json()) as RosterCacheRow
       } catch {
-        // fall through to the direct Supabase read below
+        // the Worker route is unreachable - no roster this time
       }
-      if (!supabase) return null
-      const { data, error } = await supabase
-        .from('cyn_roster_cache')
-        .select('ranked_1v1, ranked_2v2, ffa_leaderboard, clan_leaderboard, clan_leaderboard_top')
-        .eq('id', 1)
-        .maybeSingle()
-      if (error || !data) return null
-      return data as RosterCacheRow
+      return null
     })()
   }
   return rosterCacheRow
@@ -370,11 +362,6 @@ const GAMES_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 // same rate-limited pagination itself. Trusted regardless of how old the row
 // is - see fetchSharedPlayerGamesBatch's own comment for why an age check
 // here caused more harm than it prevented.
-interface SharedGamesRow {
-  openfront_id: string
-  games: PlayerGame[]
-}
-
 // No staleness check on this row (there used to be one, 1 hour): this used
 // to make sense when a "too old" row fell back to a live fetch, getting
 // fresher data as a consequence - but fetchPlayerGamesBatch/fetchPlayerGames
@@ -406,13 +393,8 @@ async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<str
       return result
     }
   } catch {
-    // fall through to the direct Supabase read below
+    // the Worker route is unreachable - the caller falls back to live OpenFront data
   }
-
-  if (!supabase) return result
-  const { data, error } = await supabase.from('cyn_member_games_cache').select('openfront_id, games').in('openfront_id', publicIds)
-  if (error || !data) return result
-  for (const row of data as SharedGamesRow[]) result.set(row.openfront_id, row.games)
   return result
 }
 
@@ -427,19 +409,9 @@ async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<str
 // actual shrink. mergeAndCacheGames's own local "lastGood" merge (see
 // above) only protects THIS browser's local cache from this; the shared
 // Supabase row needs its own read-before-write for the same guarantee.
-async function saveSharedPlayerGames(publicId: string, games: PlayerGame[]): Promise<void> {
-  if (!supabase) return
-  try {
-    const { data } = await supabase.from('cyn_member_games_cache').select('games').eq('openfront_id', publicId).maybeSingle()
-    const existing = ((data as { games?: PlayerGame[] } | null)?.games ?? []) as PlayerGame[]
-    const byGame = new Map(games.map((g) => [g.gameId, g] as const))
-    for (const g of existing) if (!byGame.has(g.gameId)) byGame.set(g.gameId, g)
-    await supabase
-      .from('cyn_member_games_cache')
-      .upsert({ openfront_id: publicId, games: [...byGame.values()], updated_at: new Date().toISOString() }, { onConflict: 'openfront_id' })
-  } catch {
-    // best-effort - a failed upload just means the next fetch (by anyone) tries again
-  }
+async function saveSharedPlayerGames(_publicId: string, _games: PlayerGame[]): Promise<void> {
+  // The shared per-member game lists are written by the scheduled scripts into D1 (see scripts/refresh-details.mjs);
+  // browsers no longer upload them.
 }
 
 // Layers in every game this player has ever had successfully fetched before
@@ -603,13 +575,8 @@ async function fetchSharedGameDetailsBatch(gameIds: string[]): Promise<Map<strin
       return result
     }
   } catch {
-    // fall through to the direct Supabase read below
+    // the Worker route is unreachable - the caller falls back to a live OpenFront fetch
   }
-
-  if (!supabase) return result
-  const { data, error } = await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', gameIds)
-  if (error || !data) return result
-  for (const row of data as { game_id: string; detail: GameDetail }[]) result.set(row.game_id, row.detail)
   return result
 }
 
@@ -619,12 +586,8 @@ async function fetchSharedGameDetail(gameId: string): Promise<GameDetail | null>
   return result.get(gameId) ?? null
 }
 
-function saveSharedGameDetail(gameId: string, detail: GameDetail): void {
-  if (!supabase) return
-  supabase
-    .from('cyn_game_detail_cache')
-    .upsert({ game_id: gameId, detail }, { onConflict: 'game_id' })
-    .then(() => {}, () => {}) // best-effort - a failed upload just means the next fetch (by anyone) tries again
+function saveSharedGameDetail(_gameId: string, _detail: GameDetail): void {
+  // Written by the scheduled scripts into D1; browsers no longer upload game details.
 }
 
 /**

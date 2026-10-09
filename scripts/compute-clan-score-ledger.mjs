@@ -22,7 +22,6 @@
 //
 // Runs on a schedule via .github/workflows/clan-score-ledger.yml.
 
-import { createClient } from '@supabase/supabase-js'
 import { hotEnabled, hotGetAllMemberGames, hotGetDetails, hotPutBlob } from './lib/hotstore.mjs'
 
 const CLAN_TAG = 'CYN'
@@ -98,61 +97,16 @@ function buildClanScoreLedger(games, now) {
 
 // ── end duplicated section ──────────────────────────────────────────────────
 
-const UPSERT_BATCH_SIZE = 500
 
-// PostgREST caps an unpaginated select at 1000 rows by default - same
-// landmine documented in worker/clanLedger.js's own comment (confirmed
-// live there as the actual cause of real rows silently going missing).
-// Paged defensively here too for the stale-row cleanup scan below.
-const SUPABASE_PAGE_SIZE = 1000
 
 async function main() {
-  const url = process.env.VITE_SUPABASE_URL
-  const key = process.env.VITE_SUPABASE_ANON_KEY
-  if (!url || !key) {
-    console.error(JSON.stringify({ error: 'supabase_not_configured' }))
+  if (!hotEnabled()) {
+    console.error(JSON.stringify({ error: 'hot_store_not_configured', need: 'HOT_API_SECRET' }))
     process.exitCode = 1
     return
   }
-  const supabase = createClient(url, key)
-
-  // Confirmed live: this exact query (identical URL every run - no filters,
-  // no pagination) kept returning a byte-identical, hours-stale response
-  // when called from GitHub Actions - the same script run locally with the
-  // same credentials always saw current data. Supabase's REST endpoint sits
-  // behind Cloudflare (visible in its own response headers), and GitHub
-  // Actions runner IPs are well-known datacenter ranges Cloudflare's bot
-  // heuristics are especially likely to flag - plausibly serving those
-  // requests a cached/degraded response instead of hitting Postgres fresh
-  // each time, the same class of problem already confirmed for OpenFront's
-  // own Cloudflare-fronted API elsewhere in this repo (see fetchRankedMap's
-  // own comment). A harmless, always-true filter keyed to the current
-  // second makes the request URL genuinely different every run, defeating
-  // any exact-URL cache without changing which rows come back.
-  const HOT = hotEnabled()
-  const gamesRows = []
-  if (HOT) {
-    // Cloudflare D1 (see scripts/lib/hotstore.mjs): no Supabase egress.
-    gamesRows.push(...(await hotGetAllMemberGames()))
-  } else {
-    // Read a few members at a time: the whole table is ~12 MB of JSON, and one query for all of
-    // it ran into Postgres' statement timeout (code 57014) once the unregistered clan members
-    // were added - that was the daily "Compute clan score ledger" failure mail.
-    const { data: memberRows, error: memberError } = await supabase.from('cyn_member_games_cache').select('openfront_id').order('openfront_id', { ascending: true })
-    if (memberError) throw memberError
-    const MEMBERS_PER_QUERY = 10
-    for (let i = 0; i < (memberRows ?? []).length; i += MEMBERS_PER_QUERY) {
-      const ids = memberRows.slice(i, i + MEMBERS_PER_QUERY).map((m) => m.openfront_id)
-      const { data, error } = await supabase
-        .from('cyn_member_games_cache')
-        .select('games')
-        .in('openfront_id', ids)
-        .gte('updated_at', '1970-01-01T00:00:00Z')
-        .lte('updated_at', new Date(Date.now() + 86_400_000).toISOString())
-      if (error) throw error
-      gamesRows.push(...(data ?? []))
-    }
-  }
+  // All member game lists come from Cloudflare D1 (see scripts/lib/hotstore.mjs).
+  const gamesRows = await hotGetAllMemberGames()
 
   // One entry per gameId (not per member) - clanPlayerCount is how many
   // DIFFERENT registered members' own cache includes this same gameId under
@@ -205,14 +159,7 @@ async function main() {
   const gameIds = [...byGameId.keys()]
   for (let i = 0; i < gameIds.length; i += 200) {
     const chunk = gameIds.slice(i, i + 200)
-    let detailRows
-    if (HOT) {
-      detailRows = [...(await hotGetDetails(chunk))].map(([game_id, detail]) => ({ game_id, detail }))
-    } else {
-      const { data, error: detailError } = await supabase.from('cyn_game_detail_cache').select('game_id, detail').in('game_id', chunk)
-      if (detailError) throw detailError
-      detailRows = data
-    }
+    const detailRows = [...(await hotGetDetails(chunk))].map(([game_id, detail]) => ({ game_id, detail }))
     for (const row of detailRows ?? []) {
       const trueCount = (row.detail?.players ?? []).filter((p) => p.clanTag === CLAN_TAG).length
       if (trueCount > 0) byGameId.get(row.game_id).clanPlayerCount = trueCount
@@ -222,78 +169,18 @@ async function main() {
   const allGames = [...byGameId.values()]
   const ledger = buildClanScoreLedger(allGames, new Date())
 
-  let written = 0
-  for (let i = 0; i < ledger.length; i += UPSERT_BATCH_SIZE) {
-    const batch = ledger.slice(i, i + UPSERT_BATCH_SIZE).map((e) => ({
-      game_id: e.gameId,
-      played_at: e.playedAt,
-      won: e.won,
-      clan_player_count: e.clanPlayerCount,
-      total_player_count: e.totalPlayerCount,
-      num_teams: e.numTeams,
-      score: e.score,
-      cum_weighted_wins: e.cumWeightedWins,
-      cum_weighted_losses: e.cumWeightedLosses,
-      ratio_before: e.ratioBefore,
-      ratio_after: e.ratioAfter,
-    }))
-    const { error: upsertError } = await supabase.from('cyn_clan_score_ledger').upsert(batch, { onConflict: 'game_id' })
-    if (upsertError) throw upsertError
-    written += batch.length
-  }
-
-  // The Worker serves /api/clan-ledger from D1 (worker/clanLedger.js): publish the same five columns it used to mirror into KV.
-  if (HOT) {
-    await hotPutBlob(
-      'ledger',
-      JSON.stringify(ledger.map((e) => ({ game_id: e.gameId, won: e.won, score: e.score, ratio_before: e.ratioBefore, ratio_after: e.ratioAfter }))),
-    ).catch((err) => console.error('ledger blob write to D1 failed:', err))
-  }
-
-  // Deletes any row whose game_id ISN'T in this run's freshly computed
-  // ledger - the upsert above only ever adds/updates rows, so without this
-  // a game that's no longer eligible (today: 2v2 games from before this
-  // fix; in general: any future eligibility-rule change, or a game that
-  // turns out to have been miscounted) stays in the table forever. Makes
-  // this genuinely a full recompute, matching what this file's own header
-  // comment already claims.
-  const currentIds = new Set(ledger.map((e) => e.gameId))
-  const staleIds = []
-  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-    const { data: existingRows, error: existingError } = await supabase
-      .from('cyn_clan_score_ledger')
-      .select('game_id')
-      .order('game_id', { ascending: true })
-      .range(from, from + SUPABASE_PAGE_SIZE - 1)
-    if (existingError) throw existingError
-    for (const row of existingRows ?? []) if (!currentIds.has(row.game_id)) staleIds.push(row.game_id)
-    if (!existingRows || existingRows.length < SUPABASE_PAGE_SIZE) break
-  }
-  // `.select('game_id')` on the delete makes Supabase return the rows it
-  // ACTUALLY deleted, instead of nothing - confirmed live as necessary, not
-  // defensive paranoia: a missing RLS delete policy for this table meant an
-  // earlier version of this exact call returned no error (RLS silently
-  // filters a DELETE to zero matching rows rather than rejecting it) while
-  // deleting nothing at all, and this script had no way to tell the
-  // difference from a real success until checked directly against the
-  // table afterward.
-  let deleted = 0
-  for (let i = 0; i < staleIds.length; i += UPSERT_BATCH_SIZE) {
-    const chunk = staleIds.slice(i, i + UPSERT_BATCH_SIZE)
-    const { data: deletedRows, error: deleteError } = await supabase.from('cyn_clan_score_ledger').delete().in('game_id', chunk).select('game_id')
-    if (deleteError) throw deleteError
-    if ((deletedRows ?? []).length !== chunk.length) {
-      throw new Error(`Deleted ${deletedRows?.length ?? 0} of ${chunk.length} stale rows in this batch - RLS likely blocking the delete (check for a delete policy on cyn_clan_score_ledger)`)
-    }
-    deleted += deletedRows.length
-  }
+  // The Worker serves /api/clan-ledger from this document in D1 (worker/clanLedger.js). It is written whole every run,
+  // so a game that is no longer eligible disappears by itself.
+  await hotPutBlob(
+    'ledger',
+    JSON.stringify(ledger.map((e) => ({ game_id: e.gameId, won: e.won, score: e.score, ratio_before: e.ratioBefore, ratio_after: e.ratioAfter }))),
+  )
 
   console.log(
     JSON.stringify(
       {
         eligibleGamesConsidered: byGameId.size,
-        ledgerEntriesWritten: written,
-        staleEntriesDeleted: deleted,
+        ledgerEntriesWritten: ledger.length,
         latestRatio: ledger.length ? ledger[ledger.length - 1].ratioAfter : null,
       },
       null,

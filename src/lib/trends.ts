@@ -39,7 +39,7 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
     .gte('snapshot_date', sinceDate(days))
     .order('snapshot_date', { ascending: true })
   if (error) return []
-  return (data ?? []).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, allWins: r.all_wins, xp: r.xp }))
+  return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, allWins: r.all_wins, xp: r.xp }))
 }
 
 /** Every registered member's trend at once, keyed by openfront_id - one (paginated) query instead of N. */

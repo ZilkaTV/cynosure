@@ -15,3 +15,4 @@ tsconfig.tsbuildinfo
 # Local Elo-research scripts (possible "Option C" later) - kept on disk, not part of the site
 scripts/crawl-ranked-games.mjs
 scripts/elo-fit.mjs
+.wrangler/

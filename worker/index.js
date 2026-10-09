@@ -9,7 +9,8 @@
 // routes (assets.not_found_handling: "single-page-application").
 import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
-import { handleDiscordAuthCallback } from './discord-auth.js'
+import { handleDiscordAuthCallback, handleAuthApi } from './discord-auth.js'
+import { handleDbApi } from './dbApi.js'
 import { withSecurityHeaders } from './securityHeaders.js'
 import { edgeCached } from './kvSafe.js'
 import { handleClanMembers } from './clanMembers.js'
@@ -48,6 +49,8 @@ export default {
     if (pathname === '/api/help-chat') {
       return withSecurityHeaders(new Response(JSON.stringify({ error: 'gone' }), { status: 410, headers: { 'Content-Type': 'application/json' } }))
     }
+    if (pathname === '/api/auth/session' || pathname === '/api/auth/logout') return withSecurityHeaders(await handleAuthApi(request, env, pathname))
+    if (pathname === '/api/db' || pathname === '/api/db/rpc') return withSecurityHeaders(await handleDbApi(request, env, pathname))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))

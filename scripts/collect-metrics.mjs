@@ -21,7 +21,7 @@
 // doesn't have here - confirmed directly, a plain .upsert() failed with
 // "violates row-level security policy" purely from that conflict check.
 
-import { createClient } from '@supabase/supabase-js'
+import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
 
 const DISCORD_GUILD_ID = '1367283444823883776' // same value as DISCORD_GUILD_ID in src/config.ts
 const POLL_INTERVAL_MINUTES = 10 // matches this workflow's own cron cadence
@@ -127,21 +127,15 @@ async function fetchJoinsToday(botToken, today) {
 }
 
 async function main() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL
-  // Prefer the service-role key: the metrics RPCs/tables are cron-only, so once
-  // the pending lockdown SQL in supabase/schema.sql revokes anon access this
-  // key is the only one that can write them. Falls back to the anon key so the
-  // job keeps working until that SQL has been applied.
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
   const botToken = process.env.DISCORD_BOT_TOKEN
   const channelsJson = process.env.DISCORD_METRICS_CHANNELS
-  if (!supabaseUrl || !supabaseKey || !botToken || !channelsJson) {
+  if (!usersDbEnabled() || !botToken || !channelsJson) {
     console.error(JSON.stringify({ error: 'missing_config' }))
     process.exitCode = 1
     return
   }
   const channels = JSON.parse(channelsJson)
-  const supabase = createClient(supabaseUrl, supabaseKey)
+  const supabase = usersDb
   const today = todayUtcDateString()
 
   const { memberCount, presenceCount } = await fetchGuildCounts(botToken)
@@ -165,18 +159,16 @@ async function main() {
       // deleted/inaccessible channel won't fix itself between now and the
       // next poll, so retrying here would just repeat the same failure.
       try {
-        const { data: lastMessageId, error: stateError } = await supabase.rpc('cyn_get_metrics_channel_state', {
-          p_channel_id: channelId,
-        })
+        const { data: stateRow, error: stateError } = await supabase.from('cyn_metrics_channel_state').select('last_message_id').eq('channel_id', channelId).maybeSingle()
         if (stateError) throw stateError
+        const lastMessageId = stateRow?.last_message_id ?? null
         const { count, newestId } = await countNewMessages(botToken, channelId, lastMessageId ?? null)
         if (kind === 'public') publicMessagesDelta += count
         else privateMessagesDelta += count
         if (newestId) {
-          const { error: stateWriteError } = await supabase.rpc('cyn_upsert_metrics_channel_state', {
-            p_channel_id: channelId,
-            p_last_message_id: newestId,
-          })
+          const { error: stateWriteError } = await supabase
+            .from('cyn_metrics_channel_state')
+            .upsert({ channel_id: channelId, last_message_id: newestId, updated_at: new Date().toISOString() }, { onConflict: 'channel_id' })
           if (stateWriteError) throw stateWriteError
         }
       } catch (err) {
@@ -191,20 +183,27 @@ async function main() {
   const { count: clanRegistrationsToday } = await supabase
     .from('cyn_members')
     .select('openfront_id', { count: 'exact', head: true })
-    .not('user_id', 'is', null) // clan members listed by scripts/sync-clan-members.mjs have no account yet
+    .notNull('user_id') // clan members listed by scripts/sync-clan-members.mjs have no account yet
     .gte('created_at', todayStart)
 
-  const { error: dailyError } = await supabase.rpc('cyn_upsert_metrics_daily', {
-    p_day: today,
-    p_member_count: memberCount,
-    p_presence_count: presenceCount,
-    p_new_vc_member_ids: vcNow,
-    p_vc_minutes_delta: vcMinutesDelta,
-    p_public_messages_delta: publicMessagesDelta,
-    p_private_messages_delta: privateMessagesDelta,
-    p_discord_joins_today: discordJoinsToday,
-    p_clan_registrations_today: clanRegistrationsToday ?? 0,
-  })
+  // Merge this poll's deltas into today's running totals (what the old cyn_upsert_metrics_daily function did).
+  const { data: existing, error: existingError } = await supabase.from('cyn_metrics_daily').select('*').eq('day', today).maybeSingle()
+  if (existingError) throw existingError
+  const { error: dailyError } = await supabase.from('cyn_metrics_daily').upsert(
+    {
+      day: today,
+      member_count: memberCount,
+      presence_count: presenceCount,
+      vc_active_member_ids: [...new Set([...(existing?.vc_active_member_ids ?? []), ...vcNow])],
+      vc_total_minutes: (existing?.vc_total_minutes ?? 0) + vcMinutesDelta,
+      public_messages: (existing?.public_messages ?? 0) + publicMessagesDelta,
+      private_messages: (existing?.private_messages ?? 0) + privateMessagesDelta,
+      discord_joins_today: discordJoinsToday,
+      clan_registrations_today: clanRegistrationsToday ?? 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'day' },
+  )
   if (dailyError) throw dailyError
 
   console.log(

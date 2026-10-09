@@ -1,23 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from './supabase'
+import { fetchSession, SESSION_EVENT, type Session } from './db'
 import { isEventAdmin } from './events'
 import { completeDiscordSignIn } from './discordAuth'
 
 // ── Shared session singleton ────────────────────────────────────────────────
-// useSession() is called from many places at once on a single page (Layout's
-// AccountMenu, useProfile()'s own recovery effect, and directly by pages like
-// Register.tsx) - each call used to set up its OWN independent
-// supabase.auth.getSession() call + its OWN onAuthStateChange subscription.
-// Confirmed as a real bug, not just redundant: right after completing the
-// Discord OAuth redirect, several of these concurrent getSession() calls can
-// resolve in a different order than the auth state actually settles in, and
-// whichever one's setState happens to land LAST wins for that component -
-// intermittently leaving Register.tsx showing "session === null" (the signed-
-// out verify-with-Discord card) moments after a real, successful sign-in. A
-// single shared subscription removes the race entirely: exactly one
-// getSession() call and one onAuthStateChange listener for the whole page,
-// no matter how many components call useSession().
+// useSession() is called from many places at once on a single page (Layout's AccountMenu, useProfile()'s own
+// recovery effect, pages like Register.tsx). They all share ONE session request and one listener list, so no
+// component can end up with a different answer than the others.
 let cachedSession: Session | null | undefined = undefined
 let initStarted = false
 const listeners = new Set<(s: Session | null | undefined) => void>()
@@ -28,35 +17,15 @@ function notifyAll(s: Session | null | undefined) {
 }
 
 function ensureInitialized() {
-  if (initStarted || !supabase) return
+  if (initStarted) return
   initStarted = true
-  // Narrowed local alias - TS doesn't carry the `!supabase` guard's
-  // narrowing into the nested .finally() closure below since it's an
-  // imported binding, not a local const.
-  const client = supabase
-  // If this page is the redirect target after a Discord sign-in (see
-  // discordAuth.ts), getSession() is held off until that finishes - it
-  // would otherwise very likely resolve with null (nothing to find locally
-  // yet) BEFORE the OTP exchange completes, notifying every subscriber with
-  // a premature "signed out" that only self-corrects once
-  // onAuthStateChange's own notifyAll lands moments later. Not just a
-  // cosmetic flash: confirmed live as a real stuck state on Register.tsx,
-  // exactly the class of race this singleton was already built to prevent
-  // (see this file's own top comment) - completeDiscordSignIn() itself can
-  // fail today (a bad token, Supabase briefly down) and getSession() must
-  // still run afterward regardless, so this waits for it to settle rather
-  // than depending on it succeeding.
+  // If this page is the redirect target after a Discord sign-in, tidy the URL first; the session cookie is
+  // already set by then, so the request below sees the signed-in state.
   completeDiscordSignIn().finally(() => {
-    client.auth.getSession().then(({ data, error }) => {
-      // Temporary - tracking down an intermittent forced-logout bug. Safe to
-      // remove once that's confirmed fixed.
-      console.info('[auth] getSession', { hasSession: !!data.session, expiresAt: data.session?.expires_at, error })
-      notifyAll(data.session)
-    })
+    fetchSession().then(notifyAll)
   })
-  client.auth.onAuthStateChange((e, s) => {
-    console.info('[auth] onAuthStateChange', e, { hasSession: !!s, expiresAt: s?.expires_at })
-    notifyAll(s)
+  window.addEventListener(SESSION_EVENT, () => {
+    fetchSession().then(notifyAll)
   })
 }
 
@@ -65,13 +34,8 @@ export function useSession() {
   const [session, setSession] = useState<Session | null | undefined>(cachedSession)
 
   useEffect(() => {
-    if (!supabase) {
-      setSession(null)
-      return
-    }
     ensureInitialized()
-    // Catches up if cachedSession already resolved before this component
-    // mounted (e.g. a page navigated to after the very first load).
+    // Catches up if cachedSession already resolved before this component mounted.
     setSession(cachedSession)
     listeners.add(setSession)
     return () => {
@@ -83,7 +47,7 @@ export function useSession() {
 }
 
 /**
- * Discord OAuth via Supabase doesn't always populate the same metadata key.
+ * The session's user_metadata mirrors what Discord returns (full_name = the raw unique username).
  * full_name is Supabase's own mapping of Discord's raw, unique "username"
  * field (e.g. "zjlka") - confirmed from Supabase auth's Go source, where
  * FullName is set to u.Name straight from Discord's username JSON field.

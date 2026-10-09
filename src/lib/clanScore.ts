@@ -24,7 +24,6 @@
 // but isn't guaranteed to match OpenFront's own total exactly.
 
 import { deriveNumTeams, fetchRosterCacheRow, type PlayerGame, type GameDetail } from './openfront'
-import { supabase } from './supabase'
 
 export { deriveNumTeams }
 
@@ -194,17 +193,7 @@ export async function fetchClanScoreLedger(gameIds: string[]): Promise<Map<strin
       return result
     }
   } catch {
-    // fall through to the direct Supabase read below
-  }
-
-  if (!supabase) return result
-  const { data, error } = await supabase
-    .from('cyn_clan_score_ledger')
-    .select('game_id, won, score, ratio_before, ratio_after')
-    .in('game_id', gameIds)
-  if (error || !data) return result
-  for (const row of data as ClanScoreLedgerDbRow[]) {
-    result.set(row.game_id, { won: row.won, score: row.score, ratioBefore: row.ratio_before, ratioAfter: row.ratio_after })
+    // the Worker route is unreachable - no ledger numbers this time
   }
   return result
 }

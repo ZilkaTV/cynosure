@@ -52,19 +52,22 @@ const KNOWN_COMMITS = (() => {
   return [...m[1].matchAll(/'([0-9a-f]{40})'/g)].map((x) => x[1])
 })()
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY')
-  process.exit(1)
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { apikey: SUPABASE_ANON_KEY } })
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
-  return res.json()
+async function loadMembers() {
+  // The member list is public: read it through the site's own data API (no secret needed).
+  const base = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev'
+  const res = await fetch(`${base}/api/db`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table: 'cyn_members', op: 'select', select: 'openfront_id, in_game_name', filters: [], order: [] }),
+  })
+  if (!res.ok) throw new Error(`members -> ${res.status}`)
+  const body = await res.json()
+  if (body.error) throw new Error(body.error.message)
+  return body.data ?? []
 }
 
 async function findMissingCommits() {
-  const members = await fetchJson(`${SUPABASE_URL}/rest/v1/cyn_members?select=openfront_id,in_game_name`)
+  const members = await loadMembers()
   const cutoff = Date.now() - daysBack * 86_400_000
   const recentGameIds = new Map()
 

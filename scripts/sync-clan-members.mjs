@@ -8,9 +8,8 @@
 //   * unregistered row whose player left the clan -> deleted (never touches a
 //     registered member's row)
 //
-// Registering later just claims the row (supabase/schema.sql, block K). Runs with
-// the service role key from .github/workflows/discord-role-sync.yml.
-import { createClient } from '@supabase/supabase-js'
+// Registering later just claims the row. Runs from .github/workflows/discord-role-sync.yml (HOT_API_SECRET).
+import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
 
 const CLAN_TAG = 'CYN'
 const PAGE_SIZE = 50
@@ -48,21 +47,12 @@ async function fetchClanMembers() {
 }
 
 async function main() {
-  const url = process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    console.error(JSON.stringify({ error: 'missing_config' }))
+  if (!usersDbEnabled()) {
+    console.error(JSON.stringify({ error: 'missing_config', need: 'HOT_API_SECRET' }))
     process.exitCode = 1
     return
   }
-  const admin = createClient(url, key)
-
-  // Bail out cleanly if SQL block K has not been applied yet.
-  const probe = await admin.from('cyn_members').select('claimed').limit(1)
-  if (probe.error) {
-    console.error(JSON.stringify({ skipped: 'column cyn_members.claimed missing - run SQL block K first', detail: probe.error.message }))
-    return
-  }
+  const admin = usersDb
 
   const { members: clan, total } = await fetchClanMembers()
   const complete = clan.length > 0 && clan.length === total

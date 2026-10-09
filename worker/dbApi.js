@@ -496,7 +496,7 @@ export async function handleDbApi(request, env, pathname) {
   return json(200, await runQuery(env, body, user, false))
 }
 
-const READ_CACHE_MS = { cyn_ranked_matches: 45_000, cyn_member_snapshots: 300_000 }
+const READ_CACHE_MS = { cyn_ranked_matches: 120_000, cyn_member_snapshots: 600_000 }
 const readCache = new Map()
 
 /** Service entry for scripts: same engine, no access rules. Auth is checked by the caller (usersApi.js). */

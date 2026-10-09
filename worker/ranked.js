@@ -15,7 +15,7 @@ export async function refreshRankedBlob(env, info = {}) {
   if (!useD1(env)) return null
   const byMode = { ranked_1v1: {}, ranked_2v2: {} }
   for (let page = 1; page <= PAGES; page++) {
-    const res = await fetch(`https://api.openfront.io/leaderboard/ranked?page=${page}`, {
+    const res = await fetch(`https://api.openfront.io/public/leaderboard/ranked?page=${page}`, {
       headers: {
         Accept: 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',

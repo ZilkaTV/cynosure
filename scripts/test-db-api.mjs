@@ -13,6 +13,10 @@ function cookie(id, name) {
   const sig = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url')
   return `cyn_session=${payload}.${sig}`
 }
+function proof(id, openfrontId, offset = 600) {
+  const exp = Math.floor(Date.now() / 1000) + offset
+  return `${exp}.${crypto.createHmac('sha256', SECRET).update(`own|${id}|${openfrontId}|${exp}`).digest('base64url')}`
+}
 const q = async (body, who) => (await fetch(`${BASE}/api/db`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(who ? { Cookie: cookie(...who) } : {}) }, body: JSON.stringify(body) })).json()
 const svc = async (path, body) => (await fetch(`${BASE}/api/internal/users/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${HOT}` }, body: JSON.stringify(body) })).json()
 
@@ -55,9 +59,17 @@ check('speedrun readable + updated', r.data?.seconds === 280, r)
 
 // members: claim + protection
 r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby', timezone: 'UTC', user_id: 'evil' }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])
-check('d2 claims unowned row', !r.error, r)
+check('claiming without proof is refused', r.error?.message === 'ownership_required', r)
+r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby', timezone: 'UTC', _proof: proof('d9', 'BBBB2222') }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])
+check('proof of another account is refused', r.error?.message === 'ownership_required', r)
+r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby', timezone: 'UTC', _proof: proof('d2', 'BBBB2222', -5) }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])
+check('expired proof is refused', r.error?.message === 'ownership_required', r)
+r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby', timezone: 'UTC', user_id: 'evil', _proof: proof('d2', 'BBBB2222') }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])
+check('d2 claims unowned row with proof', !r.error, r)
+r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby2', timezone: 'UTC' }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])
+check('owner updates own row without proof', !r.error, r)
 r = await q({ table: 'cyn_members', op: 'select', select: 'openfront_id, in_game_name, claimed, discord_user_id', filters: [{ col: 'openfront_id', op: 'eq', val: 'BBBB2222' }], order: [], single: 'maybe' }, ['d2', 'bob'])
-check('claim stored with session identity', r.data?.in_game_name === 'Bobby' && r.data.claimed === true && r.data.discord_user_id === 'd2', r)
+check('claim stored with session identity', r.data?.in_game_name === 'Bobby2' && r.data.claimed === true && r.data.discord_user_id === 'd2', r)
 r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Hacked', timezone: 'UTC' }, onConflict: 'openfront_id', filters: [], order: [] }, C)
 check('carol cannot take over a claimed row', r.error?.code === '42501', r)
 

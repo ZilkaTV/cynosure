@@ -50,15 +50,17 @@ export default function Register() {
   const [verifyChecking, setVerifyChecking] = useState(false)
   const [verifyMiss, setVerifyMiss] = useState(false)
   const verifiedId = useRef<string | null>(null)
+  const proofRef = useRef<string | undefined>(undefined)
   const formRef = useRef<HTMLFormElement>(null)
 
   async function runVerifyCheck() {
     if (!verify || verifyChecking) return
     setVerifyChecking(true)
-    const ok = await checkOwnership(verify.id, verify.code, verify.since)
+    const result = await checkOwnership(verify.id, verify.code, verify.since)
     setVerifyChecking(false)
-    if (ok) {
+    if (result?.ok) {
       verifiedId.current = verify.id
+      proofRef.current = result.proof
       setVerify(null)
       setVerifyMiss(false)
       formRef.current?.requestSubmit()
@@ -203,7 +205,7 @@ export default function Register() {
         // captured just because this specific read failed.
         discord_user_id: (session ? discordUserId(session) : null) ?? profile?.discord_user_id ?? undefined,
         nationality: nationality || undefined,
-      })
+      }, verifiedId.current === id ? proofRef.current : undefined)
       refresh()
       // Navigating away when the local save failed would just bounce the
       // member straight back to this same RegistrationGate with nothing
@@ -216,6 +218,12 @@ export default function Register() {
       }
       navigate('/')
     } catch (err) {
+      if (err instanceof Error && err.message.includes('ownership_required')) {
+        // The server wants the proof even though this browser already knew the id (e.g. an unclaimed clan-member row).
+        setVerify({ id: normalizeOpenfrontId(openfrontId), code: newVerifyCode(), since: Date.now() })
+        setVerifyMiss(false)
+        return
+      }
       setError(err instanceof Error ? err.message : t.register.somethingWrong)
     } finally {
       setBusy(false)

@@ -12,7 +12,7 @@
 // Response: { data, error: {code,message}|null, count }
 
 import { USERS_META } from './d1/usersMeta.js'
-import { readSession } from './session.js'
+import { readSession, verifyOwnershipProof } from './session.js'
 
 const MAX_BODY = 262144
 const MAX_ROWS = 5000
@@ -143,6 +143,7 @@ function makeContext(env, user, service) {
   const db = env.DB
   return {
     db,
+    env,
     user,
     service,
     myMember: () => once('member', () => db.prepare('SELECT openfront_id, in_game_name FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()),
@@ -261,7 +262,9 @@ async function prepareInsertRows(c, q, meta, rules) {
   if (rowsIn.length === 0 || rowsIn.length > 500) throw new DbError('22023', 'bad number of rows')
   const out = []
   for (const raw of rowsIn) {
-    let row = cleanRow(meta, raw)
+    const { _proof: proof, ...rest } = raw ?? {}
+    let row = cleanRow(meta, rest)
+    if (proof !== undefined) c.proof = proof
     if (!c.service) {
       if (!rules.insert) throw denied()
       const result = await rules.insert(row, c)
@@ -286,6 +289,11 @@ async function runWrite(c, q, meta, rules) {
       if (q.table === 'cyn_members' && !c.service) {
         membersExisting = await c.db.prepare('SELECT user_id FROM cyn_members WHERE openfront_id = ?').bind(row.openfront_id).first()
         if (membersExisting && membersExisting.user_id && membersExisting.user_id !== c.user.id) throw denied()
+        // Taking an id nobody owns yet (a new row, or a clan member nobody has claimed) needs the ownership proof the Worker
+        // hands out after the solo-game check (worker/soloLatest.js); updating your own row does not.
+        if (!(membersExisting && membersExisting.user_id === c.user.id) && !(await verifyOwnershipProof(c.env, c.user.id, row.openfront_id, c.proof))) {
+          throw new DbError('42501', 'ownership_required')
+        }
         // Identity fields always come from the verified session, never from the request body.
         row = { ...row, user_id: c.user.id, discord_user_id: c.user.id, claimed: 1 }
         delete row.created_at

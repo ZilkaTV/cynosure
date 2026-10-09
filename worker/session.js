@@ -50,5 +50,25 @@ export async function readSession(request, env) {
   }
 }
 
+const PROOF_TTL_S = 30 * 60
+
+/** Short-lived token saying "this signed-in Discord account proved it owns this OpenFront id" (see soloLatest.js). */
+export async function signOwnershipProof(env, discordId, openfrontId) {
+  const exp = Math.floor(Date.now() / 1000) + PROOF_TTL_S
+  const sig = await crypto.subtle.sign('HMAC', await hmacKey(env), enc.encode(`own|${discordId}|${openfrontId}|${exp}`))
+  return `${exp}.${b64url(sig)}`
+}
+
+export async function verifyOwnershipProof(env, discordId, openfrontId, proof) {
+  try {
+    const [expRaw, sig] = String(proof ?? '').split('.')
+    const exp = Number(expRaw)
+    if (!sig || !Number.isFinite(exp) || exp < Date.now() / 1000) return false
+    return await crypto.subtle.verify('HMAC', await hmacKey(env), unb64url(sig), enc.encode(`own|${discordId}|${openfrontId}|${exp}`))
+  } catch {
+    return false
+  }
+}
+
 export const sessionCookie = (token) => `${COOKIE}=${token}; Max-Age=${MAX_AGE_S}; Path=/; HttpOnly; Secure; SameSite=Lax`
 export const clearSessionCookie = () => `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`

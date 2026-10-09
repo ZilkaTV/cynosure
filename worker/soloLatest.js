@@ -3,6 +3,8 @@
 // to pick up a finished run on its own, so nobody has to paste a game link.
 // Read-only and public data; the router puts a 15 s edge cache in front, which
 // bounds OpenFront to about four requests a minute per watching player.
+import { readSession, signOwnershipProof } from './session.js'
+
 const PLAYER_ID = /^[A-Za-z0-9_-]{4,40}$/
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -32,7 +34,7 @@ export async function handleSoloLatest(request) {
 // and looks for the code in a game started after `since` (minus two minutes of clock difference).
 const CODE = /^[a-z0-9]{6,12}$/
 
-export async function handleVerifyOwnership(request) {
+export async function handleVerifyOwnership(request, env) {
   if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
   const q = new URL(request.url).searchParams
   const id = q.get('id') ?? ''
@@ -48,7 +50,10 @@ export async function handleVerifyOwnership(request) {
     if (!res.ok) throw new Error(`openfront ${res.status}`)
     const body = await res.json()
     const found = (body.results ?? []).slice(0, 20).some((g) => String(g.username ?? '').toLowerCase().includes(code) && Date.parse(g.start) >= since - 120000)
-    const out = json(200, { ok: found })
+    // A signed-in visitor who passed the check also gets a short-lived proof the data API requires to claim the id.
+    const user = found ? await readSession(request, env) : null
+    const proof = user ? await signOwnershipProof(env, user.id, id) : undefined
+    const out = json(200, { ok: found, proof })
     out.headers.set('Cache-Control', 'no-store')
     return out
   } catch (err) {

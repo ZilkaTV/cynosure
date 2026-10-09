@@ -128,7 +128,7 @@ export function clearLocalProfile() {
  * saveLocalProfile's own comment for why that matters) since a caller
  * needs to know even when the Supabase half succeeded fine.
  */
-export async function saveProfile(p: Profile): Promise<{ localSaveOk: boolean }> {
+export async function saveProfile(p: Profile, proof?: string): Promise<{ localSaveOk: boolean }> {
   const localSaveOk = saveLocalProfile(p)
   if (supabase) {
     const { error } = await supabase.from('cyn_members').upsert(
@@ -139,6 +139,7 @@ export async function saveProfile(p: Profile): Promise<{ localSaveOk: boolean }>
         discord_username: p.discord_username ?? null,
         discord_user_id: p.discord_user_id ?? null,
         nationality: p.nationality ?? null,
+        ...(proof ? { _proof: proof } : {}),
       },
       { onConflict: 'openfront_id' },
     )

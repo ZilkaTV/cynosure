@@ -5,18 +5,22 @@ import { clanSessionScore } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import { CLAN_TAG } from '../config'
 
-const PRESETS: { teams: number; per: number }[] = [
-  { teams: 2, per: 50 },
-  { teams: 3, per: 22 },
-  { teams: 4, per: 22 },
-  { teams: 5, per: 7 },
-  { teams: 5, per: 5 },
-  { teams: 33, per: 3 },
-]
+// The lobby can hold at most this many players (OpenFront's biggest public lobbies).
+const MAX_PLAYERS = 120
+const MAX_POINT_CLAN = [2, 3, 4, 5, 6, 7, 8]
+
+/**
+ * The layout that gives the most points for a given number of clan players: a team made up of clan members only
+ * (at least 2 per team, a team of one is no team game) and as many teams as the lobby holds - more teams raise the
+ * difficulty factor of the formula.
+ */
+function maxPointsLayout(clan: number) {
+  const per = Math.max(clan, 2)
+  return { teams: Math.floor(MAX_PLAYERS / per), per, clan }
+}
+
 const MATRIX_TEAMS = [2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 33]
 const MATRIX_CLAN = [1, 2, 3, 4, 5, 6]
-const BEST_CLAN = [1, 2, 3, 4, 5, 6, 7, 8]
-const MAX_PLAYER_OPTIONS = [50, 80, 100, 120]
 
 const dec = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -44,7 +48,6 @@ export default function Planner() {
   const [teams, setTeams] = useState(5)
   const [per, setPer] = useState(7)
   const [clan, setClan] = useState(2)
-  const [maxPlayers, setMaxPlayers] = useState(120)
   const members = Math.min(clan, per)
 
   const win = score(teams, members, per, true)
@@ -60,20 +63,6 @@ export default function Planner() {
     [per],
   )
 
-  // Best layout per number of clan players: the whole team is clan members (team size = clan players, at least 2 because a
-  // team of one is no team game) and as many teams as fit into the lobby. More teams raise the difficulty factor.
-  const best = useMemo(
-    () =>
-      BEST_CLAN.map((c) => {
-        const size = Math.max(c, 2)
-        const numTeams = Math.floor(maxPlayers / size)
-        if (numTeams < 2) return null
-        return { clan: c, size, teams: numTeams, win: score(numTeams, c, size, true), loss: score(numTeams, c, size, false) }
-      }).filter((r): r is { clan: number; size: number; teams: number; win: number; loss: number } => r !== null),
-    [maxPlayers],
-  )
-  const top = best.reduce((a, b) => (b.win > a.win ? b : a), best[0])
-
   return (
     <StatsShell>
       <section className="space-y-6">
@@ -82,21 +71,26 @@ export default function Planner() {
 
         <Card className="mx-auto max-w-3xl space-y-5">
           <div className="flex flex-wrap justify-center gap-2" aria-label={t.planner.presets}>
-            {PRESETS.map((p) => (
-              <button
-                key={`${p.teams}x${p.per}`}
-                type="button"
-                onClick={() => {
-                  setTeams(p.teams)
-                  setPer(p.per)
-                }}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  teams === p.teams && per === p.per ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'
-                }`}
-              >
-                {t.planner.preset(p.teams, p.per)}
-              </button>
-            ))}
+            {MAX_POINT_CLAN.map((c) => {
+              const p = maxPointsLayout(c)
+              const active = teams === p.teams && per === p.per && members === p.clan
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => {
+                    setTeams(p.teams)
+                    setPer(p.per)
+                    setClan(p.clan)
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    active ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'
+                  }`}
+                >
+                  {t.planner.maxPoints(c, CLAN_TAG)}
+                </button>
+              )
+            })}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={60} onChange={setTeams} />
@@ -118,57 +112,6 @@ export default function Planner() {
             </div>
           </div>
           <p className="text-center text-sm text-slate-400">{t.planner.summary(teams * per, teams, win / loss)}</p>
-        </Card>
-
-        <Card className="mx-auto max-w-3xl space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-display text-lg font-bold text-white">{t.planner.bestTitle}</h3>
-            <label htmlFor="pl-max" className="flex items-center gap-2 text-sm text-slate-400">
-              {t.planner.maxPlayers}
-              <select
-                id="pl-max"
-                value={maxPlayers}
-                onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                className="rounded-lg border border-base-600 bg-base-800 px-2.5 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
-              >
-                {MAX_PLAYER_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {top && (
-            <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-center">
-              <p className="text-xs uppercase tracking-wide text-slate-400">{t.planner.bestHeadline}</p>
-              <p className="mt-1 font-display text-3xl font-bold tabular-nums text-gold-light">+{dec(top.win)}</p>
-              <p className="text-sm text-slate-300">{t.planner.bestHow(top.teams, top.size, top.clan, CLAN_TAG)}</p>
-            </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[460px] text-sm tabular-nums">
-              <thead>
-                <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2 text-left font-semibold">{t.planner.colClan(CLAN_TAG)}</th>
-                  <th className="px-3 py-2 text-left font-semibold">{t.planner.colLayout}</th>
-                  <th className="px-3 py-2 text-right font-semibold">{t.planner.win}</th>
-                  <th className="px-3 py-2 text-right font-semibold">{t.planner.loss}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {best.map((r) => (
-                  <tr key={r.clan} className={`border-b border-base-700/50 last:border-0 ${r.clan >= 4 && r.clan <= 6 ? 'bg-gold/5' : ''}`}>
-                    <td className="px-3 py-2 text-slate-200">{r.clan}</td>
-                    <td className="px-3 py-2 text-slate-400">{t.planner.preset(r.teams, r.size)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-signal-green">+{dec(r.win)}</td>
-                    <td className="px-3 py-2 text-right text-signal-red">&minus;{dec(r.loss)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-slate-500">{t.planner.bestNote}</p>
         </Card>
 
         <div className="mx-auto max-w-3xl">

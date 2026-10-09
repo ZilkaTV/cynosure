@@ -4,7 +4,7 @@ import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
-import { useQueueAlertSettings, type QueueAlertMode } from '../lib/queueNotify'
+import { useQueueAlertSettings, testQueueAlert, type QueueAlertMode } from '../lib/queueNotify'
 
 // One stored game (see scripts/collect-ranked-feed.mjs): display-ready players only. `r`/`e`/`id` exist only for
 // players using the name of their own ranked account, everyone else carries at most a rank band `b`.
@@ -32,7 +32,7 @@ interface FeedMatch {
 }
 type Ladder = 'all' | '1v1' | '2v2'
 
-const REFRESH_MS = 60_000
+const REFRESH_MS = 20_000
 const LIST_LIMIT = 60
 
 function fmtDuration(s: number | null): string {
@@ -69,7 +69,7 @@ function PlayerChip({ p }: { p: FeedPlayer }) {
           {p.d} Elo{p.c ? ` (${p.c})` : ''}
         </span>
       )}
-      {p.r == null && p.b && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">{p.b}</span>}
+      {p.r == null && p.b && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
     </span>
   )
 }
@@ -78,7 +78,6 @@ export default function RankedQueue() {
   const { t } = useLanguage()
   const [ladder, setLadder] = useState<Ladder>('all')
   const [matches, setMatches] = useState<FeedMatch[] | null>(null)
-  const [history, setHistory] = useState<{ ended_at: string; ladder: string }[]>([])
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const alert = useQueueAlertSettings()
@@ -105,22 +104,6 @@ export default function RankedQueue() {
     }
   }, [])
 
-  // Three days of timestamps for the "best times" chart - loaded once.
-  useEffect(() => {
-    let alive = true
-    const since = new Date(Date.now() - 3 * 86400_000).toISOString()
-    db.from('cyn_ranked_matches')
-      .select('ended_at, ladder')
-      .gte('ended_at', since)
-      .limit(5000)
-      .then(({ data }: { data: { ended_at: string; ladder: string }[] | null }) => {
-        if (alive) setHistory(data ?? [])
-      })
-    return () => {
-      alive = false
-    }
-  }, [])
-
   const shown = useMemo(() => (matches ?? []).filter((m) => ladder === 'all' || m.ladder === ladder), [matches, ladder])
 
   const activity = useMemo(() => {
@@ -136,14 +119,6 @@ export default function RankedQueue() {
     return { m5: count(5), m15: count(15), m30: count(30) }
   }, [shown])
 
-  const hours = useMemo(() => {
-    const buckets = new Array(24).fill(0)
-    for (const h of history) if (ladder === 'all' || h.ladder === ladder) buckets[new Date(h.ended_at).getHours()]++
-    const max = Math.max(1, ...buckets)
-    return { buckets, max }
-  }, [history, ladder])
-
-  const nowHour = new Date().getHours()
   const level = activity.m30 >= 12 ? 'high' : activity.m30 >= 5 ? 'medium' : 'low'
 
   return (
@@ -158,7 +133,7 @@ export default function RankedQueue() {
               key={l}
               type="button"
               onClick={() => setLadder(l)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${ladder === l ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${ladder === l ? (l === '2v2' ? 'bg-teal-600 text-white' : 'bg-accent text-white') : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
             >
               {l === 'all' ? t.queue.all : l}
             </button>
@@ -183,6 +158,9 @@ export default function RankedQueue() {
             <input type="checkbox" checked={alert.sound} onChange={(e) => alert.setSound(e.target.checked)} className="accent-[#8b5cf6]" />
             {t.queue.alertSound}
           </label>
+          <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
+            {t.queue.alertTest}
+          </button>
           <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
         </Card>
 
@@ -197,19 +175,6 @@ export default function RankedQueue() {
             sub={t.queue.levelNote}
           />
         </div>
-
-        <Card>
-          <h3 className="mb-1 font-display text-base font-bold text-white">{t.queue.bestTimes}</h3>
-          <p className="mb-3 text-xs text-slate-500">{t.queue.bestTimesNote}</p>
-          <div className="flex h-24 items-end gap-1" aria-label={t.queue.bestTimes}>
-            {hours.buckets.map((n, h) => (
-              <div key={h} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${String(h).padStart(2, '0')}:00 - ${n}`}>
-                <div className={`w-full rounded-t ${h === nowHour ? 'bg-gold' : 'bg-accent/70'}`} style={{ height: `${Math.max(3, (n / hours.max) * 100)}%` }} />
-                <span className={`text-[9px] ${h === nowHour ? 'text-gold-light' : 'text-slate-600'}`}>{h % 3 === 0 ? h : ''}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         <div>
           <h3 className="mb-3 font-display text-base font-bold text-white">{t.queue.recent}</h3>
@@ -231,10 +196,10 @@ export default function RankedQueue() {
                     setOpenGame(m.game_id)
                   }}
                   onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
-                  className="panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm transition-colors hover:border-accent/50 hover:bg-base-800/60"
+                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${m.ladder === '1v1' ? 'border-l-violet-500' : 'border-l-teal-500'}`}
                 >
                   <div className="w-24 shrink-0">
-                    <span className="rounded bg-base-700 px-1.5 py-0.5 text-xs font-bold text-white">{m.ladder}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${m.ladder === '1v1' ? 'bg-violet-500/25 text-violet-200' : 'bg-teal-500/25 text-teal-200'}`}>{m.ladder}</span>
                     <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
                   </div>
                   <div className="w-32 shrink-0 text-xs text-slate-400">

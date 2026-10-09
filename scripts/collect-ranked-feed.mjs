@@ -58,10 +58,17 @@ async function fetchGames(fromMs, toMs, depth = 0) {
 const WORKER = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09x357q2.workers.dev'
 
 /** The top-100 boards right now: the Worker scans them itself (GitHub's runners get OpenFront's bot challenge there). */
+let lastLiveAt = 0
+let lastLiveDoc = null
+
 async function fetchLiveBoards() {
+  // The boards change at most hourly, so one scan a minute is plenty even though the games are polled every 20 seconds.
+  if (lastLiveDoc && Date.now() - lastLiveAt < 55_000) return lastLiveDoc
+  lastLiveAt = Date.now()
   const res = await fetch(`${WORKER}/api/internal/hot/ranked-live`, { headers: { Authorization: `Bearer ${process.env.HOT_API_SECRET}`, 'User-Agent': UA }, signal: AbortSignal.timeout(30000) })
   if (!res.ok) throw new Error(`ranked-live ${res.status} ${(await res.text()).slice(0, 120)}`)
-  return await res.json()
+  lastLiveDoc = await res.json()
+  return lastLiveDoc
 }
 
 async function loadBoards(live) {
@@ -72,10 +79,9 @@ async function loadBoards(live) {
 }
 
 const normName = (s) => String(s ?? '').toLowerCase().replace(/\.\d{3,4}$/, '').replace(/\s+/g, ' ').trim()
-const band = (rank) => (rank <= 25 ? 'Top 25' : rank <= 50 ? 'Top 50' : rank <= 75 ? 'Top 75' : 'Top 100')
 const hashId = (id) => crypto.createHmac('sha256', process.env.HOT_API_SECRET).update(`ranked-feed:${id}`).digest('hex').slice(0, 10)
 
-function buildMatch(game, detail, board) {
+function buildMatch(game, detail, board, known) {
   const info = detail.info
   const players = info.players ?? []
   const winner = Array.isArray(info.winner) ? info.winner : []
@@ -84,17 +90,19 @@ function buildMatch(game, detail, board) {
   const owners = []
   const out = players.map((p, i) => {
     const entry = p.publicID ? board[p.publicID] : null
+    // A player who dropped out of the board for a moment (or whose board page failed) still counts as top 100 for a day.
+    const isTop = Boolean(entry) || Boolean(p.publicID && known?.[p.publicID])
     const entryNames = entry ? [normName(entry.accountUsername), normName(entry.username)] : []
     const ownName = entry && entryNames.includes(normName(p.username))
-    if (entry) top++
+    if (isTop) top++
     if (ownName) owners.push({ k: hashId(p.publicID), pid: p.publicID })
     return {
       n: String(p.username ?? '').slice(0, 40),
       t: p.clanTag ?? null,
       s: p.teamIndex ?? i,
       w: winnerIds.has(p.clientID),
-      ...(entry ? { k: hashId(p.publicID) } : {}),
-      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : entry ? { b: band(entry.rank) } : {}),
+      ...(isTop ? { k: hashId(p.publicID) } : {}),
+      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : isTop ? { b: 'Top 100' } : {}),
     }
   })
   if (top === 0) return null
@@ -128,7 +136,7 @@ let eloState = null
 async function loadEloState() {
   if (!eloState) {
     const saved = await hotGetBlob('ranked-elo').catch(() => null)
-    eloState = { snap: null, lastChange: {}, batches: [], pending: [], ...(saved ?? {}) }
+    eloState = { snap: null, lastChange: {}, batches: [], pending: [], known: { '1v1': {}, '2v2': {} }, ...(saved ?? {}) }
   }
   return eloState
 }
@@ -150,6 +158,12 @@ function diffBoards(state, live, nowMs) {
     }
   }
   state.snap = next
+  // Remember who was in the top 100 during the last day (see buildMatch).
+  for (const l of ['1v1', '2v2']) {
+    state.known[l] ??= {}
+    for (const pid of Object.keys(next[l])) state.known[l][pid] = nowMs
+    for (const [pid, t] of Object.entries(state.known[l])) if (nowMs - t > 24 * 3600_000) delete state.known[l][pid]
+  }
 }
 
 /** Matches board changes with games (after a short delay so freshly finished games are stored); returns { gameId -> { k -> {d, c} } }. */
@@ -220,7 +234,7 @@ async function main() {
       todo.slice(i, i + CONCURRENCY).map(async (g) => {
         try {
           const detail = await getJson(`${API}/game/${encodeURIComponent(g.game)}?turns=false`)
-          const row = buildMatch(g, detail, boards[g.rankedType] ?? {})
+          const row = buildMatch(g, detail, boards[g.rankedType] ?? {}, state.known?.[g.rankedType])
           if (!row) skipped++
           else {
             const { owners, ...dbRow } = row
@@ -259,7 +273,7 @@ async function main() {
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 
-// RANKED_FEED_LOOP_MS > 0: keep polling once a minute for that long, so the page is at most about a minute behind
+// RANKED_FEED_LOOP_MS > 0: keep polling every 20 seconds for that long, so the page is at most about half a minute behind
 // while the workflow (dispatched every 10 minutes) is running.
 const loopMs = Number(process.env.RANKED_FEED_LOOP_MS || 0)
 const until = Date.now() + loopMs
@@ -268,6 +282,6 @@ for (;;) {
     console.error('collect-ranked-feed failed:', err)
     process.exitCode = 1
   })
-  if (Date.now() + 60_000 >= until) break
-  await new Promise((r) => setTimeout(r, 60_000))
+  if (Date.now() + 20_000 >= until) break
+  await new Promise((r) => setTimeout(r, 20_000))
 }

@@ -12,7 +12,8 @@ const MODE_KEY = 'cyn:queueAlert'
 const SOUND_KEY = 'cyn:queueAlertSound'
 const SEEN_KEY = 'cyn:queueSeen'
 const CHANGED = 'cyn:queue-alert-changed'
-const POLL_MS = 60_000
+const POLL_MS = 20_000
+const TEST_EVENT = 'cyn:queue-alert-test'
 
 function read(key: string): string | null {
   try {
@@ -47,6 +48,13 @@ export function primeSound() {
     /* no audio available */
   }
 }
+/** Plays the sound and shows the dot / blinking title for a few seconds, so the setting can be checked. */
+export function testQueueAlert() {
+  primeSound()
+  playPing()
+  window.dispatchEvent(new Event(TEST_EVENT))
+}
+
 export function playPing() {
   try {
     if (!audio) return
@@ -108,7 +116,28 @@ export function useQueueAlert(): number {
   const { mode, sound } = useQueueAlertSettings()
   const [unseen, setUnseen] = useState(0)
   const lastCount = useRef(0)
-  const onPage = location.pathname === '/queue'
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible' && document.hasFocus())
+  const [testing, setTesting] = useState(false)
+  // Being on the page only counts as seeing the games while the tab is actually in front.
+  const onPage = location.pathname === '/queue' && visible
+
+  useEffect(() => {
+    const sync = () => setVisible(document.visibilityState === 'visible' && document.hasFocus())
+    document.addEventListener('visibilitychange', sync)
+    window.addEventListener('focus', sync)
+    window.addEventListener('blur', sync)
+    const test = () => {
+      setTesting(true)
+      setTimeout(() => setTesting(false), 6000)
+    }
+    window.addEventListener(TEST_EVENT, test)
+    return () => {
+      document.removeEventListener('visibilitychange', sync)
+      window.removeEventListener('focus', sync)
+      window.removeEventListener('blur', sync)
+      window.removeEventListener(TEST_EVENT, test)
+    }
+  }, [])
 
   // Being on the page counts as seeing everything.
   useEffect(() => {
@@ -148,8 +177,9 @@ export function useQueueAlert(): number {
   }, [mode, sound, onPage])
 
   // Blinking tab title while something is unseen.
+  const shown = mode === 'off' && !testing ? 0 : testing ? Math.max(unseen, 1) : unseen
   useEffect(() => {
-    if (unseen === 0 || mode === 'off') return
+    if (shown === 0) return
     const base = document.title
     const alertTitle = '\u{1F534} ' + t.queue.tabAlert
     let on = false
@@ -161,7 +191,7 @@ export function useQueueAlert(): number {
       clearInterval(timer)
       document.title = base
     }
-  }, [unseen, mode, t])
+  }, [shown, t])
 
-  return mode === 'off' ? 0 : unseen
+  return shown
 }

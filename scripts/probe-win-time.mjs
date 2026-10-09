@@ -15,6 +15,7 @@ if (!gameId) {
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
 
+globalThis.__REPLAY_DEBUG = true
 const server = await createServer({ root: ROOT, server: { middlewareMode: false, port: 0 } })
 await server.listen()
 const origin = `http://localhost:${server.httpServer.address().port}`

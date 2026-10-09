@@ -120,6 +120,40 @@ export async function fetchSpeedruns(): Promise<Record<string, SpeedrunEntry>> {
   return map
 }
 
+/**
+ * The game record carries the full lobby config, so cheats and handicaps can be seen directly: a run only
+ * counts on the standard rules (Australia, normal size, FFA, 400 bots, nations off, no cheats, all units,
+ * no random spawn, no timers or modifiers). Speed settings cannot help: the time is the game clock.
+ */
+export function checkSpeedrunConfig(config: Record<string, unknown> | undefined): string | null {
+  if (!config) return 'The game record has no settings to verify.'
+  const bad = (cond: boolean, msg: string) => (cond ? msg : null)
+  return (
+    bad(config.gameMode !== undefined && config.gameMode !== 'Free For All', 'The game mode must be Free For All.') ??
+    bad(config.gameMapSize !== undefined && config.gameMapSize !== 'Normal', 'The map size must be Normal (no compact map).') ??
+    bad(config.bots !== 400, 'The run must use 400 bots (the default).') ??
+    bad(config.infiniteGold === true, 'Infinite gold is not allowed.') ??
+    bad(config.infiniteTroops === true, 'Infinite troops are not allowed.') ??
+    bad(config.instantBuild === true, 'Instant build is not allowed.') ??
+    bad(config.randomSpawn === true, 'Random spawn is not allowed.') ??
+    bad(Array.isArray(config.disabledUnits) && config.disabledUnits.length > 0, 'All units must be enabled.') ??
+    bad(config.waterNukes === true, 'Water nukes must be off.') ??
+    bad(config.goldMultiplier !== undefined || config.startingGold !== undefined, 'Gold multiplier and starting gold must stay at the defaults.') ??
+    bad(config.maxTimerValue != null, 'A game timer is not allowed.') ??
+    bad(config.customAllianceDuration !== undefined || config.doomsdayClock !== undefined || config.overtime !== undefined, 'No extra game modifiers are allowed.')
+  )
+}
+
+async function fetchGameConfig(gameId: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const res = await fetch(`/api/of/public/game/${encodeURIComponent(gameId)}?turns=false`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) return undefined
+    return ((await res.json()) as { info?: { config?: Record<string, unknown> } }).info?.config
+  } catch {
+    return undefined
+  }
+}
+
 export function replayToolUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
@@ -151,7 +185,7 @@ export interface SubmitResult {
  * Replays the game once, in a fresh instance of the replay Worker (clean JS realm - the engine cannot replay a second game
  * in the same realm, and the replay stays off the main thread). Null on any failure or after 3 minutes.
  */
-function replaySpeedrun(gameId: string): Promise<SpeedrunReplayMetrics | null> {
+function replaySpeedrun(gameId: string, onProgress?: (fraction: number) => void): Promise<SpeedrunReplayMetrics | null> {
   return new Promise((resolve) => {
     let worker: Worker
     try {
@@ -166,15 +200,21 @@ function replaySpeedrun(gameId: string): Promise<SpeedrunReplayMetrics | null> {
       resolve(value)
     }
     const timer = setTimeout(() => done(null), 180_000)
-    worker.onmessage = (e: MessageEvent<{ type: string; result: SpeedrunReplayMetrics | null }>) => {
-      if (e.data.type === 'speedrun-result') done(e.data.result)
+    worker.onmessage = (e: MessageEvent<{ type: string; result?: SpeedrunReplayMetrics | null; tick?: number; totalTicks?: number }>) => {
+      if (e.data.type === 'speedrun-result') done(e.data.result ?? null)
+      else if (e.data.type === 'speedrun-progress' && onProgress && e.data.tick && e.data.totalTicks) onProgress(Math.min(1, e.data.tick / e.data.totalTicks))
     }
     worker.onerror = () => done(null)
     worker.postMessage({ gameId, speedrunTilesAtTick: TILES_AT_TICK })
   })
 }
 
-export async function submitSpeedrun(openfrontId: string, gameLink: string, inGameName: string): Promise<SubmitResult> {
+export async function submitSpeedrun(
+  openfrontId: string,
+  gameLink: string,
+  inGameName: string,
+  onProgress?: (fraction: number) => void,
+): Promise<SubmitResult> {
   const gameId = parseGameId(gameLink)
   if (!gameId) return { ok: false, message: 'Please paste a game link or id.' }
 
@@ -190,6 +230,11 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
   const v = verifySpeedrun(detail, inGameName)
   if (!v.ok) return { ok: false, message: v.reason ?? 'This game does not meet the speedrun rules.' }
 
+  // Settings check from the record itself (cheats, handicaps, bot count). If the record cannot be read the run is
+  // refused rather than waved through.
+  const configProblem = checkSpeedrunConfig(await fetchGameConfig(gameId))
+  if (configProblem) return { ok: false, message: configProblem }
+
   // The clock must stop when the match is DECIDED, not when the connection closes or the player
   // stops clicking: OpenFront's `duration` runs until the connection closes (can be minutes
   // later), and the turn log keeps going for as long as the player keeps playing after the win
@@ -197,7 +242,7 @@ export async function submitSpeedrun(openfrontId: string, gameLink: string, inGa
   // the same engine and read the clock at the moment its own win check fired - shown in game as
   // the truncated seconds, hence floor. Falls back to the last real action (then to the reported
   // duration) when the game can't be replayed (old engine version, fetch problems).
-  const replay = await replaySpeedrun(gameId)
+  const replay = await replaySpeedrun(gameId, onProgress)
   const winSeconds = replay?.winSeconds ?? null
   const actualSeconds = winSeconds ?? (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
   v.seconds = winSeconds != null ? Math.floor(winSeconds) : Math.round(actualSeconds)

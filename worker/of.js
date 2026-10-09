@@ -23,6 +23,7 @@ const SEG = '[A-Za-z0-9_-]+'
 const ALLOWED_PATHS = [
   { re: /^leaderboard\/ranked$/, params: ['page'] },
   { re: new RegExp(`^public/player/${SEG}/games$`), params: ['filter', 'cursor'] },
+  { re: new RegExp(`^public/player/${SEG}$`), params: [] },
   { re: new RegExp(`^public/game/${SEG}$`), params: ['turns'] },
   { re: /^public\/clans\/leaderboard$/, params: [] },
 ]

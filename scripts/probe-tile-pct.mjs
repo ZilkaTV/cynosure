@@ -12,6 +12,7 @@ if (!gameId) {
   console.error('usage: node scripts/probe-tile-pct.mjs <gameId> [tick]')
   process.exit(1)
 }
+globalThis.__REPLAY_DEBUG = true
 const server = await createServer({ root: ROOT, server: { middlewareMode: false, port: 0 } })
 await server.listen()
 const origin = `http://localhost:${server.httpServer.address().port}`

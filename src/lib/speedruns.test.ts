@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseGameId, verifySpeedrun, fmtTime } from './speedruns'
+import { parseGameId, verifySpeedrun, fmtTime, checkSpeedrunConfig } from './speedruns'
 import type { GameDetail } from './openfront'
 
 function makeDetail(overrides: Partial<GameDetail> = {}): GameDetail {
@@ -89,5 +89,34 @@ describe('fmtTime', () => {
 
   it('zero-pads seconds under 10', () => {
     expect(fmtTime(65)).toBe('1:05')
+  })
+})
+
+describe('checkSpeedrunConfig', () => {
+  const standard = { gameMode: 'Free For All', gameMapSize: 'Normal', bots: 400, infiniteGold: false, infiniteTroops: false, instantBuild: false, randomSpawn: false, disabledUnits: [] }
+
+  it('accepts the standard settings of the real game record', () => {
+    expect(checkSpeedrunConfig(standard)).toBeNull()
+  })
+
+  it.each([
+    [{ bots: 100 }],
+    [{ infiniteGold: true }],
+    [{ infiniteTroops: true }],
+    [{ instantBuild: true }],
+    [{ randomSpawn: true }],
+    [{ disabledUnits: ['City'] }],
+    [{ gameMapSize: 'Compact' }],
+    [{ waterNukes: true }],
+    [{ goldMultiplier: 5 }],
+    [{ startingGold: 5_000_000 }],
+    [{ maxTimerValue: 10 }],
+    [{ doomsdayClock: { enabled: true, speed: 1 } }],
+  ])('rejects %j', (override) => {
+    expect(checkSpeedrunConfig({ ...standard, ...override })).not.toBeNull()
+  })
+
+  it('refuses when there is no config at all', () => {
+    expect(checkSpeedrunConfig(undefined)).not.toBeNull()
   })
 })

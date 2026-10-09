@@ -17,7 +17,7 @@ import { handleRoster, refreshRosterKv } from './roster.js'
 import { handleClanLedger, refreshClanLedgerKv } from './clanLedger.js'
 import { handleMemberGames, refreshMemberGamesKv } from './memberGames.js'
 import { handleGameDetail } from './gameDetail.js'
-import { handleSoloLatest } from './soloLatest.js'
+import { handleSoloLatest, handleVerifyOwnership } from './soloLatest.js'
 import { handleHotApi } from './hotApi.js'
 import { refreshRankedBlob } from './ranked.js'
 
@@ -51,6 +51,7 @@ export default {
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
     if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleMemberGames(request, env)))
     if (pathname === '/api/clan-members') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleClanMembers(request)))
+    if (pathname === '/api/verify-ownership') return withSecurityHeaders(await handleVerifyOwnership(request))
     if (pathname === '/api/solo-latest') return withSecurityHeaders(await edgeCached(request, ctx, 15, () => handleSoloLatest(request)))
     if (pathname === '/api/game-detail') return withSecurityHeaders(await edgeCached(request, ctx, 86400, () => handleGameDetail(request, env, ctx)))
 

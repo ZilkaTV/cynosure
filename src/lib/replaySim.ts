@@ -136,47 +136,36 @@ export function createReplayWorker(): Worker {
   return new Worker(new URL('./replaySim.worker.ts', import.meta.url), { type: 'module' })
 }
 
-let worker: Worker | null | undefined // undefined = not yet tried, null = unsupported/failed
-const pendingResolvers = new Map<string, (stats: GameTileStats | null) => void>()
-
-function getWorker(): Worker | null {
-  if (worker !== undefined) return worker
+// A fresh worker per replay: the vendored engine keeps module-level state, so a second game replayed in the same
+// JS realm fails ("Cannot read properties of undefined (reading '_borderTiles')", "NaN cannot be converted to a
+// BigInt"). Reproduced in the browser; it left many Max Tiles values uncomputed. Replays still run one at a time
+// (see getGameTileStats's inFlight map and prefetchGameTileStats's queue).
+function runReplay(gameId: string): Promise<GameTileStats | null> {
+  let w: Worker
   try {
-    worker = createReplayWorker()
-    worker.onmessage = (e: MessageEvent<WorkerResultMsg | WorkerProgressMsg>) => {
-      const data = e.data
-      if (data.type === 'progress') {
-        notifyProgress(data.gameId, { tick: data.tick, totalTicks: data.totalTicks })
-      } else if (data.type === 'result') {
-        pendingResolvers.get(data.gameId)?.(data.stats)
-        pendingResolvers.delete(data.gameId)
-      }
-    }
-    worker.onerror = (e) => {
-      console.error('Replay worker error, failing pending replays', e)
-      for (const resolve of pendingResolvers.values()) resolve(null)
-      pendingResolvers.clear()
-    }
+    w = createReplayWorker()
   } catch (err) {
     console.error('Replay worker unavailable, falling back to main thread', err)
-    worker = null
-  }
-  return worker
-}
-
-async function runReplay(gameId: string): Promise<GameTileStats | null> {
-  const w = getWorker()
-  if (!w) {
-    // Main-thread fallback: a tighter yield interval while the tab is
-    // visible keeps things responsive, same trade-off the worker path no
-    // longer needs to make.
+    // Main-thread fallback: a tighter yield interval while the tab is visible keeps things responsive.
     return computeGameTileStats(gameId, {
       yieldEveryTicks: document.hidden ? 200 : 40,
       onProgress: (p) => notifyProgress(gameId, p),
     })
   }
   return new Promise((resolve) => {
-    pendingResolvers.set(gameId, resolve)
+    const finish = (stats: GameTileStats | null) => {
+      w.terminate()
+      resolve(stats)
+    }
+    w.onmessage = (e: MessageEvent<WorkerResultMsg | WorkerProgressMsg>) => {
+      const data = e.data
+      if (data.type === 'progress') notifyProgress(data.gameId, { tick: data.tick, totalTicks: data.totalTicks })
+      else if (data.type === 'result') finish(data.stats)
+    }
+    w.onerror = (e) => {
+      console.error('Replay worker error, failing this replay', e)
+      finish(null)
+    }
     w.postMessage({ gameId })
   })
 }

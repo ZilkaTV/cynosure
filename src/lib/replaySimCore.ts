@@ -636,7 +636,11 @@ async function loadRunner(gameId: string) {
   // tree expects - only TS's structural typing sees two nominally different
   // trees and can't verify that across a dynamic, commit-selected import.
   const createGameRunner = await loadCreateGameRunner(commit)
-  const runner = await createGameRunner(gameStart as never, undefined, makeMapLoader(raw.config.gameMap, commit) as never, () => {})
+  const runner = await createGameRunner(gameStart as never, undefined, makeMapLoader(raw.config.gameMap, commit) as never, (update: unknown) => {
+    // Opt-in debugging (scripts/probe-*.mjs set globalThis.__REPLAY_DEBUG): surface the engine's own tick errors with stack.
+    const u = update as { errMsg?: string; stack?: string }
+    if ((globalThis as { __REPLAY_DEBUG?: boolean }).__REPLAY_DEBUG && u?.errMsg) console.error('ENGINE ERROR:', u.errMsg, u.stack)
+  })
   for (let t = 0; t <= lastTick; t++) {
     runner.addTurn((byTurnNumber.get(t) ?? { turnNumber: t, intents: [] }) as never)
   }
@@ -884,17 +888,22 @@ export interface SpeedrunReplayMetrics {
  * the browser; the symptom was a missing "Tiles @ 3min" and a win time that silently fell back to
  * the last action). Callers should still run this in a fresh Worker per submission.
  */
-export async function computeSpeedrunMetrics(gameId: string, tilesAtTick: number): Promise<SpeedrunReplayMetrics | null> {
+export async function computeSpeedrunMetrics(
+  gameId: string,
+  tilesAtTick: number,
+  onProgress?: (tick: number, totalTicks: number) => void,
+): Promise<SpeedrunReplayMetrics | null> {
   try {
     const loaded = await loadRunner(gameId)
     if (!loaded) return null
-    const { runner } = loaded
+    const { runner, lastTick } = loaded
     const game = runner.game as unknown as { elapsedGameSeconds?: () => number }
     const totalLandTiles = runner.game.map().numLandTiles()
     let tilePercentByClientId: Record<string, number> | null = null
     let tick = 0
     while (runner.executeNextTick()) {
       tick++
+      if (onProgress && tick % 100 === 0) onProgress(tick, lastTick)
       if (tick === tilesAtTick) {
         const denom = Math.max(1, totalLandTiles - runner.game.numTilesWithFallout())
         const percents: Record<string, number> = {}

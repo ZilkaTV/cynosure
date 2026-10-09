@@ -7,6 +7,7 @@ import { useProfile } from '../lib/useProfile'
 import { useSession, discordDisplayName, discordUserId } from '../lib/useSession'
 import { startDiscordSignIn } from '../lib/discordAuth'
 import { fetchPlayerGames } from '../lib/openfront'
+import { checkOwnership, newVerifyCode } from '../lib/ownership'
 import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
@@ -44,6 +45,34 @@ export default function Register() {
   const natRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Ownership proof for a NEW OpenFront id (see src/lib/ownership.ts): set while the member has to play the proof game.
+  const [verify, setVerify] = useState<{ id: string; code: string; since: number } | null>(null)
+  const [verifyChecking, setVerifyChecking] = useState(false)
+  const [verifyMiss, setVerifyMiss] = useState(false)
+  const verifiedId = useRef<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  async function runVerifyCheck() {
+    if (!verify || verifyChecking) return
+    setVerifyChecking(true)
+    const ok = await checkOwnership(verify.id, verify.code, verify.since)
+    setVerifyChecking(false)
+    if (ok) {
+      verifiedId.current = verify.id
+      setVerify(null)
+      setVerifyMiss(false)
+      formRef.current?.requestSubmit()
+    } else {
+      setVerifyMiss(true)
+    }
+  }
+
+  useEffect(() => {
+    if (!verify) return
+    const timer = setInterval(() => void runVerifyCheck(), 10_000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verify, verifyChecking])
 
   useEffect(() => {
     if (!natOpen) return
@@ -156,6 +185,13 @@ export default function Register() {
           return
         }
       }
+      // A new OpenFront id has to be proven first, otherwise anyone could register as (or take over the row of) a player they are not.
+      if ((!profile || id !== profile.openfront_id) && verifiedId.current !== id) {
+        setVerify({ id, code: newVerifyCode(), since: Date.now() })
+        setVerifyMiss(false)
+        setBusy(false)
+        return
+      }
       const { localSaveOk } = await saveProfile({
         in_game_name: name.trim(),
         timezone,
@@ -250,7 +286,7 @@ export default function Register() {
           </div>
         )}
 
-        <form className="space-y-5" onSubmit={onSubmit}>
+        <form ref={formRef} className="space-y-5" onSubmit={onSubmit}>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-300">{t.register.inGameName}</label>
             <input
@@ -346,6 +382,30 @@ export default function Register() {
           </div>
 
           {error && <p className="text-sm text-signal-red">{error}</p>}
+
+          {verify && (
+            <div className="space-y-3 rounded-xl border border-gold/40 bg-gold/10 p-4 text-sm text-slate-200" role="status" aria-live="polite">
+              <p className="font-display text-base font-bold text-gold-light">{t.register.verifyTitle}</p>
+              <ol className="list-decimal space-y-1 pl-5 text-slate-300">
+                <li>{t.register.verifyStep1}</li>
+                <li>
+                  {t.register.verifyStep2}{' '}
+                  <code className="select-all rounded bg-base-900 px-2 py-0.5 font-mono text-gold-light">{verify.code}</code>
+                </li>
+                <li>{t.register.verifyStep3}</li>
+              </ol>
+              <p className="text-xs text-slate-400">{t.register.verifyWhy}</p>
+              {verifyMiss && <p className="text-xs text-slate-400">{t.register.verifyNotFound}</p>}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void runVerifyCheck()} disabled={verifyChecking} className="btn-accent !px-4 !py-2 text-sm disabled:opacity-60">
+                  {verifyChecking ? t.register.verifyChecking : t.register.verifyCheckNow}
+                </button>
+                <button type="button" onClick={() => setVerify(null)} className="btn-ghost !px-4 !py-2 text-sm">
+                  {t.register.verifyCancel}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={busy} className="btn-accent disabled:opacity-60">

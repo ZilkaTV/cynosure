@@ -25,6 +25,8 @@
 import { createServer } from 'vite'
 import { hotEnabled, hotGetAllMemberGames, hotNewestMemberUpdate } from './lib/hotstore.mjs'
 import fs from 'node:fs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -133,6 +135,24 @@ async function fetchCoveredGameIds(ids, computeLogicVersion) {
   return covered
 }
 
+const execFileAsync = promisify(execFile)
+
+/** Replays one game in a fresh Node process and returns its parsed RESULT line (or null on a crash/timeout). */
+async function computeInChild(gameId) {
+  try {
+    const { stdout } = await execFileAsync(process.execPath, [path.join(__dirname, 'compute-tile-stats-one.mjs'), gameId], {
+      maxBuffer: 200 * 1024 * 1024,
+      timeout: 10 * 60_000,
+      env: process.env,
+    })
+    const line = stdout.split(/\r?\n/).reverse().find((l) => l.startsWith('RESULT:'))
+    return line ? JSON.parse(line.slice('RESULT:'.length)) : null
+  } catch (err) {
+    console.error(`  ${gameId}: child process failed: ${String(err.message ?? err).split(/\r?\n/)[0].slice(0, 160)}`)
+    return null
+  }
+}
+
 async function main() {
   const server = await createServer({ root: ROOT, server: { middlewareMode: false, port: 0 } })
   await server.listen()
@@ -144,9 +164,16 @@ async function main() {
   // absolute URL) reaches OpenFront through the exact same proxy config the
   // real site uses.
   const realFetch = globalThis.fetch
-  globalThis.fetch = (url, opts) => {
-    const rewritten = typeof url === 'string' && url.startsWith('/api/') ? origin + url : url
-    return realFetch(rewritten, opts)
+  globalThis.fetch = async (url, opts) => {
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      const res = await realFetch(origin + url, opts)
+      // GitHub's runner IPs are often answered with OpenFront's Cloudflare bot challenge (403) through the dev
+      // server's own proxy; that made resolveEngineCommit report "needs a newer engine commit" for games whose
+      // commit IS vendored. Our Worker proxy (same allowed paths) reaches OpenFront from a different network.
+      if (res.status === 403) return realFetch(`https://cynclan.com${url}`, opts)
+      return res
+    }
+    return realFetch(url, opts)
   }
 
   let succeeded = 0
@@ -194,18 +221,15 @@ async function main() {
       // "needs a newer engine commit" for this run even though
       // scripts/auto-vendor-missing.mjs (run just before this) confirmed
       // every recent game's commit was already vendored.
+      // One fresh process per game (scripts/compute-tile-stats-one.mjs): the engine cannot replay a second game in the
+      // same JS realm, which used to make everything after the first game of a batch fail.
       let commit = null
-      for (let attempt = 1; attempt <= maxRetries && !commit; attempt++) {
-        commit = await core.resolveEngineCommit(gameId).catch(() => null)
-      }
-      if (!commit) {
-        noVendoredCommit++
-        continue
-      }
       let ok = false
       for (let attempt = 1; attempt <= maxRetries && !ok; attempt++) {
-        const stats = await core.computeGameTileStats(gameId, { yieldEveryTicks: 500, onProgress: () => {} }).catch(() => null)
-        if (!stats) continue
+        const out = await computeInChild(gameId)
+        if (out?.error === 'no_commit') continue
+        if (!out?.stats) continue
+        commit = out.commit
         ok = await fetch(`${SUPABASE_URL}/rest/v1/cyn_game_tile_stats`, {
           method: 'POST',
           headers: {
@@ -215,15 +239,19 @@ async function main() {
           },
           body: JSON.stringify({
             game_id: gameId,
-            vendored_commit: commit,
-            compute_logic_version: core.COMPUTE_LOGIC_VERSION,
-            max_tiles: stats.maxTiles,
-            max_percent: stats.maxPercent,
-            final_tiles: stats.finalTiles,
+            vendored_commit: out.commit,
+            compute_logic_version: out.version,
+            max_tiles: out.stats.maxTiles,
+            max_percent: out.stats.maxPercent,
+            final_tiles: out.stats.finalTiles,
           }),
         })
           .then((res) => res.ok)
           .catch(() => false)
+      }
+      if (!commit && !ok) {
+        noVendoredCommit++
+        continue
       }
       if (ok) {
         succeeded++

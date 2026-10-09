@@ -36,7 +36,7 @@ let queue: Promise<unknown> = Promise.resolve()
 self.onmessage = (e: MessageEvent<RequestMsg>) => {
   const { gameId, speedrunTilesAtTick } = e.data
   if (speedrunTilesAtTick !== undefined) {
-    void computeSpeedrunMetrics(gameId, speedrunTilesAtTick).then((result) => self.postMessage({ type: 'speedrun-result', result }))
+    void computeSpeedrunMetrics(gameId, speedrunTilesAtTick, (tick, totalTicks) => self.postMessage({ type: 'speedrun-progress', tick, totalTicks })).then((result) => self.postMessage({ type: 'speedrun-result', result }))
     return
   }
   queue = queue.then(() =>

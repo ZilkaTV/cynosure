@@ -25,12 +25,19 @@ async function main() {
   await server.listen()
   const origin = `http://localhost:${server.httpServer.address().port}`
   const realFetch = globalThis.fetch
-  globalThis.fetch = (u, opts) => realFetch(typeof u === 'string' && u.startsWith('/api/') ? origin + u : u, opts)
+  globalThis.fetch = async (u, opts) => {
+    if (typeof u === 'string' && u.startsWith('/api/')) {
+      const res = await realFetch(origin + u, opts)
+      return res.status === 403 ? realFetch(`https://cynclan.com${u}`, opts) : res // see backfill-tile-stats.mjs
+    }
+    return realFetch(u, opts)
+  }
 
   let changed = 0
   let skipped = 0
   try {
     const core = await server.ssrLoadModule('/src/lib/replaySimCore.ts')
+    const speedruns = await server.ssrLoadModule('/src/lib/speedruns.ts')
     for (const row of rows) {
       // Same pass the site does on submission: win time + land share at the 3:00 mark (tick 1900 = 3 min + 100-tick spawn phase).
       const metrics = await core.computeSpeedrunMetrics(row.game_id, 1900)
@@ -39,6 +46,11 @@ async function main() {
         skipped++
         continue
       }
+      // Report-only: stored runs that break the standard-settings rules (see checkSpeedrunConfig). Nothing is deleted here.
+      const cfgRes = await fetch(`/api/of/public/game/${encodeURIComponent(row.game_id)}?turns=false`)
+      const cfg = cfgRes.ok ? (await cfgRes.json()).info?.config : undefined
+      const problem = speedruns.checkSpeedrunConfig(cfg)
+      if (problem) console.log(`RULE VIOLATION ${row.openfront_id} ${row.game_id}: ${problem}`)
       const seconds = Math.floor(metrics.winSeconds)
       const update = {}
       if (seconds !== row.seconds) update.seconds = seconds

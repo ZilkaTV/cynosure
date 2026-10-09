@@ -5,6 +5,8 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
+import GameBreakdown from '../components/GameBreakdown'
+import OpenFrontStats from '../components/OpenFrontStats'
 import TrendChart from '../components/TrendChart'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
@@ -243,10 +245,18 @@ export default function MemberProfile() {
           <StatCard label={t.memberProfile.statGames30d} value={m.gamesLast30d} accent="plain" />
           <StatCard label={t.memberProfile.statGamesTotal} value={m.clanGamesTotal} accent="plain" />
         </div>
+        <div className="mt-4">
+          <GameBreakdown games={m.cynGames} />
+        </div>
         {m.elo == null && (
           <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
         )}
         {!m.claimed && <p className="mt-2 text-center text-xs text-slate-400">{t.memberProfile.unregisteredNote}</p>}
+      </section>
+
+      <section>
+        <SectionHeading center eyebrow={t.memberProfile.ofStatsEyebrow} title={t.memberProfile.ofStatsTitle} />
+        <OpenFrontStats publicId={m.publicId} />
       </section>
 
       <section>

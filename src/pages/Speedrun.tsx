@@ -19,6 +19,8 @@ export default function Speedrun() {
   const { data, loading, refresh } = useRoster(!!profile)
   const [link, setLink] = useState('')
   const [busy, setBusy] = useState(false)
+  // 0..1 while a submission replays the game (the replay takes 20-30 s), null otherwise.
+  const [progress, setProgress] = useState<number | null>(null)
   const [result, setResult] = useState<SubmitResult | null>(null)
   // Set when the player pressed one of the Start buttons: the page then polls for their finished run.
   const [watchSince, setWatchSince] = useState<number | null>(null)
@@ -48,7 +50,9 @@ export default function Speedrun() {
         handled.current.add(g.gameId)
         setWatchSince(null)
         setBusy(true)
-        const r = await submitSpeedrun(profileId, g.gameId, profileName)
+        setProgress(0)
+        const r = await submitSpeedrun(profileId, g.gameId, profileName, setProgress)
+        setProgress(null)
         setResult(r)
         setBusy(false)
         if (r.ok && r.best) refresh()
@@ -79,7 +83,9 @@ export default function Speedrun() {
     if (!profile) return
     setBusy(true)
     setResult(null)
-    const r = await submitSpeedrun(profile.openfront_id, link, profile.in_game_name)
+    setProgress(0)
+    const r = await submitSpeedrun(profile.openfront_id, link, profile.in_game_name, setProgress)
+    setProgress(null)
     setResult(r)
     setBusy(false)
     if (r.ok && r.best) {
@@ -148,6 +154,15 @@ export default function Speedrun() {
               {busy ? t.speedrun.verifying : t.speedrun.verifyAndSubmit}
             </button>
           </form>
+          {progress != null && (
+            <div className="mt-3 space-y-1.5" role="status" aria-live="polite">
+              <p className="text-sm text-gold-light">{t.speedrun.replaying}</p>
+              <div className="h-2 overflow-hidden rounded-full bg-base-700">
+                <div className="h-full rounded-full bg-gold transition-[width] duration-300" style={{ width: `${Math.max(4, Math.round(progress * 100))}%` }} />
+              </div>
+              <p className="text-xs text-slate-500">{t.speedrun.replayingHint}</p>
+            </div>
+          )}
           {result && (
             <div className={`mt-3 text-sm ${result.ok ? 'text-signal-green' : 'text-signal-red'}`}>
               <p>

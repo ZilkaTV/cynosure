@@ -25,3 +25,34 @@ export async function handleSoloLatest(request) {
     return json(502, { error: 'solo_unavailable' })
   }
 }
+
+// Proof that a registrant owns the OpenFront id they typed: the owner starts one solo game under a one-time
+// name (the code); solo games are listed on the player's own public profile with the name used, and nobody
+// else can create a game under that account. The Worker asks OpenFront for the player's newest solo games
+// and looks for the code in a game started after `since` (minus two minutes of clock difference).
+const CODE = /^[a-z0-9]{6,12}$/
+
+export async function handleVerifyOwnership(request) {
+  if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+  const q = new URL(request.url).searchParams
+  const id = q.get('id') ?? ''
+  const code = (q.get('code') ?? '').toLowerCase()
+  const since = Number(q.get('since'))
+  if (!PLAYER_ID.test(id) || !CODE.test(code) || !Number.isFinite(since)) return json(400, { error: 'bad_request' })
+  try {
+    const res = await fetch(`https://api.openfront.io/public/player/${id}/games?type=singleplayer`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'CynosureClanSite (cynclan.com)' },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.status === 404) return json(200, { ok: false, reason: 'unknown_player' })
+    if (!res.ok) throw new Error(`openfront ${res.status}`)
+    const body = await res.json()
+    const found = (body.results ?? []).slice(0, 20).some((g) => String(g.username ?? '').toLowerCase().includes(code) && Date.parse(g.start) >= since - 120000)
+    const out = json(200, { ok: found })
+    out.headers.set('Cache-Control', 'no-store')
+    return out
+  } catch (err) {
+    console.error('ownership check unavailable:', err?.message ?? err)
+    return json(502, { error: 'unavailable' })
+  }
+}

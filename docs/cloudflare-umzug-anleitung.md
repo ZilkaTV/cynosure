@@ -1,4 +1,6 @@
-# Cloudflare-Umzug: Anleitung (Stand 9. Oktober 2026)
+# Cloudflare-Umzug: Anleitung (Stand 9. Oktober 2026, Phase 2 umgeschaltet)
+
+> Update 9. Oktober: Phase 2 ist umgeschaltet. Nutzerdaten liegen in D1 `cynosure`, der Login läuft über den Worker (Cookie `cyn_session`, Geheimnis `SESSION_SECRET`). Supabase wird von der Seite nur noch für Event-Screenshots genutzt. Offen: R2 für Screenshots, danach Supabase Pro kündigen.
 
 Kurz vorab: **Der Umzug ist in zwei Phasen aufgeteilt. Phase 1 ist fertig und läuft.** Phase 2 (Login und Nutzer-Tabellen) ist noch nicht gebaut, das ist Programmierarbeit von Claude. Du musst dabei nur wenige Dinge im Dashboard anklicken.
 

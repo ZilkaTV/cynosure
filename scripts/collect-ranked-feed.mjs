@@ -17,6 +17,9 @@ const UA = 'CynosureClanSite (cynclan.com)'
 const CURSOR_ID = 'ranked-feed-cursor'
 const FIRST_RUN_LOOKBACK_MS = 6 * 3600_000
 const KEEP_DAYS = 14
+// The games list filters by a game's START time, and a ranked game runs for minutes - so every pass looks this far back and
+// remembers which games it already handled (state.checked) instead of fetching them again.
+const GAME_LOOKBACK_MS = 35 * 60_000
 const MAX_DETAILS_PER_RUN = 300
 const CONCURRENCY = 10
 
@@ -143,7 +146,7 @@ let eloState = null
 async function loadEloState() {
   if (!eloState) {
     const saved = await hotGetBlob('ranked-elo').catch(() => null)
-    eloState = { snap: null, lastChange: {}, batches: [], pending: [], known: { '1v1': {}, '2v2': {} }, ...(saved ?? {}) }
+    eloState = { snap: null, lastChange: {}, batches: [], pending: [], known: { '1v1': {}, '2v2': {} }, checked: {}, ...(saved ?? {}) }
   }
   return eloState
 }
@@ -212,7 +215,7 @@ async function main() {
   // RANKED_FEED_BACKFILL_HOURS: the first pass of a manual run looks that far back instead of starting at the cursor.
   const backfillMs = backfillOnce ? Number(process.env.RANKED_FEED_BACKFILL_HOURS || 0) * 3600_000 : 0
   backfillOnce = false
-  const start = backfillMs > 0 ? now - Math.min(backfillMs, 24 * 3600_000) : cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - 3 * 60_000, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
+  const start = backfillMs > 0 ? now - Math.min(backfillMs, 24 * 3600_000) : cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - GAME_LOOKBACK_MS, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
   const list = await fetchGames(start, now)
   const ranked = list.filter((g) => g.rankedType === '1v1' || g.rankedType === '2v2')
   console.log(`window ${new Date(start).toISOString()} -> now: ${list.length} public games, ${ranked.length} ranked`)
@@ -222,7 +225,7 @@ async function main() {
     const { data } = await usersDb.from('cyn_ranked_matches').select('game_id').in('game_id', ranked.slice(i, i + 80).map((g) => g.game))
     for (const r of data ?? []) have.add(r.game_id)
   }
-  const pendingAll = ranked.filter((g) => !have.has(g.game)).sort((a, b) => Date.parse(a.end) - Date.parse(b.end))
+  const pendingAll = ranked.filter((g) => !have.has(g.game) && !state.checked[g.game]).sort((a, b) => Date.parse(a.end) - Date.parse(b.end))
   // Fresh games (ended in the last 20 minutes) always go first so the page stays current even while an older backlog is
   // being worked off; the backlog is then handled oldest-first with whatever capacity is left.
   const freshSince = now - 20 * 60_000
@@ -253,8 +256,9 @@ async function main() {
             const abandoned = (row.duration_s ?? 0) < 45 || !row.players.some((p) => p.w)
             if (owners.length && !(row.ladder === '2v2' && abandoned)) state.pending.push({ id: row.game_id, l: row.ladder, ended: Date.parse(row.ended_at), ps: owners })
           }
-          // Only the old backlog moves the cursor (it is handled oldest-first); fresh games are re-checked until it is cleared.
-          if (!freshIds.has(g.game)) newestHandled = Math.max(newestHandled, Date.parse(g.end))
+          state.checked[g.game] = now
+          // Only the old backlog moves the cursor (it is handled oldest-first, by start time).
+          if (!freshIds.has(g.game)) newestHandled = Math.max(newestHandled, Date.parse(g.start))
         } catch (err) {
           failed++
           console.error(`game ${g.game}:`, err.message ?? err)
@@ -270,6 +274,7 @@ async function main() {
     const players = row.players.map((p) => (p.k && byK[p.k] !== undefined ? { ...p, ...byK[p.k] } : p))
     await usersDb.from('cyn_ranked_matches').update({ players }).eq('game_id', gameId)
   }
+  for (const [id, t] of Object.entries(state.checked)) if (Date.now() - t > 4 * 3600_000) delete state.checked[id]
   await hotPutBlob('ranked-elo', JSON.stringify(state)).catch((err) => console.error('could not save the Elo state:', err.message ?? err))
 
   // Everything handled and nothing failed: the next window starts at "now". Otherwise it restarts from the newest

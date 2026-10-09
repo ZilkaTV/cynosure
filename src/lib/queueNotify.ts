@@ -12,7 +12,7 @@ const MODE_KEY = 'cyn:queueAlert'
 const SOUND_KEY = 'cyn:queueAlertSound'
 const SEEN_KEY = 'cyn:queueSeen'
 const CHANGED = 'cyn:queue-alert-changed'
-const POLL_MS = 20_000
+const POLL_MS = 60_000
 const TEST_EVENT = 'cyn:queue-alert-test'
 
 function read(key: string): string | null {

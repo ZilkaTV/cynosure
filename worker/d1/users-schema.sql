@@ -234,6 +234,11 @@ CREATE TABLE IF NOT EXISTS cyn_ranked_matches (
   PRIMARY KEY (game_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_ranked_matches_ended ON cyn_ranked_matches (ended_at);
+CREATE INDEX IF NOT EXISTS idx_ranked_matches_ladder_ended ON cyn_ranked_matches (ladder, ended_at);
+CREATE INDEX IF NOT EXISTS idx_member_snapshots_date ON cyn_member_snapshots (snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_site_visits_at ON cyn_site_visits (visited_at);
+
 CREATE TABLE IF NOT EXISTS auth_users (
   id TEXT PRIMARY KEY,
   discord_user_id TEXT,

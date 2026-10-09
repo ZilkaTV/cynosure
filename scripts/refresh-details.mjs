@@ -27,7 +27,7 @@
 // live fallback, and writes back to this same shared table when it does.
 
 import { usersDb, usersDbEnabled } from './lib/usersdb.mjs'
-import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotListDetailIds, hotPutDetail, hotListOldShapeDetailIds, hotPutBlob, hotGetBlob, computeDigest } from './lib/hotstore.mjs'
+import { hotEnabled, hotListMemberDigests, hotGetMemberGames, hotPutMemberGames, hotHaveDetails, hotPutDetail, hotListOldShapeDetailIds, hotPutBlob, hotGetBlob, computeDigest } from './lib/hotstore.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -733,9 +733,9 @@ async function main() {
   // written back), but it silently wasted most of every run's
   // MAX_GAMES_PER_RUN budget re-fetching games that never needed it, well
   // before ever reaching genuinely new/missing ones.
-  const existing = []
-  existing.push(...(await hotListDetailIds()).map((game_id) => ({ game_id })))
-  const alreadyCached = new Set(existing.map((r) => r.game_id))
+  // Only the wanted ids are looked up (D1's free plan counts every row a query scans - listing the whole table every
+  // 10 minutes used up a sixth of the daily allowance).
+  const alreadyCached = await hotHaveDetails([...wantDetail, ...wantDetailLow])
 
   async function putDetail(gameId, detail) {
     await hotPutDetail(gameId, detail)

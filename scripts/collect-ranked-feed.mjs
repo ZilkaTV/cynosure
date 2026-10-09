@@ -301,9 +301,16 @@ async function main() {
   if (failed === 0 && backlogTodo.length === backlog.length) newestHandled = Math.max(newestHandled, now - 60_000)
   await usersDb.from('cyn_metrics_channel_state').upsert({ channel_id: CURSOR_ID, last_message_id: new Date(newestHandled).toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'channel_id' })
 
-  const sized = await backfillMapSize()
-  const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
-  await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
+  // Housekeeping (old rows, map size of old rows) scans the table, so it runs about once an hour, not every pass
+  // (D1's free plan counts every row a query scans: 5 million a day).
+  let sized = 0
+  if (!state.lastMaintenance || now - state.lastMaintenance > 55 * 60_000) {
+    sized = await backfillMapSize()
+    const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
+    await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
+    state.lastMaintenance = now
+    await hotPutBlob('ranked-elo', JSON.stringify(state)).catch(() => {})
+  }
   console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, mapSizeBackfilled: sized, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }

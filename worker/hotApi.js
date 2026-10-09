@@ -59,6 +59,15 @@ export async function handleHotApi(request, env, pathname) {
         const row = await db.prepare('SELECT MAX(updated_at) AS newest FROM member_games').first()
         return json(200, { newest: row?.newest ?? null })
       }
+      // Which of the given game ids already have a stored detail (primary-key lookup: reads only as many rows as asked,
+      // where the full listing below scans the whole table on every call).
+      if (op === 'detail-have') {
+        const ids = idList(url.searchParams.get('ids'), 90)
+        if (!ids) return json(400, { error: 'bad_ids' })
+        if (ids.length === 0) return json(200, [])
+        const { results } = await db.prepare(`SELECT game_id FROM game_detail WHERE game_id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()
+        return json(200, (results ?? []).map((r) => r.game_id))
+      }
       if (op === 'detail-ids') {
         const { results } = await db.prepare('SELECT game_id FROM game_detail').all()
         return json(200, (results ?? []).map((r) => r.game_id))

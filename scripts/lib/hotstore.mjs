@@ -113,6 +113,20 @@ ${JSON.stringify(games)}` })
 
 // ── game details ─────────────────────────────────────────────────────────────
 
+/** Which of `ids` already have a stored game detail (primary-key lookups in slices of 90). */
+export async function hotHaveDetails(ids) {
+  const have = new Set()
+  for (const part of chunk([...ids], 90)) {
+    if (viaWorker()) {
+      for (const id of await api('GET', 'detail-have', { query: { ids: part.join(',') } })) have.add(id)
+    } else {
+      const rows = await query(`SELECT game_id FROM game_detail WHERE game_id IN (${part.map(() => '?').join(',')})`, part)
+      for (const r of rows) have.add(r.game_id)
+    }
+  }
+  return have
+}
+
 export async function hotListDetailIds() {
   if (viaWorker()) return await api('GET', 'detail-ids')
   return (await query('SELECT game_id FROM game_detail')).map((r) => r.game_id)

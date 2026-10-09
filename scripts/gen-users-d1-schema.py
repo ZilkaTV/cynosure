@@ -167,6 +167,14 @@ for name in order:
     out.append(');')
     out.append('')
 
+# Indexes: D1's free plan counts every row a query scans (5 million a day), so the lists the site and the scripts read by
+# date must not scan whole tables.
+out.append('''CREATE INDEX IF NOT EXISTS idx_ranked_matches_ended ON cyn_ranked_matches (ended_at);
+CREATE INDEX IF NOT EXISTS idx_ranked_matches_ladder_ended ON cyn_ranked_matches (ladder, ended_at);
+CREATE INDEX IF NOT EXISTS idx_member_snapshots_date ON cyn_member_snapshots (snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_site_visits_at ON cyn_site_visits (visited_at);
+''')
+
 # Supabase auth users, reduced to what the migration needs (no emails).
 out.append('''CREATE TABLE IF NOT EXISTS auth_users (
   id TEXT PRIMARY KEY,

@@ -34,7 +34,7 @@ interface FeedMatch {
 }
 type Ladder = 'all' | '1v1' | '2v2'
 
-const REFRESH_MS = 20_000
+const REFRESH_MS = 30_000
 // Traffic light: distinct top-100 players who finished a game in the last 30 minutes.
 const BUSY_FROM = 12
 const MEDIUM_FROM = 5

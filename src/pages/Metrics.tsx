@@ -14,8 +14,6 @@ import {
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
-import { fetchTopClanLeaderboard, forecastWinScoreLoss, type TopClanEntry } from '../lib/clanScore'
-import { CLAN_TAG } from '../config'
 
 const QUIET_AFTER_DAYS = 14
 
@@ -47,9 +45,6 @@ export default function Metrics() {
   const { data: roster } = useRoster(isInnerCircle)
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
-  const [topClans, setTopClans] = useState<TopClanEntry[]>([])
-  const [forecastClanTag, setForecastClanTag] = useState<string>('')
-  const [forecastDays, setForecastDays] = useState<number>(1)
   const [discordStatus, setDiscordStatus] = useState<Record<string, DiscordStatus> | null>(null)
 
   useEffect(() => {
@@ -57,15 +52,6 @@ export default function Metrics() {
     getTodayMetrics().then(setMetrics)
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
     getDiscordStatus().then(setDiscordStatus)
-    fetchTopClanLeaderboard().then((top) => {
-      setTopClans(top)
-      // Defaults to our own clan, not whoever happens to be #1 overall -
-      // this panel exists to forecast OUR Win Score decay, not to showcase
-      // the top clan. Falls back to rank #1 only in the unlikely case CYN
-      // itself isn't in the top-20 list this reads from.
-      const defaultTag = top.some((c) => c.clanTag === CLAN_TAG) ? CLAN_TAG : top[0]?.clanTag
-      if (defaultTag) setForecastClanTag((prev) => prev || defaultTag)
-    })
   }, [isInnerCircle, session])
 
   // Detection only, deliberately - no auto-DM. Research (today's daytime
@@ -183,56 +169,6 @@ export default function Metrics() {
           </div>
         )}
       </div>
-
-      {topClans.length > 0 && (
-        <div className="mt-10">
-          <SectionHeading eyebrow="Win Score" title="Decay Forecast" />
-          <Card>
-            <p className="mb-4 text-center text-sm text-slate-400">
-              OpenFront's live clan leaderboard decays every game's weight over time (30-day half-life). This projects how many
-              Win Score points a clan is on track to lose if it plays no further Team games in the selected window - keep
-              playing at the current rate and some or all of this gets offset by new games instead.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <select
-                value={forecastClanTag}
-                onChange={(e) => setForecastClanTag(e.target.value)}
-                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
-              >
-                {topClans.map((c, i) => (
-                  <option key={c.clanTag} value={c.clanTag}>
-                    #{i + 1} [{c.clanTag}]
-                  </option>
-                ))}
-              </select>
-              <select
-                value={forecastDays}
-                onChange={(e) => setForecastDays(Number(e.target.value))}
-                className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
-              >
-                <option value={1}>Next day</option>
-                <option value={7}>Next week</option>
-                <option value={30}>Next month</option>
-              </select>
-            </div>
-            {(() => {
-              const clan = topClans.find((c) => c.clanTag === forecastClanTag)
-              if (!clan) return null
-              const loss = forecastWinScoreLoss(clan.weightedWins, forecastDays)
-              const projected = clan.weightedWins - loss
-              return (
-                <>
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <StatCard label="Win Score Now" value={clan.weightedWins.toFixed(1)} accent="plain" />
-                    <StatCard label="Points Lost" value={`-${loss.toFixed(1)}`} accent="gold" />
-                    <StatCard label="Projected" value={projected.toFixed(1)} accent="purple" />
-                  </div>
-                </>
-              )
-            })()}
-          </Card>
-        </div>
-      )}
 
       <div className="mt-10">
         <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.quietMembersTitle} />

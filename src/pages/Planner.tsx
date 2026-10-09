@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Card, SectionHeading } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
+import DecayForecast from '../components/DecayForecast'
 import { clanSessionScore } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import { CLAN_TAG } from '../config'
@@ -117,6 +118,8 @@ export default function Planner() {
         </Card>
 
         <p className="mx-auto max-w-3xl text-center text-xs text-slate-500">{t.planner.formulaNote}</p>
+
+        <DecayForecast />
       </section>
     </StatsShell>
   )

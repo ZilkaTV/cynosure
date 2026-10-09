@@ -98,13 +98,18 @@ function buildMatch(game, detail, board) {
   }
 }
 
+let backfillOnce = true
+
 async function main() {
   const boards = await loadBoards()
   if (!Object.keys(boards['1v1']).length && !Object.keys(boards['2v2']).length) throw new Error('no top-100 boards available')
 
   const cursorRow = (await usersDb.from('cyn_metrics_channel_state').select('last_message_id').eq('channel_id', CURSOR_ID).maybeSingle()).data
   const now = Date.now()
-  const start = cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - 3 * 60_000, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
+  // RANKED_FEED_BACKFILL_HOURS: the first pass of a manual run looks that far back instead of starting at the cursor.
+  const backfillMs = backfillOnce ? Number(process.env.RANKED_FEED_BACKFILL_HOURS || 0) * 3600_000 : 0
+  backfillOnce = false
+  const start = backfillMs > 0 ? now - Math.min(backfillMs, 24 * 3600_000) : cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - 3 * 60_000, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
   const list = await fetchGames(start, now)
   const ranked = list.filter((g) => g.rankedType === '1v1' || g.rankedType === '2v2')
   console.log(`window ${new Date(start).toISOString()} -> now: ${list.length} public games, ${ranked.length} ranked`)

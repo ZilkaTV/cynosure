@@ -5,7 +5,11 @@ name: Ranked feed
 on:
   repository_dispatch:
     types: [ranked-feed]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      backfill_hours:
+        description: 'Look back this many hours on the first pass (max 24)'
+        default: '0'
 
 concurrency:
   group: ranked-feed
@@ -27,4 +31,5 @@ jobs:
         env:
           HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
           RANKED_FEED_LOOP_MS: '540000'
+          RANKED_FEED_BACKFILL_HOURS: ${{ inputs.backfill_hours || '0' }}
         run: node scripts/collect-ranked-feed.mjs

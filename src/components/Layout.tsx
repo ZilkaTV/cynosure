@@ -103,9 +103,9 @@ function navItems(t: TranslationShape) {
     { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
+    { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/planner', label: t.nav.planner, shortLabel: t.nav.shortPlanner },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
-    { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
   ]
 }
 

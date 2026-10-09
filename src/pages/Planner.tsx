@@ -16,7 +16,7 @@ const PRESETS: { teams: number; per: number }[] = [
 const MATRIX_TEAMS = [2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 33]
 const MATRIX_CLAN = [1, 2, 3, 4, 5, 6]
 const BEST_CLAN = [1, 2, 3, 4, 5, 6, 7, 8]
-const MAX_PLAYER_OPTIONS = [50, 100, 150]
+const MAX_PLAYER_OPTIONS = [50, 80, 100, 120]
 
 const dec = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -44,7 +44,7 @@ export default function Planner() {
   const [teams, setTeams] = useState(5)
   const [per, setPer] = useState(7)
   const [clan, setClan] = useState(2)
-  const [maxPlayers, setMaxPlayers] = useState(100)
+  const [maxPlayers, setMaxPlayers] = useState(120)
   const members = Math.min(clan, per)
 
   const win = score(teams, members, per, true)
@@ -99,7 +99,7 @@ export default function Planner() {
             ))}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={40} onChange={setTeams} />
+            <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={60} onChange={setTeams} />
             <Slider id="pl-per" label={t.planner.perTeam} value={per} min={1} max={50} onChange={setPer} />
             <Slider id="pl-clan" label={t.planner.clanMembers(CLAN_TAG)} value={members} min={1} max={Math.min(8, per)} onChange={setClan} />
           </div>

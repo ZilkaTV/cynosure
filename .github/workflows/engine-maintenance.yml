@@ -69,6 +69,8 @@ permissions:
 jobs:
   maintain:
     runs-on: ubuntu-latest
+    # A run never holds the single slot for more than this: the backfill stops starting new games after 100 minutes.
+    timeout-minutes: 140
     steps:
       - uses: actions/checkout@v7
 
@@ -118,4 +120,6 @@ jobs:
           # Cloudflare D1 via the site's own Worker (member game lists + game details). Unset secret = scripts keep using Supabase.
           HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
           FORCE_BACKFILL: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          BACKFILL_PARALLEL: '3'
+          BACKFILL_MAX_MINUTES: '100'
         run: node scripts/backfill-tile-stats.mjs ${{ inputs.days || 14 }}

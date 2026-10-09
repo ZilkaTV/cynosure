@@ -190,7 +190,12 @@ async function main() {
       return
     }
 
-    for (const gameId of missing) {
+    // Several replays at once (each one is its own process) and a time budget per run, so one long backlog can never hold
+    // the single engine-maintenance slot for hours (see the workflow's own timeout).
+    const PARALLEL = Math.max(1, Number(process.env.BACKFILL_PARALLEL) || 3)
+    const deadline = Date.now() + (Number(process.env.BACKFILL_MAX_MINUTES) || 100) * 60_000
+    const queue = [...missing]
+    const handle = async (gameId) => {
       // Retried the same way computeGameTileStats below already is -
       // confirmed live: resolveEngineCommit's own fetch failing transiently
       // (a rate limit, a brief OpenFront hiccup) was indistinguishable from
@@ -227,7 +232,7 @@ async function main() {
       }
       if (!commit && !ok) {
         noVendoredCommit++
-        continue
+        return
       }
       if (ok) {
         succeeded++
@@ -237,6 +242,12 @@ async function main() {
         console.log(`  ${gameId}: failed after ${maxRetries} attempt(s)`)
       }
     }
+    await Promise.all(
+      Array.from({ length: PARALLEL }, async () => {
+        while (queue.length > 0 && Date.now() < deadline) await handle(queue.shift())
+      }),
+    )
+    if (queue.length > 0) console.log(`Time budget reached - ${queue.length} game(s) left for the next run.`)
   } finally {
     await server.close()
   }

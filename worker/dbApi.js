@@ -477,8 +477,26 @@ export async function handleDbApi(request, env, pathname) {
       return json(200, { data: null, error: mapError(err) })
     }
   }
+  // Public tables are read by every visitor again and again; D1's free plan counts every row a query scans, so an
+  // identical read is answered from memory for a short time (these tables are readable by everyone, so the answer
+  // does not depend on who asks).
+  const ttl = body?.op === 'select' ? READ_CACHE_MS[body.table] : 0
+  if (ttl) {
+    const key = JSON.stringify(body)
+    const hit = readCache.get(key)
+    if (hit && Date.now() - hit.at < ttl) return json(200, hit.result)
+    const result = await runQuery(env, body, user, false)
+    if (!result.error) {
+      if (readCache.size >= 40) readCache.delete(readCache.keys().next().value)
+      readCache.set(key, { at: Date.now(), result })
+    }
+    return json(200, result)
+  }
   return json(200, await runQuery(env, body, user, false))
 }
+
+const READ_CACHE_MS = { cyn_ranked_matches: 45_000, cyn_member_snapshots: 300_000 }
+const readCache = new Map()
 
 /** Service entry for scripts: same engine, no access rules. Auth is checked by the caller (usersApi.js). */
 export async function handleServiceQuery(env, body) {

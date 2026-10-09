@@ -98,7 +98,7 @@ export default function Planner() {
           <div className="grid gap-4 sm:grid-cols-3">
             <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={60} onChange={setTeams} />
             <Slider id="pl-per" label={t.planner.perTeam} value={per} min={1} max={50} onChange={setPer} />
-            <Slider id="pl-clan" label={t.planner.clanMembers(CLAN_TAG)} value={members} min={1} max={Math.min(8, per)} onChange={setClan} />
+            <Slider id="pl-clan" label={t.planner.clanMembers(CLAN_TAG)} value={members} min={1} max={Math.min(50, per)} onChange={setClan} />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-base-700 bg-base-850/60 p-4 text-center">

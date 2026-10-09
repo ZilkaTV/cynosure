@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Card, SectionHeading } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import { clanSessionScore } from '../lib/clanScore'
@@ -19,8 +19,6 @@ function maxPointsLayout(clan: number) {
   return { teams: Math.floor(MAX_PLAYERS / per), per, clan }
 }
 
-const MATRIX_TEAMS = [2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 33]
-const MATRIX_CLAN = [1, 2, 3, 4, 5, 6]
 
 const dec = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -53,15 +51,6 @@ export default function Planner() {
   const win = score(teams, members, per, true)
   const loss = score(teams, members, per, false)
   const breakEven = (100 * loss) / (win + loss)
-
-  const matrix = useMemo(
-    () =>
-      MATRIX_TEAMS.map((n) => ({
-        teams: n,
-        cells: MATRIX_CLAN.map((c) => (c <= per ? { win: score(n, c, per, true), loss: score(n, c, per, false) } : null)),
-      })),
-    [per],
-  )
 
   return (
     <StatsShell>
@@ -127,43 +116,7 @@ export default function Planner() {
           <p className="text-center text-sm text-slate-400">{t.planner.summary(teams * per, teams, win / loss)}</p>
         </Card>
 
-        <div className="mx-auto max-w-3xl">
-          <h3 className="mb-2 text-center font-display text-lg font-bold text-white">{t.planner.matrixTitle(per)}</h3>
-          <div className="panel overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm tabular-nums">
-              <thead>
-                <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2 text-left font-semibold">{t.planner.teams}</th>
-                  {MATRIX_CLAN.map((c) => (
-                    <th key={c} className={`px-3 py-2 text-right font-semibold ${c === members ? 'text-gold-light' : ''}`}>
-                      {c} {CLAN_TAG}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {matrix.map((row) => (
-                  <tr key={row.teams} className={`border-b border-base-700/50 last:border-0 ${row.teams === teams ? 'bg-gold/10' : ''}`}>
-                    <td className="px-3 py-2 text-slate-200">{row.teams}</td>
-                    {row.cells.map((cell, i) => (
-                      <td key={i} className="px-3 py-2 text-right">
-                        {cell ? (
-                          <>
-                            <span className="text-signal-green">+{dec(cell.win)}</span> <span className="text-slate-600">/</span>{' '}
-                            <span className="text-signal-red">&minus;{dec(cell.loss)}</span>
-                          </>
-                        ) : (
-                          <span className="text-slate-700">-</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-center text-xs text-slate-500">{t.planner.formulaNote}</p>
-        </div>
+        <p className="mx-auto max-w-3xl text-center text-xs text-slate-500">{t.planner.formulaNote}</p>
       </section>
     </StatsShell>
   )

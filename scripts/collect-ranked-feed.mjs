@@ -17,7 +17,7 @@ const UA = 'CynosureClanSite (cynclan.com)'
 const CURSOR_ID = 'ranked-feed-cursor'
 const FIRST_RUN_LOOKBACK_MS = 6 * 3600_000
 const KEEP_DAYS = 14
-const MAX_DETAILS_PER_RUN = 450
+const MAX_DETAILS_PER_RUN = 300
 const CONCURRENCY = 10
 
 if (!usersDbEnabled() || !hotEnabled()) {
@@ -60,7 +60,7 @@ const WORKER = process.env.HOT_API_BASE || 'https://cynosure.xa9087dwbu5631opu09
 /** The top-100 boards right now: the Worker scans them itself (GitHub's runners get OpenFront's bot challenge there). */
 async function fetchLiveBoards() {
   const res = await fetch(`${WORKER}/api/internal/hot/ranked-live`, { headers: { Authorization: `Bearer ${process.env.HOT_API_SECRET}`, 'User-Agent': UA }, signal: AbortSignal.timeout(30000) })
-  if (!res.ok) throw new Error(`ranked-live ${res.status}`)
+  if (!res.ok) throw new Error(`ranked-live ${res.status} ${(await res.text()).slice(0, 120)}`)
   return await res.json()
 }
 
@@ -184,7 +184,14 @@ async function main() {
     for (const r of data ?? []) have.add(r.game_id)
   }
   const pendingAll = ranked.filter((g) => !have.has(g.game)).sort((a, b) => Date.parse(a.end) - Date.parse(b.end))
-  const todo = pendingAll.slice(0, MAX_DETAILS_PER_RUN)
+  // Fresh games (ended in the last 20 minutes) always go first so the page stays current even while an older backlog is
+  // being worked off; the backlog is then handled oldest-first with whatever capacity is left.
+  const freshSince = now - 20 * 60_000
+  const fresh = pendingAll.filter((g) => Date.parse(g.end) >= freshSince)
+  const backlog = pendingAll.filter((g) => Date.parse(g.end) < freshSince)
+  const backlogTodo = backlog.slice(0, Math.max(0, MAX_DETAILS_PER_RUN - fresh.length))
+  const todo = [...fresh, ...backlogTodo]
+  const freshIds = new Set(fresh.map((g) => g.game))
 
   let stored = 0
   let skipped = 0
@@ -204,7 +211,8 @@ async function main() {
             stored++
             if (owners.length) state.pending.push({ id: row.game_id, l: row.ladder, ended: Date.parse(row.ended_at), ps: owners })
           }
-          newestHandled = Math.max(newestHandled, Date.parse(g.end))
+          // Only the old backlog moves the cursor (it is handled oldest-first); fresh games are re-checked until it is cleared.
+          if (!freshIds.has(g.game)) newestHandled = Math.max(newestHandled, Date.parse(g.end))
         } catch (err) {
           failed++
           console.error(`game ${g.game}:`, err.message ?? err)
@@ -224,12 +232,12 @@ async function main() {
 
   // Everything handled and nothing failed: the next window starts at "now". Otherwise it restarts from the newest
   // handled game (minus the 3-minute overlap above), so a failed or left-over game is tried again.
-  if (failed === 0 && todo.length === pendingAll.length) newestHandled = Math.max(newestHandled, now - 60_000)
+  if (failed === 0 && backlogTodo.length === backlog.length) newestHandled = Math.max(newestHandled, now - 60_000)
   await usersDb.from('cyn_metrics_channel_state').upsert({ channel_id: CURSOR_ID, last_message_id: new Date(newestHandled).toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'channel_id' })
 
   const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
   await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
-  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: pendingAll.length - todo.length, elo: { liveBoards: Boolean(live), events: state.events.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
+  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), events: state.events.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 

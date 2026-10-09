@@ -11,7 +11,7 @@ import { useD1 } from './hotStore.js'
 const PAGES = 3 // the board is 2 pages (100 entries) today; a 400 ends the scan early
 
 /** Fetches both top-100 boards, stores them in the D1 blob `ranked` and returns them (null if the scan failed). */
-export async function refreshRankedBlob(env) {
+export async function refreshRankedBlob(env, info = {}) {
   if (!useD1(env)) return null
   const byMode = { ranked_1v1: {}, ranked_2v2: {} }
   for (let page = 1; page <= PAGES; page++) {
@@ -25,6 +25,7 @@ export async function refreshRankedBlob(env) {
     if (res.status === 400) break
     if (!res.ok) {
       console.error(`ranked leaderboard page ${page}: HTTP ${res.status} - keeping the previous Elo`)
+      info.reason = `page ${page}: HTTP ${res.status}`
       return null
     }
     const json = await res.json()
@@ -33,6 +34,7 @@ export async function refreshRankedBlob(env) {
   }
   if (Object.keys(byMode.ranked_1v1).length === 0 || Object.keys(byMode.ranked_2v2).length === 0) {
     console.error('ranked leaderboard came back empty - keeping the previous Elo')
+    info.reason = 'empty boards'
     return null
   }
   const doc = { ...byMode, scanned_at: new Date().toISOString() }

@@ -69,7 +69,14 @@ export async function handleHotApi(request, env, pathname) {
         return json(200, joinJsonObject(await d1GameDetails(env, ids)))
       }
       // Fresh top-100 boards right now (also refreshes the stored copy) - the ranked feed diffs them minute by minute to learn Elo changes.
-      if (op === 'ranked-live') return json(200, JSON.stringify((await refreshRankedBlob(env)) ?? null))
+      if (op === 'ranked-live') {
+        const info = {}
+        const doc = await refreshRankedBlob(env, info).catch((err) => {
+          info.reason = String(err?.message ?? err).slice(0, 120)
+          return null
+        })
+        return doc ? json(200, JSON.stringify(doc)) : json(502, { error: info.reason ?? 'unavailable' })
+      }
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
         if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo'].includes(key)) return json(400, { error: 'bad_key' })

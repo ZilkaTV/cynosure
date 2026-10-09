@@ -7,6 +7,7 @@
 // Columns are checked against the table's real columns, so a typo or an unknown table can't create anything.
 
 import { handleServiceQuery } from './dbApi.js'
+import { handleScreenshotImport } from './screenshots.js'
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const TABLE = /^[a-z_][a-z0-9_]{0,63}$/
@@ -44,6 +45,7 @@ export async function handleUsersApi(request, env, pathname) {
       }
       return json(200, out)
     }
+    if (request.method === 'PUT' && op === 'screenshot') return handleScreenshotImport(request, env)
     if (request.method === 'POST' && op === 'query') {
       return json(200, await handleServiceQuery(env, await request.json()))
     }

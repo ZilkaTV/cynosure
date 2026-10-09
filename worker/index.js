@@ -11,6 +11,7 @@ import { handleOf } from './of.js'
 import { handleTf } from './tf.js'
 import { handleDiscordAuthCallback, handleAuthApi } from './discord-auth.js'
 import { handleDbApi } from './dbApi.js'
+import { handleUpload, handleScreenshotGet } from './screenshots.js'
 import { withSecurityHeaders } from './securityHeaders.js'
 import { edgeCached } from './kvSafe.js'
 import { handleClanMembers } from './clanMembers.js'
@@ -38,6 +39,8 @@ export default {
       return withSecurityHeaders(new Response(JSON.stringify({ error: 'gone' }), { status: 410, headers: { 'Content-Type': 'application/json' } }))
     }
     if (pathname === '/api/auth/session' || pathname === '/api/auth/logout') return withSecurityHeaders(await handleAuthApi(request, env, pathname))
+    if (pathname === '/api/upload-screenshot') return withSecurityHeaders(await handleUpload(request, env))
+    if (pathname.startsWith('/api/screenshots/')) return withSecurityHeaders(await handleScreenshotGet(request, env, pathname))
     if (pathname === '/api/db' || pathname === '/api/db/rpc') return withSecurityHeaders(await handleDbApi(request, env, pathname))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))

@@ -1,0 +1,19 @@
+name: Move event screenshots to R2
+
+# Manual, one-off. Copies the screenshots of cyn_event_submissions from Supabase Storage to Cloudflare R2.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Move
+        env:
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
+        run: node scripts/migrate-screenshots-to-r2.mjs

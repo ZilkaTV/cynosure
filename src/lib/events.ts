@@ -145,20 +145,16 @@ export async function submitEventEntry(params: {
     return { ok: false, message: 'Screenshot must be under 8MB.' }
   }
 
-  const ext = params.screenshotFile.name.split('.').pop() || 'png'
-  const path = `${params.eventId}/${params.openfrontId}-${Date.now()}.${ext}`
-
-  // Screenshots still live in Supabase Storage (public bucket, upload allowed with the public key) until they move to
-  // Cloudflare R2 - see docs/cloudflare-migration-plan.md step 6.
-  const sbUrl = import.meta.env.VITE_SUPABASE_URL as string
-  const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-  const upload = await fetch(`${sbUrl}/storage/v1/object/event-screenshots/${path}`, {
+  // Screenshots are stored in Cloudflare R2 through the Worker (signed-in members only; the type is checked there).
+  const upload = await fetch(`/api/upload-screenshot?event=${encodeURIComponent(params.eventId)}`, {
     method: 'POST',
-    headers: { apikey: sbKey, 'Content-Type': params.screenshotFile.type },
+    credentials: 'same-origin',
     body: params.screenshotFile,
   }).catch(() => null)
-  if (!upload || !upload.ok) return { ok: false, message: 'Screenshot upload failed. Please try again.' }
-  const pub = { publicUrl: `${sbUrl}/storage/v1/object/public/event-screenshots/${path}` }
+  if (!upload || !upload.ok) {
+    return { ok: false, message: upload?.status === 401 ? 'Please sign in with Discord first.' : 'Screenshot upload failed. Please try again.' }
+  }
+  const pub = { publicUrl: ((await upload.json()) as { url: string }).url }
 
   const { error } = await supabase.from('cyn_event_submissions').insert({
     event_id: params.eventId,

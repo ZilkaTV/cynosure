@@ -97,6 +97,8 @@
     // User data (members, reactions, quests, ...): the migration target away from Supabase, see docs/cloudflare-migration-plan.md.
     { "binding": "DB", "database_name": "cynosure", "database_id": "179f345a-0929-435f-8365-2656efe52cf8" }
   ],
+  // Event win-screen screenshots (worker/screenshots.js).
+  "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "cynosure-screenshots" }],
   "assets": {
     // Vite's build output (npm run build) - this is the "Build-Befehl" the
     // Cloudflare dashboard runs before `wrangler deploy` picks this file up.

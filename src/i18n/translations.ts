@@ -1,12 +1,19 @@
-export type Language = 'en' | 'de' | 'fr'
+import { extraTranslations } from './extraLanguages'
 
-export const languages: { code: Language; label: string }[] = [
-  { code: 'en', label: 'English' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'fr', label: 'Français' },
+export type Language = 'en' | 'de' | 'fr' | 'ru' | 'it' | 'es' | 'ko'
+
+// `flag` is rendered as a Twemoji image next to the name (see LanguageSwitcher).
+export const languages: { code: Language; label: string; flag: string }[] = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'ko', label: '한국어', flag: '🇰🇷' },
 ]
 
-export const translations = {
+const baseTranslations = {
   en: {
     nav: {
       overview: 'Overview',
@@ -2324,4 +2331,24 @@ export const translations = {
   },
 }
 
-export type TranslationShape = typeof translations.en
+export type TranslationShape = typeof baseTranslations.en
+
+type Plain = Record<string, unknown>
+
+/** English is the base: every key an extra language doesn't translate falls back to the English text. */
+function mergeOver(base: Plain, over: Plain): Plain {
+  const out: Plain = { ...base }
+  for (const [k, v] of Object.entries(over)) {
+    const b = base[k]
+    out[k] = v && typeof v === 'object' && b && typeof b === 'object' ? mergeOver(b as Plain, v as Plain) : v
+  }
+  return out
+}
+
+export const translations: Record<Language, TranslationShape> = {
+  ...baseTranslations,
+  ru: mergeOver(baseTranslations.en, extraTranslations.ru as Plain) as TranslationShape,
+  it: mergeOver(baseTranslations.en, extraTranslations.it as Plain) as TranslationShape,
+  es: mergeOver(baseTranslations.en, extraTranslations.es as Plain) as TranslationShape,
+  ko: mergeOver(baseTranslations.en, extraTranslations.ko as Plain) as TranslationShape,
+}

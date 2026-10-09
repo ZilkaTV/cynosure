@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { translations, type Language } from './translations'
+import { languages, translations, type Language } from './translations'
 
 interface LanguageContextValue {
   language: Language
   setLanguage: (lang: Language) => void
-  t: typeof translations.en
+  t: (typeof translations)['en']
 }
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined)
@@ -14,13 +14,13 @@ const STORAGE_KEY = 'cyn-language'
 function getInitialLanguage(): Language {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'en' || stored === 'de' || stored === 'fr') return stored
+    const hit = languages.find((l) => l.code === stored)
+    if (hit) return hit.code
   } catch {
     /* private-mode/quota - fall back to browser language below */
   }
   const browserLang = navigator.language.slice(0, 2)
-  if (browserLang === 'de' || browserLang === 'fr') return browserLang
-  return 'en'
+  return languages.find((l) => l.code === browserLang)?.code ?? 'en'
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {

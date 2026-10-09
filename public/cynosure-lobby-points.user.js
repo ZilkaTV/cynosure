@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CYN Lobby Points
 // @namespace    https://cynclan.com/
-// @version      1.4.0
+// @version      1.4.1
 // @description  Shows on every team lobby of openfront.io how many clan points a win or a loss is worth for your clan (OpenFront's own clan-score formula, same as the points planner on cynclan.com).
 // @author       Cynosure [CYN]
 // @match        https://openfront.io/*
@@ -17,7 +17,7 @@
 (function () {
   'use strict'
 
-  var VERSION = '1.4.0'
+  var VERSION = '1.4.1'
   // On cynclan.com the script only reports its version, so the points planner can show whether an update is available.
   if (location.hostname === 'cynclan.com') {
     document.documentElement.setAttribute('data-cyn-lobby-addon', VERSION)
@@ -116,7 +116,7 @@
       '#cyn-lp-panel .st input{all:unset;box-sizing:border-box;width:34px;height:24px;text-align:center;font-size:15px;font-weight:700;color:#fff;' +
       'border:1px solid rgba(216,185,106,.45);border-radius:7px;background:rgba(0,0,0,.25);cursor:text}' +
       '#cyn-lp-panel .st input:focus{border-color:#eed699}' +
-      '#cyn-lp-panel a{display:block;padding:7px 9px;border-radius:9px;text-align:center;text-decoration:none;font-weight:700;font-size:11px;' +
+      '#cyn-lp-panel a{display:block;padding:4px 8px;border-radius:7px;text-align:center;text-decoration:none;font-weight:700;font-size:10px;' +
       'letter-spacing:.04em;color:#1a1405;background:linear-gradient(180deg,#eed699,#b0913f)}' +
       '#cyn-lp-panel a:hover{filter:brightness(1.08)}' +
       '#cyn-lp-panel.c{width:auto;border-radius:999px;cursor:pointer}' +
@@ -177,7 +177,7 @@
       '<button type="button" class="min" data-act="toggle" title="Minimise">–</button></div>' +
       '<div class="b"><div class="r"><span>' + TAG + ' players in your team</span><div class="st">' +
       '<button type="button" data-d="-1">−</button><input id="cyn-lp-n" type="text" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="Number of players"><button type="button" data-d="1">+</button></div></div>' +
-      '<a href="' + SITE + '" target="_blank" rel="noopener">cynclan.com → points planner &amp; clan stats</a></div>'
+      '<a href="' + SITE + '" target="_blank" rel="noopener">cynclan.com</a></div>'
     box.addEventListener('click', function (e) {
       if (justDragged) {
         e.stopPropagation()

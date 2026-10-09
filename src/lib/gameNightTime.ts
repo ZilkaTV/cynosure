@@ -15,7 +15,8 @@ export function relativeUntil(startsAt: string, now = Date.now()): string {
 }
 
 export function localeFor(language: string): string {
-  return language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : 'en-GB'
+  const map: Record<string, string> = { de: 'de-DE', fr: 'fr-FR', ru: 'ru-RU', it: 'it-IT', es: 'es-ES', ko: 'ko-KR' }
+  return map[language] ?? 'en-GB'
 }
 
 /** Full local date + time with the viewer's own zone abbreviation (e.g. "Fri 3 Oct, 19:00 BST"). */

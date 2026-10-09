@@ -229,7 +229,7 @@ async function main() {
 
   const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
   await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
-  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: pendingAll.length - todo.length }))
+  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: pendingAll.length - todo.length, elo: { liveBoards: Boolean(live), events: state.events.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 

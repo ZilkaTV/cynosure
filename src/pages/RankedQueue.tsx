@@ -4,6 +4,7 @@ import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
+import { useQueueAlertSettings, type QueueAlertMode } from '../lib/queueNotify'
 
 // One stored game (see scripts/collect-ranked-feed.mjs): display-ready players only. `r`/`e`/`id` exist only for
 // players using the name of their own ranked account, everyone else carries at most a rank band `b`.
@@ -78,6 +79,7 @@ export default function RankedQueue() {
   const [history, setHistory] = useState<{ ended_at: string; ladder: string }[]>([])
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const alert = useQueueAlertSettings()
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -161,6 +163,27 @@ export default function RankedQueue() {
           ))}
         </div>
 
+        <Card className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
+          <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
+          <div className="flex gap-1.5">
+            {(['off', '1v1', '2v2', 'both'] as QueueAlertMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => alert.setMode(m)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${alert.mode === m ? 'bg-gold text-base-950' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
+              >
+                {m === 'off' ? t.queue.alertOff : m === 'both' ? t.queue.alertBoth : m}
+              </button>
+            ))}
+          </div>
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
+            <input type="checkbox" checked={alert.sound} onChange={(e) => alert.setSound(e.target.checked)} className="accent-[#8b5cf6]" />
+            {t.queue.alertSound}
+          </label>
+          <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
+        </Card>
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
           <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
@@ -195,13 +218,22 @@ export default function RankedQueue() {
             {shown.slice(0, LIST_LIMIT).map((m) => {
               const sides = [...new Set(m.players.map((p) => p.s))].sort((a, b) => a - b)
               return (
-                <div key={m.game_id} className="panel flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
+                <div
+                  key={m.game_id}
+                  role="button"
+                  tabIndex={0}
+                  title={t.queue.openGame}
+                  onClick={(e) => {
+                    // A click on the profile link of a player must keep opening the profile, not the report.
+                    if ((e.target as HTMLElement).closest('a')) return
+                    setOpenGame(m.game_id)
+                  }}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
+                  className="panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm transition-colors hover:border-accent/50 hover:bg-base-800/60"
+                >
                   <div className="w-24 shrink-0">
                     <span className="rounded bg-base-700 px-1.5 py-0.5 text-xs font-bold text-white">{m.ladder}</span>
                     <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
-                    <button type="button" onClick={() => setOpenGame(m.game_id)} title={t.queue.openGame} className="mt-1 font-mono text-[11px] text-accent-light underline-offset-2 hover:underline">
-                      {m.game_id}
-                    </button>
                   </div>
                   <div className="w-32 shrink-0 text-xs text-slate-400">
                     <div className="text-slate-200">{m.map ?? '-'}</div>
@@ -224,6 +256,7 @@ export default function RankedQueue() {
                       )
                     })}
                   </div>
+                  <span className="ml-auto shrink-0 pl-4 font-mono text-xs text-slate-500">{m.game_id}</span>
                 </div>
               )
             })}

@@ -6,6 +6,7 @@ import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
+import { useQueueAlert } from '../lib/queueNotify'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
@@ -226,6 +227,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { profile } = useProfile()
   useGameNightReminder()
   const siteUpdate = useSiteUpdate()
+  const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
 
   useEffect(() => {
@@ -305,6 +307,9 @@ export default function Layout({ children }: { children: ReactNode }) {
               >
                 <span className="sm:hidden">{n.shortLabel}</span>
                 <span className="hidden sm:inline">{n.label}</span>
+                {n.to === '/queue' && queueUnseen > 0 && (
+                  <span className="ml-1.5 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 align-middle" aria-label={String(queueUnseen)} />
+                )}
               </NavLink>
             ),
           )}

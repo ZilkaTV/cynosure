@@ -42,6 +42,18 @@ async function getJson(url, tries = 3) {
   }
 }
 
+// The list endpoint returns at most 1000 games per call (and only 50 without a limit): ask in slices and split a slice
+// again when it comes back full, so no game is missed after a longer gap.
+async function fetchGames(fromMs, toMs, depth = 0) {
+  const url = `${API}/games?start=${encodeURIComponent(new Date(fromMs).toISOString())}&end=${encodeURIComponent(new Date(toMs).toISOString())}&type=Public&limit=1000`
+  const page = await getJson(url)
+  if (page.length < 1000 || depth >= 6 || toMs - fromMs < 60_000) return page
+  const mid = Math.floor((fromMs + toMs) / 2)
+  const byId = new Map()
+  for (const g of [...(await fetchGames(fromMs, mid, depth + 1)), ...(await fetchGames(mid, toMs, depth + 1))]) byId.set(g.game, g)
+  return [...byId.values()]
+}
+
 // ── top-100 boards ──────────────────────────────────────────────────────────
 async function loadBoards() {
   const ranked = await hotGetBlob('ranked').catch(() => null)
@@ -93,7 +105,7 @@ async function main() {
   const cursorRow = (await usersDb.from('cyn_metrics_channel_state').select('last_message_id').eq('channel_id', CURSOR_ID).maybeSingle()).data
   const now = Date.now()
   const start = cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - 3 * 60_000, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
-  const list = await getJson(`${API}/games?start=${encodeURIComponent(new Date(start).toISOString())}&end=${encodeURIComponent(new Date(now).toISOString())}&type=Public`)
+  const list = await fetchGames(start, now)
   const ranked = list.filter((g) => g.rankedType === '1v1' || g.rankedType === '2v2')
   console.log(`window ${new Date(start).toISOString()} -> now: ${list.length} public games, ${ranked.length} ranked`)
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CYN Lobby Points
 // @namespace    https://cynclan.com/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Shows on every team lobby of openfront.io how many clan points a win or a loss is worth for your clan (OpenFront's own clan-score formula, same as the points planner on cynclan.com).
 // @author       Cynosure [CYN]
 // @match        https://openfront.io/*
@@ -76,7 +76,7 @@
       'font:700 11px/1.3 system-ui,sans-serif;letter-spacing:.03em;text-transform:none;color:#f1e8c8;box-shadow:0 1px 6px rgba(0,0,0,.45)}' +
       '.cyn-lp-badge img{width:15px;height:15px;object-fit:contain;display:block}' +
       '.cyn-lp-badge .w{color:#4be08c}.cyn-lp-badge .l{color:#ff6f84}.cyn-lp-badge .x{color:#d8b96a}' +
-      '#cyn-lp-panel{position:fixed;top:78px;right:14px;z-index:2147483000;width:236px;border-radius:14px;overflow:hidden;' +
+      '#cyn-lp-panel{position:fixed;top:104px;right:14px;z-index:2147483000;width:236px;border-radius:14px;overflow:hidden;' +
       'font:500 12px/1.4 system-ui,sans-serif;color:#e9e6f7;background:linear-gradient(160deg,#241a47 0%,#120f22 60%,#0c0a17 100%);' +
       'border:1px solid #d8b96a;box-shadow:0 8px 28px rgba(0,0,0,.6),0 0 0 1px rgba(139,92,246,.35)}' +
       '#cyn-lp-panel .h{display:flex;align-items:center;gap:9px;padding:9px 10px;background:linear-gradient(90deg,rgba(139,92,246,.45),rgba(216,185,106,.18));' +

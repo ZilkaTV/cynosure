@@ -17,8 +17,8 @@ const UA = 'CynosureClanSite (cynclan.com)'
 const CURSOR_ID = 'ranked-feed-cursor'
 const FIRST_RUN_LOOKBACK_MS = 6 * 3600_000
 const KEEP_DAYS = 14
-const MAX_DETAILS_PER_RUN = 150
-const CONCURRENCY = 4
+const MAX_DETAILS_PER_RUN = 450
+const CONCURRENCY = 10
 
 if (!usersDbEnabled() || !hotEnabled()) {
   console.error('HOT_API_SECRET missing')

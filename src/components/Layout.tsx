@@ -232,6 +232,16 @@ export default function Layout({ children }: { children: ReactNode }) {
   const siteUpdate = useSiteUpdate()
   const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
+  const navRef = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+
+  // On a phone the menu scrolls sideways: bring the current page's entry into view.
+  useEffect(() => {
+    const nav = navRef.current
+    const active = nav?.querySelector<HTMLElement>('.nav-link-active')
+    if (!nav || !active) return
+    nav.scrollTo({ left: Math.max(0, active.offsetLeft - nav.clientWidth / 2 + active.offsetWidth / 2), behavior: 'auto' })
+  }, [pathname])
 
   useEffect(() => {
     logSiteVisit(!!profile)
@@ -245,21 +255,21 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
-        <div className="flex w-full items-center justify-end gap-2 px-3 pt-2 sm:px-4">
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">
           <Link
             to="/"
-            className="absolute left-3 top-2 z-10 font-display text-lg font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:left-4 sm:top-3 sm:text-2xl lg:text-3xl"
+            className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:absolute sm:left-4 sm:top-3 sm:z-10 sm:text-2xl lg:text-3xl"
           >
             CynClan.com
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={siteUpdate.apply}
               disabled={!siteUpdate.available}
               title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
               aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              className={`btn-ghost relative inline-flex items-center gap-2 !px-3 !py-2 text-sm ${
+              className={`btn-ghost relative inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm ${
                 siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'
               }`}
             >
@@ -271,13 +281,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             <LanguageSwitcher />
             {isInnerCircle && (
-              <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.home.gameNightsTitle}>
+              <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.home.gameNightsTitle}>
                 <CalendarIcon />
                 <span className="hidden sm:inline">{t.home.gameNightsTitle}</span>
               </Link>
             )}
             {isInnerCircle && (
-              <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm" aria-label={t.metrics.navLabel}>
+              <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.metrics.navLabel}>
                 <ChartIcon />
                 <span className="hidden sm:inline">{t.metrics.navLabel}</span>
               </Link>
@@ -295,7 +305,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </Link>
 
         {/* sub navigation - centred */}
-        <nav className="mx-auto flex max-w-7xl items-center justify-center gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:gap-1 sm:px-6">
+        <nav ref={navRef} className="mx-auto flex max-w-7xl items-center justify-start gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:justify-center sm:gap-1 sm:px-6">
           {navItems(t).map((n) =>
             n.children ? (
               <NavDropdown key={n.to} label={n.label} shortLabel={n.shortLabel} items={n.children} />
@@ -349,7 +359,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <Link
         to="/donate"
         aria-label={t.donate.buttonAria}
-        className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-base-950 shadow-lg shadow-gold/30 transition-transform hover:scale-105 hover:bg-gold-light"
+        className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-full bg-gold px-3 py-2.5 text-sm font-semibold sm:bottom-5 sm:left-5 sm:px-4 sm:py-3 text-base-950 shadow-lg shadow-gold/30 transition-transform hover:scale-105 hover:bg-gold-light"
       >
         <HeartIcon />
         <span className="hidden sm:inline">{t.donate.label}</span>

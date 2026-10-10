@@ -32,6 +32,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Optional: DEV_API_PROXY=https://cynclan.com sends the site's own /api calls (data, session, roster) to the live
+      // site, so a local page shows real data while layouts are being checked.
+      ...(process.env.DEV_API_PROXY
+        ? { '/api/db': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/roster': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/clan-ledger': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/member-games': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/game-detail': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/auth': { target: process.env.DEV_API_PROXY, changeOrigin: true }, '/api/clan-members': { target: process.env.DEV_API_PROXY, changeOrigin: true } }
+        : {}),
       // A missing/generic User-Agent is a confirmed trigger for OpenFront's
       // own Cloudflare bot protection on requests from GitHub Actions
       // runner IPs specifically (already fixed the same way in worker/of.js

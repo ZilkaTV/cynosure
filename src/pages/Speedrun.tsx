@@ -198,7 +198,7 @@ export default function Speedrun() {
         {board.length > 0 && (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="sticky-cols w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>

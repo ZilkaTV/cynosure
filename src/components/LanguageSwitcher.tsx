@@ -26,7 +26,7 @@ export default function LanguageSwitcher() {
         className="btn-ghost inline-flex items-center gap-1.5 !px-3 !py-2 text-xs font-bold uppercase tracking-wide"
       >
         <Emoji char={current.flag} className="h-3.5 w-3.5" />
-        {language}
+        <span className="hidden min-[400px]:inline">{language}</span>
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-36 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">

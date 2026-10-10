@@ -432,7 +432,7 @@ const baseTranslations = {
     queue: {
       eyebrow: 'Top 100',
       title: 'Live Ranked Queue',
-      intro: 'Finished ranked 1v1 and 2v2 games with top-100 players, updated every 20 seconds. Use it to see when the top boards are busy, so you do not wait half an hour in the queue.',
+      intro: 'Finished ranked 1v1 and 2v2 games with top-100 players, updated about every minute. Use it to see when the top boards are busy, so you do not wait half an hour in the queue.',
       all: 'All',
       active5: 'Active, last 5 min',
       active15: 'Active, last 15 min',
@@ -1261,7 +1261,7 @@ const baseTranslations = {
     queue: {
       eyebrow: 'Top 100',
       title: 'Live Ranked Queue',
-      intro: 'Beendete Ranked-1v1- und 2v2-Spiele mit Top-100-Spielern, alle 20 Sekunden aktualisiert. So siehst du, wann in den Top-Listen etwas los ist, und wartest nicht eine halbe Stunde in der Queue.',
+      intro: 'Beendete Ranked-1v1- und 2v2-Spiele mit Top-100-Spielern, etwa jede Minute aktualisiert. So siehst du, wann in den Top-Listen etwas los ist, und wartest nicht eine halbe Stunde in der Queue.',
       all: 'Alle',
       active5: 'Aktiv, letzte 5 Min.',
       active15: 'Aktiv, letzte 15 Min.',
@@ -2090,7 +2090,7 @@ const baseTranslations = {
     queue: {
       eyebrow: 'Top 100',
       title: 'Live Ranked Queue',
-      intro: "Parties classées 1v1 et 2v2 terminées avec des joueurs du top 100, actualisées toutes les 20 secondes. Pour voir quand les classements sont actifs et ne pas attendre une demi-heure en file.",
+      intro: "Parties classées 1v1 et 2v2 terminées avec des joueurs du top 100, actualisées environ chaque minute. Pour voir quand les classements sont actifs et ne pas attendre une demi-heure en file.",
       all: 'Tous',
       active5: 'Actifs, 5 dernières min',
       active15: 'Actifs, 15 dernières min',

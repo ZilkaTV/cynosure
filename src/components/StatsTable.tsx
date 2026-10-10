@@ -8,6 +8,8 @@ export interface Column {
   align?: 'left' | 'right' | 'center'
   render: (m: MemberStats, rank: number) => ReactNode
   sortValue?: (m: MemberStats) => number | string
+  /** Keeps a crowded column (badges) from being squeezed into one narrow stack. */
+  minWidth?: number
 }
 
 const ALIGN_CLASS = { left: 'text-left', right: 'text-right', center: 'text-center' } as const
@@ -85,7 +87,7 @@ export function StatsTable({
       )}
       <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+        <table className="sticky-cols w-full min-w-[860px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-base-700 text-left text-xs uppercase tracking-wide text-slate-400">
               <th className="px-3 py-2.5 font-semibold">#</th>
@@ -93,6 +95,7 @@ export function StatsTable({
                 <th
                   key={c.key}
                   className={`px-3 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']}`}
+                  style={c.minWidth ? { minWidth: c.minWidth } : undefined}
                 >
                   {c.sortValue ? (
                     <button
@@ -116,7 +119,7 @@ export function StatsTable({
                 <tr key={m.publicId} className="border-b border-base-700/50 transition-colors last:border-0 hover:bg-base-800/40">
                   <td className="px-3 py-2.5 font-display font-bold text-slate-500">{rank}</td>
                   {columns.map((c) => (
-                    <td key={c.key} className={`px-3 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']}`}>
+                    <td key={c.key} className={`px-3 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']}`} style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
                       {c.render(m, rank)}
                     </td>
                   ))}

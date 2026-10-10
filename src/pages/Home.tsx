@@ -50,6 +50,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
     },
     {
       key: 'badges',
+      minWidth: 168,
       label: t.home.colBadges,
       align: 'center',
       render: (m) => <BadgeStrip badges={computeBadges(m, all, t)} />,

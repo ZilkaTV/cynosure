@@ -210,9 +210,17 @@ function resolveBatches(state, nowMs) {
         .filter((g) => g.l === batch.l && g.ended >= batch.since && g.ended <= batch.at && g.ps.some((o) => o.pid === entry.pid))
         .sort((x, y) => x.ended - y.ended)
       if (games.length === 0) continue
-      const last = games[games.length - 1]
-      const me = last.ps.find((o) => o.pid === entry.pid)
       const d = entry.to - entry.from
+      const outcomeOf = (g) => g.ps.find((o) => o.pid === entry.pid)?.w
+      // Several games in the period: the net change belongs to a game of the matching outcome - a net loss to the
+      // latest game the player lost, a net gain to the latest game they won (never a win that "lost" points).
+      let last = games[games.length - 1]
+      if (games.length > 1 && d !== 0) {
+        const match = [...games].reverse().find((g) => outcomeOf(g) === (d > 0))
+        if (match) last = match
+        else if (games.some((g) => outcomeOf(g) !== undefined)) continue // every game points the other way
+      }
+      const me = last.ps.find((o) => o.pid === entry.pid)
       // One game, but the change points the wrong way (a winner who lost points, a loser who gained): the player also
       // finished a game that is not stored (played under another name), so this game cannot be given the change.
       if (games.length === 1 && me.w !== undefined && (me.w ? d < 0 : d > 0)) continue

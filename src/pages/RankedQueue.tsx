@@ -48,6 +48,54 @@ const BUSY_FROM = 12
 const MEDIUM_FROM = 5
 const LIST_LIMIT = 60
 
+/**
+ * A change that covers several games (Σ) belongs to a game of the matching outcome: a net loss to the latest game the
+ * player lost, a net gain to the latest game they won. Rows stored before the collector did this are moved here.
+ */
+function relocateSums(all: FeedMatch[]): FeedMatch[] {
+  const sorted = [...all].sort((a, b) => Date.parse(a.ended_at) - Date.parse(b.ended_at))
+  const byKey = new Map<string, { m: FeedMatch; p: FeedPlayer }[]>()
+  for (const m of sorted) {
+    for (const p of m.players) {
+      if (!p.k) continue
+      const key = `${m.ladder}|${p.k}`
+      const list = byKey.get(key) ?? []
+      list.push({ m, p })
+      byKey.set(key, list)
+    }
+  }
+  const removed = new Set<string>()
+  const placed = new Map<string, { d: number; c: number }>()
+  for (const list of byKey.values()) {
+    list.forEach((entry, i) => {
+      const { p } = entry
+      if (!p.c || p.d === undefined) return
+      const wantWin = p.d > 0
+      if (p.w === wantWin) return // already on a game of the matching outcome
+      const window = list.slice(Math.max(0, i - (p.c - 1)), i + 1).filter((x) => !isAbandoned(x.m))
+      const target = [...window].reverse().find((x) => x.p.w === wantWin && x.p.d === undefined && !placed.has(`${x.m.game_id}|${x.p.k}`))
+      removed.add(`${entry.m.game_id}|${p.k}`)
+      if (target) placed.set(`${target.m.game_id}|${target.p.k}`, { d: p.d, c: p.c })
+    })
+  }
+  if (removed.size === 0) return all
+  return all.map((m) => ({
+    ...m,
+    players: m.players.map((p) => {
+      const key = `${m.game_id}|${p.k}`
+      const put = placed.get(key)
+      if (put) return { ...p, d: put.d, c: put.c }
+      if (removed.has(key)) {
+        const rest = { ...p }
+        delete rest.d
+        delete rest.c
+        return rest
+      }
+      return p
+    }),
+  }))
+}
+
 /** In a 1v1 the winner gains exactly what the loser loses: fill in the missing side from the one that is known. */
 function withMirroredElo(m: FeedMatch): FeedPlayer[] {
   // A single game cannot take points from a winner or give them to a loser: such a change belongs to another game.
@@ -177,7 +225,8 @@ export default function RankedQueue() {
     }
   }, [])
 
-  const shown = useMemo(() => (matches ?? []).filter((m) => ladder === 'all' || m.ladder === ladder), [matches, ladder])
+  const relocated = useMemo(() => relocateSums(matches ?? []), [matches])
+  const shown = useMemo(() => relocated.filter((m) => ladder === 'all' || m.ladder === ladder), [relocated, ladder])
 
   const activity = useMemo(() => {
     const now = Date.now()

@@ -41,7 +41,7 @@ interface FeedMatch {
 }
 type Ladder = 'all' | '1v1' | '2v2'
 
-const REFRESH_MS = 60_000
+const REFRESH_MS = 30_000
 // Traffic light: distinct top-100 players who finished a game in the last 30 minutes.
 const BUSY_FROM = 12
 const MEDIUM_FROM = 5
@@ -142,6 +142,7 @@ export default function RankedQueue() {
     }
   }, [])
   const [, setTick] = useState(0)
+  const [loadedAt, setLoadedAt] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -155,12 +156,19 @@ export default function RankedQueue() {
         setMatches((data ?? []) as FeedMatch[])
       }
       setTick((n) => n + 1)
+      if (!err) setLoadedAt(Date.now())
     }
     void load()
     const timer = setInterval(() => document.visibilityState === 'visible' && void load(), REFRESH_MS)
+    // Coming back to the tab (or to this monitor/window) refreshes at once instead of waiting for the next tick.
+    const wake = () => document.visibilityState === 'visible' && void load()
+    document.addEventListener('visibilitychange', wake)
+    window.addEventListener('focus', wake)
     return () => {
       alive = false
       clearInterval(timer)
+      document.removeEventListener('visibilitychange', wake)
+      window.removeEventListener('focus', wake)
     }
   }, [])
 
@@ -187,6 +195,7 @@ export default function RankedQueue() {
       <section className="space-y-6">
         <SectionHeading center eyebrow={t.queue.eyebrow} title={t.queue.title} />
         <p className="mx-auto max-w-2xl text-center text-xs text-slate-400 sm:text-sm">{t.queue.intro}</p>
+        {loadedAt && <p className="text-center text-[11px] tabular-nums text-slate-500">↻ {new Date(loadedAt).toLocaleTimeString()}</p>}
 
         <div className="flex justify-center gap-2">
           {(['all', '1v1', '2v2'] as Ladder[]).map((l) => (

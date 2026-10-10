@@ -235,6 +235,26 @@ export default function Layout({ children }: { children: ReactNode }) {
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
 
+  // A tab left in the background for a while shows old data (and possibly an old version of the site). Coming back after
+  // 10+ minutes reloads it once - unless something is being typed or the page is a form page.
+  useEffect(() => {
+    let hiddenAt: number | null = document.visibilityState === 'hidden' ? Date.now() : null
+    const onChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
+      }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0
+      hiddenAt = null
+      if (away < 10 * 60_000) return
+      if (['/register', '/planner', '/survey', '/events'].some((p) => window.location.pathname.startsWith(p))) return
+      const typing = [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type=text], input[type=search], textarea')].some((el) => el.value.trim().length > 0)
+      if (!typing) window.location.reload()
+    }
+    document.addEventListener('visibilitychange', onChange)
+    return () => document.removeEventListener('visibilitychange', onChange)
+  }, [])
+
   // On a phone the menu scrolls sideways: bring the current page's entry into view.
   useEffect(() => {
     const nav = navRef.current

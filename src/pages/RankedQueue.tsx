@@ -42,6 +42,7 @@ interface FeedMatch {
 type Ladder = 'all' | '1v1' | '2v2'
 
 const REFRESH_MS = 30_000
+const MAX_ELO_PER_GAME = 30
 // Traffic light: distinct top-100 players who finished a game in the last 30 minutes.
 const BUSY_FROM = 12
 const MEDIUM_FROM = 5
@@ -52,8 +53,12 @@ function withMirroredElo(m: FeedMatch): FeedPlayer[] {
   // A single game cannot take points from a winner or give them to a loser: such a change belongs to another game.
   const hasWinner = m.players.some((p) => p.w)
   const players = m.players.map((p) => {
-    if (!hasWinner || p.d === undefined || p.c) return p
-    if (p.w ? p.d < 0 : p.d > 0) {
+    if (p.d === undefined) return p
+    // One game moves a rating by 30 at most (a sum over c games by 30 each).
+    const tooBig = Math.abs(p.d) > MAX_ELO_PER_GAME * (p.c ?? 1)
+    if (!hasWinner && !tooBig) return p
+    if (p.c && !tooBig) return p
+    if (tooBig || (p.w ? p.d < 0 : p.d > 0)) {
       const rest = { ...p }
       delete rest.d
       delete rest.mirrored

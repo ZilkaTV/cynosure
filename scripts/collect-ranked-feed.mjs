@@ -158,6 +158,7 @@ let backfillOnce = true
 // own name are tracked. Kept server-side in the blob "ranked-elo" (public ids included - never shown):
 //   { snap, lastChange, batches, pending }
 const PENDING_KEEP_MS = 110 * 60_000
+const MAX_ELO_PER_GAME = 30
 const BATCH_DELAY_MS = 3 * 60_000
 const compactBoards = (doc) => ({ '1v1': Object.fromEntries(Object.entries(doc.ranked_1v1 ?? {}).map(([id, e]) => [id, e.elo])), '2v2': Object.fromEntries(Object.entries(doc.ranked_2v2 ?? {}).map(([id, e]) => [id, e.elo])) })
 let eloState = null
@@ -215,6 +216,8 @@ function resolveBatches(state, nowMs) {
       // One game, but the change points the wrong way (a winner who lost points, a loser who gained): the player also
       // finished a game that is not stored (played under another name), so this game cannot be given the change.
       if (games.length === 1 && me.w !== undefined && (me.w ? d < 0 : d > 0)) continue
+      // One game moves a rating by 30 at most; more than that means games we did not see (played under another name).
+      if (Math.abs(d) > MAX_ELO_PER_GAME * games.length) continue
       ;(updates[last.id] ??= {})[me.k] = { d, ...(games.length > 1 ? { c: games.length } : {}) }
     }
   }

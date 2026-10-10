@@ -735,10 +735,20 @@ async function main() {
   // before ever reaching genuinely new/missing ones.
   // Only the wanted ids are looked up (D1's free plan counts every row a query scans - listing the whole table every
   // 10 minutes used up a sixth of the daily allowance).
-  const alreadyCached = await hotHaveDetails([...wantDetail, ...wantDetailLow])
+  // Which wanted games are stored is remembered in the small blob "details-have" (a stored game report never goes
+  // away), so a run only asks the database about games it has not seen stored yet: looking up all ~9,000 wanted ids
+  // every run cost ~17,000 rows read (D1 counts every index entry), every 20 minutes.
+  const wantedIds = [...wantDetail, ...wantDetailLow]
+  const haveBlob = await hotGetBlob('details-have').catch(() => null)
+  const knownHave = new Set(Array.isArray(haveBlob?.ids) ? haveBlob.ids : [])
+  const toAsk = wantedIds.filter((id) => !knownHave.has(id))
+  const askedHave = toAsk.length ? await hotHaveDetails(toAsk) : new Set()
+  const alreadyCached = new Set([...wantedIds.filter((id) => knownHave.has(id)), ...askedHave])
+  const storedNow = new Set()
 
   async function putDetail(gameId, detail) {
     await hotPutDetail(gameId, detail)
+    storedNow.add(gameId)
   }
 
   const missing = [...wantDetail, ...wantDetailLow].filter((id) => !alreadyCached.has(id)).slice(0, MAX_GAMES_PER_RUN)
@@ -798,6 +808,14 @@ async function main() {
     }
   } catch (err) {
     console.error('Old-shape backfill query failed (non-fatal):', err)
+  }
+
+  {
+    // Keep only ids that are still wanted, so the blob stays as small as the wanted set.
+    const keep = wantedIds.filter((id) => alreadyCached.has(id) || storedNow.has(id))
+    if (keep.length !== knownHave.size || keep.some((id) => !knownHave.has(id))) {
+      await hotPutBlob('details-have', JSON.stringify({ ids: keep, at: new Date().toISOString() })).catch((err) => console.error('could not save details-have:', err.message ?? err))
+    }
   }
 
   const remaining = [...wantDetail].filter((id) => !alreadyCached.has(id)).length - fetched

@@ -13,9 +13,16 @@ import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
-const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia']
+const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia', 'Oceania']
 
 function guessTz(): string {
+  try {
+    // Australia, New Zealand and the Pacific share UTC offsets with Asia, so the zone name decides.
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''
+    if (/^(Australia|Pacific)\//.test(zone)) return 'Oceania'
+  } catch {
+    /* fall back to the offset */
+  }
   const off = -new Date().getTimezoneOffset() / 60
   if (off <= -1) return 'America'
   if (off >= 5) return 'Asia'

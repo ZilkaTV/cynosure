@@ -152,6 +152,18 @@ const VISIT_LOGGED_KEY = 'cyn:visitLogged'
 
 /** Logs one page-view for today's site-visit metric, at most once per browser tab session. */
 export function logSiteVisit(isMember: boolean) {
+  // Which member was here (for the Metrics page): reported on every page load, at most once per 30 minutes per tab.
+  if (isMember) {
+    try {
+      const last = Number(sessionStorage.getItem('cyn:seenAt') ?? 0)
+      if (Date.now() - last > 30 * 60_000) {
+        sessionStorage.setItem('cyn:seenAt', String(Date.now()))
+        void fetch('/api/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+      }
+    } catch {
+      /* storage blocked - skip */
+    }
+  }
   if (!supabase) return
   try {
     if (sessionStorage.getItem(VISIT_LOGGED_KEY)) return
@@ -160,8 +172,6 @@ export function logSiteVisit(isMember: boolean) {
     return
   }
   supabase.from('cyn_site_visits').insert({ is_member: isMember }).then(() => {})
-  // Which member it was (admin Metrics page: who was online today / yesterday). Sent only for signed-in members.
-  if (isMember) void fetch('/api/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
 }
 
 export interface SeenMember {

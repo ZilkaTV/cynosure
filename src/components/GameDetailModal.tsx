@@ -262,9 +262,9 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         className="my-8 w-full max-w-6xl rounded-2xl border border-base-600 bg-base-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-base-700 px-6 py-4">
-          <h2 className="font-display text-xl font-bold text-white">{t.gameDetail.title}</h2>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 border-b border-base-700 px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="min-w-0 truncate font-display text-lg font-bold text-white sm:text-xl">{t.gameDetail.title}</h2>
+          <div className="flex shrink-0 items-center gap-2">
             {saveFailed && <span className="text-xs text-signal-red">{t.gameDetail.saveFailed}</span>}
             {profile && gameId && (
               <button
@@ -277,10 +277,11 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                   void done.then((ok) => setSaveFailed(!ok))
                 }}
                 title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium transition-colors ${isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}
+                aria-label={isSaved ? t.gameDetail.saved : t.gameDetail.save}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-sm font-medium transition-colors sm:px-3 ${isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}
               >
                 <span aria-hidden>{isSaved ? '★' : '☆'}</span>
-                {isSaved ? t.gameDetail.saved : t.gameDetail.save}
+                <span className="hidden min-[420px]:inline">{isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
               </button>
             )}
           <button onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={t.gameDetail.closeAria}>✕</button>
@@ -291,7 +292,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         {state === 'error' && <p className="px-6 py-16 text-center text-slate-400">{t.gameDetail.loadError}</p>}
 
         {state === 'ok' && detail && (
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {/* header tiles */}
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tile label={t.gameDetail.tileDuration} value={fmtDuration(detail.durationSeconds)} />
@@ -347,8 +348,8 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
                 cell's content is - a long player name truncates with an
                 ellipsis (full name on hover) instead of forcing the whole
                 table, and therefore the page, to scroll horizontally. */}
-            <div className="rounded-xl border border-base-700">
-              <table className="w-full table-fixed text-sm">
+            <div className="overflow-x-auto rounded-xl border border-base-700">
+              <table className="sticky-cols w-full min-w-[700px] text-sm sm:min-w-0 sm:table-fixed">
                 <colgroup>
                   <col className="w-8" />
                   <col />

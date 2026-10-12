@@ -103,16 +103,10 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
           <span className="font-display font-bold tabular-nums text-gold-light">
             {m.elo}
             <RefreshDelta value={deltas[m.publicId]?.elo} />
+            {m.peakElo != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo}</span>}
           </span>
         ),
       sortValue: (m) => m.elo ?? -1,
-    },
-    {
-      key: 'peak',
-      label: t.home.colPeak,
-      align: 'right',
-      render: (m) => (m.peakElo == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo}</span>),
-      sortValue: (m) => m.peakElo ?? -1,
     },
     {
       key: 'twovtwo',
@@ -137,16 +131,10 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
           <span className="font-display font-bold tabular-nums text-gold-light">
             {m.elo2v2}
             <RefreshDelta value={deltas[m.publicId]?.elo2v2} />
+            {m.peakElo2v2 != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo2v2}</span>}
           </span>
         ),
       sortValue: (m) => m.elo2v2 ?? -1,
-    },
-    {
-      key: 'peak2v2',
-      label: t.home.colPeak,
-      align: 'right',
-      render: (m) => (m.peakElo2v2 == null ? <span className="text-slate-600">-</span> : <span className="tabular-nums text-slate-400">{m.peakElo2v2}</span>),
-      sortValue: (m) => m.peakElo2v2 ?? -1,
     },
     {
       key: 'speedrun',

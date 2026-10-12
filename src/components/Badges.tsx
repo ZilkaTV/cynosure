@@ -124,9 +124,9 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
             onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
             onMouseEnter={() => setOpenId(b.id)}
             onMouseLeave={() => setOpenId((id) => (id === b.id ? null : id))}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
+            className={`inline-flex h-7 w-7 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
           >
-            <BadgeVisual badge={b} className="h-5 w-5 text-xs" />
+            <BadgeVisual badge={b} className="h-4 w-4 text-[11px]" />
           </button>
           {openId === b.id && (
             <div className="absolute left-1/2 top-full z-50 mt-1.5 w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">

@@ -42,16 +42,18 @@ export function UsefulLinks() {
  * then links).
  */
 export function StatsShell({ children }: { children: ReactNode }) {
+  // Widgets sit beside the content only where the content stays wide enough for the member tables:
+  // below 1280px everything is one column, from 1280px one column of widgets on the right, from 1536px one on each side.
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_260px] lg:gap-8 xl:grid-cols-[280px_minmax(0,1fr)_280px]">
-      <div className="order-1 mx-auto w-full min-w-0 max-w-6xl space-y-10 lg:order-none lg:col-start-2 lg:row-start-1">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-8 2xl:grid-cols-[280px_minmax(0,1fr)_280px]">
+      <div className="order-1 mx-auto w-full min-w-0 max-w-[110rem] space-y-10 xl:order-none xl:col-start-1 xl:row-start-1 xl:row-span-2 2xl:col-start-2 2xl:row-span-1">
         {children}
       </div>
-      <aside className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
+      <aside className="order-2 xl:order-none xl:col-start-2 xl:row-start-1 2xl:col-start-1">
         <DiscordWidget />
         <GameNightsSidebar />
       </aside>
-      <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:sticky lg:top-6 lg:self-start">
+      <aside className="order-3 xl:order-none xl:col-start-2 xl:row-start-2 2xl:col-start-3 2xl:row-start-1 xl:sticky xl:top-6 xl:self-start">
         <UsefulLinks />
       </aside>
     </div>

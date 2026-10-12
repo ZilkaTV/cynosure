@@ -160,6 +160,29 @@ export function logSiteVisit(isMember: boolean) {
     return
   }
   supabase.from('cyn_site_visits').insert({ is_member: isMember }).then(() => {})
+  // Which member it was (admin Metrics page: who was online today / yesterday). Sent only for signed-in members.
+  if (isMember) void fetch('/api/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+}
+
+export interface SeenMember {
+  id: string
+  name: string
+  first: string | null
+  last: string | null
+}
+export interface Visitors {
+  today: SeenMember[]
+  yesterday: SeenMember[]
+}
+
+/** Members who were on the site today and yesterday (Europe/Berlin days). Inner circle only. */
+export async function getVisitors(): Promise<Visitors | null> {
+  try {
+    const res = await fetch('/api/metrics/visitors', { credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as Visitors) : null
+  } catch {
+    return null
+  }
 }
 
 export interface DiscordStatus {

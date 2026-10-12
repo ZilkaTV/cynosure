@@ -11,6 +11,8 @@ import {
   metricsHistoryToCsv,
   type TodayMetrics,
   type DailyMetricsRow,
+  getVisitors,
+  type Visitors,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
@@ -46,12 +48,14 @@ export default function Metrics() {
   const [metrics, setMetrics] = useState<TodayMetrics | null>(null)
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
   const [discordStatus, setDiscordStatus] = useState<Record<string, DiscordStatus> | null>(null)
+  const [visitors, setVisitors] = useState<Visitors | null>(null)
 
   useEffect(() => {
     if (!isInnerCircle || !session) return
     getTodayMetrics().then(setMetrics)
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
     getDiscordStatus().then(setDiscordStatus)
+    getVisitors().then(setVisitors)
   }, [isInnerCircle, session])
 
   // Detection only, deliberately - no auto-DM. Research (today's daytime
@@ -168,6 +172,34 @@ export default function Metrics() {
             </Card>
           </div>
         )}
+      </div>
+
+      <div className="mt-10">
+        <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.visitorsTitle} />
+        <p className="mb-3 text-center text-xs text-slate-500">{t.metrics.visitorsSub}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {([['today', t.metrics.visitorsToday], ['yesterday', t.metrics.visitorsYesterday]] as const).map(([key, label]) => (
+            <Card key={key}>
+              <p className="mb-2 text-sm font-semibold text-white">
+                {label} <span className="font-normal text-slate-500">({visitors ? visitors[key].length : '-'})</span>
+              </p>
+              {!visitors ? (
+                <Spinner label={t.metrics.loading} />
+              ) : visitors[key].length === 0 ? (
+                <p className="py-3 text-center text-sm text-slate-500">{t.metrics.visitorsEmpty}</p>
+              ) : (
+                <ul className="divide-y divide-base-700">
+                  {visitors[key].map((m) => (
+                    <li key={m.id} className="flex items-center justify-between py-1.5 text-sm">
+                      <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
+                      <span className="tabular-nums text-slate-400">{m.last ? new Date(m.last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          ))}
+        </div>
       </div>
 
       <div className="mt-10">

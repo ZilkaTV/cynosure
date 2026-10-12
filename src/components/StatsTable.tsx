@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { MemberStats } from '../lib/stats'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -87,15 +87,15 @@ export function StatsTable({
       )}
       <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="sticky-cols w-full min-w-[860px] border-collapse text-sm">
+        <table className="sticky-cols w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-base-700 text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-3 py-2.5 font-semibold">#</th>
+              <th className="px-2 py-2.5 font-semibold">#</th>
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  className={`px-3 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']}`}
-                  style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+                  className={`px-2 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''}`}
+                  style={c.minWidth ? ({ '--mw': `${c.minWidth}px` } as CSSProperties) : undefined}
                 >
                   {c.sortValue ? (
                     <button
@@ -117,9 +117,9 @@ export function StatsTable({
               const rank = rankOf.get(m.publicId) ?? 0
               return (
                 <tr key={m.publicId} className="border-b border-base-700/50 transition-colors last:border-0 hover:bg-base-800/40">
-                  <td className="px-3 py-2.5 font-display font-bold text-slate-500">{rank}</td>
+                  <td className="px-2 py-2.5 font-display font-bold text-slate-500">{rank}</td>
                   {columns.map((c) => (
-                    <td key={c.key} className={`px-3 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']}`} style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
+                    <td key={c.key} className={`px-2 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''} ${c.key === 'name' ? 'max-w-[12rem] truncate' : ''}`} style={c.minWidth ? ({ '--mw': `${c.minWidth}px` } as CSSProperties) : undefined}>
                       {c.render(m, rank)}
                     </td>
                   ))}

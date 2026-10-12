@@ -24,6 +24,7 @@ import { handleHotApi } from './hotApi.js'
 import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
+import { handleSeen, handleVisitors } from './siteSeen.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
@@ -44,6 +45,8 @@ export default {
     if (pathname.startsWith('/api/screenshots/')) return withSecurityHeaders(await handleScreenshotGet(request, env, pathname))
     if (pathname === '/api/db' || pathname === '/api/db/rpc') return withSecurityHeaders(await handleDbApi(request, env, pathname))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
+    if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
+    if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))

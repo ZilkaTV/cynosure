@@ -140,6 +140,7 @@ function PlayerChip({ p, mine, ladder }: { p: FeedPlayer; mine?: MyAccount | nul
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
       {p.n}
       {own && <span className="ml-1 text-gold-light">({own.name})</span>}
+      {p.id && <span className="block font-mono text-[10px] font-normal text-slate-500">({p.id})</span>}
     </span>
   )
   return (

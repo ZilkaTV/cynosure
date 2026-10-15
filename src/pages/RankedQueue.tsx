@@ -133,7 +133,7 @@ function fmtDuration(s: number | null): string {
 
 function PlayerChip({ p, mine, ladder }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' }) {
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
-  const own = mine && p.k && p.k === mine.k && !p.id ? mine : null
+  const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   const ownBoard = own && ladder ? own.boards[ladder] : undefined
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>

@@ -110,6 +110,28 @@ async function backfillMapSize(limit = 40) {
   return todo.length
 }
 
+// Rows stored before the public id was kept for every top-100 player get it filled in from the game report (the stored
+// players are in the report's order; the id is only taken when its hash matches the stored key).
+async function backfillPublicIds(limit = 200) {
+  const since = new Date(Date.now() - 26 * 3600_000).toISOString()
+  const { data } = await usersDb.from('cyn_ranked_matches').select('game_id, players').gte('ended_at', since).order('ended_at', { ascending: false }).limit(1500)
+  const todo = (data ?? []).filter((r) => Array.isArray(r.players) && r.players.some((p) => p.k && !p.id)).slice(0, limit)
+  let done = 0
+  for (const r of todo) {
+    try {
+      const detail = await getJson(`${API}/game/${encodeURIComponent(r.game_id)}?turns=false`)
+      const list = detail.info?.players ?? []
+      if (list.length !== r.players.length) continue
+      const players = r.players.map((p, i) => (p.k && !p.id && list[i]?.publicID && hashId(list[i].publicID) === p.k ? { ...p, id: list[i].publicID } : p))
+      await usersDb.from('cyn_ranked_matches').update({ players }).eq('game_id', r.game_id)
+      done++
+    } catch (err) {
+      console.error(`public ids ${r.game_id}:`, err.message ?? err)
+    }
+  }
+  return done
+}
+
 function buildMatch(game, detail, board, known) {
   const info = detail.info
   const players = info.players ?? []
@@ -131,7 +153,7 @@ function buildMatch(game, detail, board, known) {
       s: p.teamIndex ?? i,
       w: winnerIds.has(p.clientID),
       ...(isTop ? { k: hashId(p.publicID) } : {}),
-      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : isTop ? { b: 'Top 100' } : {}),
+      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : isTop ? { b: 'Top 100', id: p.publicID } : {}),
     }
   })
   if (top === 0) return null
@@ -321,6 +343,7 @@ async function main() {
   let sized = 0
   if (!state.lastMaintenance || now - state.lastMaintenance > 55 * 60_000) {
     sized = await backfillMapSize()
+    await backfillPublicIds().catch((err) => console.error('public id backfill failed:', err.message ?? err))
     const cutoff = new Date(now - KEEP_DAYS * 86400_000).toISOString()
     await usersDb.from('cyn_ranked_matches').delete().lt('ended_at', cutoff)
     state.lastMaintenance = now

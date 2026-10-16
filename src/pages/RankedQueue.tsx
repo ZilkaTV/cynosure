@@ -10,7 +10,7 @@ import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
 interface MyAccount {
   k: string
   name: string
-  boards: { '1v1'?: { rank: number; elo: number }; '2v2'?: { rank: number; elo: number } }
+  boards: { '1v1'?: { rank: number; elo: number }; '2v2'?: { rank: number; elo: number }; ffa?: { rank: number; elo: number } }
 }
 
 // One stored game (see scripts/collect-ranked-feed.mjs): display-ready players only. `r`/`e`/`id` exist only for
@@ -32,17 +32,24 @@ interface FeedPlayer {
 }
 interface FeedMatch {
   game_id: string
-  ladder: '1v1' | '2v2'
+  ladder: '1v1' | '2v2' | 'ffa'
   ended_at: string
   duration_s: number | null
   map: string | null
   top_count: number
   players: FeedPlayer[]
 }
-type Ladder = 'all' | '1v1' | '2v2'
+type Ladder = 'all' | '1v1' | '2v2' | 'ffa'
+
+/** Colours per ladder: 1v1 violet, 2v2 teal, ranked FFA amber. */
+const LADDER_LOOK = {
+  '1v1': { border: 'border-l-violet-500', tag: 'bg-violet-500/25 text-violet-200', tab: 'bg-accent text-white' },
+  '2v2': { border: 'border-l-teal-500', tag: 'bg-teal-500/25 text-teal-200', tab: 'bg-teal-600 text-white' },
+  ffa: { border: 'border-l-amber-500', tag: 'bg-amber-500/25 text-amber-200', tab: 'bg-amber-600 text-white' },
+} as const
+const maxEloFor = (ladder: string) => (ladder === 'ffa' ? 90 : 30)
 
 const REFRESH_MS = 30_000
-const MAX_ELO_PER_GAME = 30
 // Traffic light: distinct top-100 players who finished a game in the last 30 minutes.
 const BUSY_FROM = 12
 const MEDIUM_FROM = 5
@@ -103,7 +110,7 @@ function withMirroredElo(m: FeedMatch): FeedPlayer[] {
   const players = m.players.map((p) => {
     if (p.d === undefined) return p
     // One game moves a rating by 30 at most (a sum over c games by 30 each).
-    const tooBig = Math.abs(p.d) > MAX_ELO_PER_GAME * (p.c ?? 1)
+    const tooBig = Math.abs(p.d) > maxEloFor(m.ladder) * (p.c ?? 1)
     if (!hasWinner && !tooBig) return p
     if (p.c && !tooBig) return p
     if (tooBig || (p.w ? p.d < 0 : p.d > 0)) {
@@ -131,9 +138,9 @@ function fmtDuration(s: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }> }
+type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }>; ffa: Record<string, { rank: number; elo: number }> }
 
-function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2'; boards?: Boards | null }) {
+function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null }) {
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
@@ -196,7 +203,7 @@ export default function RankedQueue() {
       fetch('/api/roster')
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => {
-          if (alive && j?.ranked_1v1) setBoards({ '1v1': j.ranked_1v1 ?? {}, '2v2': j.ranked_2v2 ?? {} })
+          if (alive && j?.ranked_1v1) setBoards({ '1v1': j.ranked_1v1 ?? {}, '2v2': j.ranked_2v2 ?? {}, ffa: j.ranked_ffa ?? {} })
         })
         .catch(() => {})
     void load()
@@ -276,12 +283,12 @@ export default function RankedQueue() {
         {loadedAt && <p className="text-center text-[11px] tabular-nums text-slate-500">↻ {new Date(loadedAt).toLocaleTimeString()}</p>}
 
         <div className="flex justify-center gap-2">
-          {(['all', '1v1', '2v2'] as Ladder[]).map((l) => (
+          {(['all', '1v1', '2v2', 'ffa'] as Ladder[]).map((l) => (
             <button
               key={l}
               type="button"
               onClick={() => setLadder(l)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${ladder === l ? (l === '2v2' ? 'bg-teal-600 text-white' : 'bg-accent text-white') : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${ladder === l ? (l === 'all' ? 'bg-accent text-white' : LADDER_LOOK[l].tab) : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
             >
               {l === 'all' ? t.queue.all : l}
             </button>
@@ -355,6 +362,8 @@ export default function RankedQueue() {
             {shown.slice(0, LIST_LIMIT).map((m) => {
               const players = withMirroredElo(m)
               const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
+              // Ranked FFA: everybody is a side of their own, the winner first.
+              if (m.ladder === 'ffa') sides.sort((a, b) => Number(players.some((p) => p.s === b && p.w)) - Number(players.some((p) => p.s === a && p.w)))
               const abandoned = isAbandoned(m)
               return (
                 <div
@@ -368,10 +377,10 @@ export default function RankedQueue() {
                     setOpenGame(m.game_id)
                   }}
                   onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
-                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : m.ladder === '1v1' ? 'border-l-violet-500' : 'border-l-teal-500'}`}
+                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : LADDER_LOOK[m.ladder].border}`}
                 >
                   <div className="w-24 shrink-0">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${abandoned ? 'bg-slate-600/40 text-slate-300' : m.ladder === '1v1' ? 'bg-violet-500/25 text-violet-200' : 'bg-teal-500/25 text-teal-200'}`}>{m.ladder}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${abandoned ? 'bg-slate-600/40 text-slate-300' : LADDER_LOOK[m.ladder].tag}`}>{m.ladder === 'ffa' ? 'FFA' : m.ladder}</span>
                     {abandoned && (
                       <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
                         {t.queue.abandoned}
@@ -394,7 +403,7 @@ export default function RankedQueue() {
                       const won = team.some((p) => p.w)
                       return (
                         <div key={side} className="flex w-full items-center gap-3 sm:w-auto">
-                          {i > 0 && <span className="w-5 shrink-0 text-center text-xs text-slate-600">vs</span>}
+                          {i > 0 && <span className="w-5 shrink-0 text-center text-xs text-slate-600">{m.ladder === 'ffa' ? '·' : 'vs'}</span>}
                           <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (

@@ -386,6 +386,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
               if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
               if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
+              if (sortKey === 'eloFfa') return compareNullable(a.m.eloFfa, b.m.eloFfa, sortDir)
               return b.r.points - a.r.points || b.r.wins - a.r.wins
             })
           return (
@@ -408,6 +409,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <SortTh label={t.monthly.colStreak} sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colPoints} sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="FFA Elo" sortKey="eloFfa" active={sortKey === 'eloFfa'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
@@ -421,6 +423,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '-'}</td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
+                          <td className="px-3 py-3 text-right font-display font-bold tabular-nums text-gold-light">{m.eloFfa ?? <span className="text-slate-600">-</span>}</td>
                         </tr>
                       ))}
                     </tbody>

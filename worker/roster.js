@@ -19,6 +19,7 @@ export async function handleRoster(request, env) {
         const merged = JSON.parse(doc)
         merged.ranked_1v1 = ranked.ranked_1v1
         merged.ranked_2v2 = ranked.ranked_2v2
+        if (ranked.ranked_ffa) merged.ranked_ffa = ranked.ranked_ffa
         return new Response(JSON.stringify(merged), { headers: { 'Content-Type': 'application/json', 'X-Cache': 'd1+ranked' } })
       }
     }

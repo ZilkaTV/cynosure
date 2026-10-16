@@ -30,6 +30,7 @@ export async function handleQueueMe(request, env) {
   for (const [ladder, field] of [
     ['1v1', 'ranked_1v1'],
     ['2v2', 'ranked_2v2'],
+    ['ffa', 'ranked_ffa'],
   ]) {
     const e = doc[field]?.[member.openfront_id]
     if (e) boards[ladder] = { rank: e.rank, elo: e.elo }

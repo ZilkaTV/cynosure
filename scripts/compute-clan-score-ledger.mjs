@@ -127,7 +127,7 @@ async function main() {
       // were 2v2 games scored as if they counted - cleaned up below by the
       // post-upsert delete step, which removes anything no longer eligible
       // regardless of why.
-      if (g.clanTag !== CLAN_TAG || g.mode !== 'Team' || g.rankedType === '2v2' || g.result === 'incomplete') continue
+      if (g.clanTag !== CLAN_TAG || g.mode !== 'Team' || g.rankedType === '2v2' || g.rankedType === 'clanwars' || g.result === 'incomplete') continue
       const existing = byGameId.get(g.gameId)
       if (existing) {
         existing.clanPlayerCount++

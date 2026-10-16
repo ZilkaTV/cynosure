@@ -137,6 +137,21 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.elo2v2 ?? -1,
     },
     {
+      key: 'eloFfa',
+      label: 'FFA Elo',
+      align: 'right',
+      render: (m) =>
+        m.eloFfa == null ? (
+          <span className="text-slate-600">-</span>
+        ) : (
+          <span className="font-display font-bold tabular-nums text-gold-light">
+            {m.eloFfa}
+            {m.peakEloFfa != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakEloFfa}</span>}
+          </span>
+        ),
+      sortValue: (m) => m.eloFfa ?? -1,
+    },
+    {
       key: 'speedrun',
       label: t.home.colSpeedrun,
       align: 'right',

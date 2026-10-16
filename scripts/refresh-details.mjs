@@ -681,7 +681,7 @@ async function main() {
     for (const id of duelIds) wantDetailLow.add(id)
     for (const g of cynGames) {
       const isTeam = g.mode === 'Team'
-      const isFfa = g.mode === 'Free For All'
+      const isFfa = g.mode === 'Free For All' && g.rankedType !== '1v1' && g.rankedType !== 'ffa'
       if (isTeam && g.result === 'victory') wantDetail.add(g.gameId)
       if (monthKeyOf(g.start) === mk && (isFfa || isTeam)) wantDetail.add(g.gameId)
     }

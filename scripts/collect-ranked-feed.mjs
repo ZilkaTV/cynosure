@@ -50,7 +50,7 @@ async function getJson(url, tries = 3) {
 async function fetchGames(fromMs, toMs, depth = 0) {
   // Only ranked games, one ladder per request (the API filters by rankedType), instead of every public game.
   const all = []
-  for (const rankedType of ['1v1', '2v2']) all.push(...(await fetchLadder(rankedType, fromMs, toMs, depth)))
+  for (const rankedType of ['1v1', '2v2', 'ffa']) all.push(...(await fetchLadder(rankedType, fromMs, toMs, depth)))
   return all
 }
 
@@ -85,7 +85,7 @@ async function loadBoards(live) {
   const ranked = live ?? (await hotGetBlob('ranked').catch(() => null))
   const roster = await hotGetBlob('roster').catch(() => null)
   const pick = (k) => (ranked?.[k] && Object.keys(ranked[k]).length ? ranked[k] : roster?.[k]) ?? {}
-  return { '1v1': pick('ranked_1v1'), '2v2': pick('ranked_2v2') }
+  return { '1v1': pick('ranked_1v1'), '2v2': pick('ranked_2v2'), ffa: pick('ranked_ffa') }
 }
 
 const normName = (s) => String(s ?? '').toLowerCase().replace(/\.\d{3,4}$/, '').replace(/\s+/g, ' ').trim()
@@ -181,8 +181,10 @@ let backfillOnce = true
 //   { snap, lastChange, batches, pending }
 const PENDING_KEEP_MS = 110 * 60_000
 const MAX_ELO_PER_GAME = 30
+// Ranked FFA rates the winner against every loser (up to nine), so one game can move a rating further.
+const maxEloPerGame = (ladder) => (ladder === 'ffa' ? 90 : MAX_ELO_PER_GAME)
 const BATCH_DELAY_MS = 3 * 60_000
-const compactBoards = (doc) => ({ '1v1': Object.fromEntries(Object.entries(doc.ranked_1v1 ?? {}).map(([id, e]) => [id, e.elo])), '2v2': Object.fromEntries(Object.entries(doc.ranked_2v2 ?? {}).map(([id, e]) => [id, e.elo])) })
+const compactBoards = (doc) => ({ '1v1': Object.fromEntries(Object.entries(doc.ranked_1v1 ?? {}).map(([id, e]) => [id, e.elo])), '2v2': Object.fromEntries(Object.entries(doc.ranked_2v2 ?? {}).map(([id, e]) => [id, e.elo])), ffa: Object.fromEntries(Object.entries(doc.ranked_ffa ?? {}).map(([id, e]) => [id, e.elo])) })
 let eloState = null
 
 async function loadEloState() {
@@ -196,7 +198,7 @@ async function loadEloState() {
 function diffBoards(state, live, nowMs) {
   const next = compactBoards(live)
   if (state.snap) {
-    for (const l of ['1v1', '2v2']) {
+    for (const l of ['1v1', '2v2', 'ffa']) {
       const list = []
       for (const [pid, elo] of Object.entries(next[l])) {
         const before = state.snap[l]?.[pid]
@@ -211,7 +213,7 @@ function diffBoards(state, live, nowMs) {
   }
   state.snap = next
   // Remember who was in the top 100 during the last day (see buildMatch).
-  for (const l of ['1v1', '2v2']) {
+  for (const l of ['1v1', '2v2', 'ffa']) {
     state.known[l] ??= {}
     for (const pid of Object.keys(next[l])) state.known[l][pid] = nowMs
     for (const [pid, t] of Object.entries(state.known[l])) if (nowMs - t > 24 * 3600_000) delete state.known[l][pid]
@@ -247,7 +249,7 @@ function resolveBatches(state, nowMs) {
       // finished a game that is not stored (played under another name), so this game cannot be given the change.
       if (games.length === 1 && me.w !== undefined && (me.w ? d < 0 : d > 0)) continue
       // One game moves a rating by 30 at most; more than that means games we did not see (played under another name).
-      if (Math.abs(d) > MAX_ELO_PER_GAME * games.length) continue
+      if (Math.abs(d) > maxEloPerGame(batch.l) * games.length) continue
       ;(updates[last.id] ??= {})[me.k] = { d, ...(games.length > 1 ? { c: games.length } : {}) }
     }
   }
@@ -273,7 +275,7 @@ async function main() {
   backfillOnce = false
   const start = backfillMs > 0 ? now - Math.min(backfillMs, 24 * 3600_000) : cursorRow?.last_message_id ? Math.max(Date.parse(cursorRow.last_message_id) - GAME_LOOKBACK_MS, now - 24 * 3600_000) : now - FIRST_RUN_LOOKBACK_MS
   const list = await fetchGames(start, now)
-  const ranked = list.filter((g) => g.rankedType === '1v1' || g.rankedType === '2v2')
+  const ranked = list.filter((g) => g.rankedType === '1v1' || g.rankedType === '2v2' || g.rankedType === 'ffa')
   console.log(`window ${new Date(start).toISOString()} -> now: ${list.length} public games, ${ranked.length} ranked`)
 
   const have = new Set()

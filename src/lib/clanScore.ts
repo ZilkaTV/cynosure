@@ -61,7 +61,7 @@ export function clanSessionScore({ totalPlayerCount, numTeams, clanPlayerCount, 
  * cleanup of those existing rows.
  */
 export function isClanScoreEligible(g: Pick<PlayerGame, 'mode' | 'playerTeams' | 'totalPlayers' | 'rankedType'>): boolean {
-  return g.mode === 'Team' && g.rankedType !== '2v2' && deriveNumTeams(g.playerTeams, g.totalPlayers) != null && !!g.totalPlayers
+  return g.mode === 'Team' && g.rankedType !== '2v2' && g.rankedType !== 'clanwars' && deriveNumTeams(g.playerTeams, g.totalPlayers) != null && !!g.totalPlayers
 }
 
 export interface ClanScoreLedgerEntry {

@@ -48,7 +48,7 @@ export interface PlayerGame {
   mode: 'Free For All' | 'Team' | string
   type: 'Public' | 'Private' | 'Singleplayer' | string
   playerTeams: string | null
-  rankedType: 'unranked' | '1v1' | '2v2' | string
+  rankedType: 'unranked' | '1v1' | '2v2' | 'ffa' | 'clanwars' | string
   result: 'victory' | 'defeat' | 'incomplete'
   totalPlayers: number | null
   username: string
@@ -244,6 +244,7 @@ async function getJson(url: string): Promise<unknown> {
 interface RosterCacheRow {
   ranked_1v1: Record<string, RankedEntry>
   ranked_2v2: Record<string, RankedEntry>
+  ranked_ffa?: Record<string, RankedEntry>
   ffa_leaderboard: Record<string, number>
   clan_leaderboard: unknown
   clan_leaderboard_top: unknown
@@ -281,13 +282,13 @@ export async function fetchRosterCacheRow(): Promise<RosterCacheRow | null> {
 }
 
 /** Map of public_id → ranked entry for everyone on each ladder (top 100). */
-export async function fetchRankedMap(): Promise<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry> }> {
-  const key = `${CACHE_NS}:rankedmap2`
-  const cached = cacheGet<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry> }>(key)
+export async function fetchRankedMap(): Promise<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry>; ffa: Record<string, RankedEntry> }> {
+  const key = `${CACHE_NS}:rankedmap3`
+  const cached = cacheGet<{ oneVOne: Record<string, RankedEntry>; twoVTwo: Record<string, RankedEntry>; ffa: Record<string, RankedEntry> }>(key)
   if (cached) return cached
 
   const row = await fetchRosterCacheRow()
-  const result = { oneVOne: row?.ranked_1v1 ?? {}, twoVTwo: row?.ranked_2v2 ?? {} }
+  const result = { oneVOne: row?.ranked_1v1 ?? {}, twoVTwo: row?.ranked_2v2 ?? {}, ffa: row?.ranked_ffa ?? {} }
   cacheSet(key, result)
   return result
 }

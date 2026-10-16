@@ -99,8 +99,8 @@ function fmtSpeedrunTime(seconds) {
 // monthKeyOf in src/lib/stats.ts - same reasoning as everywhere else in this
 // script (can't import from src/). Only the points total is needed here
 // (not wins/losses/winstreak/etc), so this is the trimmed-down version.
-const isTeam = (g) => g.mode === 'Team' && g.rankedType !== '2v2'
-const isFfa = (g) => g.mode === 'Free For All' && g.rankedType !== '1v1'
+const isTeam = (g) => g.mode === 'Team' && g.rankedType !== '2v2' && g.rankedType !== 'clanwars'
+const isFfa = (g) => g.mode === 'Free For All' && g.rankedType !== '1v1' && g.rankedType !== 'ffa'
 const isVictory = (g) => g.result === 'victory'
 const isDefeat = (g) => g.result === 'defeat'
 const monthKeyOf = (iso) => iso.slice(0, 7)

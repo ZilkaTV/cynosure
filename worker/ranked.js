@@ -13,7 +13,7 @@ const PAGES = 3 // the board is 2 pages (100 entries) today; a 400 ends the scan
 /** Fetches both top-100 boards, stores them in the D1 blob `ranked` and returns them (null if the scan failed). */
 export async function refreshRankedBlob(env, info = {}) {
   if (!useD1(env)) return null
-  const byMode = { ranked_1v1: {}, ranked_2v2: {} }
+  const byMode = { ranked_1v1: {}, ranked_2v2: {}, ranked_ffa: {} }
   for (let page = 1; page <= PAGES; page++) {
     const res = await fetch(`https://api.openfront.io/public/leaderboard/ranked?page=${page}`, {
       headers: {
@@ -31,6 +31,7 @@ export async function refreshRankedBlob(env, info = {}) {
     const json = await res.json()
     for (const e of json['1v1'] ?? []) byMode.ranked_1v1[e.public_id] = e
     for (const e of json['2v2'] ?? []) byMode.ranked_2v2[e.public_id] = e
+    for (const e of json['ffa'] ?? []) byMode.ranked_ffa[e.public_id] = e // absent on APIs from before ranked FFA
   }
   if (Object.keys(byMode.ranked_1v1).length === 0 || Object.keys(byMode.ranked_2v2).length === 0) {
     console.error('ranked leaderboard came back empty - keeping the previous Elo')

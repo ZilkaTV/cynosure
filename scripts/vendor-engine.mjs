@@ -31,7 +31,7 @@
 // surface exactly what needs a human/agent look, the same way it would if
 // you were doing this by hand.
 
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -81,10 +81,25 @@ if (!fs.existsSync(CACHE_DIR)) {
   try {
     sh(`git -C "${CACHE_DIR}" fetch --quiet origin`)
   } catch {
-    console.warn('  fetch failed (offline?) - trying with whatever is already cached')
+    // A full fetch can fail on a branch name clash while the objects still arrive; ask for the commit itself as well.
+    try {
+      sh(`git -C "${CACHE_DIR}" fetch --quiet origin ${commit}`)
+    } catch {
+      console.warn('  fetch failed (offline?) - trying with whatever is already cached')
+    }
   }
 }
 sh(`git -C "${CACHE_DIR}" checkout --quiet ${commit}`)
+// OpenFront v0.35 moved the engine into workspace packages: those commits are vendored by their own script.
+if (fs.existsSync(path.join(CACHE_DIR, 'packages/engine/src/GameRunner.ts'))) {
+  console.log('This commit uses the packages/ layout - handing over to scripts/vendor-engine-packages.mjs')
+  try {
+    execFileSync('node', [path.join(__dirname, 'vendor-engine-packages.mjs'), commit], { cwd: ROOT, stdio: 'inherit' })
+  } catch {
+    process.exit(1)
+  }
+  process.exit(0)
+}
 const srcRoot = path.join(CACHE_DIR, 'src')
 
 // ── 2. Dependency closure walker ─────────────────────────────────────────

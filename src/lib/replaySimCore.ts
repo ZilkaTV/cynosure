@@ -101,8 +101,17 @@ export const KNOWN_ENGINE_COMMITS = [
   '71154c52c2a236ab04b08d9b2041f9ea8252a58c',
   '3f5633b92c9508461e6e2b9e1f926487a1804c9f',
   'dfd9e478b64d92fa25f95597b8cb81d8adee004d',
+  'dfd420fd7836ae023504a9440d9d68897745b7b4',
 ] as const
 export type EngineCommit = (typeof KNOWN_ENGINE_COMMITS)[number]
+
+// Engine commits from OpenFront v0.35 on keep the engine in workspace packages (see scripts/vendor-engine-packages.mjs).
+// Their createGameRunner takes the loaded map files (MapFiles) instead of a map loader, so the replay starts them
+// differently - see loadRunner. Filled in by the vendoring script.
+export const PACKAGE_LAYOUT_COMMITS = [
+  'dfd420fd7836ae023504a9440d9d68897745b7b4',
+] as const
+const usesPackageLayout = (commit: string) => (PACKAGE_LAYOUT_COMMITS as readonly string[]).includes(commit)
 
 async function loadCreateGameRunner(commit: EngineCommit) {
   switch (commit) {
@@ -212,6 +221,8 @@ async function loadCreateGameRunner(commit: EngineCommit) {
       return (await import('../vendor/openfront-core-3f5633b/src/core/GameRunner')).createGameRunner
     case 'dfd9e478b64d92fa25f95597b8cb81d8adee004d':
       return (await import('../vendor/openfront-core-dfd9e47/src/core/GameRunner')).createGameRunner
+    case 'dfd420fd7836ae023504a9440d9d68897745b7b4':
+      return (await import('../vendor/openfront-core-dfd420f/src/core/GameRunner')).createGameRunner
   }
 }
 
@@ -595,6 +606,18 @@ function makeMapLoader(gameMapName: string, commit: EngineCommit): GameMapLoader
   return { getMapData: () => mapData }
 }
 
+/** The map files for a package-layout engine: normal games use map.bin + map4x.bin, compact ones map4x.bin + map16x.bin. */
+async function loadMapFiles(config: { gameMap: string; gameMapSize?: string }, commit: EngineCommit) {
+  const slug = mapSlug(config.gameMap)
+  const base = `https://raw.githubusercontent.com/openfrontio/OpenFrontIO/${commit}/resources/maps/${slug}`
+  const bin = (name: string) => cachedArrayBuffer(`${base}/${name}`, `${commit}:${slug}:${name}`)
+  const manifest = await cachedManifest(`${commit}:${slug}`, base)
+  const compact = config.gameMapSize === 'Compact'
+  return compact
+    ? { map: config.gameMap, mapSize: 'Compact', manifest, map4xBin: await bin('map4x.bin'), map16xBin: await bin('map16x.bin') }
+    : { map: config.gameMap, mapSize: 'Normal', manifest, mapBin: await bin('map.bin'), map4xBin: await bin('map4x.bin') }
+}
+
 // ── Shared setup (fetch + feed the full turn log into a fresh runner) ───────
 // Both computeGameTileStats (full replay, running peaks) and
 // computeTilePercentAtTick (a single snapshot at a given tick) need the
@@ -639,11 +662,15 @@ async function loadRunner(gameId: string) {
   // tree expects - only TS's structural typing sees two nominally different
   // trees and can't verify that across a dynamic, commit-selected import.
   const createGameRunner = await loadCreateGameRunner(commit)
-  const runner = await createGameRunner(gameStart as never, undefined, makeMapLoader(raw.config.gameMap, commit) as never, (update: unknown) => {
+  const onUpdate = (update: unknown) => {
     // Opt-in debugging (scripts/probe-*.mjs set globalThis.__REPLAY_DEBUG): surface the engine's own tick errors with stack.
     const u = update as { errMsg?: string; stack?: string }
     if ((globalThis as { __REPLAY_DEBUG?: boolean }).__REPLAY_DEBUG && u?.errMsg) console.error('ENGINE ERROR:', u.errMsg, u.stack)
-  })
+  }
+  const mapArg = usesPackageLayout(commit)
+    ? await loadMapFiles(raw.config as { gameMap: string; gameMapSize?: string }, commit)
+    : makeMapLoader(raw.config.gameMap, commit)
+  const runner = await createGameRunner(gameStart as never, undefined, mapArg as never, onUpdate)
   for (let t = 0; t <= lastTick; t++) {
     runner.addTurn((byTurnNumber.get(t) ?? { turnNumber: t, intents: [] }) as never)
   }

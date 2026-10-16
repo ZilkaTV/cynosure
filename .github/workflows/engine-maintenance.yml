@@ -91,6 +91,9 @@ jobs:
           key: vendor-cache-openfrontio
 
       - name: Check for new OpenFront engine commits and vendor them
+        # A commit this script cannot vendor (OpenFront moved the engine into packages/ with v0.35) must not stop the
+        # Max Tiles backfill below, and the run is not a failure of the job.
+        continue-on-error: true
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

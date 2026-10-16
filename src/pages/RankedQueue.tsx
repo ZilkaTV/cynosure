@@ -131,10 +131,14 @@ function fmtDuration(s: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function PlayerChip({ p, mine, ladder }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' }) {
+type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }> }
+
+function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2'; boards?: Boards | null }) {
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
-  const ownBoard = own && ladder ? own.boards[ladder] : undefined
+  // A player under another name has no rank stored with the game: take the current board position by public id.
+  const boardEntry = p.r == null && p.id && ladder ? boards?.[ladder]?.[p.id] : undefined
+  const ownBoard = (own && ladder ? own.boards[ladder] : undefined) ?? boardEntry
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
@@ -165,12 +169,12 @@ function PlayerChip({ p, mine, ladder }: { p: FeedPlayer; mine?: MyAccount | nul
           {p.d} Elo{p.c ? ` (${p.c})` : ''}
         </span>
       )}
-      {own && ownBoard && p.r == null && (
+      {ownBoard && p.r == null && (
         <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
           #{ownBoard.rank} · {ownBoard.elo}
         </span>
       )}
-      {p.r == null && p.b && !(own && ownBoard) && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
+      {p.r == null && p.b && !ownBoard && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
     </span>
   )
 }
@@ -183,6 +187,25 @@ export default function RankedQueue() {
   const [openGame, setOpenGame] = useState<string | null>(null)
   const alert = useQueueAlertSettings()
   const [me, setMe] = useState<MyAccount | null>(null)
+  const [boards, setBoards] = useState<Boards | null>(null)
+  // Current top-100 boards (the site's roster document, cached for a minute at the edge): rank and Elo of players who
+  // play under another name.
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      fetch('/api/roster')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (alive && j?.ranked_1v1) setBoards({ '1v1': j.ranked_1v1 ?? {}, '2v2': j.ranked_2v2 ?? {} })
+        })
+        .catch(() => {})
+    void load()
+    const timer = setInterval(() => document.visibilityState === 'visible' && void load(), 5 * 60_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [])
   useEffect(() => {
     let alive = true
     fetch('/api/queue/me', { credentials: 'same-origin' })
@@ -375,7 +398,7 @@ export default function RankedQueue() {
                           <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
-                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} />
+                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} />
                             ))}
                           </div>
                         </div>

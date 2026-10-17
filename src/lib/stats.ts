@@ -167,6 +167,18 @@ export function ffaBucket(games: PlayerGame[], monthKey: string): Bucket {
   return { wins, losses, points }
 }
 
+/** Ranked FFA games of one month: wins and losses (the Elo itself comes from OpenFront's FFA board). */
+export function rankedFfaBucket(games: PlayerGame[], monthKey: string): { wins: number; losses: number } {
+  let wins = 0
+  let losses = 0
+  for (const g of games) {
+    if (!isRankedFfa(g) || monthKeyOf(g.start) !== monthKey) continue
+    if (isVictory(g)) wins++
+    else if (isDefeat(g)) losses++
+  }
+  return { wins, losses }
+}
+
 export function teamBucket(
   games: PlayerGame[],
   monthKey: string,

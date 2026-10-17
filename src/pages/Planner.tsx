@@ -6,8 +6,8 @@ import { clanSessionScore } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
 import { CLAN_TAG } from '../config'
 
-// The lobby can hold at most this many players (OpenFront's biggest public lobbies).
-const MAX_PLAYERS = 120
+// The lobby can hold at most this many players (OpenFront v0.35: the size comes from the map, up to 215).
+const MAX_PLAYERS = 215
 const MAX_POINT_CLAN = [2, 3, 4, 5, 6, 7, 8]
 
 /**
@@ -48,6 +48,15 @@ export default function Planner() {
   const [per, setPer] = useState(7)
   const [clan, setClan] = useState(2)
   const members = Math.min(clan, per)
+  // Teams times players per team can never exceed what a lobby holds.
+  const changeTeams = (n: number) => {
+    setTeams(n)
+    setPer((p) => Math.min(p, Math.floor(MAX_PLAYERS / n)))
+  }
+  const changePer = (n: number) => {
+    setPer(n)
+    setTeams((tm) => Math.min(tm, Math.floor(MAX_PLAYERS / n)))
+  }
 
   const win = score(teams, members, per, true)
   const loss = score(teams, members, per, false)
@@ -83,9 +92,9 @@ export default function Planner() {
             })}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={60} onChange={setTeams} />
-            <Slider id="pl-per" label={t.planner.perTeam} value={per} min={1} max={50} onChange={setPer} />
-            <Slider id="pl-clan" label={t.planner.clanMembers(CLAN_TAG)} value={members} min={1} max={Math.min(50, per)} onChange={setClan} />
+            <Slider id="pl-teams" label={t.planner.teams} value={teams} min={2} max={Math.floor(MAX_PLAYERS / 2)} onChange={changeTeams} />
+            <Slider id="pl-per" label={t.planner.perTeam} value={per} min={1} max={Math.floor(MAX_PLAYERS / 2)} onChange={changePer} />
+            <Slider id="pl-clan" label={t.planner.clanMembers(CLAN_TAG)} value={members} min={1} max={per} onChange={setClan} />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-base-700 bg-base-850/60 p-4 text-center">

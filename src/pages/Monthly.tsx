@@ -22,6 +22,7 @@ import {
   monthKeyOf,
   monthLabel,
   oneVoneBucket,
+  rankedFfaBucket,
   twoVTwoBucket,
   teamMonthly,
   winRate,
@@ -378,23 +379,24 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && variant === 'ffa' && (() => {
           const rows = members
-            .map((m) => ({ m, r: ffaMonthly(m, month) }))
+            .map((m) => ({ m, r: ffaMonthly(m, month), rk: rankedFfaBucket(m.cynGames, month) }))
             .sort((a, b) => {
               if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
               if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
               if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
               if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
               if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
-              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
               if (sortKey === 'eloFfa') return compareNullable(a.m.eloFfa, b.m.eloFfa, sortDir)
-              return b.r.points - a.r.points || b.r.wins - a.r.wins
+              if (sortKey === 'ranked') return compareNullable(a.rk.wins, b.rk.wins, sortDir)
+              // The table is ranked by the current ranked-FFA Elo (members outside the board last), then by wins.
+              return (b.m.eloFfa ?? -1) - (a.m.eloFfa ?? -1) || b.r.wins - a.r.wins
             })
           return (
             <>
               <div className="grid grid-cols-3 gap-3">
                 <TitleCard emoji={EMOJI.bow} title={t.monthly.titlePredator} metric={t.monthly.metricAvgKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
                 <TitleCard emoji={EMOJI.bolt} title={t.monthly.titlePro} metric={t.monthly.metricWinStreak} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
-                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.m.eloFfa ?? 0 })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
@@ -408,12 +410,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colStreak} sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colPoints} sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="Ranked W/L" sortKey="ranked" active={sortKey === 'ranked'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="FFA Elo" sortKey="eloFfa" active={sortKey === 'eloFfa'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, r }, i) => (
+                      {rows.map(({ m, r, rk }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -422,8 +424,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '-'}</td>
-                          <td className="px-3 py-3 text-right font-display text-lg font-bold text-accent-light">{r.points}</td>
-                          <td className="px-3 py-3 text-right font-display font-bold tabular-nums text-gold-light">{m.eloFfa ?? <span className="text-slate-600">-</span>}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{rk.wins + rk.losses > 0 ? `${rk.wins}/${rk.losses}` : <span className="text-slate-600">-</span>}</td>
+                          <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{m.eloFfa ?? <span className="text-slate-600">-</span>}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -44,5 +44,44 @@ export async function refreshRankedBlob(env, info = {}) {
   )
     .bind('ranked', JSON.stringify(doc), new Date().toISOString())
     .run()
+  await updateFfaMonth(env, byMode.ranked_ffa).catch((err) => console.error('ffa month update failed:', err?.message ?? err))
   return doc
+}
+
+// ── Monthly FFA ranking ─────────────────────────────────────────────────────
+// The Monthly FFA page ranks by OpenFront's FFA board. The board only shows "now", so every scan also updates one small
+// row per month (blob "ffa-month:YYYY-MM", UTC month): each player's latest rank and Elo, the highest Elo of the month and
+// the first Elo seen that month (for the monthly change). When the month is over the row simply stops being written -
+// it is the final standing of that month. Players who dropped off the board keep their last Elo and lose the rank.
+async function updateFfaMonth(env, board) {
+  if (!board || Object.keys(board).length === 0) return
+  const now = new Date()
+  const iso = now.toISOString()
+  const key = `ffa-month:${iso.slice(0, 7)}`
+  const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(key).first()
+  let doc = { month: iso.slice(0, 7), entries: {} }
+  try {
+    if (row?.value) doc = JSON.parse(row.value)
+  } catch {
+    /* start over */
+  }
+  for (const e of Object.values(doc.entries)) e.rank = null // only the latest scan's players have a rank
+  for (const [id, e] of Object.entries(board)) {
+    const prev = doc.entries[id]
+    doc.entries[id] = { rank: e.rank, elo: e.elo, peak: Math.max(prev?.peak ?? e.elo, e.elo), first: prev?.first ?? e.elo, last: iso }
+  }
+  doc.updated_at = iso
+  await env.HOT_DB.prepare(
+    'INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+  )
+    .bind(key, JSON.stringify(doc), iso)
+    .run()
+}
+
+/** GET /api/ffa-month?month=YYYY-MM -> the stored standing of that month ({ entries: {} } when nothing was stored). */
+export async function handleFfaMonth(request, env) {
+  const month = new URL(request.url).searchParams.get('month') ?? ''
+  if (!/^\d{4}-\d{2}$/.test(month)) return new Response(JSON.stringify({ error: 'bad_month' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+  const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(`ffa-month:${month}`).first()
+  return new Response(row?.value ?? JSON.stringify({ month, entries: {} }), { headers: { 'Content-Type': 'application/json' } })
 }

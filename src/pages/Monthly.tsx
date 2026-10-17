@@ -14,7 +14,6 @@ import type { PlayerGame } from '../lib/openfront'
 import {
   availableMonths,
   currentMonthKey,
-  ffaMonthly,
   isFfa,
   isTeam,
   is1v1,
@@ -226,6 +225,20 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
   const [month, setMonth] = useState<string>(currentMonthKey())
+  // Stored standing of the chosen month in OpenFront's FFA ranking (rank, Elo, peak, first Elo of the month).
+  const [ffaMonth, setFfaMonth] = useState<Record<string, { rank: number | null; elo: number; peak: number; first: number }> | null>(null)
+  useEffect(() => {
+    if (variant !== 'ffa') return
+    let alive = true
+    setFfaMonth(null)
+    fetch(`/api/ffa-month?month=${month}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => alive && setFfaMonth(j?.entries ?? {}))
+      .catch(() => alive && setFfaMonth({}))
+    return () => {
+      alive = false
+    }
+  }, [variant, month])
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
   const [openGame, setOpenGame] = useState<string | null>(null)
@@ -378,54 +391,52 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {error && !data && <Card className="text-center text-sm text-signal-red">{t.monthly.loadError(error)}</Card>}
 
         {data && variant === 'ffa' && (() => {
+          // Ranking-based for every month: rank and Elo come from the FFA board standing stored for that month.
+          const standing = ffaMonth ?? {}
           const rows = members
-            .map((m) => ({ m, r: ffaMonthly(m, month), rk: rankedFfaBucket(m.cynGames, month) }))
-            .sort((a, b) => {
-              if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
-              if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
-              if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
-              if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
-              if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
-              if (sortKey === 'eloFfa') return compareNullable(a.m.eloFfa, b.m.eloFfa, sortDir)
-              if (sortKey === 'ranked') return compareNullable(a.rk.wins, b.rk.wins, sortDir)
-              // The table is ranked by the current ranked-FFA Elo (members outside the board last), then by wins.
-              return (b.m.eloFfa ?? -1) - (a.m.eloFfa ?? -1) || b.r.wins - a.r.wins
+            .map((m) => {
+              const e = standing[m.publicId]
+              return { m, rank: e?.rank ?? null, elo: e?.elo ?? null, peak: e?.peak ?? null, delta: e ? e.elo - e.first : null, rk: rankedFfaBucket(m.cynGames, month) }
             })
+            .filter((x) => x.elo != null)
+            .sort((a, b) => {
+              if (sortKey === 'elo') return compareNullable(a.elo, b.elo, sortDir)
+              if (sortKey === 'peak') return compareNullable(a.peak, b.peak, sortDir)
+              if (sortKey === 'delta') return compareNullable(a.delta, b.delta, sortDir)
+              if (sortKey === 'ranked') return compareNullable(a.rk.wins, b.rk.wins, sortDir)
+              // Default: by the board rank (players who dropped off the board after the ones on it), then by Elo.
+              return (a.rank ?? 1e9) - (b.rank ?? 1e9) || (b.elo ?? 0) - (a.elo ?? 0)
+            })
+          if (ffaMonth === null) return <Spinner label={t.common.loadingLiveData} />
+          if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
           return (
             <>
-              <div className="grid grid-cols-3 gap-3">
-                <TitleCard emoji={EMOJI.bow} title={t.monthly.titlePredator} metric={t.monthly.metricAvgKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
-                <TitleCard emoji={EMOJI.bolt} title={t.monthly.titlePro} metric={t.monthly.metricWinStreak} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
-                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.m.eloFfa ?? 0 })))} />
+              <div className="grid grid-cols-2 gap-3">
+                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.elo ?? 0 })))} />
+                <TitleCard emoji={EMOJI.bolt} title={t.monthly.titleClimber} metric={t.monthly.metricEloGain} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.delta ?? 0 })))} />
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[640px] text-sm">
+                  <table className="sticky-cols w-full min-w-[520px] text-sm">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
-                        <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colStreak} sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="FFA Elo" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.home.colPeak} sortKey="peak" active={sortKey === 'peak'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colEloDelta} sortKey="delta" active={sortKey === 'delta'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Ranked W/L" sortKey="ranked" active={sortKey === 'ranked'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label="FFA Elo" sortKey="eloFfa" active={sortKey === 'eloFfa'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, r, rk }, i) => (
+                      {rows.map(({ m, rank, elo, peak, delta, rk }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
-                          <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                          <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
-                          <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? '-'}</td>
+                          <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{elo}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-400">{peak}</td>
+                          <td className={`px-3 py-3 text-right tabular-nums ${delta == null || delta === 0 ? 'text-slate-500' : delta > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{delta == null ? '-' : delta > 0 ? `+${delta}` : delta}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{rk.wins + rk.losses > 0 ? `${rk.wins}/${rk.losses}` : <span className="text-slate-600">-</span>}</td>
-                          <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{m.eloFfa ?? <span className="text-slate-600">-</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -605,8 +616,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {data && (
           <>
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
-            {(variant === 'ffa' || variant === 'team') && (
-              <p className="text-center text-xs text-slate-500">{t.monthly.killsNote(variant === 'team')}</p>
+            {variant === 'team' && (
+              <p className="text-center text-xs text-slate-500">{t.monthly.killsNote(true)}</p>
             )}
           </>
         )}

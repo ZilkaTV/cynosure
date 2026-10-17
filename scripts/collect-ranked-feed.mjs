@@ -216,7 +216,7 @@ function diffBoards(state, live, nowMs) {
   for (const l of ['1v1', '2v2', 'ffa']) {
     state.known[l] ??= {}
     for (const pid of Object.keys(next[l])) state.known[l][pid] = nowMs
-    for (const [pid, t] of Object.entries(state.known[l])) if (nowMs - t > 24 * 3600_000) delete state.known[l][pid]
+    for (const [pid, t] of Object.entries(state.known[l])) if (nowMs - t > (l === 'ffa' ? 3 : 24) * 3600_000) delete state.known[l][pid] // the FFA board churns, 1v1/2v2 hardly
   }
 }
 

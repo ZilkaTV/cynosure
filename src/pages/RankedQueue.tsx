@@ -181,7 +181,10 @@ function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccou
           #{ownBoard.rank} · {ownBoard.elo}
         </span>
       )}
-      {p.r == null && p.b && !ownBoard && <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">Top 100</span>}
+      {p.r == null && p.b && !ownBoard && (
+        // Stored as "top 100" when the game was played; if the current board (loaded) no longer lists the player, say so.
+        <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">{p.id && ladder && boards?.[ladder] && Object.keys(boards[ladder]).length > 0 ? 'ex Top 100' : 'Top 100'}</span>
+      )}
     </span>
   )
 }

@@ -88,7 +88,7 @@ export async function handleHotApi(request, env, pathname) {
       }
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
-        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo', 'details-have'].includes(key)) return json(400, { error: 'bad_key' })
+        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo', 'details-have', 'tilestats-skip'].includes(key)) return json(400, { error: 'bad_key' })
         const row = await db.prepare('SELECT value FROM blobs WHERE key = ?').bind(key).first()
         return json(200, row?.value ?? 'null')
       }
@@ -121,7 +121,7 @@ export async function handleHotApi(request, env, pathname) {
       }
       if (op === 'blob') {
         const key = url.searchParams.get('key') ?? ''
-        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo', 'details-have'].includes(key)) return json(400, { error: 'bad_key' })
+        if (!['roster', 'ledger', 'ranked', 'ranked-snap', 'ranked-elo', 'details-have', 'tilestats-skip'].includes(key)) return json(400, { error: 'bad_key' })
         const body = await request.text()
         await db
           .prepare('INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')

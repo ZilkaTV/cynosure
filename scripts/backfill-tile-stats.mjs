@@ -23,7 +23,7 @@
 // needs to run (or didn't manage to vendor everything).
 
 import { createServer } from 'vite'
-import { hotEnabled, hotGetAllMemberGames, hotNewestMemberUpdate } from './lib/hotstore.mjs'
+import { hotEnabled, hotGetAllMemberGames, hotNewestMemberUpdate, hotGetBlob, hotPutBlob } from './lib/hotstore.mjs'
 import { usersDb } from './lib/usersdb.mjs'
 import fs from 'node:fs'
 import { execFile } from 'node:child_process'
@@ -183,8 +183,16 @@ async function main() {
     console.log(`Finding recent (last ${daysBack}d) real CYN games missing from cyn_game_tile_stats at logic version ${core.COMPUTE_LOGIC_VERSION}...`)
     const recentIds = await fetchRecentGameIds()
     const covered = await fetchCoveredGameIds(recentIds, core.COMPUTE_LOGIC_VERSION)
-    const missing = recentIds.filter((id) => !covered.has(id))
-    console.log(`${recentIds.length} recent game(s), ${missing.length} missing.\n`)
+    // Games whose replay does not match what OpenFront recorded (a "replay_failed" on every attempt) are skipped for a week, at
+    // the same logic version: they cost about 8 minutes of every run and fail the same way each time.
+    const SKIP_DAYS = 7
+    const skipDoc = (await hotGetBlob('tilestats-skip').catch(() => null)) ?? {}
+    const skipFrom = Date.now() - SKIP_DAYS * 86_400_000
+    const skipped = Object.fromEntries(Object.entries(skipDoc.games ?? {}).filter(([, v]) => v.v === core.COMPUTE_LOGIC_VERSION && Date.parse(v.at) > skipFrom))
+    const newSkips = {}
+    const missingAll = recentIds.filter((id) => !covered.has(id))
+    const missing = missingAll.filter((id) => !skipped[id])
+    console.log(`${recentIds.length} recent game(s), ${missingAll.length} missing (${missingAll.length - missing.length} skipped as not replayable).\n`)
     if (missing.length === 0) {
       console.log('Nothing to backfill.')
       return
@@ -208,8 +216,10 @@ async function main() {
       // same JS realm, which used to make everything after the first game of a batch fail.
       let commit = null
       let ok = false
+      let replayFailures = 0
       for (let attempt = 1; attempt <= maxRetries && !ok; attempt++) {
         const out = await computeInChild(gameId)
+        if (out?.error === 'replay_failed') replayFailures++
         if (out?.error === 'no_commit') continue
         if (!out?.stats) continue
         commit = out.commit
@@ -231,6 +241,11 @@ async function main() {
           .catch(() => false)
       }
       if (!commit && !ok) {
+        if (replayFailures >= maxRetries) {
+          newSkips[gameId] = { v: core.COMPUTE_LOGIC_VERSION, at: new Date().toISOString() }
+          console.log(`  ${gameId}: replay does not match the recorded game - skipped for ${SKIP_DAYS} days`)
+          return
+        }
         noVendoredCommit++
         return
       }
@@ -248,6 +263,9 @@ async function main() {
       }),
     )
     if (queue.length > 0) console.log(`Time budget reached - ${queue.length} game(s) left for the next run.`)
+    if (Object.keys(newSkips).length > 0) {
+      await hotPutBlob('tilestats-skip', JSON.stringify({ games: { ...skipped, ...newSkips } })).catch((err) => console.error('could not save the skip list:', err.message ?? err))
+    }
   } finally {
     await server.close()
   }

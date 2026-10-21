@@ -264,7 +264,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, [pathname])
 
   useEffect(() => {
-    logSiteVisit(!!profile)
+    logSiteVisit(!!profile, profile?.openfront_id)
     // Only ever needs to fire once per tab session (logSiteVisit's own
     // sessionStorage guard enforces that) - re-running on later profile
     // changes would just be a no-op, so no dependency on profile here.

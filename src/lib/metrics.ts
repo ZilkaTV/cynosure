@@ -151,14 +151,14 @@ export function metricsHistoryToCsv(rows: DailyMetricsRow[]): string {
 const VISIT_LOGGED_KEY = 'cyn:visitLogged'
 
 /** Logs one page-view for today's site-visit metric, at most once per browser tab session. */
-export function logSiteVisit(isMember: boolean) {
+export function logSiteVisit(isMember: boolean, openfrontId?: string) {
   // Which member was here (for the Metrics page): reported on every page load, at most once per 30 minutes per tab.
   if (isMember) {
     try {
       const last = Number(sessionStorage.getItem('cyn:seenAt') ?? 0)
       if (Date.now() - last > 30 * 60_000) {
         sessionStorage.setItem('cyn:seenAt', String(Date.now()))
-        void fetch('/api/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+        void fetch('/api/seen', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openfront_id: openfrontId ?? null }) }).catch(() => {})
       }
     } catch {
       /* storage blocked - skip */

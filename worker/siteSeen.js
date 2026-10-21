@@ -14,11 +14,22 @@ const DAY_MS = 86_400_000
 
 export async function handleSeen(request, env) {
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  const user = await readSession(request, env)
-  if (!user) return json(401, { error: 'not_signed_in' })
   if (!env.DB || !env.HOT_DB) return json(503, { error: 'not_configured' })
-  const member = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()
-  if (!member) return json(204, {})
+  let body = {}
+  try {
+    body = await request.json()
+  } catch {
+    /* no body */
+  }
+  // Who is it: the signed-in account first (by account link, or by the Discord id stored with the member); a browser
+  // whose sign-in expired but still holds the member's profile reports that profile's id (it has to be a registered one).
+  const user = await readSession(request, env)
+  let member = null
+  if (user) member = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE user_id = ? OR discord_user_id = ? LIMIT 1').bind(user.id, user.id).first()
+  if (!member && typeof body?.openfront_id === 'string' && /^[A-Za-z0-9_-]{4,16}$/.test(body.openfront_id)) {
+    member = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE openfront_id = ? LIMIT 1').bind(body.openfront_id).first()
+  }
+  if (!member) return new Response(null, { status: 204, headers: { 'Cache-Control': 'private, no-store' } })
   const now = new Date()
   const iso = now.toISOString()
   const key = `seen:${dayKey(now)}:${member.openfront_id}`

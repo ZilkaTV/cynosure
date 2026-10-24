@@ -1,0 +1,78 @@
+// Vendored from openfrontio/OpenFrontIO (AGPL-3.0-or-later), commit a2d20f8e5f32573c7a6a7e0b8900dcfeac4357e7.
+// Source: https://github.com/openfrontio/OpenFrontIO/blob/a2d20f8e5f32573c7a6a7e0b8900dcfeac4357e7/packages/engine/src/pathfinding/PathFinder.Air.ts
+// Modified for this vendor build (scripts/vendor-engine-packages.mjs): workspace package imports (@openfront/*, resources/*) rewritten to relative paths.
+import { TileRef } from "../game/GameMap";
+import { PseudoRandom } from "../PseudoRandom";
+import { Game } from "../game/Game";
+import { PathFinder } from "./types";
+
+export class AirPathFinder implements PathFinder<TileRef> {
+  private seed: number;
+
+  constructor(private game: Game) {
+    this.seed = game.ticks();
+  }
+
+  /** Paths are drawn from a generator re-seeded with this on every query. */
+  getSeed(): number {
+    return this.seed;
+  }
+
+  setSeed(seed: number): void {
+    this.seed = seed;
+  }
+
+  findPath(from: TileRef | TileRef[], to: TileRef): TileRef[] | null {
+    if (Array.isArray(from)) {
+      throw new Error("AirPathFinder does not support multiple start points");
+    }
+
+    const random = new PseudoRandom(this.seed);
+    const path: TileRef[] = [from];
+    let current = from;
+
+    while (current !== to) {
+      const next = this.computeNext(current, to, random);
+      if (next === current) break; // Prevent infinite loop if something breaks
+      current = next;
+      path.push(current);
+    }
+
+    return path;
+  }
+
+  private computeNext(
+    from: TileRef,
+    to: TileRef,
+    random: PseudoRandom,
+  ): TileRef {
+    const x = this.game.x(from);
+    const y = this.game.y(from);
+    const dstX = this.game.x(to);
+    const dstY = this.game.y(to);
+
+    if (x === dstX && y === dstY) {
+      return to;
+    }
+
+    let nextX = x;
+    let nextY = y;
+    const ratio = Math.floor(1 + Math.abs(dstY - y) / (Math.abs(dstX - x) + 1));
+
+    if (x === dstX) {
+      // Can only move in Y
+      nextY += y < dstY ? 1 : -1;
+    } else if (y === dstY) {
+      // Can only move in X
+      nextX += x < dstX ? 1 : -1;
+    } else {
+      if (random.chance(ratio)) {
+        nextX += x < dstX ? 1 : -1;
+      } else {
+        nextY += y < dstY ? 1 : -1;
+      }
+    }
+
+    return this.game.ref(nextX, nextY);
+  }
+}

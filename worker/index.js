@@ -25,6 +25,7 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob, handleFfaMonth } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
+import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
@@ -46,6 +47,8 @@ export default {
     if (pathname === '/api/db' || pathname === '/api/db/rpc') return withSecurityHeaders(await handleDbApi(request, env, pathname))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/ffa-month') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleFfaMonth(request, env)))
+    if (pathname === '/api/speedrun/submit') return withSecurityHeaders(await handleSpeedrunSubmit(request, env, ctx))
+    if (pathname === '/api/speedrun/pending') return withSecurityHeaders(await handleSpeedrunPending(request, env))
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))
@@ -93,6 +96,8 @@ export default {
     if (minute % 30 === 10) ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     if (minute % 30 === 20) ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
     ctx.waitUntil(dispatch(env, 'ranked-feed', 'ranked-feed.yml'))
+    // Speedrun submissions wait for the engine check; the submit call already starts it, this tick catches a missed start.
+    ctx.waitUntil(hasPendingSpeedruns(env).then((pending) => pending && startVerifyWorkflow(env)))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))

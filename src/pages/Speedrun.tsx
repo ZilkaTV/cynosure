@@ -4,7 +4,7 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { Card, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
-import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, type SubmitResult } from '../lib/speedruns'
+import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, fetchPendingSpeedruns, type PendingSpeedrun, type SubmitResult } from '../lib/speedruns'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const WATCH_POLL_MS = 20_000
@@ -26,7 +26,30 @@ export default function Speedrun() {
   const [watchSince, setWatchSince] = useState<number | null>(null)
   const [timedOut, setTimedOut] = useState(false)
   const handled = useRef(new Set<string>())
+  // The member's submissions the server accepted: waiting for the engine check in the cloud, or the outcome of the last ones.
+  const [mine, setMine] = useState<PendingSpeedrun[]>([])
   const profileId = profile?.openfront_id
+  useEffect(() => {
+    if (!profileId) return
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = async () => {
+      const items = (await fetchPendingSpeedruns()).filter((i) => i.openfront_id === profileId)
+      if (!alive) return
+      setMine((prev) => {
+        // A run that just finished changes the board: reload it once.
+        if (prev.some((p) => p.status === 'pending') && items.some((i) => i.status === 'done')) refresh()
+        return items
+      })
+      timer = setTimeout(load, items.some((i) => i.status === 'pending') ? 15_000 : 60_000)
+    }
+    void load()
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId, result])
   const profileName = profile?.in_game_name
 
   useEffect(() => {
@@ -175,6 +198,16 @@ export default function Speedrun() {
                 </a>
               )}
             </div>
+          )}
+          {mine.length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm">
+              {mine.map((m) => (
+                <li key={m.game_id} className={m.status === 'pending' ? 'text-gold-light' : m.status === 'refused' ? 'text-signal-red' : 'text-signal-green'}>
+                  <span className="font-mono text-xs text-slate-400">{m.game_id}</span>{' '}
+                  {m.status === 'pending' ? 'Waiting for the engine check (a few minutes)…' : m.status === 'refused' ? `✗ ${m.message ?? 'Refused.'}` : `✓ ${m.message ?? 'Verified.'}`}
+                </li>
+              ))}
+            </ul>
           )}
           <p className="mt-3 text-xs text-slate-500">{t.speedrun.submitNote}</p>
         </Card>

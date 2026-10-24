@@ -49,13 +49,9 @@ r = await q({ table: 'cyn_speedruns', op: 'upsert', values: { openfront_id: 'AAA
 check('anon cannot write speedrun', r.error?.code === '42501', r)
 
 r = await q({ table: 'cyn_speedruns', op: 'upsert', values: { openfront_id: 'AAAA1111', game_id: 'g', seconds: 300 }, filters: [], order: [] }, A)
-check('member writes own speedrun', !r.error, r)
-r = await q({ table: 'cyn_speedruns', op: 'upsert', values: { openfront_id: 'AAAA1111', game_id: 'g2', seconds: 280 }, filters: [], order: [] }, A)
-check('member updates own speedrun (upsert)', !r.error, r)
-r = await q({ table: 'cyn_speedruns', op: 'upsert', values: { openfront_id: 'BBBB2222', game_id: 'g', seconds: 1 }, filters: [], order: [] }, A)
-check('member cannot write someone elses speedrun', r.error?.code === '42501', r)
+check('member cannot write a speedrun directly (only the verification job does)', r.error?.code === '42501', r)
 r = await q({ table: 'cyn_speedruns', op: 'select', select: '*', filters: [{ col: 'openfront_id', op: 'eq', val: 'AAAA1111' }], order: [], single: 'maybe' })
-check('speedrun readable + updated', r.data?.seconds === 280, r)
+check('speedrun table is readable', !r.error && r.data == null, r)
 
 // members: claim + protection
 r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Bobby', timezone: 'UTC', user_id: 'evil' }, onConflict: 'openfront_id', filters: [], order: [] }, ['d2', 'bob'])

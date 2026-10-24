@@ -4,11 +4,9 @@
 // game from OpenFront, checks every condition, and - if valid and faster than
 // their current best - records the time.
 
-import { fetchGameDetail, fetchLastActionSeconds, SINGLEPLAYER_SPAWN_PHASE_TURNS, type GameDetail } from './openfront'
+import type { GameDetail } from './openfront'
 import { supabase } from './supabase'
 import { CLAN_TAG } from '../config'
-import type { SpeedrunReplayMetrics } from './replaySimCore'
-import { createReplayWorker } from './replaySim'
 
 export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 
@@ -35,7 +33,7 @@ export const SPEEDRUN_RULE = 'Solo game · Map Australia · No Nations'
 // tick 1800 (no offset) gave implausible ~9% for both, while tick 1900
 // (with the offset) landed within about a percentage point of the
 // viewer's own 11.0%/10.7%.
-const TILES_AT_TICK = 3 * 60 * 10 + SINGLEPLAYER_SPAWN_PHASE_TURNS
+// (the 3:00 checkpoint tick is computed by scripts/speedrun-replay-one.mjs, which runs the engine in the cloud)
 
 export interface SpeedrunEntry {
   openfront_id: string
@@ -148,16 +146,6 @@ export function checkSpeedrunConfig(config: Record<string, unknown> | undefined)
   )
 }
 
-async function fetchGameConfig(gameId: string): Promise<Record<string, unknown> | undefined> {
-  try {
-    const res = await fetch(`/api/of/public/game/${encodeURIComponent(gameId)}?turns=false`, { headers: { Accept: 'application/json' } })
-    if (!res.ok) return undefined
-    return ((await res.json()) as { info?: { config?: Record<string, unknown> } }).info?.config
-  } catch {
-    return undefined
-  }
-}
-
 export function replayToolUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
@@ -186,122 +174,49 @@ export interface SubmitResult {
 }
 
 /**
- * Replays the game once, in a fresh instance of the replay Worker (clean JS realm - the engine cannot replay a second game
- * in the same realm, and the replay stays off the main thread). Null on any failure or after 3 minutes.
+ * Sends a game to the server. The server reads the game record from OpenFront itself, checks the rules, that the winner is
+ * this member's own account and that nobody else submitted the game, and queues it; the engine check runs in the cloud
+ * (scripts/verify-speedruns.mjs), which is the only thing that writes the board. Nothing the browser computes is trusted.
  */
-function replaySpeedrun(gameId: string, onProgress?: (fraction: number) => void): Promise<SpeedrunReplayMetrics | null> {
-  return new Promise((resolve) => {
-    let worker: Worker
-    try {
-      worker = createReplayWorker()
-    } catch {
-      resolve(null)
-      return
-    }
-    const done = (value: SpeedrunReplayMetrics | null) => {
-      clearTimeout(timer)
-      worker.terminate()
-      resolve(value)
-    }
-    const timer = setTimeout(() => done(null), 180_000)
-    worker.onmessage = (e: MessageEvent<{ type: string; result?: SpeedrunReplayMetrics | null; tick?: number; totalTicks?: number }>) => {
-      if (e.data.type === 'speedrun-result') done(e.data.result ?? null)
-      else if (e.data.type === 'speedrun-progress' && onProgress && e.data.tick && e.data.totalTicks) onProgress(Math.min(1, e.data.tick / e.data.totalTicks))
-    }
-    worker.onerror = () => done(null)
-    worker.postMessage({ gameId, speedrunTilesAtTick: TILES_AT_TICK })
-  })
-}
-
 export async function submitSpeedrun(
-  openfrontId: string,
+  _openfrontId: string,
   gameLink: string,
-  inGameName: string,
-  onProgress?: (fraction: number) => void,
+  _inGameName: string,
+  _onProgress?: (fraction: number) => void,
 ): Promise<SubmitResult> {
   const gameId = parseGameId(gameLink)
   if (!gameId) return { ok: false, message: 'Please paste a game link or id.' }
-
-  const detail = await fetchGameDetail(gameId)
-  if (!detail) {
-    return {
-      ok: false,
-      message: 'Old version - please use the replay tool link below with the game id to verify manually.',
-      replayUrl: replayToolUrl(gameId),
-    }
+  try {
+    const res = await fetch('/api/speedrun/submit', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameId }),
+    })
+    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string }
+    if (res.status === 401) return { ok: false, message: body.message ?? 'Sign in with Discord to submit a run.' }
+    if (!res.ok && body.ok === undefined) return { ok: false, message: body.message ?? 'The submission failed, try again in a minute.', replayUrl: replayToolUrl(gameId) }
+    return { ok: Boolean(body.ok), message: body.message ?? (body.ok ? 'Run received.' : 'This game does not meet the speedrun rules.') }
+  } catch {
+    return { ok: false, message: 'The submission failed (no connection), try again.' }
   }
+}
 
-  const v = verifySpeedrun(detail, inGameName)
-  if (!v.ok) return { ok: false, message: v.reason ?? 'This game does not meet the speedrun rules.' }
+export interface PendingSpeedrun {
+  openfront_id: string
+  game_id: string
+  at: string
+  status: 'pending' | 'done' | 'refused'
+  message: string | null
+  seconds: number | null
+}
 
-  // Settings check from the record itself (cheats, handicaps, bot count). If the record cannot be read the run is
-  // refused rather than waved through.
-  const configProblem = checkSpeedrunConfig(await fetchGameConfig(gameId))
-  if (configProblem) return { ok: false, message: configProblem }
-
-  // The clock must stop when the match is DECIDED, not when the connection closes or the player
-  // stops clicking: OpenFront's `duration` runs until the connection closes (can be minutes
-  // later), and the turn log keeps going for as long as the player keeps playing after the win
-  // (a real run showed 5:21 in game but 5:34 by "last action"). Best source: replay the game with
-  // the same engine and read the clock at the moment its own win check fired - shown in game as
-  // the truncated seconds, hence floor. Falls back to the last real action (then to the reported
-  // duration) when the game can't be replayed (old engine version, fetch problems).
-  const replay = await replaySpeedrun(gameId, onProgress)
-  const winSeconds = replay?.winSeconds ?? null
-  const actualSeconds = winSeconds ?? (await fetchLastActionSeconds(gameId).catch(() => null)) ?? v.seconds
-  v.seconds = winSeconds != null ? Math.floor(winSeconds) : Math.round(actualSeconds)
-
-  if (!supabase) return { ok: true, message: `Verified (${fmtTime(v.seconds)})! Connect the backend to save times.`, seconds: v.seconds }
-
-  const { data: existing } = await supabase
-    .from('cyn_speedruns')
-    .select('seconds, attempts, tiles3min_percent')
-    .eq('openfront_id', openfrontId)
-    .maybeSingle()
-
-  const row = existing as { seconds: number; attempts: number; tiles3min_percent: number | null } | null
-  const attempts = (row?.attempts ?? 0) + 1
-
-  // Read this submission's own tile share at the 3:00 mark (see
-  // TILES_AT_TICK) regardless of whether it ends up being a new best TIME -
-  // it's tracked as its own best-ever value. A run under 3 minutes never
-  // reaches that mark, so this can legitimately come back null.
-  let tiles3minPercent: number | null = null
-  if (v.clientID) tiles3minPercent = replay?.tilePercentByClientId?.[v.clientID] ?? null
-  const bestTiles3minPercent =
-    tiles3minPercent != null && (row?.tiles3min_percent == null || tiles3minPercent > row.tiles3min_percent)
-      ? tiles3minPercent
-      : (row?.tiles3min_percent ?? null)
-
-  // Every valid run counts as an attempt (and updates submitted_at, so the
-  // "posted a speedrun today" quest sees it), even if it doesn't beat the
-  // best TIME - the tile-share best above is kept either way.
-  if (row != null && row.seconds <= v.seconds) {
-    await supabase
-      .from('cyn_speedruns')
-      .update({ attempts, submitted_at: new Date().toISOString(), tiles3min_percent: bestTiles3minPercent })
-      .eq('openfront_id', openfrontId)
-    return {
-      ok: true,
-      message: `Verified (${fmtTime(v.seconds)}), but your current best (${fmtTime(row.seconds)}) is faster.`,
-      seconds: v.seconds,
-      best: false,
-    }
+/** Submissions waiting for the engine check, and the recent outcomes (refusals carry the reason). */
+export async function fetchPendingSpeedruns(): Promise<PendingSpeedrun[]> {
+  try {
+    const res = await fetch('/api/speedrun/pending')
+    return res.ok ? ((await res.json()) as { items: PendingSpeedrun[] }).items : []
+  } catch {
+    return []
   }
-
-  // verified = the time comes from the engine replay (not the fallback) and every rule passed above: nothing that speeds
-  // a run up can get through, so the leaderboard shows a check mark.
-  const runRow = {
-    openfront_id: openfrontId,
-    game_id: gameId,
-    seconds: v.seconds,
-    attempts,
-    submitted_at: new Date().toISOString(),
-    tiles3min_percent: bestTiles3minPercent,
-  }
-  let { error } = await supabase.from('cyn_speedruns').upsert({ ...runRow, verified: winSeconds != null }, { onConflict: 'openfront_id' })
-  if (error && error.code === '42703') ({ error } = await supabase.from('cyn_speedruns').upsert(runRow, { onConflict: 'openfront_id' }))
-  if (error) return { ok: false, message: `Verified, but saving failed: ${error.message}` }
-
-  return { ok: true, message: `New best time: ${fmtTime(v.seconds)}!`, seconds: v.seconds, best: true }
 }

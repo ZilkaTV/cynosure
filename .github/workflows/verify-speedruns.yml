@@ -1,0 +1,35 @@
+name: Verify speedruns
+
+# Replays the speedrun submissions the Worker accepted (blob "speedrun-pending") with the vendored engine and is the only
+# writer of cyn_speedruns - see scripts/verify-speedruns.mjs. Started by the Worker right after a submission
+# (repository_dispatch) and by its 10-minute tick while something is still waiting.
+on:
+  repository_dispatch:
+    types: [verify-speedruns]
+  workflow_dispatch: {}
+
+concurrency:
+  group: verify-speedruns
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Verify the pending submissions
+        env:
+          HOT_API_SECRET: ${{ secrets.HOT_API_SECRET }}
+        run: node scripts/verify-speedruns.mjs

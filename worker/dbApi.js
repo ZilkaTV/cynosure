@@ -60,7 +60,8 @@ const RULES = {
     insert: async (row, c) => (c.user ? row : false),
     update: (c) => (c.user ? { sql: '(user_id IS NULL OR user_id = ?)', args: [c.user.id] } : false),
   },
-  cyn_speedruns: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
+  // Written only by the verification job (service access): see worker/speedrun.js.
+  cyn_speedruns: { read: PUBLIC },
   cyn_bumps: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_xp: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_quest_claims: { read: PUBLIC, insert: insertOwn('openfront_id') },

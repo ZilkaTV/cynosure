@@ -543,6 +543,8 @@ export interface GameDetail {
   // (not just [CYN]'s) own Win Score/Loss Score for this specific game,
   // straight from this cached detail with no extra fetch.
   numTeams: number | null
+  /** Ranked ladder of the game ('1v1', '2v2', 'ffa', 'clanwars' or 'unranked'); missing in reports cached before it was kept. */
+  rankedType?: string | null
   start: number
   players: GamePlayerStat[]
 }
@@ -669,7 +671,7 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
       // deriveNumTeams's own comment. Can come through as either a number or
       // a string depending on which, so normalized to a string below before
       // parsing either way.
-      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number }
+      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number; rankedType?: string }
       players?: GamePlayerStat[]
     }
   } | null
@@ -687,6 +689,7 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
         numTurns: info.num_turns ?? 0,
         winnerClientIds: parseWinnerClientIds(info.winner),
         numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, info.players?.length ?? null),
+        rankedType: info.config?.rankedType ?? null,
         start: info.start ?? 0,
         players: info.players ?? [],
       }
@@ -857,4 +860,13 @@ export function fmtTeamRoster(names: string[], maxNames = 6): string {
   names = names.map(cleanDisplayName)
   if (names.length <= maxNames) return names.join(', ')
   return `${names.slice(0, maxNames - 1).join(', ')} +${names.length - (maxNames - 1)}`
+}
+
+/**
+ * Team games that OpenFront does not count as clan sessions: ranked 2v2 and clan wars. For reports cached before the
+ * ranked type was kept, a 4-player game with two teams is taken for a 2v2.
+ */
+export function isUnscoredTeamGame(d: Pick<GameDetail, 'rankedType' | 'numTeams' | 'players'>): boolean {
+  if (d.rankedType) return d.rankedType === '2v2' || d.rankedType === 'clanwars'
+  return d.numTeams === 2 && d.players.length === 4
 }

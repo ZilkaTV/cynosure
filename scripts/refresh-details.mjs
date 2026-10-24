@@ -379,6 +379,7 @@ async function fetchGameDetail(gameId) {
     numTurns: info.num_turns ?? 0,
     winnerClientIds: parseWinnerClientIds(info.winner),
     numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, players.length || null),
+    rankedType: info.config?.rankedType ?? null,
     start: info.start ?? 0,
     players,
   }

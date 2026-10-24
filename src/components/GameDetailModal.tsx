@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchGameDetail, type GameDetail, type GamePlayerStat } from '../lib/openfront'
+import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
@@ -185,7 +185,9 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const winnerClientIds = new Set(detail?.winnerClientIds ?? [])
   const winners = (detail?.players ?? []).filter((p) => winnerClientIds.has(p.clientID))
   const winnerDisplay = describeWinner(winners)
-  const otherClanScores = detail ? otherClanScoresForGame(detail, CLAN_TAG) : []
+  // Ranked 2v2 and clan wars are not clan sessions at OpenFront: no Win Score / Loss Score for them.
+  const unscored = detail ? isUnscoredTeamGame(detail) : false
+  const otherClanScores = detail && !unscored ? otherClanScoresForGame(detail, CLAN_TAG) : []
 
   const rows: Row[] = (detail?.players ?? [])
     .map((p) => {
@@ -301,7 +303,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               <Tile label={t.gameDetail.tileMap} value={detail.map} />
             </div>
 
-            {clanScore && (
+            {clanScore && !unscored && (
               <div
                 className={`mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 rounded-lg border px-4 py-2.5 text-sm ${
                   clanScore.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'

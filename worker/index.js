@@ -25,7 +25,7 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob, handleFfaMonth } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
-import { isDev, devGate, handleDevLogin } from './devSite.js'
+import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
@@ -40,6 +40,8 @@ export default {
       if (stop) return stop
       if (pathname === '/api/auth/dev-login') return handleDevLogin(request, env)
       if (!pathname.startsWith('/api/')) {
+        const auto = devAutoLogin(request, env)
+        if (auto) return auto
         const asset = await env.ASSETS.fetch(request)
         const out = new Response(asset.body, asset)
         out.headers.set('X-Robots-Tag', 'noindex, nofollow')

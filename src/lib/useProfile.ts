@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getLocalProfile, saveLocalProfile, saveProfile, fetchByDiscord, PROFILE_EVENT, type Profile } from './profiles'
+import { getLocalProfile, saveLocalProfile, saveProfile, fetchByDiscord, fetchByOpenfrontId, PROFILE_EVENT, type Profile } from './profiles'
 import { useSession, discordDisplayName, discordUserId } from './useSession'
 
 /**
@@ -38,6 +38,23 @@ export function useProfile() {
       window.removeEventListener(PROFILE_EVENT, refresh)
     }
   }, [refresh])
+
+  // Dev copy of the site (dev.*): the Worker signs the visitor in as a member and leaves their id in a cookie; the profile of that
+  // member is restored from it, so the member-only pages open without any Discord sign-in.
+  useEffect(() => {
+    if (profile || !/^dev\./.test(window.location.hostname)) return
+    const id = document.cookie.match(/(?:^|;\s*)cyn_dev_member=([A-Za-z0-9_-]+)/)?.[1]
+    if (!id) return
+    let alive = true
+    fetchByOpenfrontId(id).then((p) => {
+      if (!alive || !p) return
+      saveLocalProfile(p)
+      setProfile(p)
+    })
+    return () => {
+      alive = false
+    }
+  }, [profile])
 
   useEffect(() => {
     if (!session) return

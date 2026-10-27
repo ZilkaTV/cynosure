@@ -39,6 +39,7 @@ function importFile(db, file) {
 
 // ── 1. user tables ──────────────────────────────────────────────────────────
 console.log('[1/3] user tables')
+if (!process.env.DEV_SYNC_SKIP_USERS) {
 const usersSql = path.join(TMP, 'users-export.sql')
 wrangler(['d1', 'export', PROD_USERS, '--remote', '--no-schema', '--output', usersSql])
 const tables = query(DEV_USERS, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").map((r) => r.name)
@@ -51,11 +52,12 @@ const usersOut = path.join(TMP, 'users-import.sql')
 fs.writeFileSync(usersOut, keep.map((t) => `DELETE FROM ${t};`).join('\n') + '\n' + lines.join('\n') + '\n')
 console.log(`  ${lines.length} rows of ${keep.length} tables`)
 importFile(DEV_USERS, usersOut)
+}
 
 // ── 2. member game lists, cached documents and game reports ────────────────
 // D1 takes SQL statements up to 100 KB, but a member's game list is megabytes: such a row is written as a short INSERT plus
 // UPDATE ... SET col = col || '<next part>' statements, and read back in parts of 800 KB (one query result is cut near 1.5 MB).
-const PART = 60_000
+const PART = 20_000 // characters; quotes double and some characters take 3 bytes, the statement has to stay below 100 KB
 const READ_PART = 800_000
 
 function bigText(db, table, idCol, id, col, len) {

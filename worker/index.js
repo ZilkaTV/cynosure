@@ -25,6 +25,7 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob, handleFfaMonth } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
+import { isDev, devGate, handleDevLogin } from './devSite.js'
 import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
@@ -32,6 +33,19 @@ const GITHUB_REPO = 'ZilkaTV/cynosure'
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url)
+
+    // Dev copy of the site: password first, then a test sign-in; every page (not only /api) goes through this Worker there.
+    if (isDev(env)) {
+      const stop = await devGate(request, env)
+      if (stop) return stop
+      if (pathname === '/api/auth/dev-login') return handleDevLogin(request, env)
+      if (!pathname.startsWith('/api/')) {
+        const asset = await env.ASSETS.fetch(request)
+        const out = new Response(asset.body, asset)
+        out.headers.set('X-Robots-Tag', 'noindex, nofollow')
+        return out
+      }
+    }
 
     if (pathname.startsWith('/api/internal/users/')) return withSecurityHeaders(await handleUsersApi(request, env, pathname))
     if (pathname.startsWith('/api/internal/hot/')) return withSecurityHeaders(await handleHotApi(request, env, pathname))
@@ -138,6 +152,7 @@ async function isWorkflowBusy(env, workflowFile) {
 }
 
 async function dispatch(env, eventType, workflowFile) {
+  if (isDev(env)) return // the dev site never starts the real workflows
   if (await isWorkflowBusy(env, workflowFile)) {
     console.log(`Skipping dispatch (${eventType}): ${workflowFile} already queued or running`)
     return

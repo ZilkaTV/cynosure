@@ -79,7 +79,7 @@ export async function hasPendingSpeedruns(env) {
 }
 
 export async function startVerifyWorkflow(env) {
-  if (!env.GITHUB_PAT) return
+  if (!env.GITHUB_PAT || env.SITE_ENV === 'dev') return
   await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.GITHUB_PAT}`, Accept: 'application/vnd.github+json', 'User-Agent': 'cynosure-speedrun' },

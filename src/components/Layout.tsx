@@ -226,6 +226,8 @@ function AccountMenu() {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
+  // The dev copy of the site (dev.cynclan.com / cynosure-dev.*.workers.dev) shows an orange bar and a test sign-in.
+  const isDevSite = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
   const { t } = useLanguage()
   const { profile } = useProfile()
   useGameNightReminder()
@@ -273,6 +275,16 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      {isDevSite && (
+        <form method="get" action="/api/auth/dev-login" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-3 py-1.5 text-xs font-bold text-black">
+          <span>DEV · Testversion mit Testdaten - nicht die echte Seite</span>
+          <span className="flex items-center gap-1 font-medium">
+            Test-Login als OpenFront-ID
+            <input name="member" required placeholder="z. B. QgZjJT7u" className="w-28 rounded border border-black/30 bg-white/80 px-1.5 py-0.5 text-xs font-normal text-black placeholder:text-black/40" />
+            <button type="submit" className="rounded bg-black px-2 py-0.5 text-xs text-amber-400">Anmelden</button>
+          </span>
+        </form>
+      )}
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
         <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">

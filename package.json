@@ -9,6 +9,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "deploy:dev": "npm run build && wrangler deploy --env dev",
+    "sync:dev": "node scripts/sync-dev-data.mjs",
     "lint": "eslint ."
   },
   "dependencies": {

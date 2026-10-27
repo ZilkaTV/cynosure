@@ -35,3 +35,9 @@ The real site is only deployed from `master` (`npx wrangler deploy` without `--e
 - Private tables (help chat, survey answers, visit log) are not copied.
 - Features that need the cloud (speedrun check in `verify-speedruns.yml`) run against the real databases; try them on the real site or point
   a copy of the workflow at the dev Worker.
+
+## Mind the daily write limit
+The free D1 plan allows 100,000 rows written per day for the **whole account** (real and dev databases together; a row with indexes counts
+several times). A full copy into the dev databases used the day up once, and the real site could not write until midnight UTC.
+`npm run sync:dev` therefore copies the light set by default (no queue history, snapshots, tile stats, ledger); `DEV_SYNC_FULL=1` copies
+everything - run that only in the morning (UTC) after checking the day's write count.

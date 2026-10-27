@@ -3,7 +3,7 @@
 // It only READS the real databases (wrangler d1 export / SELECT) and only WRITES the dev databases. Uses your wrangler login,
 // no secrets. Run it whenever the dev data should be refreshed:   npm run sync:dev
 //
-// Copied: all user tables except the private ones (help chat, survey answers, visit log), the member game lists, the small
+// Copied: all user tables except the private ones (help chat, survey answers, visit log) and, unless DEV_SYNC_FULL=1, the big ones, the member game lists, the small
 // cached documents (roster, ranked boards, ledger, monthly FFA standings) and the game reports of the newest games
 // (reports above 400 KB are skipped).
 import { execSync } from 'node:child_process'
@@ -20,8 +20,13 @@ const PROD_USERS = 'cynosure'
 const PROD_HOT = 'cynosure-hot'
 const DEV_USERS = 'cynosure-dev'
 const DEV_HOT = 'cynosure-hot-dev'
-const PRIVATE_TABLES = new Set(['cyn_help_conversations', 'cyn_help_messages', 'cyn_help_rate_limit', 'cyn_survey_responses', 'cyn_site_visits'])
+const PRIVATE_TABLES = new Set(['cyn_help_conversations', 'cyn_help_messages', 'cyn_help_rate_limit', 'cyn_survey_responses', 'cyn_site_visits', 'auth_users'])
 const DETAIL_COUNT = Number(process.env.DEV_SYNC_DETAILS || 600)
+// D1's free plan allows 100,000 rows written per day for the WHOLE account (all databases, the real site included), and a row with
+// indexes counts several times: the first full copy used up the day and the real site could not write until midnight UTC.
+// So the light copy (default) skips the big tables; DEV_SYNC_FULL=1 copies everything - only when the day still has room.
+const HEAVY_TABLES = ['cyn_ranked_matches', 'cyn_member_snapshots', 'cyn_game_tile_stats', 'cyn_clan_score_ledger']
+if (!process.env.DEV_SYNC_FULL) for (const t of HEAVY_TABLES) PRIVATE_TABLES.add(t)
 
 // wrangler comes through npx; every argument is quoted for the shell (the SQL has spaces and single quotes, never double quotes).
 const wrangler = (args) =>
@@ -109,4 +114,7 @@ for (let i = 0; i < ids.length; i += BATCH) {
 }
 console.log(`\n  ${count} reports`)
 importFile(DEV_HOT, detailOut)
+// The dev site can be open to everybody: no account ids of the members in the copy (the test sign-in hands out stand-in ids).
+console.log('  removing account links from the copied members')
+wrangler(['d1', 'execute', DEV_USERS, '--remote', '--command', 'UPDATE cyn_members SET user_id = NULL, discord_user_id = NULL'])
 console.log('\nDone. The dev site now has a copy of the real data (as of now).')

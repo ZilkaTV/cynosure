@@ -21,6 +21,8 @@ async function same(a, b) {
  */
 export async function devGate(request, env) {
   const { pathname } = new URL(request.url)
+  // DEV_OPEN=1 (a plain variable in wrangler.jsonc) takes the password away: the dev site is then open to everybody with the link.
+  if (env.DEV_OPEN === '1') return null
   if (pathname.startsWith('/api/internal/')) return null
   if (!env.DEV_PASSWORD) return new Response('Dev site locked: set the DEV_PASSWORD secret (wrangler secret put DEV_PASSWORD --env dev).', { status: 503, headers: { 'X-Robots-Tag': 'noindex' } })
   const header = request.headers.get('Authorization') ?? ''

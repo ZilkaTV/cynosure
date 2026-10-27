@@ -121,7 +121,7 @@
   "env": {
     "dev": {
       "name": "cynosure-dev",
-      "vars": { "USE_D1": "1", "SITE_ENV": "dev" },
+      "vars": { "USE_D1": "1", "SITE_ENV": "dev", "DEV_OPEN": "1" },
       "routes": [{ "pattern": "dev.cynclan.com", "custom_domain": true }],
       "workers_dev": true,
       "triggers": { "crons": [] },

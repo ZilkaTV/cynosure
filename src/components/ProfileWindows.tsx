@@ -1,8 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ClanCarousel, type CarouselSlide } from './ClanCarousel'
+import TrendChart from './TrendChart'
+import { EloDelta } from './ui'
+import { Row, games, useBreakdown, type Tally } from './GameBreakdown'
 import { Tile, compact } from './OpenFrontStats'
 import { fetchLifetimeStats, type LifetimeStats } from '../lib/playerStats'
-import type { MemberStats } from '../lib/stats'
+import type { Bucket, MemberStats } from '../lib/stats'
+import type { SnapshotPoint } from '../lib/trends'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -18,6 +22,7 @@ const stat = (label: string, value: ReactNode, cls: string, sub?: string) => (
 export function CareerWindow({ m }: { m: MemberStats }) {
   const { t, language } = useLanguage()
   const de = language === 'de'
+  const breakdown = useBreakdown(m.cynGames)
   const slides: CarouselSlide[] = [
     {
       key: 'elo',
@@ -52,8 +57,99 @@ export function CareerWindow({ m }: { m: MemberStats }) {
         </div>
       ),
     },
+    {
+      key: 'categories',
+      title: de ? 'Kategorien' : 'Categories',
+      node: (
+        <div className="space-y-2.5">
+          <p className="text-center text-[11px] text-slate-400">{t.memberProfile.breakdownTotal(breakdown.total)}</p>
+          {(
+            [
+              [t.memberProfile.catFfa, breakdown.cats.ffa],
+              [t.memberProfile.catTeam, breakdown.cats.team],
+              [t.memberProfile.cat1v1, breakdown.cats.one],
+              [t.memberProfile.cat2v2, breakdown.cats.two],
+            ] as [string, Tally][]
+          ).map(([label, tally]) => (
+            <Row key={label} compact label={`${label} (${games(tally)})`} tally={tally} />
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'teams',
+      title: de ? 'Teamanzahl' : 'Team count',
+      node:
+        breakdown.byTeams.length === 0 ? (
+          <p className="text-center text-sm text-slate-500">{t.memberProfile.byTeamsEmpty}</p>
+        ) : (
+          <div className="max-h-52 space-y-2.5 overflow-y-auto pr-1">
+            {breakdown.byTeams.map(([n, tally]) => (
+              <Row key={n} compact label={`${t.memberProfile.teamsLabel(n)} (${games(tally)})`} tally={tally} />
+            ))}
+          </div>
+        ),
+    },
   ]
-  return <ClanCarousel slides={slides} heading={t.memberProfile.careerTitle(CLAN_TAG)} />
+  return (
+    <div className="space-y-2">
+      <ClanCarousel slides={slides} heading={t.memberProfile.careerTitle(CLAN_TAG)} />
+      {m.elo == null && <p className="text-center text-[11px] text-slate-500">{t.memberProfile.noEloNote}</p>}
+      {!m.claimed && <p className="text-center text-[11px] text-slate-400">{t.memberProfile.unregisteredNote}</p>}
+    </div>
+  )
+}
+
+/** "This month" window (under the career window): points / Elo change and wins-losses of the month, one mode per slide. */
+export function MonthWindow({
+  m,
+  heading,
+  ffa,
+  team,
+  one,
+  twoVTwo,
+}: {
+  m: MemberStats
+  heading: string
+  ffa: Bucket
+  team: Bucket
+  one: { wins: number; losses: number }
+  twoVTwo: { wins: number; losses: number }
+}) {
+  const { t } = useLanguage()
+  const slide = (key: string, title: string, big: ReactNode, cls: string, w: number, l: number): CarouselSlide => ({
+    key,
+    title,
+    node: (
+      <div className="text-center">
+        <p className={`font-display text-3xl font-bold ${cls}`}>{big}</p>
+        <p className="mt-1 text-xs text-slate-500">{t.common.winsLosses(w, l)}</p>
+      </div>
+    ),
+  })
+  const slides = [
+    slide('ffa', t.monthly.titleFfa, t.common.pts(ffa.points), 'text-accent-light', ffa.wins, ffa.losses),
+    slide('team', t.monthly.titleTeam, t.common.pts(team.points), 'text-accent-light', team.wins, team.losses),
+    slide('1v1', t.home.col1v1, <EloDelta delta={m.eloMonthDelta} />, 'text-gold-light', one.wins, one.losses),
+    slide('2v2', t.home.col2v2, <EloDelta delta={m.eloMonthDelta2v2} />, 'text-gold-light', twoVTwo.wins, twoVTwo.losses),
+  ]
+  return <ClanCarousel slides={slides} heading={heading} />
+}
+
+/** "History / trends" window (under the lifetime window): the Elo and wins curves, one per slide. */
+export function TrendsWindow({ trend }: { trend: SnapshotPoint[] }) {
+  const { t } = useLanguage()
+  const chart = (key: string, title: string, pick: (p: SnapshotPoint) => number | null, color: string): CarouselSlide => ({
+    key,
+    title,
+    node: <TrendChart points={trend.map((p) => ({ date: p.date, value: pick(p) }))} color={color} emptyLabel={t.memberProfile.trendEmpty} />,
+  })
+  const slides = [
+    chart('elo', t.memberProfile.trendEloLabel, (p) => p.elo, '#eab308'),
+    chart('wins', t.memberProfile.trendWinsLabel, (p) => p.allWins, '#8b5cf6'),
+    chart('elo2v2', t.memberProfile.trendElo2v2Label, (p) => p.elo2v2, '#38bdf8'),
+  ]
+  return <ClanCarousel slides={slides} heading={t.memberProfile.trendsTitle} />
 }
 
 function lifetimeSlides(s: LifetimeStats, t: ReturnType<typeof useLanguage>['t']): CarouselSlide[] {

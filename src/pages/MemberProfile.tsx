@@ -5,9 +5,7 @@ import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
-import GameBreakdown from '../components/GameBreakdown'
-import { CareerWindow, LifetimeWindow } from '../components/ProfileWindows'
-import TrendChart from '../components/TrendChart'
+import { CareerWindow, LifetimeWindow, MonthWindow, TrendsWindow } from '../components/ProfileWindows'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { BadgeBoard } from '../components/Badges'
@@ -15,7 +13,7 @@ import { computeBadges } from '../lib/badges'
 import { Flag } from '../components/Emoji'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
-import { Card, EloDelta, SectionHeading, Spinner } from '../components/ui'
+import { SectionHeading, Spinner } from '../components/ui'
 import {
   currentMonthKey,
   ffaBucket,
@@ -165,11 +163,13 @@ export default function MemberProfile() {
 
   return (
     <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[280px_minmax(0,1fr)_280px] 2xl:gap-8">
-      <aside className="order-1 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">
+      <aside className="order-1 space-y-4 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">
         <CareerWindow m={m} />
+        <MonthWindow m={m} heading={`${t.memberProfile.thisMonthTitle} · ${monthLabel(mk)}`} ffa={ffa} team={team} one={one} twoVTwo={twoVTwo} />
       </aside>
-      <aside className="order-2 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">
+      <aside className="order-2 space-y-4 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">
         <LifetimeWindow publicId={m.publicId} />
+        <TrendsWindow trend={trend} />
       </aside>
     <div className="order-3 mx-auto w-full min-w-0 max-w-4xl space-y-10 md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <Link to="/" className="inline-block text-sm text-slate-400 hover:text-accent-light">{t.memberProfile.backToRoster}</Link>
@@ -240,79 +240,8 @@ export default function MemberProfile() {
       </div>
 
       <section>
-        <SectionHeading center eyebrow={t.memberProfile.lifetimeEyebrow} title={t.memberProfile.careerTitle(CLAN_TAG)} />
-        <div className="mt-4">
-          <GameBreakdown games={m.cynGames} />
-        </div>
-        {m.elo == null && (
-          <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
-        )}
-        {!m.claimed && <p className="mt-2 text-center text-xs text-slate-400">{t.memberProfile.unregisteredNote}</p>}
-      </section>
-
-      <section>
         <SectionHeading center eyebrow={t.memberProfile.achievementsEyebrow} title={t.memberProfile.badgesTitle} />
         <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} />
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={monthLabel(mk)} title={t.memberProfile.thisMonthTitle} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.monthly.titleFfa}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-accent-light">{t.common.pts(ffa.points)}</p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(ffa.wins, ffa.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.monthly.titleTeam}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-accent-light">{t.common.pts(team.points)}</p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(team.wins, team.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.home.col1v1}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-gold-light">
-              <EloDelta delta={m.eloMonthDelta} />
-            </p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(one.wins, one.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.home.col2v2}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-gold-light">
-              <EloDelta delta={m.eloMonthDelta2v2} />
-            </p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(twoVTwo.wins, twoVTwo.losses)}</p>
-          </Card>
-        </div>
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={t.memberProfile.trendsEyebrow} title={t.memberProfile.trendsTitle} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendEloLabel}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.elo }))}
-              color="#eab308"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendWinsLabel}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.allWins }))}
-              color="#8b5cf6"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendElo2v2Label}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.elo2v2 }))}
-              color="#38bdf8"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-        </div>
       </section>
 
       <section>

@@ -132,10 +132,11 @@ export default function Speedrun() {
         </div>
       </section>
 
-      <section className="space-y-4">
+      <div className="mx-auto grid w-full max-w-4xl items-start gap-6 md:grid-cols-2">
+      <section className="space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.startTitle} />
-        <Card className="space-y-3 text-center">
-          <div className="flex flex-wrap justify-center gap-3">
+        <Card className="space-y-3 !p-4 text-center">
+          <div className="flex flex-wrap justify-center gap-2">
             <a href={OPENFRONT_SOLO_URL} target="_blank" rel="noreferrer" onClick={startWatching} className="btn-accent">
               {t.speedrun.startBrowser}
             </a>
@@ -163,10 +164,10 @@ export default function Speedrun() {
         </Card>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowSubmit} title={t.speedrun.postYourRun} />
-        <Card>
-          <form className="flex flex-col gap-3 sm:flex-row" onSubmit={onSubmit}>
+        <Card className="!p-4">
+          <form className="flex flex-col gap-2" onSubmit={onSubmit}>
             <input
               value={link}
               onChange={(e) => setLink(e.target.value)}
@@ -212,13 +213,7 @@ export default function Speedrun() {
           <p className="mt-3 text-xs text-slate-500">{t.speedrun.submitNote}</p>
         </Card>
       </section>
-
-      <section>
-        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{t.speedrun.fairnessLabel}</p>
-          <p className="text-xs text-slate-400">{t.speedrun.fairnessText}</p>
-        </div>
-      </section>
+      </div>
 
       <TagNotice />
 
@@ -295,6 +290,13 @@ export default function Speedrun() {
             </div>
           </div>
         )}
+      </section>
+
+      <section>
+        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{t.speedrun.fairnessLabel}</p>
+          <p className="text-xs text-slate-400">{t.speedrun.fairnessText}</p>
+        </div>
       </section>
     </StatsShell>
   )

@@ -6,7 +6,7 @@ import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShel
 import GameDetailModal from '../components/GameDetailModal'
 import { ReactionCell } from '../components/ReactionCell'
 import { useReactions } from '../lib/useReactions'
-import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
+import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner, StatCard } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
@@ -29,7 +29,7 @@ import {
   type MemberStats,
 } from '../lib/stats'
 import { fetchMonthlyEloForAllMembers, type MonthlyEloPoint } from '../lib/trends'
-import { fetchClanScoreLedger, type ClanScoreRow } from '../lib/clanScore'
+import { fetchClanLeaderboardEntry, fetchClanScoreLedger, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
 
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -322,6 +322,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoredGameIds.join(',')])
 
+  // OpenFront's own "CLANS" leaderboard entry (rolling 90-day window, 30-day half-life decay, refreshed by refresh-details.mjs) - the
+  // one set of numbers meant to match the in-game clan leaderboard exactly. Shown on the Team page.
+  const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  useEffect(() => {
+    if (variant === 'team') fetchClanLeaderboardEntry().then(setClanLeaderboard)
+  }, [variant])
+
   // How many [CYN] members played each scored game this month: the game's Win Score is shared between them.
   const cynPlayersByGame = useMemo(() => {
     const counts = new Map<string, number>()
@@ -565,6 +572,17 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   fmt={(n) => n.toFixed(2)}
                 />
               </div>
+              {clanLeaderboard && (
+                <div className="space-y-3">
+                  <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <StatCard label="Games" value={clanLeaderboard.games} accent="plain" />
+                    <StatCard label="Win Score" value={clanLeaderboard.weightedWins.toFixed(1)} accent="gold" />
+                    <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
+                    <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
+                  </div>
+                </div>
+              )}
               <Card className="text-center">
                 <p className="text-xs font-semibold uppercase tracking-widest text-gold">CYN Win Score · {monthLabel(month)}</p>
                 <p className={`mt-1 font-display text-3xl font-bold ${clanWinScoreTotal < 0 ? 'text-signal-red' : 'text-accent-light'}`}>{clanWinScoreTotal.toFixed(2)}</p>

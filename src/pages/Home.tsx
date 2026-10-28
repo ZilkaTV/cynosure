@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -11,16 +11,15 @@ import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import { BumpCard } from '../components/BumpButton'
 import { QuestCard } from '../components/QuestCard'
+import { ClanCarousel, type CarouselSlide } from '../components/ClanCarousel'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
-import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
-  fetchClanLeaderboardEntry,
   fetchClanScoreLedger,
   fmtScoreDelta,
   fmtRatioChange,
   isClanScoreEligible,
-  type ClanLeaderboardEntry,
   type ClanScoreRow,
 } from '../lib/clanScore'
 import { computeClanStreak } from '../lib/streak'
@@ -207,18 +206,9 @@ export default function Home() {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
-  const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
   const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
-
-  // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
-  // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
-  // - deliberately the one stat on this page meant to match that in-game
-  // number exactly, not the per-game history shown elsewhere on the site.
-  useEffect(() => {
-    fetchClanLeaderboardEntry().then(setClanLeaderboard)
-  }, [])
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
@@ -332,8 +322,71 @@ export default function Home() {
   const totals = data?.totals
   const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
+  // Most improved this week: nobody without a CYN game in the last 30 days (a catch-up of old games is no real improvement).
+  const visibleMostImproved = mostImproved.filter((mi) => {
+    const member = data?.members.find((m) => m.publicId === mi.openfrontId)
+    return member && member.gamesLast30d > 0
+  })
+  const mini = (label: string, value: ReactNode, cls: string) => (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`font-display text-xl font-bold ${cls}`}>{value}</p>
+    </div>
+  )
+  const slides: CarouselSlide[] = [
+    {
+      key: 'totals',
+      title: 'Clan',
+      node: (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {mini(t.home.statMembers, totals ? totals.members : '…', 'text-white')}
+          {mini(t.home.statTopElo, totals?.topElo ?? '…', 'text-gold-light')}
+          {mini(t.home.stat1v1Wins, totals ? totals.rankedWins : '…', 'text-accent-light')}
+          {mini(t.home.stat2v2Wins, totals ? totals.twoVTwoWins : '…', 'text-accent-light')}
+          {mini(t.home.statTeamWins, totals ? totals.teamWins : '…', 'text-accent-light')}
+          {mini(t.home.statAllWins, totals ? totals.allWins : '…', 'text-gold-light')}
+        </div>
+      ),
+    },
+    {
+      key: 'week',
+      title: t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount),
+      node: <p className="font-display text-4xl font-bold text-gold-light">{weeklyGameCount}</p>,
+    },
+    {
+      key: 'streak',
+      title: t.home.streakTitle,
+      node: (
+        <>
+          <p className="font-display text-3xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}</p>
+          <p className="mt-1 text-xs text-slate-500">{streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}</p>
+        </>
+      ),
+    },
+    {
+      key: 'improved',
+      title: t.home.mostImprovedTitle,
+      node:
+        visibleMostImproved.length === 0 ? (
+          <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
+        ) : (
+          <ul className="space-y-1">
+            {visibleMostImproved.map((mi) => {
+              const member = data?.members.find((m) => m.publicId === mi.openfrontId)
+              return (
+                <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
+                  <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
+                  <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        ),
+    },
+  ]
+
   return (
-    <StatsShell>
+    <StatsShell sidebarExtra={<ClanCarousel slides={slides} />}>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
         {data?.oldestGame && (
@@ -345,72 +398,7 @@ export default function Home() {
             {t.home.countingSinceSuffix}
           </p>
         )}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label={t.home.statMembers} value={totals ? totals.members : '…'} accent="plain" />
-          <StatCard label={t.home.statTopElo} value={totals?.topElo ?? '…'} accent="gold" />
-          <StatCard label={t.home.stat1v1Wins} value={totals ? totals.rankedWins : '…'} accent="purple" />
-          <StatCard label={t.home.stat2v2Wins} value={totals ? totals.twoVTwoWins : '…'} accent="purple" />
-          <StatCard label={t.home.statTeamWins} value={totals ? totals.teamWins : '…'} accent="purple" />
-          <StatCard className="col-span-2 sm:col-span-1" label={t.home.statAllWins} value={totals ? totals.allWins : '…'} accent="gold" />
-        </div>
       </section>
-
-      <section>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatCard label={t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount)} value={weeklyGameCount} accent="gold" />
-          <StatCard
-            label={t.home.streakTitle}
-            value={streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}
-            sub={streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}
-            accent="purple"
-          />
-          <div className="panel px-5 py-4">
-            <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.home.mostImprovedTitle}</p>
-            {(() => {
-              // Excludes anyone with no CYN game in the last 30 days - a
-              // member who left the clan a while ago can still show a
-              // snapshot delta this week purely from the cron backfilling
-              // older CYN-tagged games it hadn't fetched yet (a data
-              // catch-up, not a real "improved this week"), and the same
-              // filter also naturally excludes someone who's simply gone
-              // quiet without having formally left. Doesn't touch the main
-              // roster table - that one intentionally keeps every
-              // ever-registered member, past or present.
-              const visibleMostImproved = mostImproved.filter((mi) => {
-                const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-                return member && member.gamesLast30d > 0
-              })
-              return visibleMostImproved.length === 0 ? (
-                <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
-              ) : (
-                <ul className="space-y-0.5">
-                  {visibleMostImproved.map((mi) => {
-                    const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-                    return (
-                      <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
-                        <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
-                        <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )
-            })()}
-          </div>
-        </div>
-      </section>
-
-      {clanLeaderboard && (
-        <section>
-          <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Games" value={clanLeaderboard.games} accent="plain" />
-            <StatCard label="Win Score" value={clanLeaderboard.weightedWins.toFixed(1)} accent="gold" />
-            <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
-            <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
-          </div>
-        </section>
-      )}
 
       <TagNotice />
 

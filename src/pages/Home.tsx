@@ -278,15 +278,6 @@ export default function Home() {
     <StatsShell>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
-        {data?.oldestGame && (
-          <p className="mb-4 -mt-3 text-center text-xs text-slate-500">
-            {t.home.countingSincePrefix(CLAN_TAG)}{' '}
-            <span className="text-slate-300">
-              {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>{' '}
-            {t.home.countingSinceSuffix}
-          </p>
-        )}
       </section>
 
       <TagNotice />
@@ -365,6 +356,16 @@ export default function Home() {
             </div>
           </div>
         </section>
+      )}
+
+      {data?.oldestGame && (
+        <p className="-mt-6 text-center text-xs text-slate-500">
+          {t.home.countingSincePrefix(CLAN_TAG)}{' '}
+          <span className="text-slate-300">
+            {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>{' '}
+          {t.home.countingSinceSuffix}
+        </p>
       )}
 
       <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />

@@ -12,7 +12,8 @@ import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
-import { useAccess, type Access } from '../lib/access'
+import { useAccess, useSharedRoster, type Access } from '../lib/access'
+import { xpProgress } from '../lib/levels'
 import { AccessExpired } from './AccessExpired'
 import type { TranslationShape } from '../i18n/translations'
 
@@ -179,6 +180,10 @@ function AccountMenu() {
   const isAdmin = useIsAdmin()
   const access = useAccess()
   const label = accessLabel(access, language)
+  // Level and XP bar above the name (from the quest XP of the signed-in member).
+  const roster = useSharedRoster()
+  const xp = roster?.members.find((m) => m.publicId === profile?.openfront_id)?.xp
+  const lvl = xp == null ? null : xpProgress(xp)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -208,9 +213,20 @@ function AccountMenu() {
       >
         <GearIcon />
         <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
+          {lvl && (
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gold-light">
+              {t.questCard.lvlPrefix} {lvl.level}
+              {lvl.next != null && (
+                <span className="h-1 w-10 overflow-hidden rounded-full bg-base-700">
+                  <span className="block h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.min(100, (lvl.into / lvl.span) * 100)}%` }} />
+                </span>
+              )}
+            </span>
+          )}
           <span className="max-w-[8rem] truncate">{profile.in_game_name}</span>
           {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
         </span>
+        {lvl && <span className="text-[10px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level}</span>}
         {label && <span className={`text-[10px] font-semibold sm:hidden ${label.cls}`}>{label.text}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
       </button>

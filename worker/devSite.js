@@ -46,7 +46,7 @@ export async function handleDevLogin(request, env) {
   const url = new URL(request.url)
   const openfrontId = url.searchParams.get('member') ?? ''
   if (!/^[A-Za-z0-9_-]{4,16}$/.test(openfrontId)) return new Response('Use /api/auth/dev-login?member=<OpenFront id>', { status: 400 })
-  const member = await env.DB.prepare('SELECT openfront_id, in_game_name, user_id, discord_username FROM cyn_members WHERE openfront_id = ?').bind(openfrontId).first()
+  const member = await env.DB.prepare('SELECT openfront_id, in_game_name, user_id, discord_username, timezone, nationality FROM cyn_members WHERE openfront_id = ?').bind(openfrontId).first()
   if (!member) return new Response('No member with this OpenFront id in the dev database.', { status: 404 })
   const accountId = member.user_id || `dev-${member.openfront_id}`
   // Giving the member a stand-in account id is a convenience for member-only writes; reading the site works without it, so a
@@ -59,6 +59,9 @@ export async function handleDevLogin(request, env) {
   const headers = new Headers({ Location: target, 'Cache-Control': 'no-store' })
   headers.append('Set-Cookie', sessionCookie(token))
   headers.append('Set-Cookie', `cyn_dev_member=${member.openfront_id}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`)
+  // The member's profile itself, so the page opens the member-only pages at once without asking the database first.
+  const profile = { openfront_id: member.openfront_id, in_game_name: member.in_game_name, timezone: member.timezone || 'UTC', discord_username: member.discord_username || undefined, nationality: member.nationality || undefined }
+  headers.append('Set-Cookie', `cyn_dev_profile=${encodeURIComponent(JSON.stringify(profile))}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`)
   return new Response(null, { status: 302, headers })
 }
 
@@ -66,7 +69,7 @@ export async function handleDevLogin(request, env) {
 export function devAutoLogin(request, env) {
   if (request.method !== 'GET' || !(request.headers.get('Accept') ?? '').includes('text/html')) return null
   const cookies = request.headers.get('Cookie') ?? ''
-  if (cookies.includes('cyn_session=') || cookies.includes('cyn_dev_member=')) return null
+  if (cookies.includes('cyn_dev_profile=')) return null
   const url = new URL(request.url)
   if (url.searchParams.has('_dl')) return null // came back from the sign-in without a cookie: do not loop
   const back = new URL(url.pathname + url.search, url.origin)

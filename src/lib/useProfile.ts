@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getLocalProfile, saveLocalProfile, saveProfile, fetchByDiscord, fetchByOpenfrontId, PROFILE_EVENT, type Profile } from './profiles'
+import { getLocalProfile, saveLocalProfile, saveProfile, fetchByDiscord, PROFILE_EVENT, type Profile } from './profiles'
 import { useSession, discordDisplayName, discordUserId } from './useSession'
+
+/**
+ * Dev copy of the site only: its Worker signs every visitor in as a member and leaves that member's profile in a cookie, so the
+ * member-only pages open without any Discord sign-in. The real site never sets this cookie.
+ */
+function devCookieProfile(): Profile | null {
+  const raw = document.cookie.match(/(?:^|;\s*)cyn_dev_profile=([^;]+)/)?.[1]
+  if (!raw) return null
+  try {
+    const p = JSON.parse(decodeURIComponent(raw)) as Profile
+    if (!p?.openfront_id) return null
+    saveLocalProfile(p)
+    return p
+  } catch {
+    return null
+  }
+}
 
 /**
  * Current visitor's registration, if any. Drives the stats gate.
@@ -24,7 +41,7 @@ import { useSession, discordDisplayName, discordUserId } from './useSession'
  * currently-signed-in session on every other page.
  */
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(() => getLocalProfile())
+  const [profile, setProfile] = useState<Profile | null>(() => getLocalProfile() ?? devCookieProfile())
   const session = useSession()
 
   const refresh = useCallback(() => setProfile(getLocalProfile()), [])
@@ -38,23 +55,6 @@ export function useProfile() {
       window.removeEventListener(PROFILE_EVENT, refresh)
     }
   }, [refresh])
-
-  // Dev copy of the site (dev.*): the Worker signs the visitor in as a member and leaves their id in a cookie; the profile of that
-  // member is restored from it, so the member-only pages open without any Discord sign-in.
-  useEffect(() => {
-    if (profile || !/^dev\./.test(window.location.hostname)) return
-    const id = document.cookie.match(/(?:^|;\s*)cyn_dev_member=([A-Za-z0-9_-]+)/)?.[1]
-    if (!id) return
-    let alive = true
-    fetchByOpenfrontId(id).then((p) => {
-      if (!alive || !p) return
-      saveLocalProfile(p)
-      setProfile(p)
-    })
-    return () => {
-      alive = false
-    }
-  }, [profile])
 
   useEffect(() => {
     if (!session) return

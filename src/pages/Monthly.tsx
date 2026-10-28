@@ -14,7 +14,7 @@ import type { PlayerGame } from '../lib/openfront'
 import {
   availableMonths,
   currentMonthKey,
-  ffaBucket,
+  ffaMonthly,
   isFfa,
   isTeam,
   is1v1,
@@ -56,7 +56,8 @@ function latestModeGames(members: MemberStats[], month: string, isMode: (g: Play
     .slice(0, LATEST_GAMES_COUNT)
 }
 
-type Variant = 'ffa' | 'team' | '1v1' | '2v2'
+// 'ffa' and 'team' are the monthly game tables; '1v1', '2v2' and 'rffa' are the ranked (Elo) boards.
+type Variant = 'ffa' | 'team' | '1v1' | '2v2' | 'rffa'
 
 function fmtGold(n: number | null): string {
   if (n == null) return '-'
@@ -229,7 +230,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // Stored standing of the chosen month in OpenFront's FFA ranking (rank, Elo, peak, first Elo of the month).
   const [ffaMonth, setFfaMonth] = useState<Record<string, { rank: number | null; elo: number; peak: number; first: number }> | null>(null)
   useEffect(() => {
-    if (variant !== 'ffa') return
+    if (variant !== 'rffa') return
     let alive = true
     setFfaMonth(null)
     fetch(`/api/ffa-month?month=${month}`)
@@ -352,13 +353,22 @@ export default function Monthly({ variant }: { variant: Variant }) {
   }
 
   const title =
-    variant === 'ffa' ? t.monthly.titleFfa : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? t.monthly.title1v1 : t.monthly.title2v2
+    variant === 'ffa'
+      ? t.monthly.titleFfa
+      : variant === 'rffa'
+        ? 'FFA Ranked'
+        : variant === 'team'
+          ? t.monthly.titleTeam
+          : variant === '1v1'
+            ? t.monthly.title1v1
+            : t.monthly.title2v2
+  const isRanked = variant === '1v1' || variant === '2v2' || variant === 'rffa'
   const rules = rulesFor(variant, t)
 
   return (
     <StatsShell>
       <section className="space-y-4">
-        <SectionHeading center eyebrow={`${t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
+        <SectionHeading center eyebrow={`${isRanked ? 'Ranked' : t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
 
         <div className="flex items-center justify-center gap-2 text-sm">
           <label className="text-slate-400">{t.monthly.monthLabel}</label>
@@ -391,13 +401,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {loading && <Spinner label={t.common.loadingLiveData} />}
         {error && !data && <Card className="text-center text-sm text-signal-red">{t.monthly.loadError(error)}</Card>}
 
-        {data && variant === 'ffa' && (() => {
+        {data && variant === 'rffa' && (() => {
           // Ranking-based for every month: rank and Elo come from the FFA board standing stored for that month.
           const standing = ffaMonth ?? {}
           const rows = members
             .map((m) => {
               const e = standing[m.publicId]
-              return { m, rank: e?.rank ?? null, elo: e?.elo ?? null, peak: e?.peak ?? null, delta: e ? e.elo - e.first : null, rk: rankedFfaBucket(m.cynGames, month), mo: ffaBucket(m.cynGames, month) }
+              return { m, rank: e?.rank ?? null, elo: e?.elo ?? null, peak: e?.peak ?? null, delta: e ? e.elo - e.first : null, rk: rankedFfaBucket(m.cynGames, month) }
             })
             .filter((x) => x.elo != null)
             .sort((a, b) => {
@@ -405,7 +415,6 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'peak') return compareNullable(a.peak, b.peak, sortDir)
               if (sortKey === 'delta') return compareNullable(a.delta, b.delta, sortDir)
               if (sortKey === 'ranked') return compareNullable(a.rk.wins, b.rk.wins, sortDir)
-              if (sortKey === 'monthly') return compareNullable(a.mo.wins, b.mo.wins, sortDir)
               // Default: by the board rank (players who dropped off the board after the ones on it), then by Elo.
               return (a.rank ?? 1e9) - (b.rank ?? 1e9) || (b.elo ?? 0) - (a.elo ?? 0)
             })
@@ -419,7 +428,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[600px] text-sm">
+                  <table className="sticky-cols w-full min-w-[520px] text-sm">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -427,19 +436,17 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <SortTh label="FFA Elo" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.home.colPeak} sortKey="peak" active={sortKey === 'peak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colEloDelta} sortKey="delta" active={sortKey === 'delta'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label="Monthly W/L" sortKey="monthly" active={sortKey === 'monthly'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Ranked W/L" sortKey="ranked" active={sortKey === 'ranked'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, rank, elo, peak, delta, rk, mo }, i) => (
+                      {rows.map(({ m, rank, elo, peak, delta, rk }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{elo}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{peak}</td>
                           <td className={`px-3 py-3 text-right tabular-nums ${delta == null || delta === 0 ? 'text-slate-500' : delta > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{delta == null ? '-' : delta > 0 ? `+${delta}` : delta}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{mo.wins + mo.losses > 0 ? `${mo.wins}/${mo.losses}` : <span className="text-slate-600">-</span>}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{rk.wins + rk.losses > 0 ? `${rk.wins}/${rk.losses}` : <span className="text-slate-600">-</span>}</td>
                         </tr>
                       ))}
@@ -448,6 +455,53 @@ export default function Monthly({ variant }: { variant: Variant }) {
                 </div>
               </div>
             </>
+          )
+        })()}
+
+        {data && variant === 'ffa' && (() => {
+          const rows = members
+            .map((m) => ({ m, r: ffaMonthly(m, month) }))
+            .filter((x) => x.r.wins + x.r.losses > 0)
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
+              if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
+              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
+              return b.r.points - a.r.points || b.r.wins - a.r.wins
+            })
+          if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
+          return (
+            <div className="panel overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="sticky-cols w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                      <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <SortTh label="Points" sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label="Streak" sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(({ m, r }, i) => (
+                      <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                        <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                        <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                        <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{r.points}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )
         })()}
 
@@ -631,12 +685,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
         <LatestGamesSection
           eyebrow={t.monthly.eyebrowPrefix}
           title={t.monthly.latestModeGamesTitle(
-            variant === 'ffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? '1v1' : '2v2',
+            variant === 'ffa' || variant === 'rffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? '1v1' : '2v2',
           )}
           games={latestModeGames(
             members,
             month,
-            variant === 'ffa' ? isFfa : variant === 'team' ? isTeam : variant === '1v1' ? is1v1 : is2v2,
+            variant === 'ffa' || variant === 'rffa' ? isFfa : variant === 'team' ? isTeam : variant === '1v1' ? is1v1 : is2v2,
           )}
           onOpenGame={setOpenGame}
           t={t}

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import { Spinner } from './components/ui'
@@ -58,8 +58,11 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/monthly/ffa" element={<Monthly variant="ffa" />} />
             <Route path="/monthly/team" element={<Monthly variant="team" />} />
-            <Route path="/monthly/1v1" element={<Monthly variant="1v1" />} />
-            <Route path="/monthly/2v2" element={<Monthly variant="2v2" />} />
+            <Route path="/ranked/1v1" element={<Monthly variant="1v1" />} />
+            <Route path="/ranked/2v2" element={<Monthly variant="2v2" />} />
+            <Route path="/ranked/ffa" element={<Monthly variant="rffa" />} />
+            <Route path="/monthly/1v1" element={<Navigate to="/ranked/1v1" replace />} />
+            <Route path="/monthly/2v2" element={<Navigate to="/ranked/2v2" replace />} />
             <Route path="/member/:id" element={<MemberProfile />} />
             <Route path="/speedrun" element={<Speedrun />} />
             <Route path="/events" element={<Events />} />

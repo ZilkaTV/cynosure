@@ -20,13 +20,18 @@ import type { TranslationShape } from '../i18n/translations'
  * small screens (overflow-x-auto), which would clip an absolutely positioned
  * panel.
  */
-function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: string; items: { to: string; label: string }[] }) {
+type NavChild = { to: string; label: string; group?: string }
+
+function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: string; items: NavChild[] }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ left: 0, top: 0 })
   const wrapRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const { pathname } = useLocation()
   const active = items.some((i) => pathname === i.to || pathname.startsWith(i.to + '/'))
+  // Items with a group name are shown as one column per group (Monthly | Ranked).
+  const groups = [...new Set(items.map((i) => i.group).filter((g): g is string => !!g))]
+  const grouped = groups.length > 0
 
   useEffect(() => setOpen(false), [pathname])
 
@@ -54,7 +59,7 @@ function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: 
   const toggle = () => {
     if (!open && buttonRef.current) {
       const r = buttonRef.current.getBoundingClientRect()
-      setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 184)), top: r.bottom + 4 })
+      setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - (grouped ? 328 : 184))), top: r.bottom + 4 })
     }
     setOpen((o) => !o)
   }
@@ -76,12 +81,29 @@ function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: 
         </span>
       </button>
       {open && (
-        <div role="menu" style={{ position: 'fixed', left: pos.left, top: pos.top }} className="z-50 w-44 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
-          {items.map((i) => (
-            <Link key={i.to} to={i.to} role="menuitem" className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {i.label}
-            </Link>
-          ))}
+        <div
+          role="menu"
+          style={{ position: 'fixed', left: pos.left, top: pos.top }}
+          className={`z-50 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl ${grouped ? 'grid w-80 grid-cols-2 divide-x divide-base-700' : 'w-44'}`}
+        >
+          {grouped
+            ? groups.map((g) => (
+                <div key={g}>
+                  <p className="border-b border-base-700 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-gold">{g}</p>
+                  {items
+                    .filter((i) => i.group === g)
+                    .map((i) => (
+                      <Link key={i.to} to={i.to} role="menuitem" className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+                        {i.label}
+                      </Link>
+                    ))}
+                </div>
+              ))
+            : items.map((i) => (
+                <Link key={i.to} to={i.to} role="menuitem" className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+                  {i.label}
+                </Link>
+              ))}
         </div>
       )}
     </span>
@@ -90,17 +112,18 @@ function NavDropdown({ label, shortLabel, items }: { label: string; shortLabel: 
 
 function navItems(t: TranslationShape) {
   return [
-    { to: '/', label: t.nav.overview, shortLabel: t.nav.shortOverview, end: true, children: undefined as { to: string; label: string }[] | undefined },
+    { to: '/', label: t.nav.overview, shortLabel: t.nav.shortOverview, end: true, children: undefined as NavChild[] | undefined },
     {
       to: '/monthly',
       label: t.nav.monthly,
       shortLabel: t.nav.shortMonthly,
       children: [
-        { to: '/monthly/ffa', label: t.nav.monthlyFfa },
-        { to: '/monthly/team', label: t.nav.monthlyTeam },
-        { to: '/monthly/1v1', label: t.nav.monthly1v1 },
-        { to: '/monthly/2v2', label: t.nav.monthly2v2 },
-      ],
+        { to: '/monthly/ffa', label: 'FFA', group: t.nav.monthly },
+        { to: '/monthly/team', label: t.monthly.titleTeam, group: t.nav.monthly },
+        { to: '/ranked/1v1', label: '1v1', group: 'Ranked' },
+        { to: '/ranked/2v2', label: '2v2', group: 'Ranked' },
+        { to: '/ranked/ffa', label: 'FFA', group: 'Ranked' },
+      ] as NavChild[],
     },
     { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
     { to: '/queue', label: t.nav.queue, shortLabel: t.nav.shortQueue },

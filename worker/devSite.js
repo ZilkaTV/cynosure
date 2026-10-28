@@ -62,6 +62,7 @@ export async function handleDevLogin(request, env) {
   // The member's profile itself, so the page opens the member-only pages at once without asking the database first.
   const profile = { openfront_id: member.openfront_id, in_game_name: member.in_game_name, timezone: member.timezone || 'UTC', discord_username: member.discord_username || undefined, nationality: member.nationality || undefined }
   headers.append('Set-Cookie', `cyn_dev_profile=${encodeURIComponent(JSON.stringify(profile))}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`)
+  headers.append('Set-Cookie', 'cyn_dev_try=1; Max-Age=60; Path=/; Secure; SameSite=Lax')
   return new Response(null, { status: 302, headers })
 }
 
@@ -70,10 +71,9 @@ export function devAutoLogin(request, env) {
   if (request.method !== 'GET' || !(request.headers.get('Accept') ?? '').includes('text/html')) return null
   const cookies = request.headers.get('Cookie') ?? ''
   if (cookies.includes('cyn_dev_profile=')) return null
+  // The sign-in leaves a one-minute cookie: coming back with it but without the profile cookie means the browser refuses cookies - do not loop.
+  if (cookies.includes('cyn_dev_try=')) return null
   const url = new URL(request.url)
-  if (url.searchParams.has('_dl')) return null // came back from the sign-in without a cookie: do not loop
-  const back = new URL(url.pathname + url.search, url.origin)
-  back.searchParams.set('_dl', '1')
   const member = env.DEV_DEFAULT_MEMBER || 'qNZMiEyR'
-  return Response.redirect(`${url.origin}/api/auth/dev-login?member=${encodeURIComponent(member)}&to=${encodeURIComponent(back.pathname + back.search)}`, 302)
+  return Response.redirect(`${url.origin}/api/auth/dev-login?member=${encodeURIComponent(member)}&to=${encodeURIComponent(url.pathname + url.search)}`, 302)
 }

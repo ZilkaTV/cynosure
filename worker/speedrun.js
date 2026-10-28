@@ -12,6 +12,7 @@
 //   3. scripts/verify-speedruns.mjs replays the game with the vendored engine, reads the win time and the land share
 //      at 3:00 and is the ONLY writer of cyn_speedruns (service access). A row on the board is therefore always verified.
 import { readSession } from './session.js'
+import { checkGameSpeed } from './speedCheck.mjs'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
@@ -46,7 +47,8 @@ export function checkSpeedrunRecord(info) {
     bad(c.customAllianceDuration !== undefined || c.doomsdayClock !== undefined || c.overtime !== undefined, 'No extra game modifiers are allowed.') ??
     bad(!winnerId, 'The game has no recorded winner - it was not completed.') ??
     bad(!(info.duration > 0), 'No duration recorded for this game.') ??
-    bad(!players.some((p) => p.clientID === winnerId), 'The winner is not in the player list of the record.')
+    bad(!players.some((p) => p.clientID === winnerId), 'The winner is not in the player list of the record.') ??
+    checkGameSpeed(info)
   )
 }
 

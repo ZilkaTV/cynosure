@@ -13,6 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { hotEnabled, hotGetBlob, hotPutBlob } from './lib/hotstore.mjs'
 import { usersDb } from './lib/usersdb.mjs'
+import { checkGameSpeed } from '../worker/speedCheck.mjs'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -62,6 +63,9 @@ async function handle(item) {
     if (item.tries >= 3) refuse(out?.error === 'no_commit' ? 'This game was played on an engine version we cannot replay yet.' : 'The replay could not be checked (no winner found in the game log).')
     return
   }
+  // The engine's exact win time against the real time of the record: a run played in fast-forward is refused.
+  const speedProblem = checkGameSpeed(info, out.winSeconds)
+  if (speedProblem) return void refuse(speedProblem)
   const seconds = Math.floor(out.winSeconds)
   const tiles = out.tilePercentByClientId?.[winner.clientID] ?? null
 

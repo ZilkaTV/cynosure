@@ -276,7 +276,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       {isDevSite && (
-        <div className="bg-amber-500 px-3 py-1.5 text-center text-xs font-bold text-black">DEV website</div>
+        <div className="sticky top-0 z-[100] bg-amber-500 px-3 py-1.5 text-center text-xs font-bold text-black">DEV website</div>
       )}
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}

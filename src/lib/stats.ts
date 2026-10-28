@@ -4,7 +4,6 @@
 // under no tag / another tag are never included.
 
 import {
-  fetchFfaLeaderboard,
   fetchGameDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
@@ -65,7 +64,7 @@ export interface MemberStats {
   eloMonthDelta2v2: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   rank2v2: number | null // global 2v2 ladder position (top 100), for star badges
-  ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
+  ffaRank: number | null // position on OpenFront's ranked FFA ladder (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   speedrunAttempts: number // how many valid runs this member has submitted
   speedrunVerified: boolean // the engine replay verified the best run
@@ -342,9 +341,8 @@ export async function buildRoster(
   supporters: string[] = [],
 ): Promise<RosterResult> {
   const registeredWithId = registered.filter((r) => r.openfront_id)
-  const [{ oneVOne: ranked, twoVTwo: ranked2v2, ffa: rankedFfa }, ffaLb, gamesById] = await Promise.all([
+  const [{ oneVOne: ranked, twoVTwo: ranked2v2, ffa: rankedFfa }, gamesById] = await Promise.all([
     fetchRankedMap(),
-    fetchFfaLeaderboard(),
     fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
   ])
 
@@ -472,11 +470,7 @@ export async function buildRoster(
       eloMonthDelta2v2: eloMonthDelta(input.openfront_id, elo2v2, '2v2'),
       rank1v1: r?.rank ?? null,
       rank2v2: r2?.rank ?? null,
-      ffaRank:
-        ffaLb[input.in_game_name?.trim() ?? ''] ??
-        (r?.username ? ffaLb[r.username] : undefined) ??
-        (games[0]?.username ? ffaLb[games[0].username] : undefined) ??
-        null,
+      ffaRank: rFfa?.rank ?? null,
       speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
       speedrunAttempts: speedruns[input.openfront_id]?.attempts ?? 0,
       speedrunVerified: speedruns[input.openfront_id]?.verified ?? false,

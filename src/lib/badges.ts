@@ -180,7 +180,6 @@ function computeLeaders(all: MemberStats[], mk: string) {
   const team = (x: MemberStats) => teamMonthly(x, mk, {})
   return {
     mostWins: leader(all, (x) => x.allWins),
-    mostTwoVTwoWins: leader(all, (x) => x.twoVTwoWins),
     predator: leader(all, (x) => ffa(x).avgKills ?? 0),
     pro: leader(all, (x) => ffa(x).winstreak),
     grinder: leader(all, (x) => ffa(x).points),
@@ -203,7 +202,7 @@ function getLeaders(all: MemberStats[]): Leaders {
 export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape): Badge[] {
   const b = t.badges
 
-  const { mostWins, mostTwoVTwoWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
+  const { mostWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
 
   const starTier = tierFromRank(m.rank1v1)
   const star2v2Tier = tierFromRank(m.rank2v2)
@@ -234,15 +233,6 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: mostWins ? b.mostWins.descWithLeader(mostWins.name, mostWins.v) : b.mostWins.descNoLeader,
     },
     {
-      id: 'mostTwoVTwoWins',
-      name: b.mostTwoVTwoWins.name,
-      kind: 'icon',
-      icon: 'handshake',
-      earned: mostTwoVTwoWins?.id === m.publicId,
-      group: 'rank',
-      desc: mostTwoVTwoWins ? b.mostTwoVTwoWins.descWithLeader(mostTwoVTwoWins.name, mostTwoVTwoWins.v) : b.mostTwoVTwoWins.descNoLeader,
-    },
-    {
       id: 'fastest',
       name: b.fastest.name,
       kind: 'icon',
@@ -263,7 +253,6 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: winsTier ? b.wins.earnedDesc(m.allWins) : b.wins.notEarnedDesc(nextWinsThreshold(m.allWins) ?? 50),
     },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
-    { id: 'chatter', name: b.chatter.name, kind: 'icon', icon: 'chatBubble', earned: m.chatMessageCount >= 100, group: 'milestone', desc: b.chatter.desc },
     { id: 'supporter', name: b.supporter.name, kind: 'icon', icon: 'heart', earned: m.isSupporter, group: 'milestone', desc: b.supporter.desc },
     // ── monthly (losable) ──
     {

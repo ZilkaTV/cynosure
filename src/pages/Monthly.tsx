@@ -29,6 +29,7 @@ import {
   type MemberStats,
 } from '../lib/stats'
 import { fetchMonthlyEloForAllMembers, type MonthlyEloPoint } from '../lib/trends'
+import { cynPlayersByGame as cynPlayersByGameOf, memberWinScore } from '../lib/winScore'
 import { fetchClanLeaderboardEntry, fetchClanScoreLedger, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
 
 function fmtDuration(s: number): string {
@@ -330,20 +331,11 @@ export default function Monthly({ variant }: { variant: Variant }) {
   }, [variant])
 
   // How many [CYN] members played each scored game this month: the game's Win Score is shared between them.
-  const cynPlayersByGame = useMemo(() => {
-    const counts = new Map<string, number>()
-    if (!isScoredMode) return counts
-    for (const m of data?.members ?? []) {
-      const seen = new Set<string>()
-      for (const g of m.cynGames) {
-        if (!isScoredMode(g) || g.type === 'Private' || monthKeyOf(g.start) !== month || seen.has(g.gameId)) continue
-        seen.add(g.gameId)
-        counts.set(g.gameId, (counts.get(g.gameId) ?? 0) + 1)
-      }
-    }
-    return counts
+  const cynPlayersByGame = useMemo(
+    () => (isScoredMode ? cynPlayersByGameOf(data?.members ?? [], month, isScoredMode) : new Map<string, number>()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant, month, data])
+    [variant, month, data],
+  )
 
   if (!profile) return <RegistrationGate />
 
@@ -371,20 +363,8 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // negative real score still outranks it. A game missing from the ledger
   // (not clan-score-eligible, or the cron hasn't reached it yet) simply
   // contributes 0 to the sum either way.
-  const winScoreFor = (m: MemberStats): number | null => {
-    if (!isScoredMode) return null
-    let total = 0
-    let played = false
-    for (const g of m.cynGames) {
-      if (!isScoredMode(g) || g.type === 'Private' || monthKeyOf(g.start) !== month) continue
-      if (g.result !== 'victory' && g.result !== 'defeat') continue
-      played = true
-      const row = scoredLedger.get(g.gameId)
-      // The game's score is shared: with two [CYN] players in it each gets half, so the members' sums add up to what the clan made.
-      if (row) total += (row.won ? row.score : -row.score) / (cynPlayersByGame.get(g.gameId) || 1)
-    }
-    return played ? Math.round(total * 100) / 100 : null
-  }
+  // The game's score is shared: with two [CYN] players in it each gets half, so the members' sums add up to what the clan made.
+  const winScoreFor = (m: MemberStats): number | null => (isScoredMode ? memberWinScore(m, month, isScoredMode, scoredLedger, cynPlayersByGame) : null)
 
   // What the clan made in total this month: every scored game counted once.
   const clanWinScoreTotal = (() => {

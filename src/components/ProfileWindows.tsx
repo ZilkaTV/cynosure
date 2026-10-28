@@ -106,6 +106,7 @@ export function MonthWindow({
   heading,
   ffa,
   team,
+  teamWinScore,
   one,
   twoVTwo,
 }: {
@@ -113,6 +114,8 @@ export function MonthWindow({
   heading: string
   ffa: Bucket
   team: Bucket
+  /** Clan Win Score of the member's team games this month (null = none played). */
+  teamWinScore: number | null
   one: { wins: number; losses: number }
   twoVTwo: { wins: number; losses: number }
 }) {
@@ -129,7 +132,17 @@ export function MonthWindow({
   })
   const slides = [
     slide('ffa', t.monthly.titleFfa, t.common.pts(ffa.points), 'text-accent-light', ffa.wins, ffa.losses),
-    slide('team', t.monthly.titleTeam, t.common.pts(team.points), 'text-accent-light', team.wins, team.losses),
+    slide(
+      'team',
+      t.monthly.titleTeam,
+      <>
+        {teamWinScore == null ? '-' : teamWinScore.toFixed(2)}
+        <span className="ml-1.5 text-sm font-normal text-slate-400">Win Score</span>
+      </>,
+      teamWinScore != null && teamWinScore < 0 ? 'text-signal-red' : 'text-accent-light',
+      team.wins,
+      team.losses,
+    ),
     slide('1v1', t.home.col1v1, <EloDelta delta={m.eloMonthDelta} />, 'text-gold-light', one.wins, one.losses),
     slide('2v2', t.home.col2v2, <EloDelta delta={m.eloMonthDelta2v2} />, 'text-gold-light', twoVTwo.wins, twoVTwo.losses),
   ]

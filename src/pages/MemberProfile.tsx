@@ -8,6 +8,7 @@ import ProfileStatsOverview from '../components/ProfileStatsOverview'
 import { CareerWindow, LifetimeWindow, MonthWindow, TrendsWindow } from '../components/ProfileWindows'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
+import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { Flag } from '../components/Emoji'
@@ -56,9 +57,20 @@ export default function MemberProfile() {
   const [supporterMsg, setSupporterMsg] = useState<string | null>(null)
   const [trend, setTrend] = useState<SnapshotPoint[]>([])
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
-
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
+  // Clan Win Score of this member's team games of the month (the "this month" window shows it instead of points).
+  const [teamLedger, setTeamLedger] = useState<Map<string, ClanScoreRow>>(new Map())
+  const teamIds = m ? scoredGameIdsOf(m, currentMonthKey(), isTeam) : []
+  useEffect(() => {
+    if (teamIds.length === 0) {
+      setTeamLedger(new Map())
+      return
+    }
+    fetchClanScoreLedger(teamIds).then(setTeamLedger)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds.join(',')])
+
   const recentGameIds = (m?.cynGames ?? [])
     .filter((g) => g.type !== 'Private' && !isIncompleteRanked(g))
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
@@ -149,6 +161,7 @@ export default function MemberProfile() {
   const team = teamBucket(m.cynGames, mk, coop)
   const one = oneVoneBucket(m.cynGames, mk)
   const twoVTwo = twoVTwoBucket(m.cynGames, mk)
+  const teamWinScore = memberWinScore(m, mk, isTeam, teamLedger, cynPlayersByGame(data?.members ?? [], mk, isTeam))
 
   const recent = [...m.cynGames]
     .filter((g) => g.type !== 'Private')
@@ -165,7 +178,7 @@ export default function MemberProfile() {
     <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[280px_minmax(0,1fr)_280px] 2xl:gap-8">
       <aside className="order-1 space-y-4 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">
         <CareerWindow m={m} />
-        <MonthWindow m={m} heading={`${t.memberProfile.thisMonthTitle} · ${monthLabel(mk)}`} ffa={ffa} team={team} one={one} twoVTwo={twoVTwo} />
+        <MonthWindow m={m} heading={`${t.memberProfile.thisMonthTitle} · ${monthLabel(mk)}`} ffa={ffa} team={team} teamWinScore={teamWinScore} one={one} twoVTwo={twoVTwo} />
       </aside>
       <aside className="order-2 space-y-4 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">
         <LifetimeWindow publicId={m.publicId} />

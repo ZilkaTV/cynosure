@@ -6,7 +6,7 @@ import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
 import GameBreakdown from '../components/GameBreakdown'
-import OpenFrontStats from '../components/OpenFrontStats'
+import { CareerWindow, LifetimeWindow } from '../components/ProfileWindows'
 import TrendChart from '../components/TrendChart'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
@@ -15,7 +15,7 @@ import { computeBadges } from '../lib/badges'
 import { Flag } from '../components/Emoji'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
-import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { Card, EloDelta, SectionHeading, Spinner } from '../components/ui'
 import {
   currentMonthKey,
   ffaBucket,
@@ -164,7 +164,14 @@ export default function MemberProfile() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-10">
+    <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[280px_minmax(0,1fr)_280px] 2xl:gap-8">
+      <aside className="order-1 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">
+        <CareerWindow m={m} />
+      </aside>
+      <aside className="order-2 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">
+        <LifetimeWindow publicId={m.publicId} />
+      </aside>
+    <div className="order-3 mx-auto w-full min-w-0 max-w-4xl space-y-10 md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <Link to="/" className="inline-block text-sm text-slate-400 hover:text-accent-light">{t.memberProfile.backToRoster}</Link>
 
       <div className="text-center">
@@ -234,17 +241,6 @@ export default function MemberProfile() {
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.lifetimeEyebrow} title={t.memberProfile.careerTitle(CLAN_TAG)} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-          <StatCard label={t.memberProfile.stat1v1Elo} value={m.elo ?? '-'} accent="gold" sub={m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined} />
-          <StatCard label={t.memberProfile.stat2v2Elo} value={m.elo2v2 ?? '-'} accent="gold" sub={m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined} />
-          <StatCard label={t.memberProfile.statFfaWins} value={m.ffaWins} accent="purple" />
-          <StatCard label={t.memberProfile.statTeamWins} value={m.teamWins} accent="purple" />
-          <StatCard label={t.memberProfile.stat1v1Wins} value={m.rankedWins} accent="purple" />
-          <StatCard label={t.memberProfile.stat2v2Wins} value={m.twoVTwoWins} accent="purple" />
-          <StatCard label={t.memberProfile.statAllWins} value={m.allWins} accent="gold" />
-          <StatCard label={t.memberProfile.statGames30d} value={m.gamesLast30d} accent="plain" />
-          <StatCard label={t.memberProfile.statGamesTotal} value={m.clanGamesTotal} accent="plain" />
-        </div>
         <div className="mt-4">
           <GameBreakdown games={m.cynGames} />
         </div>
@@ -252,11 +248,6 @@ export default function MemberProfile() {
           <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
         )}
         {!m.claimed && <p className="mt-2 text-center text-xs text-slate-400">{t.memberProfile.unregisteredNote}</p>}
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={t.memberProfile.ofStatsEyebrow} title={t.memberProfile.ofStatsTitle} />
-        <OpenFrontStats publicId={m.publicId} />
       </section>
 
       <section>
@@ -406,6 +397,7 @@ export default function MemberProfile() {
       </section>
 
       <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
+    </div>
     </div>
   )
 }

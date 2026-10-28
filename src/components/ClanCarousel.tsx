@@ -10,7 +10,7 @@ export interface CarouselSlide {
  * A small window in the sidebar that shows one slide at a time: arrows to the left and right, and a row of dots below
  * (one per slide, the current one marked in colour).
  */
-export function ClanCarousel({ slides }: { slides: CarouselSlide[] }) {
+export function ClanCarousel({ slides, heading }: { slides: CarouselSlide[]; heading?: string }) {
   const [index, setIndex] = useState(0)
   if (slides.length === 0) return null
   const current = Math.min(index, slides.length - 1)
@@ -19,6 +19,7 @@ export function ClanCarousel({ slides }: { slides: CarouselSlide[] }) {
 
   return (
     <div className="panel mt-4 overflow-hidden" aria-roledescription="carousel">
+      {heading && <p className="border-b border-base-700 px-4 py-2 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">{heading}</p>}
       <div className="flex items-center justify-between border-b border-base-700 px-2 py-2">
         <button type="button" onClick={() => go(current - 1)} aria-label="Previous" className="rounded-md px-2.5 py-1 text-lg leading-none text-slate-300 hover:bg-base-800 hover:text-white">
           ‹

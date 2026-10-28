@@ -28,8 +28,8 @@ export function ClanCarousel({ slides }: { slides: CarouselSlide[] }) {
           ›
         </button>
       </div>
-      <div className="min-h-[7.5rem] px-4 py-4" role="group" aria-label={`${current + 1} / ${slides.length}`}>
-        {slide.node}
+      <div className="flex min-h-[9rem] items-center justify-center px-4 py-4" role="group" aria-label={`${current + 1} / ${slides.length}`}>
+        <div className="w-full">{slide.node}</div>
       </div>
       <div className="flex items-center justify-center gap-2 border-t border-base-700 px-3 py-2.5">
         {slides.map((s, i) => (

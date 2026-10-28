@@ -203,7 +203,7 @@ function fmtDuration(s: number): string {
 
 export default function Home() {
   const { profile } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
@@ -349,18 +349,21 @@ export default function Home() {
       ),
     },
     {
-      key: 'week',
-      title: t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount),
-      node: <p className="font-display text-4xl font-bold text-gold-light">{weeklyGameCount}</p>,
-    },
-    {
-      key: 'streak',
-      title: t.home.streakTitle,
+      key: 'pulse',
+      title: language === 'de' ? 'Aktivität' : 'Activity',
       node: (
-        <>
-          <p className="font-display text-3xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}</p>
-          <p className="mt-1 text-xs text-slate-500">{streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}</p>
-        </>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div>
+            <p className="font-display text-4xl font-bold text-gold-light">{weeklyGameCount}</p>
+            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-slate-400">{t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount).replace(/^d+s*/, '')}</p>
+          </div>
+          <div className="h-px w-16 bg-base-600" />
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">{t.home.streakTitle}</p>
+            <p className="font-display text-2xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}</p>
+          </div>
+        </div>
       ),
     },
     {

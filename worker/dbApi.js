@@ -460,8 +460,10 @@ export async function handleDbApi(request, env, pathname) {
   if (!env.DB) return json(503, { data: null, error: { code: 'XX000', message: 'database not configured' } })
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
   // Browser calls only come from this site (SameSite=Lax already keeps the cookie off cross-site POSTs; this is the second lock).
+  // The dev copy of the site (SITE_ENV=dev, own address) accepts its own origin as well.
   const origin = request.headers.get('Origin')
-  if (origin && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
+  const own = env.SITE_ENV === 'dev' && origin === new URL(request.url).origin
+  if (origin && !own && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
   const len = Number(request.headers.get('Content-Length') ?? 0)
   if (len > MAX_BODY) return json(413, { error: 'too_large' })
   let body

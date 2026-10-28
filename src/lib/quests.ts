@@ -61,13 +61,6 @@ export const QUESTS: QuestDef[] = [
       ),
   },
   {
-    id: 'bump',
-    name: 'Spread the Word',
-    description: 'Bump the clan post once',
-    xp: 10,
-    check: (m) => isToday(m.lastBumpAt),
-  },
-  {
     id: 'ranked_win',
     name: 'Duelist',
     description: 'Win 1 ranked 1v1',

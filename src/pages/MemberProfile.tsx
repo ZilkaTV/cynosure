@@ -12,7 +12,6 @@ import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
-import { BumpCard } from '../components/BumpButton'
 import { Flag } from '../components/Emoji'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
@@ -41,7 +40,7 @@ export default function MemberProfile() {
   const { id } = useParams()
   const { profile } = useProfile()
   const { t } = useLanguage()
-  const { data, loading, refresh } = useRoster(!!profile)
+  const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
   // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
@@ -198,13 +197,6 @@ export default function MemberProfile() {
             </span>
           )}
         </p>
-        {isOwnProfile ? (
-          <div className="mx-auto mt-4 max-w-xs">
-            <BumpCard openfrontId={m.publicId} bumpCount={m.bumpCount} lastBumpAt={m.lastBumpAt} onDone={refresh} />
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-slate-500">{t.memberProfile.bumpsCount(m.bumpCount)}</p>
-        )}
         {!isOwnProfile && viewerIsAdmin && m.discord && (
           <div className="mt-3 flex flex-col items-center gap-1.5">
             <div className="flex flex-wrap justify-center gap-2">

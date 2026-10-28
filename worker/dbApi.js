@@ -62,7 +62,6 @@ const RULES = {
   },
   // Written only by the verification job (service access): see worker/speedrun.js.
   cyn_speedruns: { read: PUBLIC },
-  cyn_bumps: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_xp: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_quest_claims: { read: PUBLIC, insert: insertOwn('openfront_id') },
   cyn_kudos: { read: PUBLIC, insert: insertOwn('from_openfront_id'), delete: own('from_openfront_id') },

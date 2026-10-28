@@ -9,8 +9,6 @@ import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
-import { BumpCard } from '../components/BumpButton'
-import { QuestCard } from '../components/QuestCard'
 import { ClanCarousel, type CarouselSlide } from '../components/ClanCarousel'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
@@ -164,21 +162,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.speedrunSeconds ?? Number.MAX_SAFE_INTEGER,
     },
     {
-      key: 'bumps',
-      label: t.home.colBumps,
-      align: 'right',
-      render: (m) =>
-        m.bumpCount > 0 ? (
-          <span className="tabular-nums text-slate-300">
-            {m.bumpCount}
-            <RefreshDelta value={deltas[m.publicId]?.bumpCount} />
-          </span>
-        ) : (
-          <span className="text-slate-600">-</span>
-        ),
-      sortValue: (m) => m.bumpCount,
-    },
-    {
       key: 'all',
       label: t.home.statAllWins,
       align: 'right',
@@ -326,7 +309,6 @@ export default function Home() {
   if (!profile) return <RegistrationGate />
 
   const totals = data?.totals
-  const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   // Most improved this week: nobody without a CYN game in the last 30 days (a catch-up of old games is no real improvement).
   const visibleMostImproved = mostImproved.filter((mi) => {
@@ -426,12 +408,6 @@ export default function Home() {
         )}
       </section>
 
-      {me && (
-        <section className="mx-auto grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
-          <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
-          <QuestCard xp={me.xp} />
-        </section>
-      )}
 
 
 

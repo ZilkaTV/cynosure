@@ -263,7 +263,6 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: winsTier ? b.wins.earnedDesc(m.allWins) : b.wins.notEarnedDesc(nextWinsThreshold(m.allWins) ?? 50),
     },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
-    { id: 'pusher', name: b.pusher.name, kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: b.pusher.desc },
     { id: 'chatter', name: b.chatter.name, kind: 'icon', icon: 'chatBubble', earned: m.chatMessageCount >= 100, group: 'milestone', desc: b.chatter.desc },
     { id: 'supporter', name: b.supporter.name, kind: 'icon', icon: 'heart', earned: m.isSupporter, group: 'milestone', desc: b.supporter.desc },
     // ── monthly (losable) ──

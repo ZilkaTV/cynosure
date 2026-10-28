@@ -72,8 +72,6 @@ export interface MemberStats {
   speedrunGameId: string | null // game id of their best run, for the leaderboard link
   lastSpeedrunAt: string | null
   tiles3minPercent: number | null // tile share at 3:00 in that same best-time game (not an independent attempt)
-  bumpCount: number // self-reported Discord bumps (2h cooldown enforced)
-  lastBumpAt: string | null
   xp: number // total XP from claimed daily quests
   chatMessageCount: number // clan chat messages sent, for the Chatter badge
   isSupporter: boolean // admin-marked donor, for the Supporter badge
@@ -339,7 +337,6 @@ export async function buildRoster(
     string,
     { seconds: number; attempts: number; game_id?: string; submitted_at?: string; tiles3min_percent?: number | null; verified?: boolean }
   > = {},
-  bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
   chatCounts: Record<string, number> = {},
   supporters: string[] = [],
@@ -487,8 +484,6 @@ export async function buildRoster(
       lastSpeedrunAt: speedruns[input.openfront_id]?.submitted_at ?? null,
       tiles3minPercent: speedruns[input.openfront_id]?.tiles3min_percent ?? null,
       xp: xpMap[input.openfront_id] ?? 0,
-      bumpCount: bumps[input.openfront_id]?.bump_count ?? 0,
-      lastBumpAt: bumps[input.openfront_id]?.last_bump_at ?? null,
       chatMessageCount: chatCounts[input.openfront_id] ?? 0,
       isSupporter: supporters.includes(input.openfront_id),
       gamesLast30d: games.filter((g) => within30d(g.start)).length,

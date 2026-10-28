@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchRegistered } from './profiles'
 import { fetchSpeedruns } from './speedruns'
-import { fetchBumps } from './bumps'
 import { fetchXp } from './quests'
 import { fetchAllChatMessageCounts, fetchAllSupporters } from './chat'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
@@ -9,7 +8,7 @@ import { clearOpenFrontCache, getLastUpdated } from './openfront'
 import { loadPersistedRoster, savePersistedRoster } from './rosterCache'
 
 // Numeric fields worth showing a "+N" delta for after a manual refresh.
-const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2', 'bumpCount'] as const
+const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2'] as const
 export type DeltaField = (typeof DELTA_FIELDS)[number]
 export type Deltas = Record<string, Partial<Record<DeltaField, number>>>
 
@@ -26,15 +25,14 @@ let inFlightRosterLoad: Promise<RosterResult> | null = null
 async function loadRosterDeduped(): Promise<RosterResult> {
   if (!inFlightRosterLoad) {
     inFlightRosterLoad = (async () => {
-      const [registered, speedruns, bumps, xpMap, chatCounts, supporters] = await Promise.all([
+      const [registered, speedruns, xpMap, chatCounts, supporters] = await Promise.all([
         fetchRegistered().catch(() => []),
         fetchSpeedruns().catch(() => ({})),
-        fetchBumps().catch(() => ({})),
         fetchXp().catch(() => ({})),
         fetchAllChatMessageCounts().catch(() => ({})),
         fetchAllSupporters().catch(() => []),
       ])
-      return buildRoster(registered, speedruns, bumps, xpMap, chatCounts, supporters)
+      return buildRoster(registered, speedruns, xpMap, chatCounts, supporters)
     })().finally(() => {
       inFlightRosterLoad = null
     })
@@ -54,7 +52,7 @@ export const loadRosterShared = () => loadRosterDeduped()
 // surface a positive delta (a real new win) and silently drop a decrease.
 // Elo isn't a monotonic counter - it genuinely goes up and down with real
 // results - so it keeps showing deltas in both directions.
-const MONOTONIC_FIELDS = new Set<DeltaField>(['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'bumpCount'])
+const MONOTONIC_FIELDS = new Set<DeltaField>(['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins'])
 
 function computeDeltas(before: RosterResult | null, after: RosterResult): Deltas {
   if (!before) return {}

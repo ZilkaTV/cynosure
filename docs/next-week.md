@@ -27,5 +27,23 @@ check passes for it and refuses a cheat setting and a wrong map.
 Deploy order (next week): merge the branch, `npx wrangler deploy` (Worker with the new routes), push (workflow file), run the workflow once
 by hand (`gh workflow run verify-speedruns.yml`), submit a run from the site. No SQL needed (`verified` exists).
 
-## 2. Premium ideas, 4. Monthly FFA ranking, 5. Quests and badges
-Waiting for answers, see the chat.
+## 2. Premium for members who play under another clan tag - proposals only (owner's choice: write ideas, build nothing yet)
+Today only games with the [CYN] tag count, so a member with another tag gets nothing on the site.
+- **A. Second tag per member**: the member enters the other tag in the profile; their games with that tag count for their personal stats (not
+  for the clan's Win/Loss Score, which OpenFront computes by tag). + simple, automatic; - needs a profile field and a check that the tag
+  really is theirs (the game record has the tag per player, so it can be verified).
+- **B. "Guest" status in the roster**: shown in the member list with a mark, own stats visible, left out of the clan totals and the CYN
+  leaderboards. + honest numbers; - two kinds of members.
+- **C. Premium perks (supporters)**: the already existing supporter badge/heart, plus: personal stats page with all games regardless of tag,
+  history charts, own speedrun entry; paid by donation. + fits the donation button; - the owner has to decide what is "premium".
+- **D. Request by hand**: the member asks, an admin links the other tag once (stored in `cyn_members`). + no abuse; - manual work.
+Recommendation: A (verified by the game record) first, C as the "premium" layer on top.
+
+## 4. Monthly FFA ranking, 5. Quests and badges - no preference given, nothing changed
+- Monthly FFA is already ranked by the ranking (Elo), on the real site. Open ideas: month winner / top 3 badges at month end, or a points
+  formula by placement and player count.
+- Quests now: ffa_win, team_win_friend, bump, ranked_win, ranked_2v2_win, react_game, speedrun_post (`src/lib/quests.ts`). Open ideas: a ranked
+  FFA quest and a clan-war quest for the new v0.35 modes.
+- Badges (`src/lib/badges.ts`): level, star, 2v2 shield, ship, most wins, fastest, loyal, pusher, chatter, supporter, predator, pro, grinder,
+  marine, destroyer, team grinder. Open ideas: a ranked-Elo badge (top 100 of the ranked leaderboard), month winner badge.
+Build any of these only after the owner picks one.

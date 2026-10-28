@@ -64,6 +64,17 @@ export async function fetchAllSupporters(): Promise<string[]> {
   return (data as { openfront_id: string }[]).map((r) => r.openfront_id)
 }
 
+/**
+ * Members who boost the Discord server (mirrored by scripts/discord-role-sync.mjs from Discord's own boost flag into
+ * cyn_boosters, see worker/d1/boosters.sql) - they keep access without the 7-day rule. No table yet = nobody.
+ */
+export async function fetchBoosters(): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('cyn_boosters').select('openfront_id')
+  if (error || !data) return []
+  return (data as { openfront_id: string }[]).map((r) => r.openfront_id)
+}
+
 /** Every member's chat message count at once - for buildRoster's up-front pass (the Chatter badge). */
 export async function fetchAllChatMessageCounts(): Promise<Record<string, number>> {
   if (!supabase) return {}

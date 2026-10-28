@@ -82,6 +82,7 @@ const RULES = {
   cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), update: own('openfront_id'), delete: own('openfront_id') },
   cyn_chat_message_counts: { read: PUBLIC },
   cyn_inner_circle: { read: PUBLIC },
+  cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access
   cyn_game_nights: {
     read: SIGNED_IN,
     insert: async (row, c) => {

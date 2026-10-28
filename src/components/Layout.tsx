@@ -12,6 +12,8 @@ import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useAccess, type Access } from '../lib/access'
+import { AccessExpired } from './AccessExpired'
 import type { TranslationShape } from '../i18n/translations'
 
 /**
@@ -160,10 +162,23 @@ const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+/** The small line under the member's name: days of access left, "permanent" or "expired" (null while unknown). */
+function accessLabel(a: Access, language: string): { text: string; cls: string } | null {
+  const de = language === 'de'
+  if (a.status === 'permanent') return { text: de ? '∞ dauerhaft' : '∞ permanent', cls: 'text-gold-light' }
+  if (a.status === 'expired') return { text: de ? 'abgelaufen' : 'expired', cls: 'text-signal-red' }
+  if (a.status !== 'ok' || a.daysLeft == null) return null
+  const d = a.daysLeft
+  const text = de ? (d === 1 ? '1 Tag' : `${d} Tage`) : d === 1 ? '1 day' : `${d} days`
+  return { text, cls: d <= 2 ? 'text-signal-red' : d <= 4 ? 'text-amber-400' : 'text-slate-400' }
+}
+
 function AccountMenu() {
   const { profile, refresh } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const isAdmin = useIsAdmin()
+  const access = useAccess()
+  const label = accessLabel(access, language)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -192,7 +207,11 @@ function AccountMenu() {
         aria-label={t.accountMenu.ariaLabel}
       >
         <GearIcon />
-        <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
+        <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
+          <span className="max-w-[8rem] truncate">{profile.in_game_name}</span>
+          {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
+        </span>
+        {label && <span className={`text-[10px] font-semibold sm:hidden ${label.cls}`}>{label.text}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
       </button>
       {open && (
@@ -238,6 +257,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isDevSite = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
   const { t } = useLanguage()
   const { profile } = useProfile()
+  const access = useAccess()
   useGameNightReminder()
   const siteUpdate = useSiteUpdate()
   const queueUnseen = useQueueAlert()
@@ -365,7 +385,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <main className="w-full px-4 py-8 sm:px-8">
         {/* Pages title themselves with <h2> (SectionHeading) and the layout had no <h1> at all - screen readers and crawlers got a page with no top-level heading. */}
         <h1 className="sr-only">{CLAN_NAME}</h1>
-        {children}
+        {access.status === 'expired' && !['/register', '/donate'].some((p) => pathname.startsWith(p)) ? <AccessExpired access={access} /> : children}
       </main>
 
       <footer className="mt-16 border-t border-base-700 pb-24 pt-8 text-center text-sm text-slate-500 sm:pb-8">

@@ -42,6 +42,9 @@ async function loadRosterDeduped(): Promise<RosterResult> {
   return inFlightRosterLoad
 }
 
+/** The same shared roster build, for callers that only need the result once (the access check) and no timers of their own. */
+export const loadRosterShared = () => loadRosterDeduped()
+
 // Win-count fields are cumulative history read back from a *bounded* window
 // of each player's most recent OpenFront games (fetchPlayerGames caps how
 // many pages it fetches) - so for a very active player, an old CYN-tagged

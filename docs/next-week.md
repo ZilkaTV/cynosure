@@ -47,3 +47,19 @@ Recommendation: A (verified by the game record) first, C as the "premium" layer 
 - Badges (`src/lib/badges.ts`): level, star, 2v2 shield, ship, most wins, fastest, loyal, pusher, chatter, supporter, predator, pro, grinder,
   marine, destroyer, team grinder. Open ideas: a ranked-Elo badge (top 100 of the ranked leaderboard), month winner badge.
 Build any of these only after the owner picks one.
+
+## 6. Overview carousel, 90-day numbers on Monthly Team - dev
+- A window under the game nights card (`src/components/ClanCarousel.tsx`): arrows left/right, dots below (current one coloured). Slides: clan totals,
+  games this week, clan streak, most improved. The tiles it replaces are gone from the overview body.
+- "OpenFront Clan Leaderboard - Last 90 Days" (Games / Win Score / Loss Score / Ratio) now sits on the Monthly Team page.
+
+## 7. Access system ("premium"), dev only - `src/lib/access.ts`
+- A member keeps access for 7 days after their last qualifying win; after that every page except /register and /donate shows the
+  "access expired" page (`AccessExpired.tsx`). The days left (or "permanent" / "expired") are shown under the name, top right.
+- Qualifying win (always a game with the [CYN] tag): ranked 1v1 / 2v2 / FFA, or a public FFA with more than 10 players, or a team game with at
+  least 2 registered [CYN] members in it.
+- Permanent (no 7-day rule): Discord server boosters (`cyn_boosters`, mirrored by `scripts/discord-role-sync.mjs` from Discord's premium_since;
+  table: `worker/d1/boosters.sql`, run once by the owner), Gold Legionnaire (250 all-time wins), supporters (`cyn_supporters`, set by an admin
+  after a donation of at least 5 EUR). Also exempt (safety net, not asked for): event admins and the inner circle.
+- Evaluated in the browser from the roster (it holds every member's games); it is a soft gate, not server security.
+- Today's numbers (real data): 2 permanent by wins, 26 with days left, 81 expired (mostly inactive members).

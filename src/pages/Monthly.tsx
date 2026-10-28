@@ -71,6 +71,16 @@ function rulesFor(variant: Variant, t: TranslationShape): React.ReactNode | null
     return (
       <>
         <li>
+          <span className="font-semibold text-white">Points:</span> a single win counts 1 point; a streak of 2 or more wins in a row counts double its length (3 wins in a row = 6 points). A loss ends the streak.
+        </li>
+        <li>Public FFA games with the [CYN] tag only; the Elo of the ranked FFA games is on the Ranked page.</li>
+      </>
+    )
+  }
+  if (variant === 'rffa') {
+    return (
+      <>
+        <li>
           <span className="font-semibold text-white">{t.monthly.rulesFfa1Bold}</span> {t.monthly.rulesFfa1Rest}
         </li>
         <li>

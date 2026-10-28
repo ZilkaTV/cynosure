@@ -312,6 +312,22 @@ export default function Monthly({ variant }: { variant: Variant }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoredGameIds.join(',')])
 
+  // How many [CYN] members played each scored game this month: the game's Win Score is shared between them.
+  const cynPlayersByGame = useMemo(() => {
+    const counts = new Map<string, number>()
+    if (!isScoredMode) return counts
+    for (const m of data?.members ?? []) {
+      const seen = new Set<string>()
+      for (const g of m.cynGames) {
+        if (!isScoredMode(g) || g.type === 'Private' || monthKeyOf(g.start) !== month || seen.has(g.gameId)) continue
+        seen.add(g.gameId)
+        counts.set(g.gameId, (counts.get(g.gameId) ?? 0) + 1)
+      }
+    }
+    return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, month, data])
+
   if (!profile) return <RegistrationGate />
 
   const coop = data?.coopByGame ?? {}
@@ -347,10 +363,18 @@ export default function Monthly({ variant }: { variant: Variant }) {
       if (g.result !== 'victory' && g.result !== 'defeat') continue
       played = true
       const row = scoredLedger.get(g.gameId)
-      if (row) total += row.won ? row.score : -row.score
+      // The game's score is shared: with two [CYN] players in it each gets half, so the members' sums add up to what the clan made.
+      if (row) total += (row.won ? row.score : -row.score) / (cynPlayersByGame.get(g.gameId) || 1)
     }
     return played ? Math.round(total * 100) / 100 : null
   }
+
+  // What the clan made in total this month: every scored game counted once.
+  const clanWinScoreTotal = (() => {
+    let total = 0
+    for (const [id, row] of scoredLedger) if (cynPlayersByGame.has(id)) total += row.won ? row.score : -row.score
+    return Math.round(total * 100) / 100
+  })()
 
   const title =
     variant === 'ffa'
@@ -531,6 +555,11 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   fmt={(n) => n.toFixed(2)}
                 />
               </div>
+              <Card className="text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gold">CYN Win Score · {monthLabel(month)}</p>
+                <p className={`mt-1 font-display text-3xl font-bold ${clanWinScoreTotal < 0 ? 'text-signal-red' : 'text-accent-light'}`}>{clanWinScoreTotal.toFixed(2)}</p>
+                <p className="mt-1 text-xs text-slate-500">A game's Win Score is split between the [CYN] players in it (two players: half each), so the members add up to the clan's total.</p>
+              </Card>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="sticky-cols w-full min-w-[640px] text-sm">

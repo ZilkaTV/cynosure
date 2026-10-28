@@ -208,7 +208,7 @@ export default function Home() {
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
-  // The clan's own Elo on OpenFront's clan leaderboard (shown next to the top 1v1 Elo in the carousel).
+  // The clan's own Elo on OpenFront's clan leaderboard (shown in the carousel).
   const [clanElo, setClanElo] = useState<number | null>(null)
   useEffect(() => {
     fetchClanLeaderboardEntry().then((e) => setClanElo(e?.elo ?? null))
@@ -333,8 +333,8 @@ export default function Home() {
     const member = data?.members.find((m) => m.publicId === mi.openfrontId)
     return member && member.gamesLast30d > 0
   })
-  const mini = (label: string, value: ReactNode, cls: string, wrap = '') => (
-    <div className={wrap}>
+  const mini = (label: string, value: ReactNode, cls: string) => (
+    <div>
       <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
       <p className={`font-display text-xl font-bold ${cls}`}>{value}</p>
     </div>
@@ -346,12 +346,11 @@ export default function Home() {
       node: (
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           {mini(t.home.statMembers, totals ? totals.members : '…', 'text-white')}
-          {mini(t.home.statTopElo, totals?.topElo ?? '…', 'text-gold-light')}
           {mini('Clan Elo', clanElo ?? '…', 'text-gold-light')}
           {mini(t.home.stat1v1Wins, totals ? totals.rankedWins : '…', 'text-accent-light')}
           {mini(t.home.stat2v2Wins, totals ? totals.twoVTwoWins : '…', 'text-accent-light')}
           {mini(t.home.statTeamWins, totals ? totals.teamWins : '…', 'text-accent-light')}
-          {mini(t.home.statAllWins, totals ? totals.allWins : '…', 'text-gold-light', 'col-span-2 text-center')}
+          {mini(t.home.statAllWins, totals ? totals.allWins : '…', 'text-gold-light')}
         </div>
       ),
     },

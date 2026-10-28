@@ -103,6 +103,22 @@ async function refreshShared() {
   return inflight
 }
 
+/** The roster that is shared on the page (one read for the access check and the clan window); null until it is there. */
+export function useSharedRoster(): RosterResult | null {
+  const { profile } = useProfile()
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!profile) return
+    const on = () => tick((n) => n + 1)
+    listeners.add(on)
+    if (!shared || Date.now() - shared.at > 10 * 60_000) refreshShared()
+    return () => {
+      listeners.delete(on)
+    }
+  }, [profile])
+  return shared?.roster ?? null
+}
+
 /** Access state of the signed-in member (the 7-day rule); never blocks while the data is still loading. */
 export function useAccess(): Access {
   const { profile } = useProfile()

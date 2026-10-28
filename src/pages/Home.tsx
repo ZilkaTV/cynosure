@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -9,20 +9,15 @@ import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
-import { ClanCarousel, type CarouselSlide } from '../components/ClanCarousel'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
-  fetchClanLeaderboardEntry,
   fetchClanScoreLedger,
   fmtScoreDelta,
   fmtRatioChange,
-  isClanScoreEligible,
   type ClanScoreRow,
 } from '../lib/clanScore'
-import { computeClanStreak } from '../lib/streak'
-import { fetchMostImproved, type MostImproved } from '../lib/trends'
 import { ReactionCell } from '../components/ReactionCell'
 import { useReactions } from '../lib/useReactions'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -187,17 +182,11 @@ function fmtDuration(s: number): string {
 
 export default function Home() {
   const { profile } = useProfile()
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
-  // The clan's own Elo on OpenFront's clan leaderboard (shown in the carousel).
-  const [clanElo, setClanElo] = useState<number | null>(null)
-  useEffect(() => {
-    fetchClanLeaderboardEntry().then((e) => setClanElo(e?.elo ?? null))
-  }, [])
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
-  const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
@@ -224,36 +213,12 @@ export default function Home() {
   const sortedRecentGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
   const recentGames = sortedRecentGames.slice(0, 5)
 
-  // Clan-wide play streak + "games this week" pulse stat (see streak.ts) -
-  // computed straight from the roster's already-loaded game history, no
-  // extra fetch. Memoized since this walks every member's full game list,
-  // same pattern tick 13's INP research flagged for History.tsx's sort/
-  // filter - worth doing right from the start in new code.
-  const allGamesForStreak = useMemo(() => (data?.members ?? []).flatMap((m) => m.cynGames), [data])
-  const streak = useMemo(() => computeClanStreak(allGamesForStreak), [allGamesForStreak])
-  const weeklyGameCount = useMemo(() => {
-    const since = Date.now() - 7 * 24 * 60 * 60 * 1000
-    const seen = new Set<string>()
-    let count = 0
-    for (const g of allGamesForStreak) {
-      if (g.type === 'Private' || !isClanScoreEligible(g) || new Date(g.start).getTime() < since) continue
-      if (seen.has(g.gameId)) continue
-      seen.add(g.gameId)
-      count++
-    }
-    return count
-  }, [allGamesForStreak])
-
   // Memoized so StatsTable's own sort memo (keyed on `columns`) actually
   // holds between renders - a fresh array every render made it re-sort the
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
 
   const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
-
-  useEffect(() => {
-    fetchMostImproved().then(setMostImproved)
-  }, [])
 
   const reactionsApi = useReactions(recentGames.map(({ g }) => g.gameId))
 
@@ -308,76 +273,9 @@ export default function Home() {
 
   if (!profile) return <RegistrationGate />
 
-  const totals = data?.totals
-
-  // Most improved this week: nobody without a CYN game in the last 30 days (a catch-up of old games is no real improvement).
-  const visibleMostImproved = mostImproved.filter((mi) => {
-    const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-    return member && member.gamesLast30d > 0
-  })
-  const mini = (label: string, value: ReactNode, cls: string) => (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`font-display text-xl font-bold ${cls}`}>{value}</p>
-    </div>
-  )
-  const slides: CarouselSlide[] = [
-    {
-      key: 'totals',
-      title: 'Clan',
-      node: (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          {mini(t.home.statMembers, totals ? totals.members : '…', 'text-white')}
-          {mini('Clan Elo', clanElo ?? '…', 'text-gold-light')}
-          {mini(t.home.stat1v1Wins, totals ? totals.rankedWins : '…', 'text-accent-light')}
-          {mini(t.home.stat2v2Wins, totals ? totals.twoVTwoWins : '…', 'text-accent-light')}
-          {mini(t.home.statTeamWins, totals ? totals.teamWins : '…', 'text-accent-light')}
-          {mini(t.home.statAllWins, totals ? totals.allWins : '…', 'text-gold-light')}
-        </div>
-      ),
-    },
-    {
-      key: 'pulse',
-      title: language === 'de' ? 'Aktivität' : 'Activity',
-      node: (
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div>
-            <p className="font-display text-4xl font-bold text-gold-light">{weeklyGameCount}</p>
-            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-slate-400">{t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount).replace(/^d+s*/, '')}</p>
-          </div>
-          <div className="h-px w-16 bg-base-600" />
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">{t.home.streakTitle}</p>
-            <p className="font-display text-2xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}</p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'improved',
-      title: t.home.mostImprovedTitle,
-      node:
-        visibleMostImproved.length === 0 ? (
-          <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
-        ) : (
-          <ul className="space-y-1">
-            {visibleMostImproved.map((mi) => {
-              const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-              return (
-                <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
-                  <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
-                  <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
-                </li>
-              )
-            })}
-          </ul>
-        ),
-    },
-  ]
 
   return (
-    <StatsShell sidebarExtra={<ClanCarousel slides={slides} />}>
+    <StatsShell>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
         {data?.oldestGame && (

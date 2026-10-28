@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
 import { GameNightsSidebar } from './GameNightsCard'
+import { ClanWindow } from './ClanWindow'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -41,7 +42,7 @@ export function UsefulLinks() {
  * on the right. On mobile it collapses to one column (content, then widget,
  * then links).
  */
-export function StatsShell({ children, sidebarExtra }: { children: ReactNode; sidebarExtra?: ReactNode }) {
+export function StatsShell({ children }: { children: ReactNode }) {
   // Widgets sit beside the content only where the content stays wide enough for the member tables:
   // below 1280px everything is one column, from 1280px one column of widgets on the right, from 1536px one on each side.
   return (
@@ -52,7 +53,7 @@ export function StatsShell({ children, sidebarExtra }: { children: ReactNode; si
       <aside className="order-2 xl:order-none xl:col-start-2 xl:row-start-1 2xl:col-start-1">
         <DiscordWidget />
         <GameNightsSidebar />
-        {sidebarExtra}
+        <ClanWindow />
       </aside>
       <aside className="order-3 xl:order-none xl:col-start-2 xl:row-start-2 2xl:col-start-3 2xl:row-start-1 xl:sticky xl:top-6 xl:self-start">
         <UsefulLinks />

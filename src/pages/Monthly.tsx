@@ -14,6 +14,7 @@ import type { PlayerGame } from '../lib/openfront'
 import {
   availableMonths,
   currentMonthKey,
+  ffaBucket,
   isFfa,
   isTeam,
   is1v1,
@@ -396,7 +397,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           const rows = members
             .map((m) => {
               const e = standing[m.publicId]
-              return { m, rank: e?.rank ?? null, elo: e?.elo ?? null, peak: e?.peak ?? null, delta: e ? e.elo - e.first : null, rk: rankedFfaBucket(m.cynGames, month) }
+              return { m, rank: e?.rank ?? null, elo: e?.elo ?? null, peak: e?.peak ?? null, delta: e ? e.elo - e.first : null, rk: rankedFfaBucket(m.cynGames, month), mo: ffaBucket(m.cynGames, month) }
             })
             .filter((x) => x.elo != null)
             .sort((a, b) => {
@@ -404,6 +405,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'peak') return compareNullable(a.peak, b.peak, sortDir)
               if (sortKey === 'delta') return compareNullable(a.delta, b.delta, sortDir)
               if (sortKey === 'ranked') return compareNullable(a.rk.wins, b.rk.wins, sortDir)
+              if (sortKey === 'monthly') return compareNullable(a.mo.wins, b.mo.wins, sortDir)
               // Default: by the board rank (players who dropped off the board after the ones on it), then by Elo.
               return (a.rank ?? 1e9) - (b.rank ?? 1e9) || (b.elo ?? 0) - (a.elo ?? 0)
             })
@@ -417,7 +419,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[520px] text-sm">
+                  <table className="sticky-cols w-full min-w-[600px] text-sm">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -425,17 +427,19 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <SortTh label="FFA Elo" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.home.colPeak} sortKey="peak" active={sortKey === 'peak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colEloDelta} sortKey="delta" active={sortKey === 'delta'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="Monthly W/L" sortKey="monthly" active={sortKey === 'monthly'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Ranked W/L" sortKey="ranked" active={sortKey === 'ranked'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, rank, elo, peak, delta, rk }, i) => (
+                      {rows.map(({ m, rank, elo, peak, delta, rk, mo }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{elo}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{peak}</td>
                           <td className={`px-3 py-3 text-right tabular-nums ${delta == null || delta === 0 ? 'text-slate-500' : delta > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{delta == null ? '-' : delta > 0 ? `+${delta}` : delta}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{mo.wins + mo.losses > 0 ? `${mo.wins}/${mo.losses}` : <span className="text-slate-600">-</span>}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{rk.wins + rk.losses > 0 ? `${rk.wins}/${rk.losses}` : <span className="text-slate-600">-</span>}</td>
                         </tr>
                       ))}

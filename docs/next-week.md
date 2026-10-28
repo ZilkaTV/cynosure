@@ -63,3 +63,12 @@ Build any of these only after the owner picks one.
   after a donation of at least 5 EUR). Also exempt (safety net, not asked for): event admins and the inner circle.
 - Evaluated in the browser from the roster (it holds every member's games); it is a soft gate, not server security.
 - Today's numbers (real data): 2 permanent by wins, 26 with days left, 81 expired (mostly inactive members).
+
+## 8. Speedrun: speed check (dev) - `worker/speedCheck.mjs`
+- Real time of the record (`duration`) against game time (`num_turns` / 10, or the engine's exact win time in `verify-speedruns.mjs`): game time
+  more than 15 % + 5 s above the real time = played sped up -> refused. Real board runs all show game time = 0.96 x real time; game eBdBGzHs
+  (jr_Bambi) shows 5.57 x: 1280 s of game time in 230 s. The live site (master) still verifies such a game, its check does not look at this.
+- Slow motion is only caught when the real time is above 1.5 x game time + 90 s (half speed yes, three-quarter speed no): `duration` also
+  covers the time until the player leaves after the win.
+- boosters table: `worker/d1/boosters.sql` is on the dev database; the real one still needs
+  `npx.cmd wrangler d1 execute cynosure --remote --yes --file worker/d1/boosters.sql` (PowerShell: `npx.cmd`, not `npx`).

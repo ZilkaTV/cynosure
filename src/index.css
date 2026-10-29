@@ -137,3 +137,15 @@
     opacity: 0.45;
   }
 }
+
+/* a slide of the what's-new window slides in */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

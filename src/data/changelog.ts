@@ -1,66 +1,80 @@
-// What changed on the site, newest entry first. The "what's new" window (src/components/WhatsNew.tsx) shows the first entry once
-// per browser after it was released, on the real site only (never on the dev copy). Add an entry together with the release:
-//
-//   {
-//     id: '2026-11-05', // changes with every entry; a visitor who has not seen this id sees the window
-//     date: '2026-11-05',
-//     en: { title: 'What is new', items: ['First change', 'Second change'] },
-//     de: { title: 'Das ist neu', items: ['Erste Änderung', 'Zweite Änderung'] },
-//   },
-//
+// What changed on the site, newest entry first. The "what's new" window (src/components/WhatsNew.tsx) shows the first entry once per
+// browser after it was released, on the real site only (never on the dev copy). It is a few short slides, not a text: one big picture,
+// a headline of a few words and one sentence per slide, then a row of small chips for everything else. Add an entry with the release.
 // An empty list shows nothing. Preview an entry any time with ?whatsnew=1 on the address (also on the dev site).
 
-export interface ChangelogText {
-  title: string
-  items: string[]
+export type Localized = { de: string; en: string }
+
+/** The picture of a slide: a small mock-up of the feature, drawn in WhatsNew.tsx. */
+export type SlideVisual = 'strip' | 'report' | 'colors' | 'event'
+
+export interface ChangelogSlide {
+  visual: SlideVisual
+  /** Tag in the corner of the picture. */
+  tag: Localized
+  title: Localized
+  text: Localized
+  /** Optional button to the page of the feature. */
+  link?: { to: string; label: Localized }
 }
 
 export interface ChangelogEntry {
   id: string
   date: string
-  en: ChangelogText
-  de: ChangelogText
-  /** Optional pictures shown above the list (files in public/whatsnew/). */
-  images?: { url: string; alt: string }[]
+  /** One line on top: what the update is about. */
+  tldr: Localized
+  slides: ChangelogSlide[]
+  /** The rest, as short chips. `important` chips are highlighted. */
+  more: { text: Localized; important?: boolean }[]
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
     id: '2026-11-01',
     date: '2026-11-01',
-    de: {
-      title: 'Das ist neu auf CynClan',
-      items: [
-        'Unter jedem Spiel: Gefällt mir mit Reaktionen, Kommentare mit Antworten, Speichern und Teilen. Ein Klick auf die Zahl bei den Reaktionen zeigt, wer was gedrückt hat.',
-        'Neuer Spielbericht: sortiert nach Max-Tiles, Teams als Plätze, die Clan-Punkte aller Clans daneben und die Kommentare darunter.',
-        'Spielerfarben: Wer eine Discord-Win-Rolle hat, bekommt einen Namen mit Farbverlauf. Siegquoten sind farbig, 0 % blinkt rot, 100 % glänzt golden.',
-        'Ranked-Spiele stehen in Gold, mit Elo vor und nach dem Spiel (für Spieler in den Top 100) und dem Hinweis auf Compact-Karten.',
-        'Oben links suchst du jedes Mitglied direkt per Name oder ID. Unter deinem Namen stehen deine Rolle und dein Titel.',
-        'Monatlich Team hat jetzt den Punkte-Planer und die Decay-Prognose. Monatlich FFA hat Grinder, Predator und Pro Player zurück.',
-        'Alle Listen zeigen die ersten 10 Einträge, den Rest holst du dir mit einem Klick.',
-        'Live Ranked Queue: Ampel sowie die letzten 5 und 15 Minuten, dazu eine Benachrichtigung für Ranked FFA.',
-        'Neues Event: das CYN Hero Skin Event vom 1. November bis 31. Dezember. Alle Details und das Factor Wheel findest du unter Events.',
-        'Neue Regel: Der Zugang bleibt 7 Tage nach deinem letzten Sieg mit dem [CYN]-Tag. Dauerhaft haben ihn Server-Booster, Gold Legionnaire und Unterstützer.',
-        'Speedruns: Spiele mit schnellerer oder langsamerer Geschwindigkeit werden abgelehnt.',
-        'Weg sind der Discord-Bump, die Trends-Seite und die Planer-Seite.',
-      ],
+    tldr: {
+      de: 'Reagieren, kommentieren, neuer Spielbericht und ein Skin-Event.',
+      en: 'React, comment, a new game report and a skin event.',
     },
-    en: {
-      title: 'What is new on CynClan',
-      items: [
-        'Under every game: like with reactions, comments with replies, save and share. Click the number next to the reactions to see who reacted with what.',
-        'New game report: sorted by max tiles, teams as places, the clan scores of all clans beside it and the comments below.',
-        'Player colours: everybody with a Discord wins role gets a name with a colour gradient. Win rates are coloured, 0 % flashes red, 100 % shines gold.',
-        'Ranked games are shown in gold, with the Elo before and after the game (for players in the top 100) and a note for compact maps.',
-        'Top left you find any member by name or ID. Your role and your title sit under your name.',
-        'Monthly Team now has the points planner and the decay forecast. Monthly FFA has Grinder, Predator and Pro Player back.',
-        'All lists show the first 10 entries, the rest is one click away.',
-        'Live Ranked Queue: traffic light plus the last 5 and 15 minutes, and a notification for ranked FFA.',
-        'New event: the CYN Hero Skin Event from 1 November to 31 December. Everything about it and the Factor Wheel is under Events.',
-        'New rule: access stays for 7 days after your last win with the [CYN] tag. Server boosters, Gold Legionnaires and supporters keep it for good.',
-        'Speedruns: games played faster or slower than normal speed are refused.',
-        'Gone are the Discord bump, the Trends page and the Planner page.',
-      ],
-    },
+    slides: [
+      {
+        visual: 'strip',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Reagieren, kommentieren, teilen', en: 'React, comment, share' },
+        text: { de: 'Unter jedem Spiel: Likes, Kommentare mit Antworten, Speichern und Teilen.', en: 'Under every game: likes, comments with replies, save and share.' },
+        link: { to: '/history', label: { de: 'Zum Spielverlauf', en: 'To the game history' } },
+      },
+      {
+        visual: 'report',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Der neue Spielbericht', en: 'The new game report' },
+        text: { de: 'Teams als Plätze, die Clan-Punkte aller Clans daneben, die Kommentare darunter.', en: 'Teams as places, the clan scores of all clans beside it, the comments below.' },
+      },
+      {
+        visual: 'colors',
+        tag: { de: 'Look', en: 'Look' },
+        title: { de: 'Dein Name leuchtet', en: 'Your name shines' },
+        text: { de: 'Mit Discord-Win-Rolle bekommt dein Name einen Farbverlauf. Siegquoten sind jetzt farbig.', en: 'With a Discord wins role your name gets a colour gradient. Win rates are coloured now.' },
+      },
+      {
+        visual: 'event',
+        tag: { de: '1. Nov bis 31. Dez', en: '1 Nov to 31 Dec' },
+        title: { de: 'CYN Hero Skin Event', en: 'CYN Hero Skin Event' },
+        text: { de: 'Spiele Team-Games mit anderen CYN-Membern und gewinne einen Skin, den es nur 3x gibt.', en: 'Play team games with other CYN members and win a skin that exists only 3 times.' },
+        link: { to: '/events', label: { de: 'Zum Event', en: 'To the event' } },
+      },
+    ],
+    more: [
+      { text: { de: 'Zugang: 7 Tage ohne Sieg mit [CYN]-Tag sperren die Seite', en: 'Access: 7 days without a win with the [CYN] tag lock the site' }, important: true },
+      { text: { de: 'Suche oben links', en: 'Search top left' } },
+      { text: { de: 'Rolle und Titel unter deinem Namen', en: 'Role and title under your name' } },
+      { text: { de: 'Ranked in Gold mit Elo', en: 'Ranked in gold with Elo' } },
+      { text: { de: 'Punkte-Planer in Monatlich Team', en: 'Points planner in Monthly Team' } },
+      { text: { de: 'Grinder, Predator, Pro Player', en: 'Grinder, Predator, Pro Player' } },
+      { text: { de: 'Listen mit Top 10', en: 'Lists with a top 10' } },
+      { text: { de: 'Queue: Alarm für Ranked FFA', en: 'Queue: alert for ranked FFA' } },
+      { text: { de: 'Speedrun: Tempo-Check', en: 'Speedrun: speed check' } },
+      { text: { de: 'Weg: Bump, Trends, Planer-Seite', en: 'Gone: bump, trends, planner page' } },
+    ],
   },
 ]

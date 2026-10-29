@@ -30,10 +30,28 @@ import {
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
-import { unsaveGame, useSavedGames } from '../lib/savedGames'
+import { unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import { useIsAdmin } from '../lib/useSession'
 import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
 import { isSupporter, addSupporter, removeSupporter } from '../lib/chat'
+
+/** "Remove" that asks "Sure?" first: the second click within a few seconds removes the saved game. */
+function RemoveSaved({ label, sure, onConfirm }: { label: string; sure: string; onConfirm: () => void }) {
+  const { armed, arm, disarm } = useArmed()
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!armed) return arm()
+        disarm()
+        onConfirm()
+      }}
+      className={armed ? 'rounded-md bg-signal-red/15 px-2 py-0.5 text-xs font-semibold text-signal-red' : 'text-xs text-slate-500 hover:text-signal-red'}
+    >
+      {armed ? sure : label}
+    </button>
+  )
+}
 
 export default function MemberProfile() {
   const { id } = useParams()
@@ -273,9 +291,7 @@ export default function MemberProfile() {
                   </button>
                   <span className="min-w-0 flex-1 truncate text-slate-300">{g.title ?? ''}</span>
                   <span className="text-xs text-slate-500">{new Date(g.saved_at).toLocaleDateString()}</span>
-                  <button type="button" onClick={() => void unsaveGame(profile.openfront_id, g.game_id)} className="text-xs text-slate-500 hover:text-signal-red">
-                    {t.memberProfile.savedRemove}
-                  </button>
+                  <RemoveSaved label={t.memberProfile.savedRemove} sure={language === 'de' ? 'Sicher?' : 'Sure?'} onConfirm={() => void unsaveGame(profile.openfront_id, g.game_id)} />
                 </div>
               ))
             )}

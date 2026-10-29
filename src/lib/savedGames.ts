@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase as db } from './supabase'
 
 // Games a member saved from the post-game report as a reminder. They live in the data store (table cyn_saved_games), one
@@ -37,6 +37,23 @@ export async function unsaveGame(openfrontId: string, gameId: string): Promise<b
   const { error } = await db.from('cyn_saved_games').delete().eq('openfront_id', openfrontId).eq('game_id', gameId)
   window.dispatchEvent(new Event(CHANGED))
   return !error
+}
+
+/** Two-step button: the first click arms it for a few seconds ("Sure?"), the second click does the thing. A misclick removes nothing. */
+export function useArmed(ms = 3500) {
+  const [armed, setArmed] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+  const disarm = useCallback(() => {
+    window.clearTimeout(timer.current)
+    setArmed(false)
+  }, [])
+  const arm = useCallback(() => {
+    setArmed(true)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setArmed(false), ms)
+  }, [ms])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  return { armed, arm, disarm }
 }
 
 /** The member's saved games, kept in step across the page (modal button and profile list). */

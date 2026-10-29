@@ -125,7 +125,9 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const [rank, setRank] = useState<number | null | undefined>(undefined)
   const [open, setOpen] = useState(true)
   // ?wheelFrom=2026-10-01 shows the wheel as if the event had started that day (to look at it before 1 November)
-  const previewFrom = new URLSearchParams(window.location.search).get('wheelFrom')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? null
+  // On the dev copy the wheel counts from 1 October by default, so there is real data to look at before the event starts.
+  const onDev = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
+  const previewFrom = new URLSearchParams(window.location.search).get('wheelFrom')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? (onDev ? '2026-10-01' : null)
   useEffect(() => {
     fetchTopClanLeaderboard()
       .then((top) => {

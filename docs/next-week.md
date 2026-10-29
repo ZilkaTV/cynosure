@@ -187,3 +187,6 @@ Build any of these only after the owner picks one.
   main site by then.
 - Skin pictures: the folder was `public/Events` with a capital E on this Windows disk, so a deploy from here put the pictures at /Events/ and the lowercase URL found nothing on the server (Linux). Renamed to lowercase; git always had it lowercase, so the main site (built on Linux) was never affected. The points list now starts with "1 game = 1 point".
 - Menu buttons (`.nav-link`): permanent purple outline; the one under the mouse is lighter than the rest.
+- Saved games: taking one back (Remove on the profile, the bookmark in the strip, the star in the report) asks "Sure?" first; the second click within 3.5 s does it (`useArmed`).
+- Dev copy only: the CYN Hero Skin event shows as "Live" and the Factor Wheel counts from 1 October (so it has data); on the main site the status still follows the real window
+  (upcoming until 1 Nov 00:00 German time). `?wheelFrom=` still overrides.

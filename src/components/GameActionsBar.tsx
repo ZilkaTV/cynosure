@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Emoji } from './Emoji'
 import { MemberNameLink } from './ui'
 import { DEFAULT_REACTION, REACTION_EMOJIS } from '../lib/reactions'
-import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
+import { saveGame, unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import { useCommentCounts } from '../lib/comments'
 import { useReactions, type ReactionsApi } from '../lib/useReactions'
 import { useProfile } from '../lib/useProfile'
@@ -72,7 +72,7 @@ export function GameActionsBar({
   actions: GameActions
   onOpenComments: (gameId: string) => void
 }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { profile } = useProfile()
   const { reactions, saved, commentCounts, myId } = actions
   const { give, remove, names } = reactions
@@ -82,6 +82,7 @@ export function GameActionsBar({
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [listOpen, setListOpen] = useState(false)
+  const unsave = useArmed()
   const [problem, setProblem] = useState<string | null>(null)
   const likeRef = useRef<HTMLButtonElement>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -237,15 +238,21 @@ export function GameActionsBar({
         {profile && (
           <button
             type="button"
-            onClick={() => void (isSaved ? unsaveGame(profile.openfront_id, gameId) : saveGame(profile.openfront_id, gameId, title))}
-            className={`${btn} ${isSaved ? '!text-gold-light' : ''}`}
+            onClick={() => {
+              if (!isSaved) return void saveGame(profile.openfront_id, gameId, title)
+              // taking a saved game back asks "Sure?" first (a misclick must not lose it)
+              if (!unsave.armed) return unsave.arm()
+              unsave.disarm()
+              void unsaveGame(profile.openfront_id, gameId)
+            }}
+            className={`${btn} ${unsave.armed ? '!bg-signal-red/15 !text-signal-red' : isSaved ? '!text-gold-light' : ''}`}
             title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
             aria-pressed={isSaved}
           >
             <svg viewBox="0 0 24 24" className={icon} fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
             </svg>
-            <span className="hidden sm:inline">{isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
+            <span className={unsave.armed ? '' : 'hidden sm:inline'}>{unsave.armed ? (language === 'de' ? 'Sicher?' : 'Sure?') : isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
           </button>
         )}
         <button type="button" onClick={share} className={btn} title={t.gameActions.shareHint}>

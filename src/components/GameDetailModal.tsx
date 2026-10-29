@@ -7,7 +7,7 @@ import { cleanDisplayName } from '../lib/displayName'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
-import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
+import { saveGame, unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import type { TranslationShape } from '../i18n/translations'
 import GameComments from './GameComments'
 import { RoleName, useWinsIndex } from './RoleName'
@@ -98,13 +98,14 @@ function ThIcon({ children, label }: { children: React.ReactNode; label: string 
 }
 
 export default function GameDetailModal({ gameId, onClose, focusComments }: { gameId: string | null; onClose: () => void; focusComments?: boolean }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [detail, setDetail] = useState<GameDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
   const { profile } = useProfile()
   const saved = useSavedGames(profile?.openfront_id)
   const isSaved = saved.games.some((g) => g.game_id === gameId)
   const [saveFailed, setSaveFailed] = useState(false)
+  const unsave = useArmed()
 
   // Max Tiles replays the whole game to find each player's peak (and their
   // real end-of-game tile count), so it's computed separately and doesn't
@@ -376,6 +377,9 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                 type="button"
                 onClick={() => {
                   setSaveFailed(false)
+                  // taking a saved game back asks "Sure?" first
+                  if (isSaved && !unsave.armed) return unsave.arm()
+                  unsave.disarm()
                   const done = isSaved
                     ? unsaveGame(profile.openfront_id, gameId)
                     : saveGame(profile.openfront_id, gameId, detail ? `${detail.map} · ${detail.players.length}` : gameId)
@@ -383,10 +387,10 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                 }}
                 title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
                 aria-label={isSaved ? t.gameDetail.saved : t.gameDetail.save}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-sm font-medium transition-colors sm:px-3 ${isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-sm font-medium transition-colors sm:px-3 ${unsave.armed ? 'border-signal-red/60 bg-signal-red/15 text-signal-red' : isSaved ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 text-slate-300 hover:bg-base-800'}`}
               >
                 <span aria-hidden>{isSaved ? '★' : '☆'}</span>
-                <span className="hidden min-[420px]:inline">{isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
+                <span className={unsave.armed ? '' : 'hidden min-[420px]:inline'}>{unsave.armed ? (language === 'de' ? 'Sicher?' : 'Sure?') : isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
               </button>
             )}
           <button onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={t.gameDetail.closeAria}>✕</button>

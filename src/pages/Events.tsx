@@ -206,7 +206,7 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
                 ['Pro 5 € Spende an die Website', '+3'],
                 ['Für alle', ''],
                 ['Je 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
-                ['Je 50 Spiele (0-49 = 0, 50-99 = +2,5, 100-149 = +5 ...)', '+2,5'],
+                ['Je Team-Spiel mit einem anderen CYN-Mitglied (Sieg oder Niederlage)', '+1'],
               ]
             : [
                 ['Base points from the start', ''],
@@ -214,7 +214,7 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
                 ['Per 5 € donated to the website', '+3'],
                 ['For everybody', ''],
                 ['Per 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
-                ['Per 50 games (0-49 = 0, 50-99 = +2.5, 100-149 = +5 ...)', '+2.5'],
+                ['Per team game with another CYN member (win or loss)', '+1'],
               ]
           ).map(([label, pts], i) =>
             pts === '' ? (

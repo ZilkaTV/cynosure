@@ -172,6 +172,7 @@ Build any of these only after the owner picks one.
 - New event (upcoming, 1 Nov - 31 Dec 2026 23:59 German time) in `src/data/events.ts` (`kind: 'raffle'`): goal clan leaderboard rank 7 (with the current rank),
   prize, how to take part, points, the two skin pictures (`public/events/cyn-hero-*.webp`), rendered by `RaffleCard` in `Events.tsx`.
 - Factor Wheel (`src/components/FactorWheel.tsx`, `src/lib/raffle.ts`): filled from the site's stats, nobody types anything in. Entries = members with at least one team
-  game in the event window with another registered CYN member; weight = base (+3 server booster, +3 supporter/donation, nobody starts with 1) + games (+2.5 per
+  game in the event window with another registered CYN member; weight = base (+3 server booster, +3 supporter/donation, nobody starts with 1) + games (+1 per game, win or loss, only with another CYN member; was +2.5 per
   full 50) + Win Score (+1 per full 10). The table (top 10, then all) is public, the SPIN button and "remove winner" are admin only.
   `/events?wheelFrom=2026-10-01` previews the wheel as if the event had started that day.
+- Update: the games factor is +1 per team game with another registered CYN member, win or loss alike (instead of +2.5 per 50 games).

@@ -4,7 +4,7 @@ import { fetchClanScoreLedger, type ClanScoreRow } from './clanScore'
 // The numbers of the Factor Wheel (CYN Hero Skin event), taken from the site's own stats so nobody types them in:
 //   weight = base weight + games factor + win score factor
 //   base weight   = +3 for a Discord server booster, +3 for a donation of 5 EUR or more (supporter); nobody starts with a base weight
-//   games factor  = +2.5 per full 50 games      (0-49 = 0, 50-99 = 2.5, 100-149 = 5 ...)
+//   games factor  = +1 per game, win or loss alike
 //   win score     = +1 per full 10 Win Score    (0-9 = 0, 10-19 = 1, 20-29 = 2 ...)
 // Games and Win Score only count team games inside the event window in which at least one other registered CYN member played.
 
@@ -26,7 +26,7 @@ export const BOOST_BONUS = 3
 export const DONATION_BONUS = 3
 
 export function gamesFactor(games: number): number {
-  return Math.floor(games / 50) * 2.5
+  return games
 }
 export function winScoreFactor(winScore: number): number {
   return Math.floor(Math.max(0, winScore) / 10)

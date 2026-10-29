@@ -222,7 +222,7 @@ export default function History() {
         ) : (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-[720px] text-[15px]">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -253,7 +253,7 @@ export default function History() {
                     const detail = gameDetails.get(g.gameId)
                     const memberUsernames = members.map((m) => m.username)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
-                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} byName={winsIndex.byName} />
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} byName={winsIndex.byName} registered={winsIndex.registeredByName} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr

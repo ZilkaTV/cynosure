@@ -144,3 +144,8 @@ Build any of these only after the owner picks one.
 - `RoleName` / `useWinsIndex` (`src/components/RoleName.tsx`): the name (not the flag) of every member with a wins role slides between two shades with a soft glow.
   Used by `MemberNameLink` (all tables, comments, ...), the profile title, the player column of Home / History (`RosterNames`) and [CYN] players in the report.
 - Win rates are coloured like in the game rows (`winRateClass`): Monthly FFA / Team / 1v1 / 2v2 tables and the profile breakdown bars.
+
+## 19. Rows - dev, 2026-10-29
+- Player column (Home, History): a member who played under another in-game name gets the registered name in gold brackets behind it (`registeredByName`).
+- The info row of a game is bigger than the strip below it; Home's latest games end with a "Show more" button that opens History.
+- Member table: small box "Registered only" next to the search (`StatsTable` `toolbar`).

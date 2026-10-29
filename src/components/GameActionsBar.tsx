@@ -24,8 +24,8 @@ export function useGameActions(gameIds: string[]): GameActions {
   return { reactions, saved, commentCounts, myId: profile?.openfront_id ?? null }
 }
 
-const icon = 'h-6 w-6'
-const btn = 'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-base font-medium text-slate-400 transition-colors hover:bg-base-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50'
+const icon = 'h-5 w-5'
+const btn = 'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-base-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * Which game's report is open, and whether it was opened from a comment button (then it scrolls to the comments).

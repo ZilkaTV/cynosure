@@ -21,6 +21,7 @@ export function StatsTable({
   emptyLabel,
   limit,
   searchable = false,
+  toolbar,
 }: {
   members: MemberStats[]
   columns: Column[]
@@ -30,6 +31,8 @@ export function StatsTable({
   limit?: number
   /** A search box above the table: player name or OpenFront id. */
   searchable?: boolean
+  /** Extra controls next to the search box. */
+  toolbar?: ReactNode
 }) {
   const { t } = useLanguage()
   const [sortKey, setSortKey] = useState(defaultSort)
@@ -82,6 +85,7 @@ export function StatsTable({
             placeholder={t.common.searchPlayerOrId}
             className="w-full max-w-sm rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
           />
+          {toolbar}
           {q && <span className="text-xs text-slate-500">{t.common.searchResults(matches.length, sorted.length)}</span>}
         </div>
       )}

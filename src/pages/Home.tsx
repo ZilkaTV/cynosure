@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
@@ -134,6 +135,8 @@ export default function Home() {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const report = useOpenReport()
+  const { language } = useLanguage()
+  const [registeredOnly, setRegisteredOnly] = useState(false)
   const winsIndex = useWinsIndex()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
@@ -242,7 +245,19 @@ export default function Home() {
         )}
         {data && (
           <>
-            <StatsTable members={data.members} columns={columns} defaultSort="all" limit={10} searchable />
+            <StatsTable
+              members={registeredOnly ? data.members.filter((m) => m.claimed) : data.members}
+              columns={columns}
+              defaultSort="all"
+              limit={10}
+              searchable
+              toolbar={
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-xs text-slate-300">
+                  <input type="checkbox" checked={registeredOnly} onChange={(e) => setRegisteredOnly(e.target.checked)} className="accent-[#8b5cf6]" />
+                  {language === 'de' ? 'Nur registrierte' : 'Registered only'}
+                </label>
+              }
+            />
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
           </>
         )}
@@ -256,7 +271,7 @@ export default function Home() {
           <SectionHeading center eyebrow={t.home.activityEyebrow} title={t.home.latestGamesTitle} />
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-sm">
+              <table className="w-full min-w-[620px] text-[15px]">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -279,7 +294,7 @@ export default function Home() {
                     const winRate = groupWinRate(data?.members.find((x) => x.publicId === memberIds[0]), g)
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
-                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} byName={winsIndex.byName} />
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} byName={winsIndex.byName} registered={winsIndex.registeredByName} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr
@@ -338,6 +353,14 @@ export default function Home() {
             </div>
           </div>
         </section>
+      )}
+
+      {recentGames.length > 0 && (
+        <div className="-mt-4 flex justify-center">
+          <Link to="/history" className="btn-ghost text-sm">
+            {language === 'de' ? 'Mehr anzeigen' : 'Show more'}
+          </Link>
+        </div>
       )}
 
       {data?.oldestGame && (

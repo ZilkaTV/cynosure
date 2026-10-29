@@ -209,8 +209,8 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             {dot}
             <span>
               {de
-                ? 'Deine Chancen steigen mit jedem Spiel und mit einem höheren persönlichen Win Score im Clan.'
-                : 'Your chances grow with every game and with a higher personal Win Score in the clan.'}
+                ? 'Jedes Team-Spiel mit einem anderen CYN-Mitglied gibt 1 Punkt, egal ob Sieg oder Niederlage. Dazu kommt dein persönlicher Win Score im Clan: je höher, desto mehr Punkte.'
+                : 'Every team game with another CYN member gives 1 point, win or loss. On top comes your personal Win Score in the clan: the higher, the more points.'}
             </span>
           </li>
           <li className={line}>
@@ -233,16 +233,16 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
                 ['Pro Discord-Server-Boost', '+3'],
                 ['Pro 5 € Spende an die Website', '+3'],
                 ['Für alle', ''],
+                ['1 Spiel = 1 Punkt: je Team-Spiel mit einem anderen CYN-Mitglied (Sieg oder Niederlage)', '+1'],
                 ['Je 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
-                ['Je Team-Spiel mit einem anderen CYN-Mitglied (Sieg oder Niederlage)', '+1'],
               ]
             : [
                 ['Base points from the start', ''],
                 ['Per Discord server boost', '+3'],
                 ['Per 5 € donated to the website', '+3'],
                 ['For everybody', ''],
+                ['1 game = 1 point: per team game with another CYN member (win or loss)', '+1'],
                 ['Per 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
-                ['Per team game with another CYN member (win or loss)', '+1'],
               ]
           ).map(([label, pts], i) =>
             pts === '' ? (

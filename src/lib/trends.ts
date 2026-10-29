@@ -40,6 +40,7 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
     .gte('snapshot_date', sinceDate(days))
     .order('snapshot_date', { ascending: true })
   if (error) return []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows of an untyped table read
   return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, eloFfa: r.elo_ffa ?? null, allWins: r.all_wins, xp: r.xp }))
 }
 

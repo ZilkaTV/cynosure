@@ -19,7 +19,7 @@ async function hmacKey(env) {
 
 export async function signSession(env, user) {
   const now = Math.floor(Date.now() / 1000)
-  const payload = b64url(enc.encode(JSON.stringify({ sub: user.id, name: user.username, global: user.globalName ?? null, avatar: user.avatar ?? null, iat: now, exp: now + MAX_AGE_S })))
+  const payload = b64url(enc.encode(JSON.stringify({ sub: user.id, name: user.username, global: user.globalName ?? null, avatar: user.avatar ?? null, iat: now, exp: now + MAX_AGE_S, ...(env.SITE_ENV === 'dev' ? { env: 'dev' } : {}) })))
   const sig = await crypto.subtle.sign('HMAC', await hmacKey(env), enc.encode(payload))
   return `${payload}.${b64url(sig)}`
 }
@@ -44,6 +44,9 @@ export async function readSession(request, env) {
     if (!ok) return null
     const data = JSON.parse(new TextDecoder().decode(unb64url(payload)))
     if (!data.sub || typeof data.exp !== 'number' || data.exp < Date.now() / 1000) return null
+    // A test sign-in of the dev site (worker/devSite.js) is marked "dev" and is worth nothing on the real site, even if both Workers
+    // ever shared a SESSION_SECRET; the real site's own cookies carry no mark.
+    if (data.env === 'dev' && env.SITE_ENV !== 'dev') return null
     return { id: String(data.sub), username: data.name ?? 'Player', globalName: data.global ?? null, avatar: data.avatar ?? null }
   } catch {
     return null

@@ -10,6 +10,8 @@ const COLORS = ['#ffb454', '#4fd1c0', '#f2718c', '#7c9eff', '#c2e86b', '#d68cff'
 const fmt = (n: number) => (Math.round(n * 10) / 10).toLocaleString('en-US', { minimumFractionDigits: n % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })
 const luminance = (hex: string) => (0.299 * parseInt(hex.slice(1, 3), 16) + 0.587 * parseInt(hex.slice(3, 5), 16) + 0.114 * parseInt(hex.slice(5, 7), 16)) / 255
 const SPIN_MS = 5200
+/** A number in [0, 1) from the browser's secure random source: the winner of a prize draw should not come from Math.random(). */
+const secureRandom = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
 const TOP_ROWS = 10
 
 /** The draw wheel of the CYN Hero Skin event: not everybody has the same odds. The entries come from the site's stats, only admins can spin. */
@@ -159,7 +161,7 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
     setSpinning(true)
     setWinner(null)
     // weighted pick
-    let pick = Math.random() * total
+    let pick = secureRandom() * total
     let idx = live.length - 1
     for (let i = 0; i < live.length; i++) {
       pick -= live[i].weight

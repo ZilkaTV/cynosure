@@ -33,6 +33,10 @@ export async function handleSeen(request, env) {
   const now = new Date()
   const iso = now.toISOString()
   const key = `seen:${dayKey(now)}:${member.openfront_id}`
+  // At most one write per member every 10 minutes: this call also answers browsers that are not signed in, so without a limit anybody could
+  // loop it with the (public) member ids and use up the account's daily D1 write budget.
+  const row = await env.HOT_DB.prepare('SELECT updated_at FROM blobs WHERE key = ?').bind(key).first()
+  if (row && now.getTime() - Date.parse(row.updated_at) < 10 * 60_000) return json(200, { ok: true })
   await env.HOT_DB.prepare(
     "INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = json_set(blobs.value, '$.last', ?), updated_at = excluded.updated_at",
   )

@@ -24,6 +24,8 @@ export default tseslint.config(
       // (e.g. setting a loading flag at the top of a data-fetching effect)
       // as errors. rules-of-hooks and exhaustive-deps are what actually
       // catch the stale-closure/wrong-dependency bugs this project has hit.
+      // A parameter named with a leading underscore is deliberately unused (the no-op stand-ins keep the real function's signature).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],

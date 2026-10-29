@@ -124,7 +124,12 @@ export async function handleSpeedrunSubmit(request, env, ctx) {
   const taken = await env.DB.prepare('SELECT openfront_id FROM cyn_speedruns WHERE game_id = ? AND openfront_id != ? LIMIT 1').bind(gameId, member.openfront_id).first()
   if (taken) return json(200, { ok: false, message: 'This game was already submitted by another member.' })
 
-  const items = (await readQueue(env)).filter((i) => !(i.openfront_id === member.openfront_id && i.game_id === gameId))
+  const queue = await readQueue(env)
+  // Already waiting for the check: say so without starting the workflow once more (a loop of submits must not flood GitHub).
+  if (queue.some((i) => i.status === 'pending' && i.openfront_id === member.openfront_id && i.game_id === gameId)) {
+    return json(200, { ok: true, status: 'pending', message: 'This run is already waiting for the engine check.' })
+  }
+  const items = queue.filter((i) => !(i.openfront_id === member.openfront_id && i.game_id === gameId))
   if (items.some((i) => i.status === 'pending' && i.openfront_id !== member.openfront_id && i.game_id === gameId)) return json(200, { ok: false, message: 'This game is already waiting for a check from another member.' })
   items.push({ openfront_id: member.openfront_id, game_id: gameId, at: new Date().toISOString(), status: 'pending', recorded_seconds: Math.round(info.duration) })
   // Keep the list short: refused/finished entries stay a day for the member to read.

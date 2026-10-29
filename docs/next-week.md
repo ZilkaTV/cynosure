@@ -199,3 +199,22 @@ Build any of these only after the owner picks one.
 - What's new window: first draft of the text (de + en) in `src/data/changelog.ts`, optional pictures (`images`, files in public/whatsnew/). Preview: `?whatsnew=1`. Date and wording are still open.
 - What's new window redone as 4 short slides (picture, headline of a few words, one sentence) plus a last page of chips; modelled on how products and game launchers announce updates (TL;DR line on top, big visual, few steps, progress dots, visible exit). Data in `src/data/changelog.ts`, mock-ups in `WhatsNew.tsx`. Preview with `?whatsnew=1`.
 - What's new text: top line says the site is much more modern and clearer; chips renamed (profile search bar) and trimmed (no Grinder/Predator/Pro Player, no list of what is gone).
+
+## Security and bug review (2026-10-29)
+Checked: the whole data API (`worker/dbApi.js`), session, Discord sign-in, dev site, uploads, internal APIs, proxies, workflows, CSP, secrets in git, npm audit, lint, tests.
+Fixed on this branch (all covered by `scripts/test-db-api.mjs`, 60 checks, run against a local Worker + D1):
+- `cyn_members`: a plain `update` could edit member rows nobody had claimed yet and change `openfront_id`; it now only touches the caller's own claimed row. Claiming still needs the ownership proof (upsert).
+- `cyn_members`: the hidden columns `user_id` (and `discord_user_id` for visitors who are not signed in) could be used as a filter or sort ("which member owns Discord id X?"); now refused.
+- `cyn_members`: `discord_username` now comes from the signed-in session, not from the request (admin/moderator names are matched against it).
+- Reactions (`cyn_kudos`, `cyn_comment_reactions`): the table has no check constraint, so any text could be stored as an "emoji"; now only the seven site reactions, valid ids, and an existing comment.
+- Comments and clan chat: the shown author name is the member's own (`in_game_name`), a member could type any name before.
+- `cyn_game_tile_stats` (Max Tiles cache) was writable by anybody without signing in; now signed-in only. Event submissions: signed-in only.
+- A negative `limit` meant "no limit" in SQLite and could read a whole table in one call; limits are whole numbers now.
+- Write floods on the free D1 plan (100k rows/day for the account): site visits capped at 20 a minute and 300 an hour; `/api/seen` writes at most once per member every 10 minutes (it also answers visitors who are not signed in); a speedrun that already waits for the check does not start the workflow again.
+- Sessions of the dev site carry `env: "dev"` and are refused by the real site (in case both Workers ever shared a `SESSION_SECRET`).
+- Prize wheel: the winner is drawn with `crypto.getRandomValues`, not `Math.random()`.
+- `npm audit`: DOMPurify (critical advisory, only pulled in by the vendored engine) updated to 3.4.17; no known vulnerabilities left. Lint: 0 errors.
+Known and left as is (decide separately): the access gate ("7 days without a win") is a client-side rule, the data behind it is public anyway; every visitor who signs in can read the
+Discord ids of the members; anonymous read endpoints (`/api/member-games`, `/api/game-detail`, `/db`) have no rate limit of their own (a Cloudflare rate-limit rule would add one);
+screenshot uploads have no per-member quota; `cyn_kudos` rows are not rate limited; `cyn_xp` can be set by the member (cosmetic level only); the lobby userscript is no longer served
+(`/cynosure-lobby-points.user.js` answers with the site's HTML page).

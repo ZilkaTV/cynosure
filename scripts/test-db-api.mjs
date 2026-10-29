@@ -42,6 +42,11 @@ check('anon reads members', !r.error && r.data.length >= 2, r)
 check('anon never sees user_id', r.data.every((m) => !('user_id' in m) && !('discord_user_id' in m)), r.data[0])
 check('claimed is boolean', typeof r.data[0].claimed === 'boolean', r.data[0])
 
+r = await q({ table: 'cyn_members', op: 'select', select: 'openfront_id', filters: [{ col: 'user_id', op: 'eq', val: 'd1' }], order: [] })
+check('anon cannot probe the hidden user_id column', r.error?.code === '42703', r)
+r = await q({ table: 'cyn_members', op: 'select', select: 'openfront_id', filters: [{ col: 'discord_user_id', op: 'eq', val: 'd1' }], order: [] })
+check('anon cannot probe discord_user_id', r.error?.code === '42703', r)
+
 r = await q({ table: 'cyn_game_nights', op: 'select', select: '*', filters: [], order: [] })
 check('anon cannot read game nights', r.error?.code === '42501', r)
 
@@ -66,6 +71,8 @@ r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2
 check('owner updates own row without proof', !r.error, r)
 r = await q({ table: 'cyn_members', op: 'select', select: 'openfront_id, in_game_name, claimed, discord_user_id', filters: [{ col: 'openfront_id', op: 'eq', val: 'BBBB2222' }], order: [], single: 'maybe' }, ['d2', 'bob'])
 check('claim stored with session identity', r.data?.in_game_name === 'Bobby2' && r.data.claimed === true && r.data.discord_user_id === 'd2', r)
+r = await q({ table: 'cyn_members', op: 'select', select: 'discord_username', filters: [{ col: 'openfront_id', op: 'eq', val: 'BBBB2222' }], order: [], single: 'maybe' })
+check('discord username comes from the session, not the request', r.data?.discord_username === 'bob', r)
 r = await q({ table: 'cyn_members', op: 'upsert', values: { openfront_id: 'BBBB2222', in_game_name: 'Hacked', timezone: 'UTC' }, onConflict: 'openfront_id', filters: [], order: [] }, C)
 check('carol cannot take over a claimed row', r.error?.code === '42501', r)
 
@@ -84,7 +91,24 @@ r = await q({ table: 'cyn_game_nights', op: 'delete', filters: [{ col: 'id', op:
 const left = await q({ table: 'cyn_game_nights', op: 'select', select: 'id', filters: [], order: [] }, A)
 check('other member cannot delete game night', r.error?.code === '42501' && left.data.length === 1, [r, left])
 
+// a plain update must not touch rows nobody owns, nor the id of an owned row
+await svc('import?table=cyn_members', [{ openfront_id: 'CCCC3333', in_game_name: 'Free', timezone: 'UTC', discord_username: 'free', user_id: null, claimed: false }])
+r = await q({ table: 'cyn_members', op: 'update', values: { in_game_name: 'Vandal' }, filters: [{ col: 'openfront_id', op: 'eq', val: 'CCCC3333' }], order: [] }, C)
+check('cannot update a member row nobody claimed', !r.error, r) // no error (zero rows), but nothing changes:
+r = await q({ table: 'cyn_members', op: 'select', select: 'in_game_name', filters: [{ col: 'openfront_id', op: 'eq', val: 'CCCC3333' }], order: [], single: 'maybe' })
+check('unclaimed row unchanged after a foreign update', r.data?.in_game_name === 'Free', r)
+r = await q({ table: 'cyn_members', op: 'update', values: { openfront_id: 'ZZZZ9999', in_game_name: 'Alice2' }, filters: [{ col: 'openfront_id', op: 'eq', val: 'AAAA1111' }], order: [] }, A)
+r = await q({ table: 'cyn_members', op: 'select', select: 'openfront_id, in_game_name', filters: [{ col: 'in_game_name', op: 'eq', val: 'Alice2' }], order: [] })
+check('owner can rename but not change the id', r.data?.length === 1 && r.data[0].openfront_id === 'AAAA1111', r)
+await q({ table: 'cyn_members', op: 'update', values: { in_game_name: 'Alice' }, filters: [{ col: 'openfront_id', op: 'eq', val: 'AAAA1111' }], order: [] }, A)
+
 // reactions
+r = await q({ table: 'cyn_kudos', op: 'insert', values: [{ game_id: 'G1', from_openfront_id: 'AAAA1111', to_openfront_id: 'BBBB2222', emoji: 'not an emoji' }], filters: [], order: [] }, A)
+check('unknown reaction is refused', /invalid_emoji/.test(r.error?.message ?? ''), r)
+r = await q({ table: 'cyn_kudos', op: 'insert', values: [{ game_id: 'G1', from_openfront_id: 'AAAA1111', to_openfront_id: 'bad id!', emoji: '❤️' }], filters: [], order: [] }, A)
+check('bad member id in a reaction is refused', /invalid_id/.test(r.error?.message ?? ''), r)
+r = await q({ table: 'cyn_game_tile_stats', op: 'upsert', values: { game_id: 'G1', vendored_commit: 'c', compute_logic_version: 1, max_tiles: {}, max_percent: {}, final_tiles: {} }, onConflict: 'game_id,vendored_commit,compute_logic_version', filters: [], order: [] })
+check('anonymous cannot write tile stats', r.error?.code === '42501', r)
 r = await q({ table: 'cyn_kudos', op: 'insert', values: [{ game_id: 'G1', from_openfront_id: 'AAAA1111', to_openfront_id: 'BBBB2222', emoji: '❤️' }], filters: [], order: [] }, A)
 check('reaction insert', !r.error, r)
 r = await q({ table: 'cyn_kudos', op: 'insert', values: [{ game_id: 'G1', from_openfront_id: 'AAAA1111', to_openfront_id: 'BBBB2222', emoji: '❤️' }], filters: [], order: [] }, A)
@@ -126,9 +150,24 @@ check('survey closed', r.error?.code === '42501', r)
 r = await (await fetch(`${BASE}/api/db/rpc`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: 'cyn_survey_nominees' }) })).json()
 check('rpc nominees', !r.error && Array.isArray(r.data), r)
 
-// event submissions forced pending
+// comments: the shown name is the member's own; reactions only with a known emoji on an existing comment
+r = await q({ table: 'cyn_game_comments', op: 'insert', values: { game_id: 'G1', author_openfront_id: 'AAAA1111', author_name: 'Somebody Else', body: 'hi' }, filters: [], order: [] }, A)
+check('comment insert', !r.error, r)
+r = await q({ table: 'cyn_game_comments', op: 'select', select: 'id, author_name', filters: [{ col: 'game_id', op: 'eq', val: 'G1' }], order: [] })
+check('comment shows the member name, not the typed one', r.data?.[0]?.author_name === 'Alice', r)
+const cid = r.data?.[0]?.id
+r = await q({ table: 'cyn_comment_reactions', op: 'insert', values: { comment_id: cid, openfront_id: 'AAAA1111', emoji: '\u{1F525}' }, filters: [], order: [] }, A)
+check('comment reaction insert', !r.error, r)
+r = await q({ table: 'cyn_comment_reactions', op: 'insert', values: { comment_id: cid, openfront_id: 'AAAA1111', emoji: 'lol' }, filters: [], order: [] }, A)
+check('unknown comment reaction refused', /invalid_emoji/.test(r.error?.message ?? ''), r)
+r = await q({ table: 'cyn_comment_reactions', op: 'insert', values: { comment_id: 99999, openfront_id: 'AAAA1111', emoji: '\u{1F525}' }, filters: [], order: [] }, A)
+check('reaction on a missing comment refused', /invalid_comment/.test(r.error?.message ?? ''), r)
+
+// event submissions forced pending (signed-in visitors only)
 r = await q({ table: 'cyn_event_submissions', op: 'insert', values: { event_id: 'e', team_id: 't', submitted_by: 'x', game_link: 'https://a', screenshot_url: 'https://b', category: 'public', points: 1, status: 'accepted' }, filters: [], order: [] })
-check('submission insert (anon)', !r.error, r)
+check('anonymous submission is refused', r.error?.code === '42501', r)
+r = await q({ table: 'cyn_event_submissions', op: 'insert', values: { event_id: 'e', team_id: 't', submitted_by: 'x', game_link: 'https://a', screenshot_url: 'https://b', category: 'public', points: 1, status: 'accepted' }, filters: [], order: [] }, A)
+check('submission insert (signed in)', !r.error, r)
 r = await q({ table: 'cyn_event_submissions', op: 'select', select: '*', filters: [], order: [] })
 check('submission forced pending', r.data?.[0]?.status === 'pending', r)
 

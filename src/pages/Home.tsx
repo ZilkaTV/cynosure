@@ -5,12 +5,13 @@ import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
 import { computeBadges } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
-import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
+import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useRankedElo } from '../lib/gameRows'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
   fetchClanScoreLedger,
@@ -85,22 +86,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.rankedWins,
     },
     {
-      key: 'elo',
-      label: t.home.colElo,
-      align: 'right',
-      render: (m) =>
-        m.elo == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.elo}
-            <RefreshDelta value={deltas[m.publicId]?.elo} />
-            {m.peakElo != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.elo ?? -1,
-    },
-    {
       key: 'twovtwo',
       label: t.home.col2v2,
       align: 'right',
@@ -111,37 +96,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
         </>
       ),
       sortValue: (m) => m.twoVTwoWins,
-    },
-    {
-      key: 'elo2v2',
-      label: t.home.col2v2Elo,
-      align: 'right',
-      render: (m) =>
-        m.elo2v2 == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.elo2v2}
-            <RefreshDelta value={deltas[m.publicId]?.elo2v2} />
-            {m.peakElo2v2 != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo2v2}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.elo2v2 ?? -1,
-    },
-    {
-      key: 'eloFfa',
-      label: 'FFA Elo',
-      align: 'right',
-      render: (m) =>
-        m.eloFfa == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.eloFfa}
-            {m.peakEloFfa != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakEloFfa}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.eloFfa ?? -1,
     },
     {
       key: 'speedrun',
@@ -168,10 +122,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.allWins,
     },
   ]
-}
-
-function modeLabel(g: PlayerGame): string {
-  return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
 }
 
 function fmtDuration(s: number): string {
@@ -220,6 +170,7 @@ export default function Home() {
   const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
 
   const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))
+  const eloByGame = useRankedElo(recentGames.map(({ g }) => g))
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
@@ -291,7 +242,6 @@ export default function Home() {
           <>
             <StatsTable members={data.members} columns={columns} defaultSort="all" limit={10} searchable />
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
-            <p className="text-center text-xs text-slate-500">{t.home.eloNote}</p>
           </>
         )}
       </section>
@@ -311,7 +261,7 @@ export default function Home() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                    <th className="px-4 py-3 text-right font-semibold">Win Score</th>
+                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
                     <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
@@ -322,6 +272,9 @@ export default function Home() {
                   {recentGames.map(({ g, memberNames, memberIds }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    // Ranked games: the Elo the game gave (when the ranked feed knows it) and the member's win rate in that ladder.
+                    const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, memberIds) : null
+                    const winRate = groupWinRate(data?.members.find((x) => x.publicId === memberIds[0]), g)
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
@@ -334,12 +287,20 @@ export default function Home() {
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
+                        <td className="px-4 py-2.5 text-slate-300">{gameModeLabel(g)}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        {isRankedGame(g) ? (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {elo ? fmtEloChange(elo) : '-'}
+                          </td>
+                        ) : (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">
+                          {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
                         <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
@@ -351,7 +312,7 @@ export default function Home() {
                           <GameActionsBar
                             gameId={g.gameId}
                             memberIds={memberIds}
-                            title={`${modeLabel(g)} · ${g.map}`}
+                            title={`${gameModeLabel(g)} · ${g.map}`}
                             actions={gameActions}
                             onOpenComments={report.openComments}
                           />

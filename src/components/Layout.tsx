@@ -7,6 +7,8 @@ import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew from './WhatsNew'
+import ProfileSearch from './ProfileSearch'
+import { useMemberRoles, type SiteRole } from '../lib/roles'
 import { useQueueAlert } from '../lib/queueNotify'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
@@ -14,7 +16,7 @@ import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useAccess, useSharedRoster, type Access } from '../lib/access'
-import { xpProgress } from '../lib/levels'
+import { titleForLevel, xpProgress } from '../lib/levels'
 import { AccessExpired } from './AccessExpired'
 import type { TranslationShape } from '../i18n/translations'
 
@@ -174,7 +176,7 @@ function accessLabel(a: Access, language: string): { text: string; cls: string }
   return { text, cls: d <= 2 ? 'text-signal-red' : d <= 4 ? 'text-amber-400' : 'text-slate-400' }
 }
 
-function AccountMenu() {
+function AccountMenu({ isInner }: { isInner: boolean }) {
   const { profile, refresh } = useProfile()
   const { t, language } = useLanguage()
   const isAdmin = useIsAdmin()
@@ -184,6 +186,10 @@ function AccountMenu() {
   const roster = useSharedRoster()
   const xp = roster?.members.find((m) => m.publicId === profile?.openfront_id)?.xp
   const lvl = xp == null ? null : xpProgress(xp)
+  const roles = useMemberRoles(profile?.openfront_id, profile?.in_game_name, isInner)
+  const roleLabel = (r: SiteRole) =>
+    r === 'inner' ? 'Inner Circle' : r === 'captain' ? t.events.captain : r === 'leader' ? t.clanPage.roleLeader : r === 'officer' ? t.clanPage.roleOfficer : t.clanPage.roleMember
+  const rolesText = roles.map(roleLabel).join(' · ')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -215,7 +221,7 @@ function AccountMenu() {
         <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
           {lvl && (
             <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gold-light">
-              {t.questCard.lvlPrefix} {lvl.level}
+              {t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}
               {lvl.next != null && (
                 <span className="h-1 w-10 overflow-hidden rounded-full bg-base-700">
                   <span className="block h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.min(100, (lvl.into / lvl.span) * 100)}%` }} />
@@ -224,9 +230,10 @@ function AccountMenu() {
             </span>
           )}
           <span className="max-w-[8rem] truncate">{profile.in_game_name}</span>
+          <span className="max-w-[10rem] truncate text-[10px] font-medium text-slate-400">{rolesText}</span>
           {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
         </span>
-        {lvl && <span className="text-[10px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level}</span>}
+        {lvl && <span className="text-[10px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</span>}
         {label && <span className={`text-[10px] font-semibold sm:hidden ${label.cls}`}>{label.text}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
       </button>
@@ -271,13 +278,14 @@ function AccountMenu() {
 export default function Layout({ children }: { children: ReactNode }) {
   // The dev copy of the site (dev.cynclan.com / cynosure-dev.*.workers.dev) shows an orange bar and a test sign-in.
   const isDevSite = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { profile } = useProfile()
   const access = useAccess()
   useGameNightReminder()
   const siteUpdate = useSiteUpdate()
   const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
+  const innerOnly = language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
 
@@ -326,12 +334,12 @@ export default function Layout({ children }: { children: ReactNode }) {
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
         <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">
-          <Link
-            to="/"
-            className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:absolute sm:left-4 sm:top-3 sm:z-10 sm:text-2xl lg:text-3xl"
-          >
-            CynClan.com
-          </Link>
+          <div className="flex shrink-0 items-center gap-4 sm:absolute sm:left-4 sm:top-3 sm:z-10">
+            <Link to="/" className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:text-2xl lg:text-3xl">
+              CynClan.com
+            </Link>
+            <ProfileSearch className="hidden w-60 xl:block" />
+          </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
@@ -353,17 +361,28 @@ export default function Layout({ children }: { children: ReactNode }) {
             {isInnerCircle && (
               <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.home.gameNightsTitle}>
                 <CalendarIcon />
-                <span className="hidden sm:inline">{t.home.gameNightsTitle}</span>
+                <span className="hidden flex-col items-start leading-tight sm:flex">
+                  {t.home.gameNightsTitle}
+                  <span className="text-[9px] font-normal uppercase tracking-wide text-slate-500">{innerOnly}</span>
+                </span>
               </Link>
             )}
             {isInnerCircle && (
               <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.metrics.navLabel}>
                 <ChartIcon />
-                <span className="hidden sm:inline">{t.metrics.navLabel}</span>
+                <span className="hidden flex-col items-start leading-tight sm:flex">
+                  {t.metrics.navLabel}
+                  <span className="text-[9px] font-normal uppercase tracking-wide text-slate-500">{innerOnly}</span>
+                </span>
               </Link>
             )}
-            <AccountMenu />
+            <AccountMenu isInner={isInnerCircle} />
           </div>
+        </div>
+
+        {/* below the wide layout the profile search gets its own row */}
+        <div className="px-3 pb-1 pt-1 sm:px-4 xl:hidden">
+          <ProfileSearch className="w-full max-w-xs" />
         </div>
 
         {/* centred crest - always links home */}

@@ -90,3 +90,13 @@ Build any of these only after the owner picks one.
 - "What's new" window: `src/data/changelog.ts` + `WhatsNew.tsx`; once per browser per entry id, real site only, `?whatsnew=1` previews. List is EMPTY
   until the release text is written.
 - `cyn_boosters` was missing in `worker/d1/usersMeta.js` (the data API rejected the table): added.
+
+## 10. History/Home rows, header, roles - dev, 2026-10-29
+- History: "Private / Incomplete" is one filter button; a search box (player name, OpenFront id or game id) like the one on Home.
+- Mode column names the ladder: "1v1 (ranked)", "2v2 (ranked)", "FFA (ranked)" (`src/lib/gameRows.ts`, also used by Home's latest games). For ranked
+  games "Win Score / Elo" shows the Elo the game gave and "Ratio" shows the member's win rate in that ladder ("WR 67 %"); other games without a clan
+  ratio also show the win rate. Elo per game exists only where the ranked feed (`cyn_ranked_matches`, `d` / `c`) tracked it = players in the top 100;
+  everybody else shows "-".
+- Header: profile search left of CynClan.com (own row under 1280 px), "Inner circle only" under Game nights / Metrics, under the name the roles
+  (Inner Circle, Captain of a running event, Leader / Officer / Member from OpenFront's clan list - `src/lib/roles.ts`), the title next to the level.
+- Clan overview: the 1v1, 2v2 and FFA Elo columns and their note are gone.

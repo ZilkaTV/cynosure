@@ -64,15 +64,12 @@ export function GameActionsBar({
   title,
   actions,
   onOpenComments,
-  compact = false,
 }: {
   gameId: string
   memberIds: string[]
   title: string
   actions: GameActions
   onOpenComments: (gameId: string) => void
-  /** One tight strip of icons (a column of the game row) instead of labelled buttons. */
-  compact?: boolean
 }) {
   const { t } = useLanguage()
   const { profile } = useProfile()
@@ -88,7 +85,6 @@ export function GameActionsBar({
   const timer = useRef<number | undefined>(undefined)
   const isSaved = saved.games.some((g) => g.game_id === gameId)
   const comments = commentCounts[gameId] ?? 0
-  const b = compact ? `${btn} !px-2` : btn
 
   // The picker is drawn on the page itself (not inside the table), so no table edge can cut it off.
   const openPicker = () => {
@@ -147,7 +143,7 @@ export function GameActionsBar({
   const chips = REACTION_EMOJIS.filter((e) => perEmoji[e]?.size)
 
   return (
-    <div className={compact ? 'flex flex-nowrap items-center justify-end gap-0.5' : 'flex flex-wrap items-center gap-x-1 gap-y-1'} onClick={(e) => (e.target as HTMLElement).closest('button') && e.stopPropagation()}>
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1" onClick={(e) => (e.target as HTMLElement).closest('button') && e.stopPropagation()}>
       <button
         ref={likeRef}
         type="button"
@@ -160,7 +156,7 @@ export function GameActionsBar({
         onTouchEnd={() => window.clearTimeout(timer.current)}
         disabled={!myId || busy}
         title={myId ? t.home.reactionButton : undefined}
-        className={`${b} ${mine.length > 0 ? '!text-accent-light' : ''}`}
+        className={`${btn} ${mine.length > 0 ? '!text-accent-light' : ''}`}
       >
         {mine.length > 0 ? (
           <Emoji char={mine[0]} className={icon} />
@@ -169,7 +165,7 @@ export function GameActionsBar({
             <path d="M12 21s-6.7-4.35-9.3-8.1C.9 10.2 1.4 6.6 4.3 5 6.4 3.8 9 4.3 12 7c3-2.7 5.6-3.2 7.7-2 2.9 1.6 3.4 5.2 1.6 7.9C18.7 16.65 12 21 12 21Z" />
           </svg>
         )}
-        {!compact && <span className="hidden sm:inline">{t.gameActions.like}</span>}
+        <span className="hidden sm:inline">{t.gameActions.like}</span>
       </button>
       {pickerAt &&
         createPortal(
@@ -196,11 +192,11 @@ export function GameActionsBar({
           document.body,
         )}
 
-      <button type="button" onClick={() => onOpenComments(gameId)} className={b} title={t.gameActions.comment}>
+      <button type="button" onClick={() => onOpenComments(gameId)} className={btn} title={t.gameActions.comment}>
         <svg viewBox="0 0 24 24" className={icon} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12Z" />
         </svg>
-        <span className="tabular-nums">{comments > 0 ? comments : !compact && <span className="hidden sm:inline">{t.gameActions.comment}</span>}</span>
+        <span className="tabular-nums">{comments > 0 ? comments : <span className="hidden sm:inline">{t.gameActions.comment}</span>}</span>
       </button>
 
       {chips.map((emoji) => {
@@ -222,28 +218,28 @@ export function GameActionsBar({
       })}
       {problem && <span className="ml-2 text-xs text-signal-red">{problem}</span>}
 
-      <div className={compact ? 'flex items-center gap-0.5' : 'ml-auto flex items-center gap-1'}>
+      <div className="ml-auto flex items-center gap-1">
         {profile && (
           <button
             type="button"
             onClick={() => void (isSaved ? unsaveGame(profile.openfront_id, gameId) : saveGame(profile.openfront_id, gameId, title))}
-            className={`${b} ${isSaved ? '!text-gold-light' : ''}`}
+            className={`${btn} ${isSaved ? '!text-gold-light' : ''}`}
             title={isSaved ? t.gameDetail.unsaveHint : t.gameDetail.saveHint}
             aria-pressed={isSaved}
           >
             <svg viewBox="0 0 24 24" className={icon} fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
             </svg>
-            {!compact && <span className="hidden sm:inline">{isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>}
+            <span className="hidden sm:inline">{isSaved ? t.gameDetail.saved : t.gameDetail.save}</span>
           </button>
         )}
-        <button type="button" onClick={share} className={b} title={t.gameActions.shareHint}>
+        <button type="button" onClick={share} className={btn} title={t.gameActions.shareHint}>
           <svg viewBox="0 0 24 24" className={icon} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
             <path d="M16 6l-4-4-4 4" />
             <path d="M12 2v13" />
           </svg>
-          {(!compact || copied) && <span className={compact ? 'text-xs' : 'hidden sm:inline'}>{copied ? t.gameActions.copied : t.gameActions.share}</span>}
+          <span className="hidden sm:inline">{copied ? t.gameActions.copied : t.gameActions.share}</span>
         </button>
       </div>
     </div>

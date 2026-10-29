@@ -527,8 +527,8 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
               </div>
 
               {scoreEntries.length > 0 && (
-                <aside className="flex flex-col gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{t.report.clanScores}</p>
+                <aside className="grid grid-cols-2 gap-2 sm:flex sm:flex-col">
+                  <p className="col-span-2 text-xs font-semibold uppercase tracking-widest text-slate-500 sm:col-span-1">{t.report.clanScores}</p>
                   {shownScores.map((e) => (
                     <div
                       key={e.tag}
@@ -542,14 +542,14 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                     </div>
                   ))}
                   {scoreEntries.length > TOP_SCORES && (
-                    <button type="button" onClick={() => setShowAllScores((v) => !v)} className="btn-ghost w-full !px-2 !py-1.5 text-xs">
+                    <button type="button" onClick={() => setShowAllScores((v) => !v)} className="btn-ghost col-span-2 w-full !px-2 !py-1.5 text-xs sm:col-span-1">
                       {showAllScores ? t.report.showLess : t.report.showMore(scoreEntries.length - TOP_SCORES)}
                     </button>
                   )}
                 </aside>
               )}
             </div>
-            <p className="mt-3 text-center text-xs text-slate-500">{t.gameDetail.footerNote}</p>
+            <p className="mt-3 hidden text-center text-xs text-slate-500 sm:block">{t.gameDetail.footerNote}</p>
 
             <div ref={commentsRef} className="mt-6 scroll-mt-4 border-t border-base-700 pt-5">
               <GameComments gameId={detail.gameId} />

@@ -29,7 +29,7 @@ export function ClanCarousel({ slides, heading }: { slides: CarouselSlide[]; hea
           ›
         </button>
       </div>
-      <div className="flex min-h-[9rem] items-center justify-center px-4 py-4" role="group" aria-label={`${current + 1} / ${slides.length}`}>
+      <div className="flex min-h-[6.5rem] items-center justify-center px-3 py-3 sm:min-h-[9rem] sm:px-4 sm:py-4" role="group" aria-label={`${current + 1} / ${slides.length}`}>
         <div className="w-full">{slide.node}</div>
       </div>
       <div className="flex items-center justify-center gap-2 border-t border-base-700 px-3 py-2.5">

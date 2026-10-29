@@ -42,22 +42,22 @@ export function SectionHeading({
 }) {
   if (center) {
     return (
-      <div className="mb-6 text-center">
+      <div className="mb-4 text-center sm:mb-6">
         {eyebrow && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{eyebrow}</p>
         )}
-        <h2 className="font-display text-2xl font-bold text-white md:text-3xl">{title}</h2>
+        <h2 className="font-display text-xl font-bold text-white sm:text-2xl md:text-3xl">{title}</h2>
         {action && <div className="mt-3 flex justify-center">{action}</div>}
       </div>
     )
   }
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-6 sm:gap-4">
       <div>
         {eyebrow && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{eyebrow}</p>
         )}
-        <h2 className="font-display text-2xl font-bold text-white md:text-3xl">{title}</h2>
+        <h2 className="font-display text-xl font-bold text-white sm:text-2xl md:text-3xl">{title}</h2>
       </div>
       {action}
     </div>
@@ -65,7 +65,7 @@ export function SectionHeading({
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`panel p-5 ${className}`}>{children}</div>
+  return <div className={`panel p-4 sm:p-5 ${className}`}>{children}</div>
 }
 
 export function StatCard({
@@ -199,5 +199,16 @@ export function Spinner({ label }: { label?: string }) {
       <span className="h-8 w-8 animate-spin rounded-full border-2 border-base-600 border-t-accent" />
       {label && <p className="text-sm">{label}</p>}
     </div>
+  )
+}
+
+/** Date of a game: day and month on a phone, the full date from tablet width up. */
+export function GameDate({ start }: { start: number | string | Date }) {
+  const d = new Date(start)
+  return (
+    <>
+      <span className="sm:hidden">{d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })}</span>
+      <span className="hidden sm:inline">{d.toLocaleDateString('en-GB')}</span>
+    </>
   )
 }

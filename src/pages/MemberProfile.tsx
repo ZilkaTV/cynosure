@@ -15,7 +15,7 @@ import { Flag } from '../components/Emoji'
 import { RoleName } from '../components/RoleName'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
-import { SectionHeading, Spinner } from '../components/ui'
+import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
 import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
 import {
@@ -303,17 +303,17 @@ export default function MemberProfile() {
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={profile?.openfront_id === m.publicId ? t.memberProfile.yourLastGames : t.memberProfile.latestCynGames(CLAN_TAG)} />
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-0 text-sm sm:min-w-[620px]">
               <thead>
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
                   <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
-                  <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                  <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                  <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                  <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
-                  <th className="px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                 </tr>
               </thead>
@@ -325,8 +325,8 @@ export default function MemberProfile() {
                   return (
                     <tbody key={g.gameId} className="hover:bg-base-800/50">
                     <tr onClick={() => setOpenGame(g.gameId)} className="cursor-pointer" title={t.home.clickForReportTitle}>
-                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                      <td className="px-4 py-2.5 text-slate-400"><GameDate start={g.start} /></td>
+                      <td className={`px-4 py-2.5 sm:whitespace-nowrap ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
                       {isRankedGame(g) ? (
                         <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                           {elo ? (
@@ -343,11 +343,11 @@ export default function MemberProfile() {
                           {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                         </td>
                       )}
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
-                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-slate-400">{g.map}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                         {g.result}
                       </td>

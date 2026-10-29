@@ -67,11 +67,11 @@ export function StatsShell({ children, leftExtra }: { children: ReactNode; leftE
 export function TagNotice() {
   const { t } = useLanguage()
   return (
-    <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
-      <p className="font-display text-base font-bold uppercase tracking-wide text-gold-light sm:text-lg">
+    <div className="rounded-xl border border-gold/40 bg-gold/10 px-3 py-2.5 text-center sm:px-5 sm:py-4">
+      <p className="font-display text-sm font-bold uppercase tracking-wide text-gold-light sm:text-lg">
         {t.statsShell.tagNoticeTitle(CLAN_TAG)}
       </p>
-      <p className="mt-1 text-sm text-slate-300">
+      <p className="mt-0.5 text-xs text-slate-300 sm:mt-1 sm:text-sm">
         {t.statsShell.tagNoticeBodyPre}{' '}
         <span className="font-semibold text-white">{t.statsShell.tagNoticeBodyBold}</span> {t.statsShell.tagNoticeBodyPost}
       </p>

@@ -234,8 +234,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
           <span className="max-w-[10rem] truncate text-[10px] font-medium text-slate-400">{rolesText}</span>
           {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
         </span>
-        {lvl && <span className="text-[10px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</span>}
-        {label && <span className={`text-[10px] font-semibold sm:hidden ${label.cls}`}>{label.text}</span>}
+        {lvl && <span className="text-[11px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
         <svg viewBox="0 0 20 20" fill="currentColor" className={`ml-auto h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
           <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
@@ -243,6 +242,12 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
+          <div className="border-b border-base-700 px-4 py-2.5 sm:hidden">
+            <p className="truncate text-sm font-semibold text-white">{profile.in_game_name}</p>
+            {lvl && <p className="text-[11px] font-semibold text-gold-light">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</p>}
+            {rolesText && <p className="text-[11px] text-slate-400">{rolesText}</p>}
+            {label && <p className={`text-[11px] font-semibold ${label.cls}`}>{label.text}</p>}
+          </div>
           <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.myProfile}
           </Link>
@@ -350,7 +355,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
               <ProfileSearch className="hidden w-60 xl:block" />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="hidden items-center gap-1.5 sm:flex">
               <button
                 type="button"
                 onClick={siteUpdate.apply}
@@ -393,20 +398,37 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* below the wide layout the profile search gets its own row */}
-        <div className="px-3 pb-1 pt-1 sm:px-4 xl:hidden">
-          <ProfileSearch className="w-full max-w-xs" />
+        <div className="flex items-center gap-1.5 px-3 pb-1 pt-1.5 sm:px-4 xl:hidden">
+          <ProfileSearch className="w-full min-w-0 flex-1 sm:max-w-xs sm:flex-none" />
+          <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
+            <button
+              type="button"
+              onClick={siteUpdate.apply}
+              disabled={!siteUpdate.available}
+              aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+              className={`top-btn-sm !w-10 !px-0 ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
+            >
+              <RefreshIcon className="h-4 w-4" />
+              {siteUpdate.available && <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />}
+            </button>
+            {CHANGELOG.length > 0 && (
+              <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT))} aria-label={language === 'de' ? 'Was ist neu?' : "What's new?"} className="top-btn-sm !w-10 !px-0 text-base">
+                ?
+              </button>
+            )}
+          </div>
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="mt-1 flex flex-row items-center justify-center gap-2.5 px-4 pb-2 sm:mt-1 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
-          <CynLogo className="h-11 w-11 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
-          <span className="text-center font-display text-lg font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
+        <Link to="/" className="mt-0.5 flex flex-row items-center justify-center gap-2 px-4 pb-1 sm:mt-1 sm:pb-2 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
+          <CynLogo className="h-8 w-8 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
+          <span className="text-center font-display text-base font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>
         </Link>
 
         {/* sub navigation - centred */}
-        <nav ref={navRef} className="mx-auto flex max-w-7xl items-center justify-start gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:justify-center sm:gap-1 sm:px-6">
+        <nav ref={navRef} className="mx-auto flex max-w-7xl items-center justify-start gap-0.5 overflow-x-auto px-2 pb-2.5 pt-1 sm:justify-center sm:gap-1 sm:px-6">
           {navItems(t).map((n) =>
             n.children ? (
               <NavDropdown key={n.to} label={n.label} shortLabel={n.shortLabel} items={n.children} />
@@ -435,7 +457,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="w-full px-4 py-8 sm:px-8">
+      <main className="w-full px-3 py-5 sm:px-8 sm:py-8">
         {/* Pages title themselves with <h2> (SectionHeading) and the layout had no <h1> at all - screen readers and crawlers got a page with no top-level heading. */}
         <h1 className="sr-only">{CLAN_NAME}</h1>
         {access.status === 'expired' && !['/register', '/donate'].some((p) => pathname.startsWith(p)) ? <AccessExpired access={access} /> : children}

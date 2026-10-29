@@ -49,6 +49,12 @@
 
 /* Phones: wide tables scroll sideways, rank and name stay in view. */
 @media (max-width: 639px) {
+  /* tighter cells so more columns fit next to the name before the table scrolls */
+  main table th,
+  main table td {
+    padding-left: 0.375rem !important;
+    padding-right: 0.375rem !important;
+  }
   .sticky-cols th:nth-child(1),
   .sticky-cols td:nth-child(1) {
     position: sticky;

@@ -195,7 +195,7 @@ function LatestGamesSection({
       <SectionHeading center eyebrow={eyebrow} title={title} />
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[660px] text-sm">
+          <table className="w-full min-w-[660px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+4)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+4)]:hidden">
             <thead>
               <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -465,7 +465,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
             <>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[520px] text-sm">
+                  <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(4)]:hidden max-sm:[&_td:nth-child(4)]:hidden">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -518,7 +518,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
             </div>
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[520px] text-sm">
+                <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+5):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+5):nth-child(-n+6)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -596,7 +596,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               </Card>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[640px] text-sm">
+                  <table className="sticky-cols w-full min-w-[640px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+6)]:hidden">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -652,7 +652,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -703,7 +703,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>

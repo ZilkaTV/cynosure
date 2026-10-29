@@ -3,7 +3,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
-import { SectionHeading, Spinner } from '../components/ui'
+import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
 import { GameActionsBar, useGameActions, useOpenReport } from '../components/GameActionsBar'
 import { fetchReactionTotals } from '../lib/reactions'
@@ -222,17 +222,17 @@ export default function History() {
         ) : (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-[15px]">
+              <table className="w-full min-w-0 text-sm sm:min-w-[720px] sm:text-[15px]">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
                     <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
-                    <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                   </tr>
                 </thead>
@@ -261,13 +261,13 @@ export default function History() {
                         className="cursor-pointer"
                         title={t.home.clickForReportTitle}
                       >
-                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-2.5 text-slate-400"><GameDate start={g.start} /></td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
+                        <td className={`px-4 py-2.5 sm:whitespace-nowrap ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
                           {gameModeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         {isRankedGame(g) ? (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {elo ? (
@@ -284,14 +284,14 @@ export default function History() {
                             {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                           </td>
                         )}
-                        <td className={`px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
+                        <td className={`hidden sm:table-cell px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
                           {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-400">
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-slate-400">
                           {g.map}
                           {mapSizes.get(g.gameId) === 'Compact' && <span className="ml-1 text-gold-light">({t.queue.mapCompact})</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>

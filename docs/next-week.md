@@ -186,3 +186,4 @@ Build any of these only after the owner picks one.
   (the Events menu entry then pulses green "Active"), "Ended" after 31 Dec 23:59. Nothing has to be released on 1 November for that; the code only has to be on the
   main site by then.
 - Skin pictures: the folder was `public/Events` with a capital E on this Windows disk, so a deploy from here put the pictures at /Events/ and the lowercase URL found nothing on the server (Linux). Renamed to lowercase; git always had it lowercase, so the main site (built on Linux) was never affected. The points list now starts with "1 game = 1 point".
+- Menu buttons (`.nav-link`): permanent purple outline; the one under the mouse is lighter than the rest.

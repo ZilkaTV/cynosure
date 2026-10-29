@@ -38,11 +38,12 @@
   .top-btn-inner {
     @apply border-gold/60 text-gold-light shadow-[0_0_14px_rgba(216,185,106,0.35)] hover:border-gold hover:text-gold-light;
   }
+  /* the menu buttons always carry the purple outline; the one under the mouse gets lighter than the others */
   .nav-link {
-    @apply rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white;
+    @apply rounded-lg border border-accent/40 bg-base-800/40 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-accent/80 hover:bg-accent/25 hover:text-white;
   }
   .nav-link-active {
-    @apply bg-accent/10 text-accent-light;
+    @apply border-accent/70 bg-accent/15 text-accent-light;
   }
 }
 

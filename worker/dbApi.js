@@ -80,6 +80,34 @@ const RULES = {
   cyn_ranked_matches: { read: PUBLIC },
   cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), update: own('openfront_id'), delete: own('openfront_id') },
   cyn_chat_message_counts: { read: PUBLIC },
+  // Comments under a game's post-game report: members write as themselves (max 500 characters, no blocked language, a short
+  // flood limit); an author or an admin deletes. Reactions on a comment are one emoji per member and comment.
+  cyn_game_comments: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.author_openfront_id !== m.openfront_id) return false
+      const body = String(row.body ?? '').trim()
+      if (body.length === 0) throw new DbError('P0001', 'invalid_length: comment is empty')
+      if (body.length > 500) throw new DbError('P0001', 'invalid_length: comment is too long (max 500 characters)')
+      if (BLOCKED.test(normalizeChat(body))) throw new DbError('P0001', 'blocked_content: comment contains blocked language')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_game_comments WHERE author_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 30000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 3) throw new DbError('P0001', 'rate_limited: wait a bit before commenting again')
+      const parent = row.parent_id == null ? null : Number(row.parent_id)
+      if (parent != null) {
+        const p = await c.db.prepare('SELECT game_id FROM cyn_game_comments WHERE id = ?').bind(parent).first()
+        if (!p || p.game_id !== row.game_id) throw new DbError('P0001', 'invalid_parent: reply target not found')
+      }
+      return { game_id: String(row.game_id).slice(0, 40), parent_id: parent, author_openfront_id: m.openfront_id, author_name: String(row.author_name ?? '').slice(0, 60) || m.in_game_name || m.openfront_id, body }
+    },
+    delete: async (c) => {
+      if (!c.user) return false
+      if (await c.isAdmin()) return true
+      const m = await c.myMember()
+      return m ? { sql: 'author_openfront_id = ?', args: [m.openfront_id] } : false
+    },
+  },
+  cyn_comment_reactions: { read: PUBLIC, insert: insertOwn('openfront_id'), delete: own('openfront_id') },
   cyn_inner_circle: { read: PUBLIC },
   cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access
   cyn_game_nights: {

@@ -72,3 +72,21 @@ Build any of these only after the owner picks one.
   covers the time until the player leaves after the win.
 - boosters table: `worker/d1/boosters.sql` is on the dev database; the real one still needs
   `npx.cmd wrangler d1 execute cynosure --remote --yes --file worker/d1/boosters.sql` (PowerShell: `npx.cmd`, not `npx`).
+
+## 9. Social strip, comments, post-game report (dev) - 2026-10-29
+- Under every game on Home (latest games) and History: like (tap = like, hover/hold = all reactions, same `cyn_kudos` reactions as before), comment
+  (opens the report at its comments), save, share (`/history?game=ID` opens the report). `GameActionsBar.tsx`, `useGameActions`, `useOpenReport`.
+- Comments + replies to comments + reactions on comments: `src/lib/comments.ts`, `GameComments.tsx`; tables `cyn_game_comments`,
+  `cyn_comment_reactions` (`worker/d1/004-game-comments.sql`, rules in `worker/dbApi.js`: members write as themselves, 500 characters, blocked words,
+  3 per 30 s; author or admin deletes). **On the dev database; the real one needs the .sql file run once before this goes live.**
+- Post-game report (`GameDetailModal.tsx`): sorted by max tiles; team games rank TEAMS 1, 2, ... by the sum of their players' max tiles
+  (members under the team); top 10 places then "show more"; clan Win/Loss scores in a column beside the table, one tag under the other.
+  Limit: OpenFront does not say who was on a losing team, so a team = the winners, or the players of one clan tag; untagged players stand alone.
+- Removed: chat moderator buttons (MemberProfile, `chat.ts`), Score planner page + nav entry (now windows under the game nights on Monthly Team:
+  `PlannerWindows.tsx`; `/planner` redirects), the 2 site-visit cards on Metrics became 1 (8 cards).
+- Profile trends: all wins, 1v1, 2v2, FFA Elo. FFA Elo needs a new snapshot column: `worker/d1/003-snapshot-ffa.sql` (dev done; run it on the real
+  database BEFORE the refresh job of this branch runs there, else the snapshot upserts fail silently). The FFA curve fills from now on.
+- Events: ended = red badge, live = green (also in the picker).
+- "What's new" window: `src/data/changelog.ts` + `WhatsNew.tsx`; once per browser per entry id, real site only, `?whatsnew=1` previews. List is EMPTY
+  until the release text is written.
+- `cyn_boosters` was missing in `worker/d1/usersMeta.js` (the data API rejected the table): added.

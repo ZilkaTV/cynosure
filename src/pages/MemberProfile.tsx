@@ -33,7 +33,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { unsaveGame, useSavedGames } from '../lib/savedGames'
 import { useIsAdmin } from '../lib/useSession'
 import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
-import { isChatModerator, addChatModerator, removeChatModerator, isSupporter, addSupporter, removeSupporter } from '../lib/chat'
+import { isSupporter, addSupporter, removeSupporter } from '../lib/chat'
 
 export default function MemberProfile() {
   const { id } = useParams()
@@ -51,8 +51,6 @@ export default function MemberProfile() {
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
-  const [viewedIsModerator, setViewedIsModerator] = useState(false)
-  const [moderatorMsg, setModeratorMsg] = useState<string | null>(null)
   const [viewedIsSupporter, setViewedIsSupporter] = useState(false)
   const [supporterMsg, setSupporterMsg] = useState<string | null>(null)
   const [trend, setTrend] = useState<SnapshotPoint[]>([])
@@ -82,9 +80,6 @@ export default function MemberProfile() {
     let alive = true
     isEventAdmin(m.discord).then((result) => {
       if (alive) setViewedIsAdmin(result)
-    })
-    isChatModerator(m.discord).then((result) => {
-      if (alive) setViewedIsModerator(result)
     })
     return () => {
       alive = false
@@ -127,13 +122,6 @@ export default function MemberProfile() {
     const r = viewedIsAdmin ? await removeEventAdmin(m.discord) : await addEventAdmin(m.discord)
     setAdminMsg(r.message)
     if (r.ok) setViewedIsAdmin(!viewedIsAdmin)
-  }
-
-  async function onToggleModerator() {
-    if (!m?.discord) return
-    const r = viewedIsModerator ? await removeChatModerator(m.discord) : await addChatModerator(m.discord)
-    setModeratorMsg(r.message)
-    if (r.ok) setViewedIsModerator(!viewedIsModerator)
   }
 
   async function onToggleSupporter() {
@@ -229,14 +217,6 @@ export default function MemberProfile() {
                 {viewedIsAdmin ? t.memberProfile.demoteFromAdmin : t.memberProfile.promoteToAdmin}
               </button>
               <button
-                onClick={onToggleModerator}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  viewedIsModerator ? 'bg-signal-red/15 text-signal-red hover:bg-signal-red/25' : 'bg-accent/15 text-accent-light hover:bg-accent/25'
-                }`}
-              >
-                {viewedIsModerator ? t.memberProfile.demoteFromModerator : t.memberProfile.promoteToModerator}
-              </button>
-              <button
                 onClick={onToggleSupporter}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
                   viewedIsSupporter ? 'bg-signal-red/15 text-signal-red hover:bg-signal-red/25' : 'bg-gold/15 text-gold-light hover:bg-gold/25'
@@ -246,7 +226,6 @@ export default function MemberProfile() {
               </button>
             </div>
             {adminMsg && <p className="text-xs text-slate-500">{adminMsg}</p>}
-            {moderatorMsg && <p className="text-xs text-slate-500">{moderatorMsg}</p>}
             {supporterMsg && <p className="text-xs text-slate-500">{supporterMsg}</p>}
           </div>
         )}

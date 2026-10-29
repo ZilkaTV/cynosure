@@ -42,7 +42,7 @@ export function UsefulLinks() {
  * on the right. On mobile it collapses to one column (content, then widget,
  * then links).
  */
-export function StatsShell({ children }: { children: ReactNode }) {
+export function StatsShell({ children, leftExtra }: { children: ReactNode; leftExtra?: ReactNode }) {
   // Widgets sit beside the content only where the content stays wide enough for the member tables:
   // below 1280px everything is one column, from 1280px one column of widgets on the right, from 1536px one on each side.
   return (
@@ -53,6 +53,7 @@ export function StatsShell({ children }: { children: ReactNode }) {
       <aside className="order-2 xl:order-none xl:col-start-2 xl:row-start-1 2xl:col-start-1">
         <DiscordWidget />
         <GameNightsSidebar />
+        {leftExtra}
         <ClanWindow />
       </aside>
       <aside className="order-3 xl:order-none xl:col-start-2 xl:row-start-2 2xl:col-start-3 2xl:row-start-1 xl:sticky xl:top-6 xl:self-start">

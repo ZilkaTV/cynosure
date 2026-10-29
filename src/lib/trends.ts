@@ -22,6 +22,7 @@ export interface SnapshotPoint {
   date: string // YYYY-MM-DD
   elo: number | null
   elo2v2: number | null
+  eloFfa: number | null // ranked FFA ladder, kept in the snapshots since 2026-10-29
   allWins: number
   xp: number
 }
@@ -34,23 +35,23 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
   if (!supabase) return []
   const { data, error } = await supabase
     .from('cyn_member_snapshots')
-    .select('snapshot_date, elo, elo_2v2, all_wins, xp')
+    .select('snapshot_date, elo, elo_2v2, elo_ffa, all_wins, xp')
     .eq('openfront_id', openfrontId)
     .gte('snapshot_date', sinceDate(days))
     .order('snapshot_date', { ascending: true })
   if (error) return []
-  return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, allWins: r.all_wins, xp: r.xp }))
+  return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, eloFfa: r.elo_ffa ?? null, allWins: r.all_wins, xp: r.xp }))
 }
 
 /** Every registered member's trend at once, keyed by openfront_id - one (paginated) query instead of N. */
 export async function fetchAllMemberTrends(days = 30): Promise<Record<string, SnapshotPoint[]>> {
   if (!supabase) return {}
-  type Row = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null; all_wins: number; xp: number }
+  type Row = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null; elo_ffa: number | null; all_wins: number; xp: number }
   const rows: Row[] = []
   for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
     const { data, error } = await supabase
       .from('cyn_member_snapshots')
-      .select('openfront_id, snapshot_date, elo, elo_2v2, all_wins, xp')
+      .select('openfront_id, snapshot_date, elo, elo_2v2, elo_ffa, all_wins, xp')
       .gte('snapshot_date', sinceDate(days))
       .order('snapshot_date', { ascending: true })
       .range(from, from + SUPABASE_PAGE_SIZE - 1)
@@ -61,7 +62,7 @@ export async function fetchAllMemberTrends(days = 30): Promise<Record<string, Sn
   const byMember: Record<string, SnapshotPoint[]> = {}
   for (const row of rows) {
     const arr = byMember[row.openfront_id] ?? (byMember[row.openfront_id] = [])
-    arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, allWins: row.all_wins, xp: row.xp })
+    arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, eloFfa: row.elo_ffa ?? null, allWins: row.all_wins, xp: row.xp })
   }
   return byMember
 }

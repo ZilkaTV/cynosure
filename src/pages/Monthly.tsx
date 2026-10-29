@@ -3,6 +3,7 @@ import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import { DecayForecastWindow, PointsPlannerWindow } from '../components/PlannerWindows'
 import GameDetailModal from '../components/GameDetailModal'
 import { ReactionCell } from '../components/ReactionCell'
 import { useReactions } from '../lib/useReactions'
@@ -387,7 +388,16 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const rules = rulesFor(variant, t)
 
   return (
-    <StatsShell>
+    <StatsShell
+      leftExtra={
+        variant === 'team' ? (
+          <>
+            <PointsPlannerWindow />
+            <DecayForecastWindow />
+          </>
+        ) : undefined
+      }
+    >
       <section className="space-y-4">
         <SectionHeading center eyebrow={`${isRanked ? 'Ranked' : t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
 

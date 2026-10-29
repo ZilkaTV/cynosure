@@ -33,7 +33,7 @@ function fmtDate(iso: string): string {
 const STATUS_STYLE: Record<ClanEvent['status'], string> = {
   live: 'bg-signal-green/15 text-signal-green border-signal-green/30',
   upcoming: 'bg-signal-blue/15 text-signal-blue border-signal-blue/30',
-  ended: 'bg-base-700 text-slate-400 border-base-600',
+  ended: 'bg-signal-red/15 text-signal-red border-signal-red/30',
 }
 
 /** Section label used for Rules / Points / Reward, so the event card reads as clearly separated blocks. */
@@ -505,7 +505,7 @@ export default function Events() {
             >
               {EVENTS.map((ev) => (
                 <option key={ev.id} value={ev.id}>
-                  {ev.name}
+                  {ev.status === 'ended' ? '🔴' : ev.status === 'live' ? '🟢' : '🔵'} {ev.name}
                 </option>
               ))}
             </select>

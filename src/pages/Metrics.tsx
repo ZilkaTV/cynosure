@@ -98,6 +98,9 @@ export default function Metrics() {
   const joinConversionPercent =
     metrics.discordJoinsToday > 0 ? Math.round((metrics.clanRegistrationsToday / metrics.discordJoinsToday) * 100) : null
 
+  // "Site visits today (members)" -> "members": the label of one side of the combined visits card.
+  const paren = (label: string) => /(([^)]*))/.exec(label)?.[1] ?? label
+
   const visitorsWindow = (
     <div className="panel overflow-hidden">
       <div className="border-b border-base-700 px-4 py-3">
@@ -164,7 +167,7 @@ export default function Metrics() {
       <aside className="order-3 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">{quietWindow}</aside>
     <div className="order-1 mx-auto w-full min-w-0 max-w-5xl md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.title} center />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label={t.metrics.memberCount} value={metrics.memberCount ?? '-'} />
         <StatCard label={t.metrics.presenceCount} value={metrics.presenceCount ?? '-'} />
         <StatCard label={t.metrics.vcActiveToday} value={metrics.vcActiveToday} />
@@ -176,8 +179,11 @@ export default function Metrics() {
           value={joinConversionPercent === null ? '-' : `${joinConversionPercent}%`}
           sub={t.metrics.joinConversionSub(metrics.clanRegistrationsToday, metrics.discordJoinsToday)}
         />
-        <StatCard label={t.metrics.siteVisitsMembers} value={metrics.siteVisitsMembers} />
-        <StatCard label={t.metrics.siteVisitsAnon} value={metrics.siteVisitsAnon} />
+        <StatCard
+          label={t.metrics.siteVisitsMembers.replace(/s*(.*)$/, '')}
+          value={metrics.siteVisitsMembers + metrics.siteVisitsAnon}
+          sub={`${paren(t.metrics.siteVisitsMembers)}: ${metrics.siteVisitsMembers} · ${paren(t.metrics.siteVisitsAnon)}: ${metrics.siteVisitsAnon}`}
+        />
       </div>
       <p className="mt-6 text-center text-xs text-slate-500">{t.metrics.approximationNotice}</p>
 

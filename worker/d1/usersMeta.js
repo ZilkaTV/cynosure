@@ -202,7 +202,8 @@ export const USERS_META = {
       "all_wins",
       "xp",
       "created_at",
-      "elo_2v2"
+      "elo_2v2",
+      "elo_ffa"
     ]
   },
   "cyn_chat_moderators": {
@@ -418,6 +419,47 @@ export const USERS_META = {
       "map",
       "top_count",
       "players"
+    ]
+  },
+  "cyn_boosters": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "openfront_id"
+    ],
+    "cols": [
+      "openfront_id"
+    ]
+  },
+  "cyn_game_comments": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "game_id",
+      "parent_id",
+      "author_openfront_id",
+      "author_name",
+      "body",
+      "created_at"
+    ]
+  },
+  "cyn_comment_reactions": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "comment_id",
+      "openfront_id",
+      "emoji"
+    ],
+    "cols": [
+      "comment_id",
+      "openfront_id",
+      "emoji",
+      "created_at"
     ]
   }
 }

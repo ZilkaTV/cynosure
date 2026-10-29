@@ -1,50 +1,13 @@
-// ── Clan chat: moderators, supporters, message counts ───────────────────────
+// ── Clan chat leftovers: supporters, boosters, message counts ───────────────────────
 // The chat UI (widget, posting, deleting) was retired; the cyn_clan_chat_messages
 // table and its per-member message counts stay for the roster. What is left here
-// is the moderator/supporter bookkeeping and the counts the roster reads.
+// is the supporter bookkeeping and the counts the roster reads.
 
 import { supabase } from './supabase'
-
-// ── moderators (mirrors cyn_event_admins in events.ts) ──────────────────────
-
-export async function isChatModerator(discordUsername: string | undefined): Promise<boolean> {
-  if (!supabase || !discordUsername) return false
-  const { data, error } = await supabase
-    .from('cyn_chat_moderators')
-    .select('discord_username')
-    .eq('discord_username', discordUsername)
-    .maybeSingle()
-  if (error) return false
-  return !!data
-}
-
-export async function fetchChatModerators(): Promise<string[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.from('cyn_chat_moderators').select('discord_username').order('discord_username')
-  if (error) return []
-  return (data as { discord_username: string }[]).map((r) => r.discord_username)
-}
 
 export interface ModeratorActionResult {
   ok: boolean
   message: string
-}
-
-/** Only succeeds if the caller is already an admin - enforced by the table's own RLS policy, not just this check. */
-export async function addChatModerator(discordUsername: string): Promise<ModeratorActionResult> {
-  if (!supabase) return { ok: false, message: 'Backend not connected.' }
-  const trimmed = discordUsername.trim()
-  if (!trimmed) return { ok: false, message: 'Enter a Discord username first.' }
-  const { error } = await supabase.from('cyn_chat_moderators').insert({ discord_username: trimmed })
-  if (error) return { ok: false, message: error.code === '23505' ? 'Already a moderator.' : `Couldn't add: ${error.message}` }
-  return { ok: true, message: `${trimmed} is now a moderator.` }
-}
-
-export async function removeChatModerator(discordUsername: string): Promise<ModeratorActionResult> {
-  if (!supabase) return { ok: false, message: 'Backend not connected.' }
-  const { error } = await supabase.from('cyn_chat_moderators').delete().eq('discord_username', discordUsername)
-  if (error) return { ok: false, message: `Couldn't remove: ${error.message}` }
-  return { ok: true, message: `${discordUsername} removed.` }
 }
 
 // ── supporters (donor badge, admin-toggled - see cyn_supporters in schema.sql) ──

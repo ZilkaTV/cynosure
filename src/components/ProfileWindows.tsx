@@ -158,9 +158,10 @@ export function TrendsWindow({ trend }: { trend: SnapshotPoint[] }) {
     node: <TrendChart points={trend.map((p) => ({ date: p.date, value: pick(p) }))} color={color} emptyLabel={t.memberProfile.trendEmpty} />,
   })
   const slides = [
-    chart('elo', t.memberProfile.trendEloLabel, (p) => p.elo, '#eab308'),
     chart('wins', t.memberProfile.trendWinsLabel, (p) => p.allWins, '#8b5cf6'),
+    chart('elo', t.memberProfile.trendEloLabel, (p) => p.elo, '#eab308'),
     chart('elo2v2', t.memberProfile.trendElo2v2Label, (p) => p.elo2v2, '#38bdf8'),
+    chart('eloFfa', 'FFA Elo', (p) => p.eloFfa, '#34d399'),
   ]
   return <ClanCarousel slides={slides} heading={t.memberProfile.trendsTitle} />
 }

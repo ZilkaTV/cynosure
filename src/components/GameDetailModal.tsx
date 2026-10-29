@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
@@ -8,6 +8,10 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
 import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
 import type { TranslationShape } from '../i18n/translations'
+import GameComments from './GameComments'
+
+// The report lists this many places (teams, or players in a solo game) before "show more".
+const TOP_PLACES = 10
 
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
@@ -89,7 +93,7 @@ function ThIcon({ children, label }: { children: React.ReactNode; label: string 
   )
 }
 
-export default function GameDetailModal({ gameId, onClose }: { gameId: string | null; onClose: () => void }) {
+export default function GameDetailModal({ gameId, onClose, focusComments }: { gameId: string | null; onClose: () => void; focusComments?: boolean }) {
   const { t } = useLanguage()
   const [detail, setDetail] = useState<GameDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
@@ -107,6 +111,9 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   const [tileStats, setTileStats] = useState<GameTileStats | null>(null)
   const [tileState, setTileState] = useState<'loading' | 'ok' | 'error'>('loading')
   const [tileProgress, setTileProgress] = useState<ReplayProgress | null>(null)
+
+  const [showAll, setShowAll] = useState(false)
+  const commentsRef = useRef<HTMLDivElement>(null)
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -166,7 +173,13 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
   useEffect(() => {
     setSortKey(null)
     setSortDir(-1)
+    setShowAll(false)
   }, [gameId])
+
+  // Opened from a comment button: jump to the comments as soon as the report is on screen.
+  useEffect(() => {
+    if (focusComments && state === 'ok') commentsRef.current?.scrollIntoView({ block: 'start' })
+  }, [focusComments, state, gameId])
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -232,8 +245,36 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
         return a.p.username.localeCompare(b.p.username)
       }
       if (sortKey) return compareNullable(a[sortKey], b[sortKey], sortDir)
-      return Number(b.isWinner) - Number(a.isWinner) || b.kills - a.kills || b.gold - a.gold
+      // Default order: who held the most land at their peak, then the winners and the kills.
+      return compareNullable(a.maxPercent, b.maxPercent, -1) || Number(b.isWinner) - Number(a.isWinner) || b.kills - a.kills || b.gold - a.gold
     })
+
+  // Places of the report. A team game ranks TEAMS (1, 2, ...) by the sum of their players' max tiles; the members stand under
+  // their team. OpenFront's report does not say who was on a losing team, so a team is rebuilt from what it does say: the
+  // winners are one team, players of one clan tag are one team (clan members are placed together), the rest stand alone.
+  interface Place {
+    key: string
+    rows: Row[]
+    sum: number | null
+    isTeam: boolean
+  }
+  const grouped = !!detail && sortKey === null && (detail.numTeams != null || rows.some((r) => r.p.teamIndex != null))
+  const teamKey = (r: Row) =>
+    r.p.teamIndex != null ? `i${r.p.teamIndex}` : r.isWinner && winners.length > 1 ? 'win' : r.p.clanTag ? `tag:${r.p.clanTag}` : `solo:${r.p.clientID}`
+  const places: Place[] = []
+  if (grouped) {
+    const byKey = new Map<string, Row[]>()
+    for (const r of rows) byKey.set(teamKey(r), [...(byKey.get(teamKey(r)) ?? []), r])
+    for (const [key, members] of byKey) {
+      const known = members.filter((m) => m.maxPercent != null)
+      places.push({ key, rows: members, sum: known.length ? known.reduce((acc, m) => acc + (m.maxPercent ?? 0), 0) : null, isTeam: members.length > 1 })
+    }
+    places.sort((a, b) => compareNullable(a.sum, b.sum, -1) || Number(b.rows.some((r) => r.isWinner)) - Number(a.rows.some((r) => r.isWinner)))
+  } else {
+    for (const r of rows) places.push({ key: r.p.clientID, rows: [r], sum: r.maxPercent, isTeam: false })
+  }
+  const shownPlaces = showAll ? places : places.slice(0, TOP_PLACES)
+  const hiddenPlaces = places.length - shownPlaces.length
 
   // Numbers each distinct clan in the currently-sorted order (1, 2, 3, ...)
   // so the "alphabetische Clans nummeriert" badge stays stable no matter
@@ -244,6 +285,23 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
       const tag = r.p.clanTag
       if (tag && !clanGroupNumbers.has(tag)) clanGroupNumbers.set(tag, clanGroupNumbers.size + 1)
     }
+  }
+
+  const scoreEntries: { tag: string; won: boolean; score: number; ratio: string | null }[] = [
+    ...(clanScore && !unscored ? [{ tag: CLAN_TAG, won: clanScore.won, score: clanScore.score, ratio: fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) }] : []),
+    ...otherClanScores.map((c) => ({ tag: c.clanTag, won: c.won, score: c.score, ratio: null })),
+  ]
+
+  function maxTilesCell(r: Row): ReactNode {
+    if (tileState === 'loading') {
+      return (
+        <span className="text-slate-600">
+          {tileProgress && tileProgress.totalTicks > 0 ? `${Math.min(99, Math.round((tileProgress.tick / tileProgress.totalTicks) * 100))}%` : '…'}
+        </span>
+      )
+    }
+    if (tileState === 'error') return <span className="text-slate-600">-</span>
+    return r.maxPercent != null ? `${r.maxPercent.toFixed(1)}%` : <span className="text-slate-600">-</span>
   }
 
   function onSortClick(key: SortKey) {
@@ -303,33 +361,7 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               <Tile label={t.gameDetail.tileMap} value={detail.map} />
             </div>
 
-            {clanScore && !unscored && (
-              <div
-                className={`mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 rounded-lg border px-4 py-2.5 text-sm ${
-                  clanScore.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'
-                }`}
-              >
-                <span className={`font-display font-bold ${clanScore.won ? 'text-signal-green' : 'text-signal-red'}`}>
-                  {clanScore.won ? 'Win Score' : 'Loss Score'} {fmtScoreDelta(clanScore.score, clanScore.won)}
-                </span>
-                {fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) && (
-                  <span className="text-slate-300">
-                    [{CLAN_TAG}] Ratio: {fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter)}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {otherClanScores.length > 0 && (
-              <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
-                {otherClanScores.map((c) => (
-                  <span key={c.clanTag} className={c.won ? 'text-signal-green' : 'text-signal-red'}>
-                    [{c.clanTag}] {c.won ? 'Win Score' : 'Loss Score'} {fmtScoreDelta(c.score, c.won)}
-                  </span>
-                ))}
-              </div>
-            )}
-
+            {/* game id + replay */}
             <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
               <p className="text-center text-xs text-slate-500">
                 {t.gameDetail.gameIdLabel} <span className="font-mono text-slate-300">{detail.gameId}</span>
@@ -345,105 +377,146 @@ export default function GameDetailModal({ gameId, onClose }: { gameId: string | 
               </a>
             </div>
 
-            {/* table-fixed + a fixed column width plan (colgroup below) keeps the
-                table's total width constant no matter how long any single
-                cell's content is - a long player name truncates with an
-                ellipsis (full name on hover) instead of forcing the whole
-                table, and therefore the page, to scroll horizontally. */}
-            <div className="overflow-x-auto rounded-xl border border-base-700">
-              <table className="sticky-cols w-full min-w-[700px] text-sm sm:min-w-0 sm:table-fixed">
-                <colgroup>
-                  <col className="w-8" />
-                  <col />
-                  {columns.map((c) => (
-                    <col key={c.key} className="w-[13%]" />
-                  ))}
-                </colgroup>
-                <thead>
-                  <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-2 py-2.5 text-left font-semibold">{t.monthly.colRank}</th>
-                    <th
-                      onClick={() => onSortClick('clan')}
-                      className="cursor-pointer select-none px-3 py-2.5 text-left font-semibold hover:text-white"
-                      title={t.gameDetail.sortBy(t.common.table.player)}
-                    >
-                      {t.common.table.player}
-                      {sortKey === 'clan' && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
-                    </th>
-                    {columns.map((c) => (
-                      <th
-                        key={c.key}
-                        onClick={() => onSortClick(c.key)}
-                        className="cursor-pointer select-none truncate px-2 py-2.5 text-right font-semibold hover:text-white"
-                        title={t.gameDetail.sortBy(c.label)}
-                      >
-                        {c.icon ? <ThIcon label={c.label}><Emoji char={c.icon} className="h-3.5 w-3.5 shrink-0" /></ThIcon> : c.label}
-                        {sortKey === c.key && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => {
-                    const isCyn = r.p.clanTag === CLAN_TAG
-                    return (
-                      <tr key={r.p.clientID} className={`border-b border-base-700/50 last:border-0 ${isCyn ? 'bg-accent/5' : ''}`}>
-                        <td className="px-2 py-2 font-display font-bold text-slate-500">{i + 1}</td>
-                        <td className="max-w-0 px-3 py-2">
-                          <span
-                            className={`flex items-center gap-1 truncate ${isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}`}
-                            title={r.p.clanTag ? `[${r.p.clanTag}] ${r.p.username}` : r.p.username}
+            <div className={`grid gap-4 ${scoreEntries.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_200px]' : ''}`}>
+              <div className="min-w-0">
+                {/* table-fixed + a fixed column width plan (colgroup below) keeps the
+                    table's total width constant no matter how long any single
+                    cell's content is - a long player name truncates with an
+                    ellipsis (full name on hover) instead of forcing the whole
+                    table, and therefore the page, to scroll horizontally. */}
+                <div className="overflow-x-auto rounded-xl border border-base-700">
+                  <table className="sticky-cols w-full min-w-[620px] text-[13px] sm:min-w-0 sm:table-fixed">
+                    <colgroup>
+                      <col className="w-8" />
+                      <col />
+                      {columns.map((c) => (
+                        <col key={c.key} className="w-[11%]" />
+                      ))}
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-base-700 text-[11px] uppercase tracking-wide text-slate-400">
+                        <th className="px-2 py-2 text-left font-semibold">{t.monthly.colRank}</th>
+                        <th
+                          onClick={() => onSortClick('clan')}
+                          className="cursor-pointer select-none px-2 py-2 text-left font-semibold hover:text-white"
+                          title={t.gameDetail.sortBy(t.common.table.player)}
+                        >
+                          {t.common.table.player}
+                          {sortKey === 'clan' && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
+                        </th>
+                        {columns.map((c) => (
+                          <th
+                            key={c.key}
+                            onClick={() => onSortClick(c.key)}
+                            className="cursor-pointer select-none truncate px-1.5 py-2 text-right font-semibold hover:text-white"
+                            title={t.gameDetail.sortBy(c.label)}
                           >
-                            <span className="truncate">
-                              {r.p.clanTag && (
-                                <span className="text-slate-500">
-                                  [{r.p.clanTag}]{sortKey === 'clan' && clanGroupNumbers.has(r.p.clanTag) && (
-                                    <sup className="ml-0.5 text-accent-light">{clanGroupNumbers.get(r.p.clanTag)}</sup>
-                                  )}{' '}
-                                </span>
-                              )}
-                              {r.p.username}
-                            </span>
-                            {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}
-                          </span>
-                        </td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">{fmt(r.out)}</td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">{fmt(r.inc)}</td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-gold-light">{fmt(r.gold)}</td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums">
-                          {r.kills > 0 ? (
-                            <span
-                              className="cursor-help font-semibold text-white underline decoration-dotted underline-offset-2"
-                              title={t.gameDetail.killedTooltip(r.victims.join(', '))}
-                            >
-                              {r.kills}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600">0</span>
-                          )}
-                        </td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-400">
-                          {tileState === 'loading' && (
-                            <span className="text-slate-600">
-                              {tileProgress && tileProgress.totalTicks > 0
-                                ? `${Math.min(99, Math.round((tileProgress.tick / tileProgress.totalTicks) * 100))}%`
-                                : '…'}
-                            </span>
-                          )}
-                          {tileState === 'error' && <span className="text-slate-600">-</span>}
-                          {tileState === 'ok' &&
-                            (r.maxPercent != null ? `${r.maxPercent.toFixed(1)}%` : <span className="text-slate-600">-</span>)}
-                        </td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-slate-500">
-                          {r.deathSec != null ? fmtDuration(r.deathSec) : '-'}
-                        </td>
+                            {c.icon ? <ThIcon label={c.label}><Emoji char={c.icon} className="h-3.5 w-3.5 shrink-0" /></ThIcon> : c.label}
+                            {sortKey === c.key && <span className="ml-1">{sortDir === -1 ? '▼' : '▲'}</span>}
+                          </th>
+                        ))}
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {shownPlaces.map((place, pi) => {
+                        const playerRow = (r: Row, rank: ReactNode, indented: boolean) => {
+                          const isCyn = r.p.clanTag === CLAN_TAG
+                          return (
+                            <tr key={r.p.clientID} className={`border-b border-base-700/50 last:border-0 ${isCyn ? 'bg-accent/5' : ''}`}>
+                              <td className="px-2 py-1.5 font-display font-bold text-slate-500">{rank}</td>
+                              <td className={`max-w-0 py-1.5 ${indented ? 'pl-5 pr-2' : 'px-2'}`}>
+                                <span
+                                  className={`flex items-center gap-1 truncate ${isCyn ? 'font-semibold text-accent-light' : 'text-slate-200'}`}
+                                  title={r.p.clanTag ? `[${r.p.clanTag}] ${r.p.username}` : r.p.username}
+                                >
+                                  <span className="truncate">
+                                    {r.p.clanTag && (
+                                      <span className="text-slate-500">
+                                        [{r.p.clanTag}]{sortKey === 'clan' && clanGroupNumbers.has(r.p.clanTag) && (
+                                          <sup className="ml-0.5 text-accent-light">{clanGroupNumbers.get(r.p.clanTag)}</sup>
+                                        )}{' '}
+                                      </span>
+                                    )}
+                                    {r.p.username}
+                                  </span>
+                                  {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}
+                                </span>
+                              </td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums text-slate-400">{fmt(r.out)}</td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums text-slate-400">{fmt(r.inc)}</td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums text-gold-light">{fmt(r.gold)}</td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums">
+                                {r.kills > 0 ? (
+                                  <span
+                                    className="cursor-help font-semibold text-white underline decoration-dotted underline-offset-2"
+                                    title={t.gameDetail.killedTooltip(r.victims.join(', '))}
+                                  >
+                                    {r.kills}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600">0</span>
+                                )}
+                              </td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums text-slate-400">{maxTilesCell(r)}</td>
+                              <td className="truncate px-1.5 py-1.5 text-right tabular-nums text-slate-500">{r.deathSec != null ? fmtDuration(r.deathSec) : '-'}</td>
+                            </tr>
+                          )
+                        }
+                        if (!place.isTeam) return playerRow(place.rows[0], pi + 1, false)
+                        const winning = place.rows.some((r) => r.isWinner)
+                        const tags = [...new Set(place.rows.map((r) => r.p.clanTag).filter(Boolean))]
+                        return [
+                          <tr key={place.key} className={`border-b border-base-700/50 ${winning ? 'bg-gold/5' : 'bg-base-850/50'}`}>
+                            <td className="px-2 py-1.5 font-display font-bold text-white">{pi + 1}</td>
+                            <td colSpan={5} className="px-2 py-1.5 font-semibold text-white">
+                              {t.report.team(pi + 1)}
+                              {tags.length === 1 && <span className="ml-1.5 font-normal text-slate-400">[{tags[0]}]</span>}
+                              {winning && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="ml-1.5 h-3.5 w-3.5" />}
+                            </td>
+                            <td className="px-1.5 py-1.5 text-right font-semibold tabular-nums text-white">
+                              {place.sum != null ? `${place.sum.toFixed(1)}%` : tileState === 'loading' ? '…' : '-'}
+                            </td>
+                            <td />
+                          </tr>,
+                          ...place.rows.map((r) => playerRow(r, <span className="text-slate-700">·</span>, true)),
+                        ]
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {places.length > TOP_PLACES && (
+                  <div className="mt-3 flex justify-center">
+                    <button type="button" onClick={() => setShowAll((v) => !v)} className="btn-ghost text-sm">
+                      {showAll ? t.report.showLess : t.report.showMore(hiddenPlaces)}
+                    </button>
+                  </div>
+                )}
+                {grouped && places.some((p) => p.isTeam) && <p className="mt-2 text-center text-[11px] text-slate-600">{t.report.teamsApprox}</p>}
+              </div>
+
+              {scoreEntries.length > 0 && (
+                <aside className="space-y-2 lg:self-start">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{t.report.clanScores}</p>
+                  {scoreEntries.map((e) => (
+                    <div
+                      key={e.tag}
+                      className={`rounded-lg border px-3 py-2 ${e.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'}`}
+                    >
+                      <p className="font-display text-sm font-bold text-white">[{e.tag}]</p>
+                      <p className={`text-sm font-semibold tabular-nums ${e.won ? 'text-signal-green' : 'text-signal-red'}`}>
+                        {e.won ? t.report.winScore : t.report.lossScore} {fmtScoreDelta(e.score, e.won)}
+                      </p>
+                      {e.ratio && <p className="text-xs text-slate-400">Ratio: {e.ratio}</p>}
+                    </div>
+                  ))}
+                </aside>
+              )}
             </div>
             <p className="mt-3 text-center text-xs text-slate-500">{t.gameDetail.footerNote}</p>
+
+            <div ref={commentsRef} className="mt-6 scroll-mt-4 border-t border-base-700 pt-5">
+              <GameComments gameId={detail.gameId} />
+            </div>
           </div>
         )}
       </div>

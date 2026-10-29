@@ -6,6 +6,7 @@ import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
+import WhatsNew from './WhatsNew'
 import { useQueueAlert } from '../lib/queueNotify'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
@@ -118,7 +119,6 @@ function navItems(t: TranslationShape) {
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
-    { to: '/planner', label: t.nav.planner, shortLabel: t.nav.shortPlanner },
     { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
   ]
 }
@@ -322,6 +322,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {isDevSite && (
         <div className="sticky top-0 z-[100] bg-amber-500 px-3 py-1.5 text-center text-xs font-bold text-black">DEV website</div>
       )}
+      <WhatsNew />
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
         <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">

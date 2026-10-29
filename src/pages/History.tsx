@@ -1,12 +1,11 @@
-import { useEffect, useState, useMemo } from 'react'
+import { Fragment, useEffect, useState, useMemo } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
-import { ReactionCell } from '../components/ReactionCell'
-import { useReactions } from '../lib/useReactions'
+import { GameActionsBar, useGameActions, useOpenReport } from '../components/GameActionsBar'
 import { fetchReactionTotals } from '../lib/reactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -57,7 +56,7 @@ export default function History() {
   const [filter, setFilter] = useState<Filter>('all')
   const [playerFilter, setPlayerFilter] = useState<string>(ALL_PLAYERS)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const [openGame, setOpenGame] = useState<string | null>(null)
+  const report = useOpenReport()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -116,7 +115,7 @@ export default function History() {
   }, [allGames, filter, playerFilter, reactionTotals])
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
-  const reactionsApi = useReactions(visibleGames.map(({ g }) => g.gameId))
+  const gameActions = useGameActions(visibleGames.map(({ g }) => g.gameId))
   const sortedMembers = useMemo(() => [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [data])
 
   // Batches one lookup per page of newly-revealed rows instead of one per
@@ -220,7 +219,6 @@ export default function History() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,10 +236,10 @@ export default function History() {
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberUsernames.map(cleanDisplayName).join(', ')
                     return (
+                      <Fragment key={g.gameId}>
                       <tr
-                        key={g.gameId}
-                        onClick={() => setOpenGame(g.gameId)}
-                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                        onClick={() => report.open(g.gameId)}
+                        className="cursor-pointer hover:bg-base-800/50"
                         title={t.home.clickForReportTitle}
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
@@ -260,8 +258,19 @@ export default function History() {
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                        <ReactionCell gameId={g.gameId} memberIds={members.map((m) => m.publicId)} api={reactionsApi} />
                       </tr>
+                      <tr className="border-b border-base-700/50 last:border-0">
+                        <td colSpan={9} className="px-3 pb-1.5">
+                          <GameActionsBar
+                            gameId={g.gameId}
+                            memberIds={members.map((m) => m.publicId)}
+                            title={`${modeLabel(g)} · ${g.map}`}
+                            actions={gameActions}
+                            onOpenComments={report.openComments}
+                          />
+                        </td>
+                      </tr>
+                      </Fragment>
                     )
                   })}
                 </tbody>
@@ -282,7 +291,7 @@ export default function History() {
         )}
       </section>
 
-      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
+      <GameDetailModal gameId={report.openGame} focusComments={report.focusComments} onClose={report.close} />
     </StatsShell>
   )
 }

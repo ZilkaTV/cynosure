@@ -99,6 +99,24 @@ function winsTierFromWins(allWins: number): { tier: WinsTier; name: string } | n
   return null
 }
 
+const WINS_ROLE_COLORS: Record<WinsTier, string> = {
+  winsBronze: '#cd7f32',
+  winsSilver: '#c0c0c0',
+  winsGold: '#f2c14e',
+  winsDiamond: '#7fe3f0',
+  winsMaster: '#a78bfa',
+  winsChampion: '#fb7185',
+  winsChallenger: '#fb923c',
+  winsImmortal: '#e879f9',
+  winsGodTier: '#fbbf24',
+}
+
+/** The colour of the Discord wins role (Gold Legionnaire, Diamond Veteran, ...) a member's all-time wins have earned; null below the first rank. */
+export function winsRoleColor(allWins: number): string | null {
+  const t = winsTierFromWins(allWins)
+  return t ? WINS_ROLE_COLORS[t.tier] : null
+}
+
 /** The next rank's threshold above the current all-time wins, if any rank remains to be earned. */
 function nextWinsThreshold(allWins: number): number | null {
   for (let i = WINS_TIERS.length - 1; i >= 0; i--) {

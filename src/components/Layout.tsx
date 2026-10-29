@@ -236,6 +236,9 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
         {lvl && <span className="text-[10px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</span>}
         {label && <span className={`text-[10px] font-semibold sm:hidden ${label.cls}`}>{label.text}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
+        <svg viewBox="0 0 20 20" fill="currentColor" className={`ml-auto h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
@@ -354,7 +357,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
               className={`top-btn-sm ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
             >
-              <RefreshIcon className="h-3.5 w-3.5" />
+              <RefreshIcon className="h-4 w-4" />
               {t.ui.siteUpdate}
               {siteUpdate.available && (
                 <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />

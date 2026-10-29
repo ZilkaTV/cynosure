@@ -127,3 +127,10 @@ Build any of these only after the owner picks one.
 ## 14. Header buttons again - dev, 2026-10-29
 - Language, Metrics and the account button share one height (72 px, width follows the content, `.top-btn`); Update is a small button under CynClan.com (`.top-btn-sm`);
   Game nights sit above Settings in the account menu.
+
+## 16. Strip back as a second row, profile - dev, 2026-10-29
+- The social strip is again its own line under each game (labelled buttons), but bigger, and the game (info row + strip) is one table body that highlights
+  as a whole. Same strip under the last games on the profile (with Elo / ranked gold like Home and History).
+- Profile button: arrow that shows it is a menu; Update button a bit bigger.
+- Overview: your own name pulses in the colour of your Discord wins role (`winsRoleColor` in `badges.ts`, same hex as the badge tiers).
+- Career window: FFA Elo next to 1v1 and 2v2.

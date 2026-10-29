@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
@@ -234,7 +234,7 @@ export default function History() {
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <>
                   {visibleGames.map(({ g, members }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
@@ -253,10 +253,10 @@ export default function History() {
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberUsernames.map(cleanDisplayName).join(', ')
                     return (
-                      <Fragment key={g.gameId}>
+                      <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr
                         onClick={() => report.open(g.gameId)}
-                        className="cursor-pointer hover:bg-base-800/50"
+                        className="cursor-pointer"
                         title={t.home.clickForReportTitle}
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
@@ -294,8 +294,8 @@ export default function History() {
                           {g.result}
                         </td>
                       </tr>
-                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50">
-                        <td colSpan={9} className="px-3 pb-1.5">
+                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50">
+                        <td colSpan={9} className="px-3 pb-2">
                           <GameActionsBar
                             gameId={g.gameId}
                             memberIds={members.map((m) => m.publicId)}
@@ -305,10 +305,10 @@ export default function History() {
                           />
                         </td>
                       </tr>
-                      </Fragment>
+                      </tbody>
                     )
                   })}
-                </tbody>
+                </>
               </table>
             </div>
           </div>

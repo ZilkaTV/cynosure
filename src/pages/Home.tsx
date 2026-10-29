@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
-import { computeBadges } from '../lib/badges'
+import { computeBadges, winsRoleColor } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
@@ -27,12 +27,23 @@ import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame,
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape, myId: string | null): Column[] {
   return [
     {
       key: 'name',
       label: t.monthly.colName,
-      render: (m) => <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />,
+      render: (m) => {
+        const link = <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
+        // Your own name pulses in the colour of your Discord wins role.
+        const color = m.publicId === myId ? winsRoleColor(m.allWins) : null
+        return color ? (
+          <span className="inline-block animate-pulse font-bold [&_a]:text-inherit" style={{ color }}>
+            {link}
+          </span>
+        ) : (
+          link
+        )
+      },
       sortValue: (m) => m.name.toLowerCase(),
     },
     {
@@ -167,7 +178,7 @@ export default function Home() {
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
 
-  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
+  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t, profile?.openfront_id ?? null), [data, deltas, t, profile?.openfront_id])
 
   const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))
   const eloByGame = useRankedElo(recentGames.map(({ g }) => g))
@@ -269,7 +280,7 @@ export default function Home() {
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <>
                   {recentGames.map(({ g, memberNames, memberIds }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
@@ -280,10 +291,10 @@ export default function Home() {
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
                     const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
                     return (
-                      <Fragment key={g.gameId}>
+                      <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr
                         onClick={() => report.open(g.gameId)}
-                        className="cursor-pointer hover:bg-base-800/50"
+                        className="cursor-pointer"
                         title={t.home.clickForReportTitle}
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
@@ -318,8 +329,8 @@ export default function Home() {
                           {g.result}
                         </td>
                       </tr>
-                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50">
-                        <td colSpan={9} className="px-3 pb-1.5">
+                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50">
+                        <td colSpan={9} className="px-3 pb-2">
                           <GameActionsBar
                             gameId={g.gameId}
                             memberIds={memberIds}
@@ -329,10 +340,10 @@ export default function Home() {
                           />
                         </td>
                       </tr>
-                      </Fragment>
+                      </tbody>
                     )
                   })}
-                </tbody>
+                </>
               </table>
             </div>
           </div>

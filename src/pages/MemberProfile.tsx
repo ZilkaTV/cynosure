@@ -15,13 +15,12 @@ import { Flag } from '../components/Emoji'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
 import { SectionHeading, Spinner } from '../components/ui'
+import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
+import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
 import {
   currentMonthKey,
   ffaBucket,
-  isFfa,
   isTeam,
-  is1v1,
-  is2v2,
   isIncompleteRanked,
   monthLabel,
   oneVoneBucket,
@@ -132,6 +131,14 @@ export default function MemberProfile() {
     if (r.ok) setViewedIsSupporter(!viewedIsSupporter)
   }
 
+  // hooks of the last-games table (the games shown there), before any early return
+  const shownGames = [...(m?.cynGames ?? [])]
+    .filter((g) => g.type !== 'Private')
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    .slice(0, 20)
+  const gameActions = useGameActions(shownGames.map((g) => g.gameId))
+  const eloByGame = useRankedElo(shownGames)
+
   if (!profile) return <RegistrationGate />
   if (loading) return <Spinner label={t.memberProfile.loadingMember} />
   if (!m) {
@@ -157,7 +164,6 @@ export default function MemberProfile() {
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 20)
 
-  const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60)
     return `${m}m ${String(s % 60).padStart(2, '0')}s`
@@ -284,7 +290,7 @@ export default function MemberProfile() {
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                  <th className="px-4 py-3 text-right font-semibold">Win Score</th>
+                  <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
                   <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
@@ -293,22 +299,32 @@ export default function MemberProfile() {
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                 </tr>
               </thead>
-              <tbody>
+              <>
                 {recent.map((g) => {
                   const clanScore = clanScores.get(g.gameId)
                   const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                  const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, [m.publicId]) : null
                   return (
-                    <tr
-                      key={g.gameId}
-                      onClick={() => setOpenGame(g.gameId)}
-                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                      title={t.home.clickForReportTitle}
-                    >
+                    <tbody key={g.gameId} className="hover:bg-base-800/50">
+                    <tr onClick={() => setOpenGame(g.gameId)} className="cursor-pointer" title={t.home.clickForReportTitle}>
                       <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
-                      <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                        {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
-                      </td>
+                      <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                      {isRankedGame(g) ? (
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {elo ? (
+                            <>
+                              {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                              {fmtEloChange(elo)}
+                            </>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      ) : (
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        </td>
+                      )}
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
                       <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
@@ -318,9 +334,15 @@ export default function MemberProfile() {
                         {g.result}
                       </td>
                     </tr>
+                    <tr onClick={() => setOpenGame(g.gameId)} className="cursor-pointer border-b border-base-700/50">
+                      <td colSpan={9} className="px-3 pb-2">
+                        <GameActionsBar gameId={g.gameId} memberIds={[m.publicId]} title={`${gameModeLabel(g)} · ${g.map}`} actions={gameActions} onOpenComments={(id) => setOpenGame(id)} />
+                      </td>
+                    </tr>
+                    </tbody>
                   )
                 })}
-              </tbody>
+              </>
             </table>
           </div>
         </div>

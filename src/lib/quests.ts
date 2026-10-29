@@ -125,7 +125,7 @@ export async function claimQuest(
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
 
   if (!quest.check(member, coopByGame, ctx)) {
-    return { ok: false, message: "Not completed yet today - come back once you've done it." }
+    return { ok: false, message: "Not completed yet today. Come back once you've done it." }
   }
 
   // Proactively nudges the client to refresh an expired-but-still-
@@ -152,7 +152,7 @@ export async function claimQuest(
     // only a real re-login clears it. Reported plainly instead of the raw
     // Postgres message, which gives no hint that signing back in helps.
     if (claimError.code === '42501' || claimError.message.includes('row-level security')) {
-      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+      return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
     }
     return { ok: false, message: `Couldn't claim: ${claimError.message}` }
   }

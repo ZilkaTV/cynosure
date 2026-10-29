@@ -10,13 +10,13 @@ const TEXT = {
     body: (d: number) => `Der Zugriff auf die Seiten gilt ${d} Tage nach deinem letzten Sieg mit dem [${CLAN_TAG}]-Tag. Du hast diese Frist überschritten.`,
     last: (s: string) => `Letzter zählender Sieg: ${s}`,
     never: 'Es wurde noch kein zählender Sieg gefunden.',
-    howTitle: 'So bekommst du ihn zurück - ein Sieg mit [CYN]-Tag in:',
+    howTitle: 'So bekommst du ihn zurück: ein Sieg mit [CYN]-Tag in',
     how: ['Ranked 1v1, Ranked 2v2 oder Ranked FFA', 'einem öffentlichen FFA mit mehr als 10 Spielern', 'einem Team-Spiel mit mindestens 2 [CYN]-Mitgliedern'],
     permTitle: 'Dauerhafter Zugriff ohne Frist:',
     perm: ['den Discord-Server boosten', `Gold Legionnaire sein (${GOLD_LEGIONNAIRE_WINS} Siege)`, 'die Seite mit mindestens 5 € unterstützen'],
     donate: 'Seite unterstützen',
     discord: 'Discord',
-    updated: 'Die Seite prüft das automatisch - nach einem Sieg dauert es etwas, bis er hier ankommt.',
+    updated: 'Die Seite prüft das automatisch. Nach einem Sieg dauert es etwas, bis er hier ankommt.',
   },
   en: {
     title: 'Your access has expired',
@@ -29,7 +29,7 @@ const TEXT = {
     perm: ['boost the Discord server', `be a Gold Legionnaire (${GOLD_LEGIONNAIRE_WINS} wins)`, 'support the site with at least 5 EUR'],
     donate: 'Support the site',
     discord: 'Discord',
-    updated: 'The site checks this by itself - a win can take a little while to show up here.',
+    updated: 'The site checks this by itself. A win can take a little while to show up here.',
   },
 }
 

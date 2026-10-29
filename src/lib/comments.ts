@@ -50,7 +50,7 @@ export interface CommentResult {
 }
 
 function failure(error: { code?: string; message: string }): CommentResult {
-  if (error.code === '42501') return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+  if (error.code === '42501') return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
   const m = /^[a-z_]+: (.*)$/.exec(error.message)
   return { ok: false, message: m ? m[1] : error.message }
 }

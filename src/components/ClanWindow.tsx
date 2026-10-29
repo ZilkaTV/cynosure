@@ -83,7 +83,7 @@ export function ClanWindow() {
           <div className="h-px w-16 bg-base-600" />
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-400">{t.home.streakTitle}</p>
-            <p className="font-display text-2xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}</p>
+            <p className="font-display text-2xl font-bold text-accent-light">{streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '0'}</p>
             <p className="mt-0.5 text-xs text-slate-500">{streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}</p>
           </div>
         </div>

@@ -40,6 +40,7 @@ export default function ProfileSearch({ className = '' }: { className?: string }
   const go = (id: string) => {
     setQuery('')
     setFocused(false)
+    ;(document.activeElement as HTMLElement | null)?.blur()
     navigate(`/member/${id}`)
   }
   const placeholder = language === 'de' ? 'Profil suchen: Name oder ID' : 'Find a profile: name or ID'
@@ -52,6 +53,7 @@ export default function ProfileSearch({ className = '' }: { className?: string }
         onChange={(e) => {
           setQuery(e.target.value)
           setActive(0)
+          setFocused(true)
         }}
         onFocus={() => setFocused(true)}
         onBlur={() => window.setTimeout(() => setFocused(false), 150)}

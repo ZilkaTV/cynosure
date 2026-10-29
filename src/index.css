@@ -88,3 +88,32 @@
     background-position: -200% 0;
   }
 }
+
+/* A name in the colours of a wins role: two colours slide through the letters, with a soft glow that pulses */
+.role-name {
+  background-image: linear-gradient(90deg, var(--c1), var(--c2), var(--c1));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    role-slide 3.2s linear infinite,
+    role-glow 2.6s ease-in-out infinite;
+}
+.role-name a {
+  color: transparent;
+}
+@keyframes role-slide {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes role-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 5px var(--c1));
+  }
+}

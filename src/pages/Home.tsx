@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
-import { computeBadges, winsRoleColor } from '../lib/badges'
+import { computeBadges, winsRoleGradient } from '../lib/badges'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
@@ -27,17 +27,17 @@ import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame,
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape, myId: string | null): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): Column[] {
   return [
     {
       key: 'name',
       label: t.monthly.colName,
       render: (m) => {
         const link = <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
-        // Your own name pulses in the colour of your Discord wins role.
-        const color = m.publicId === myId ? winsRoleColor(m.allWins) : null
-        return color ? (
-          <span className="inline-block animate-pulse font-bold [&_a]:text-inherit" style={{ color }}>
+        // Every name with a Discord wins role (from 50 wins: bronze, 100: silver, ...) slides between the two colours of that role.
+        const colors = winsRoleGradient(m.allWins)
+        return colors ? (
+          <span className="role-name inline-block font-bold" style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
             {link}
           </span>
         ) : (
@@ -178,7 +178,7 @@ export default function Home() {
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
 
-  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t, profile?.openfront_id ?? null), [data, deltas, t, profile?.openfront_id])
+  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
 
   const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))
   const eloByGame = useRankedElo(recentGames.map(({ g }) => g))

@@ -132,5 +132,5 @@ Build any of these only after the owner picks one.
 - The social strip is again its own line under each game (labelled buttons), but bigger, and the game (info row + strip) is one table body that highlights
   as a whole. Same strip under the last games on the profile (with Elo / ranked gold like Home and History).
 - Profile button: arrow that shows it is a menu; Update button a bit bigger.
-- Overview: your own name pulses in the colour of your Discord wins role (`winsRoleColor` in `badges.ts`, same hex as the badge tiers).
+- Overview: every name with a Discord wins role (50 wins bronze, 100 silver, ...) slides between two colours of that role with a soft pulsing glow (`winsRoleGradient` in `badges.ts`, `.role-name` in `index.css`).
 - Career window: FFA Elo next to 1v1 and 2v2.

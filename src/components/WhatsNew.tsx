@@ -254,13 +254,13 @@ export default function WhatsNew() {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={close} role="dialog" aria-modal="true" aria-label={de ? 'Das ist neu' : 'What is new'}>
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-accent/40 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg overflow-hidden md:max-w-3xl rounded-2xl border border-accent/40 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* header: tag, date, one line of what it is about */}
-        <div className="flex items-start justify-between gap-3 px-5 pt-4">
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 md:px-8 md:pt-6">
           <div>
             <span className="rounded-full bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{de ? 'Neu' : 'New'}</span>
             <span className="ml-2 text-xs text-slate-500">{new Date(latest.date).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-            <p className="mt-1.5 text-sm text-slate-300">{L(latest.tldr)}</p>
+            <p className="mt-1.5 text-sm text-slate-300 md:text-lg">{L(latest.tldr)}</p>
           </div>
           <button type="button" onClick={close} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={de ? 'Schließen' : 'Close'}>
             ✕
@@ -270,28 +270,30 @@ export default function WhatsNew() {
         {slide ? (
           <div key={i} className="animate-[fadeUp_.3s_ease]">
             {/* the picture */}
-            <div className="relative mt-4 flex h-52 items-center justify-center bg-gradient-to-br from-accent/25 via-base-850 to-gold/15 px-5">
+            <div className="relative mt-4 flex h-52 items-center justify-center md:h-[24rem] bg-gradient-to-br from-accent/25 via-base-850 to-gold/15 px-5">
               <span className="absolute left-4 top-3 rounded-full border border-gold/50 bg-base-950/70 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-gold-light">{L(slide.tag)}</span>
-              <Visual kind={slide.visual} de={de} />
+              <div className="flex w-full justify-center md:origin-center md:scale-[1.6]">
+                <Visual kind={slide.visual} de={de} />
+              </div>
             </div>
-            <div className="px-5 pb-1 pt-4 text-center">
-              <h2 className="font-display text-2xl font-bold text-white">{L(slide.title)}</h2>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-300">{L(slide.text)}</p>
+            <div className="px-5 pb-1 pt-4 text-center md:px-8 md:pt-6">
+              <h2 className="font-display text-2xl font-bold text-white md:text-4xl">{L(slide.title)}</h2>
+              <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-300 md:mt-2 md:max-w-xl md:text-lg">{L(slide.text)}</p>
               {slide.link && (
-                <Link to={slide.link.to} onClick={close} className="mt-2 inline-block text-sm font-semibold text-accent-light underline underline-offset-4 hover:text-accent">
+                <Link to={slide.link.to} onClick={close} className="mt-2 inline-block text-sm font-semibold md:text-base text-accent-light underline underline-offset-4 hover:text-accent">
                   {L(slide.link.label)} →
                 </Link>
               )}
             </div>
           </div>
         ) : (
-          <div key="more" className="animate-[fadeUp_.3s_ease] px-5 pb-1 pt-5">
-            <h2 className="text-center font-display text-2xl font-bold text-white">{de ? 'Außerdem' : 'Also'}</h2>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <div key="more" className="animate-[fadeUp_.3s_ease] px-5 pb-1 pt-5 md:px-8 md:pt-8">
+            <h2 className="text-center font-display text-2xl font-bold text-white md:text-4xl">{de ? 'Außerdem' : 'Also'}</h2>
+            <div className="mt-4 flex flex-wrap justify-center gap-2 md:mt-6 md:gap-3">
               {latest.more.map((m) => (
                 <span
                   key={m.text.en}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${m.important ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-base-600 bg-base-800 text-slate-300'}`}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium md:px-4 md:py-2 md:text-base ${m.important ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-base-600 bg-base-800 text-slate-300'}`}
                 >
                   {m.important && '⚠ '}
                   {L(m.text)}
@@ -302,7 +304,7 @@ export default function WhatsNew() {
         )}
 
         {/* progress and buttons */}
-        <div className="mt-5 flex items-center justify-between gap-3 border-t border-base-700 px-5 py-3">
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-base-700 px-5 py-3 md:mt-7 md:px-8 md:py-4">
           <button type="button" onClick={() => setI((n) => Math.max(n - 1, 0))} disabled={i === 0} className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-white disabled:invisible">
             {de ? 'Zurück' : 'Back'}
           </button>
@@ -312,11 +314,11 @@ export default function WhatsNew() {
             ))}
           </div>
           {i < last ? (
-            <button type="button" onClick={() => setI((n) => n + 1)} className="btn-accent !px-5 !py-1.5 text-sm">
+            <button type="button" onClick={() => setI((n) => n + 1)} className="btn-accent !px-5 !py-1.5 text-sm md:!px-7 md:!py-2 md:text-base">
               {de ? 'Weiter' : 'Next'}
             </button>
           ) : (
-            <button type="button" onClick={close} className="btn-accent !px-5 !py-1.5 text-sm">
+            <button type="button" onClick={close} className="btn-accent !px-5 !py-1.5 text-sm md:!px-7 md:!py-2 md:text-base">
               {de ? 'Los geht’s' : "Let's go"}
             </button>
           )}

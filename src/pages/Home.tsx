@@ -258,15 +258,16 @@ export default function Home() {
               <table className="w-full min-w-[620px] text-sm">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
-                    <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
+                    <th className="px-2.5 py-3 text-left font-semibold">{t.common.table.date}</th>
+                    <th className="px-2.5 py-3 text-left font-semibold">{t.common.table.player}</th>
+                    <th className="px-2.5 py-3 text-left font-semibold">{t.common.table.mode}</th>
+                    <th className="px-2.5 py-3 text-right font-semibold">{t.common.table.players}</th>
+                    <th className="px-2.5 py-3 text-right font-semibold">Win Score / Elo</th>
+                    <th className="px-2.5 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                    <th className="px-2.5 py-3 text-left font-semibold">{t.common.table.map}</th>
+                    <th className="px-2.5 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                    <th className="px-2.5 py-3 text-right font-semibold">{t.common.table.result}</th>
+                    <th className="px-2 py-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -283,15 +284,15 @@ export default function Home() {
                       <Fragment key={g.gameId}>
                       <tr
                         onClick={() => report.open(g.gameId)}
-                        className="cursor-pointer hover:bg-base-800/50"
+                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
                         title={t.home.clickForReportTitle}
                       >
-                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                        <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                        <td className="px-2.5 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-2.5 py-2.5 text-white">{playerDisplay}</td>
+                        <td className={`whitespace-nowrap px-2.5 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                        <td className="whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         {isRankedGame(g) ? (
-                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          <td className={`whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {elo ? (
                               <>
                                 {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
@@ -302,25 +303,24 @@ export default function Home() {
                             )}
                           </td>
                         ) : (
-                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          <td className={`whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                           </td>
                         )}
-                        <td className={`px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
+                        <td className={`whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
                           {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-400">
+                        <td className="px-2.5 py-2.5 text-slate-400">
                           {g.map}
                           {mapSizes.get(g.gameId) === 'Compact' && <span className="ml-1 text-gold-light">({t.queue.mapCompact})</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                        <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
+                        <td className="whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className={`whitespace-nowrap px-2.5 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                      </tr>
-                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50">
-                        <td colSpan={9} className="px-3 pb-1.5">
+                        <td className="px-2 py-1.5">
                           <GameActionsBar
+                            compact
                             gameId={g.gameId}
                             memberIds={memberIds}
                             title={`${gameModeLabel(g)} · ${g.map}`}

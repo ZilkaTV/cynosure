@@ -127,3 +127,7 @@ Build any of these only after the owner picks one.
 ## 14. Header buttons again - dev, 2026-10-29
 - Language, Metrics and the account button share one box (264 x 72 px, `.top-btn`); Update is a small button under CynClan.com (`.top-btn-sm`);
   Game nights sit above Settings in the account menu.
+
+## 15. One row per game - dev, 2026-10-29
+- The social strip is the last column of the game row on Home and History (icons only: like, comment, save, share), not a second row any more
+  (`GameActionsBar compact`); cell padding is smaller so the table fits.

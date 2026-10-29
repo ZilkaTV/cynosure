@@ -25,6 +25,9 @@ export function useGameActions(gameIds: string[]): GameActions {
   return { reactions, saved, commentCounts, myId: profile?.openfront_id ?? null }
 }
 
+// the one open reaction list on the page (see openPicker)
+let closeOpenPicker: (() => void) | null = null
+
 const icon = 'h-5 w-5'
 const btn = 'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-base-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -90,23 +93,43 @@ export function GameActionsBar({
   const comments = commentCounts[gameId] ?? 0
 
   // The picker is drawn on the page itself (not inside the table), so no table edge can cut it off.
-  const openPicker = () => {
-    window.clearTimeout(timer.current)
+  const placePicker = () => {
     const r = likeRef.current?.getBoundingClientRect()
-    if (!r || !myId) return
+    if (!r) return
     const below = r.top < 70
     setPickerAt({ left: r.left, top: below ? r.bottom + 4 : r.top - 4, below })
   }
-  const closePickerSoon = () => {
+  // The list of reactions stays open until an emote is picked (or Escape): clicking somewhere else does not make it vanish. Only one list is open at a time.
+  const openPicker = () => {
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setPickerAt(null), 250)
+    if (!myId) return
+    if (closeOpenPicker && closeOpenPicker !== closeMine.current) closeOpenPicker()
+    closeOpenPicker = closeMine.current
+    placePicker()
   }
+  const closeMine = useRef(() => setPickerAt(null))
+  useEffect(() => {
+    const close = () => setPickerAt(null)
+    closeMine.current = close
+    return () => {
+      if (closeOpenPicker === close) closeOpenPicker = null
+    }
+  }, [])
+  // it follows its Like button when the page scrolls or the window changes size
   useEffect(() => {
     if (!pickerAt) return
-    const close = () => setPickerAt(null)
-    window.addEventListener('scroll', close, true)
-    return () => window.removeEventListener('scroll', close, true)
-  }, [pickerAt])
+    const follow = () => placePicker()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPickerAt(null)
+    window.addEventListener('scroll', follow, true)
+    window.addEventListener('resize', follow)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('scroll', follow, true)
+      window.removeEventListener('resize', follow)
+      document.removeEventListener('keydown', onKey)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerAt !== null])
 
   const run = async (job: () => Promise<{ ok: boolean; message: string }>) => {
     setBusy(true)
@@ -152,7 +175,6 @@ export function GameActionsBar({
         type="button"
         onClick={onLike}
         onMouseEnter={openPicker}
-        onMouseLeave={closePickerSoon}
         onTouchStart={() => {
           timer.current = window.setTimeout(openPicker, 450)
         }}
@@ -175,8 +197,6 @@ export function GameActionsBar({
           <div
             style={{ position: 'fixed', left: pickerAt.left, top: pickerAt.top, transform: pickerAt.below ? undefined : 'translateY(-100%)' }}
             className="z-[120] flex gap-0.5 rounded-full border border-base-600 bg-base-850 p-1 shadow-xl"
-            onMouseEnter={openPicker}
-            onMouseLeave={closePickerSoon}
             onClick={(e) => e.stopPropagation()}
           >
             {REACTION_EMOJIS.map((emoji) => (

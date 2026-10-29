@@ -191,3 +191,7 @@ Build any of these only after the owner picks one.
 - Dev copy only: the CYN Hero Skin event shows as "Live" and the Factor Wheel counts from 1 October (so it has data); on the main site the status still follows the real window
   (upcoming until 1 Nov 00:00 German time). `?wheelFrom=` still overrides.
 - Comment reaction picker: the emoji row collapsed to 0 px inside its narrow parent (so the pill looked empty); it now has `w-max`.
+- Factor Wheel numbers (2026-10-29): +1 per full Win Score (95.1 = 95), +10 per Discord boost, +3 donation, +1 per team game with another CYN member. Only games that START
+  between 1 Nov 00:00 and 31 Dec 23:59:59 German time count (nothing before, nothing after); the earlier preview switch (`?wheelFrom`, dev default 1 Oct) is gone, so the
+  wheel on dev is empty until 1 Nov (boosters show). Weights are covered by `src/lib/raffle.test.ts`.
+- The reaction list under a game stays open until an emote is picked (or Escape); clicking elsewhere no longer closes it, only one list is open at a time, it follows its Like button when scrolling.

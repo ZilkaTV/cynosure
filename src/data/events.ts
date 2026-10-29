@@ -74,7 +74,7 @@ const EVENT_LIST: ClanEvent[] = [
 export const EVENTS: ClanEvent[] = EVENT_LIST.map((ev) => {
   if (!ev.windowFrom || !ev.windowTo) return ev
   const now = Date.now()
-  // The dev copy of the site plays the event as if it were running (the window itself is shown from DEV_PREVIEW_FROM, see Events.tsx).
+  // The dev copy of the site shows the event as live; what counts for the wheel is always only the window itself.
   const onDev = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
   const status: ClanEvent['status'] = onDev ? 'live' : now < Date.parse(ev.windowFrom) ? 'upcoming' : now <= Date.parse(ev.windowTo) ? 'live' : 'ended'
   return { ...ev, status }

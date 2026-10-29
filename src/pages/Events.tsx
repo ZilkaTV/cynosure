@@ -124,10 +124,6 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const de = language === 'de'
   const [rank, setRank] = useState<number | null | undefined>(undefined)
   const [open, setOpen] = useState(true)
-  // ?wheelFrom=2026-10-01 shows the wheel as if the event had started that day (to look at it before 1 November)
-  // On the dev copy the wheel counts from 1 October by default, so there is real data to look at before the event starts.
-  const onDev = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
-  const previewFrom = new URLSearchParams(window.location.search).get('wheelFrom')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? (onDev ? '2026-10-01' : null)
   useEffect(() => {
     fetchTopClanLeaderboard()
       .then((top) => {
@@ -232,19 +228,19 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
           {(de
             ? [
                 ['Basispunkte von Anfang an', ''],
-                ['Pro Discord-Server-Boost', '+3'],
+                ['Pro Discord-Server-Boost', '+10'],
                 ['Pro 5 € Spende an die Website', '+3'],
                 ['Für alle', ''],
                 ['1 Spiel = 1 Punkt: je Team-Spiel mit einem anderen CYN-Mitglied (Sieg oder Niederlage)', '+1'],
-                ['Je 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
+                ['Je 1 Win Score (95,1 Win Score = 95 Punkte)', '+1'],
               ]
             : [
                 ['Base points from the start', ''],
-                ['Per Discord server boost', '+3'],
+                ['Per Discord server boost', '+10'],
                 ['Per 5 € donated to the website', '+3'],
                 ['For everybody', ''],
                 ['1 game = 1 point: per team game with another CYN member (win or loss)', '+1'],
-                ['Per 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
+                ['Per 1 Win Score (95.1 Win Score = 95 points)', '+1'],
               ]
           ).map(([label, pts], i) =>
             pts === '' ? (
@@ -264,8 +260,7 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
       {event.windowFrom && event.windowTo && (
         <div>
           <BlockLabel>Factor Wheel</BlockLabel>
-          {previewFrom && <p className="mb-2 text-xs text-amber-300">{de ? 'Vorschau: gezählt wird ab ' : 'Preview: counting from '}{previewFrom}</p>}
-          <FactorWheel fromMs={previewFrom ? Date.parse(previewFrom + 'T00:00:00Z') : Date.parse(event.windowFrom)} toMs={Date.parse(event.windowTo)} />
+          <FactorWheel fromMs={Date.parse(event.windowFrom)} toMs={Date.parse(event.windowTo)} />
         </div>
       )}
 

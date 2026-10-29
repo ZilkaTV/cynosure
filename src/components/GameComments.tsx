@@ -128,9 +128,9 @@ function CommentView({ node, gameId, reactions, depth, canDelete }: { node: Node
                 {t.comments.react}
               </button>
               {picking && (
-                <span className="absolute bottom-full left-0 z-20 flex gap-0.5 rounded-full border border-base-600 bg-base-850 p-1 shadow-xl">
+                <span className="absolute bottom-full left-0 z-20 flex w-max gap-0.5 rounded-full border border-base-600 bg-base-850 p-1 shadow-xl">
                   {REACTION_EMOJIS.map((emoji) => (
-                    <button key={emoji} type="button" onClick={() => react(emoji)} aria-label={emoji} className="rounded-full p-1 transition-transform hover:scale-125">
+                    <button key={emoji} type="button" onClick={() => react(emoji)} aria-label={emoji} className="shrink-0 rounded-full p-1 transition-transform hover:scale-125">
                       <Emoji char={emoji} className="h-5 w-5" />
                     </button>
                   ))}

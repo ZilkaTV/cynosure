@@ -190,3 +190,4 @@ Build any of these only after the owner picks one.
 - Saved games: taking one back (Remove on the profile, the bookmark in the strip, the star in the report) asks "Sure?" first; the second click within 3.5 s does it (`useArmed`).
 - Dev copy only: the CYN Hero Skin event shows as "Live" and the Factor Wheel counts from 1 October (so it has data); on the main site the status still follows the real window
   (upcoming until 1 Nov 00:00 German time). `?wheelFrom=` still overrides.
+- Comment reaction picker: the emoji row collapsed to 0 px inside its narrow parent (so the pill looked empty); it now has `w-max`.

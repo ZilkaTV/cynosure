@@ -17,47 +17,81 @@ export function RoleName({ wins, className = '', children }: { wins: number | un
 
 interface WinsIndex {
   byId: Map<string, number>
+  /** registered name per member id */
+  nameById: Map<string, string>
+  /** name (lower case) -> all-time wins, only for names that belong to ONE member (a name several members played under is skipped) */
   byName: Map<string, number>
-  /** in-game name (lower case) -> the member's registered name, for games played under another name */
-  registeredByName: Map<string, string>
 }
 
 const NO_MEMBERS: MemberStats[] = []
 let indexedFor: MemberStats[] | null = null
-let index: WinsIndex = { byId: new Map(), byName: new Map(), registeredByName: new Map() }
+let index: WinsIndex = { byId: new Map(), nameById: new Map(), byName: new Map() }
 
 /** All-time wins per member, by id and by (lower-case) name, from the roster that is shared on the page; empty until it is there. */
 export function useWinsIndex(): WinsIndex {
   const members = useSharedRoster()?.members ?? NO_MEMBERS
   if (indexedFor !== members) {
     indexedFor = members
-    index = { byId: new Map(members.map((m) => [m.publicId, m.allWins])), byName: new Map(), registeredByName: new Map() }
+    const byName = new Map<string, number>()
+    // Registered names first: they identify the member. Names members only played under in a game count when exactly one member did.
+    for (const m of members) byName.set(cleanDisplayName(m.name).toLowerCase(), m.allWins)
+    const owners = new Map<string, Set<string>>()
     for (const m of members) {
-      const registered = cleanDisplayName(m.name)
-      index.byName.set(registered.toLowerCase(), m.allWins)
       for (const g of m.cynGames) {
         const played = cleanDisplayName(g.username).toLowerCase()
-        index.byName.set(played, m.allWins)
-        if (played !== registered.toLowerCase()) index.registeredByName.set(played, registered)
+        const set = owners.get(played) ?? new Set<string>()
+        set.add(m.publicId)
+        owners.set(played, set)
       }
+    }
+    for (const m of members) {
+      for (const g of m.cynGames) {
+        const played = cleanDisplayName(g.username).toLowerCase()
+        if (!byName.has(played) && owners.get(played)?.size === 1) byName.set(played, m.allWins)
+      }
+    }
+    index = {
+      byId: new Map(members.map((m) => [m.publicId, m.allWins])),
+      nameById: new Map(members.map((m) => [m.publicId, cleanDisplayName(m.name)])),
+      byName,
     }
   }
   return index
 }
 
-/** "Zilka, Sweeper, deshack +4": a list of player names, the registered members among them in their role colours. */
-export function RosterNames({ names, byName, registered, max = 6 }: { names: string[]; byName: Map<string, number>; registered?: Map<string, string>; max?: number }) {
+/**
+ * "Zilka, Sweeper, deshack +4": the player names of one game. A name is matched to a member of THAT game (so a name two members
+ * once played under cannot take the wrong member's colour or registered name): the member's wins colour the name, and a
+ * registered name that differs from the in-game name follows in gold brackets.
+ */
+export function RosterNames({
+  names,
+  members,
+  winsById,
+  nameById,
+  max = 10,
+}: {
+  names: string[]
+  members: { publicId: string; username: string }[]
+  winsById: Map<string, number>
+  nameById: Map<string, string>
+  max?: number
+}) {
   const clean = names.map(cleanDisplayName)
   const shown = clean.length <= max ? clean : clean.slice(0, max - 1)
   return (
     <>
-      {shown.map((n, i) => (
-        <span key={i}>
-          {i > 0 && ', '}
-          <RoleName wins={byName.get(n.toLowerCase())}>{n}</RoleName>
-          {registered?.get(n.toLowerCase()) && <span className="ml-1 text-gold-light">({registered.get(n.toLowerCase())})</span>}
-        </span>
-      ))}
+      {shown.map((n, i) => {
+        const member = members.find((m) => cleanDisplayName(m.username).toLowerCase() === n.toLowerCase())
+        const registered = member ? nameById.get(member.publicId) : undefined
+        return (
+          <span key={i}>
+            {i > 0 && ', '}
+            <RoleName wins={member ? winsById.get(member.publicId) : undefined}>{n}</RoleName>
+            {registered && registered.toLowerCase() !== n.toLowerCase() && <span className="ml-1 text-gold-light">({registered})</span>}
+          </span>
+        )
+      })}
       {clean.length > max && ` +${clean.length - (max - 1)}`}
     </>
   )

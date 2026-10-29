@@ -294,7 +294,7 @@ export default function Home() {
                     const winRate = groupWinRate(data?.members.find((x) => x.publicId === memberIds[0]), g)
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
-                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} byName={winsIndex.byName} registered={winsIndex.registeredByName} />
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} members={memberIds.map((id, i) => ({ publicId: id, username: memberNames[i] }))} winsById={winsIndex.byId} nameById={winsIndex.nameById} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr

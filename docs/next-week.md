@@ -165,3 +165,5 @@ Build any of these only after the owner picks one.
 - "1 day left" under the name is a red warning that slides and pulses (`.text-warn`).
 - Saved games: remove drops the game from the list at once (no waiting for the reload). I found no confirmation dialog in the code.
 - Reaction chips (emoji + number) open a window with who reacted with what, the most used emoji first; own reaction can be removed there.
+- Player column: a name is matched to the members of THAT game (not by name over the whole roster): two members had once played a game as "zilka", which put
+  "(revenflok.)" behind the real Zilka. Names several members played under no longer colour anything in the report either. The column shows up to 10 names.

@@ -253,7 +253,7 @@ export default function History() {
                     const detail = gameDetails.get(g.gameId)
                     const memberUsernames = members.map((m) => m.username)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
-                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} byName={winsIndex.byName} registered={winsIndex.registeredByName} />
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} members={members} winsById={winsIndex.byId} nameById={winsIndex.nameById} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr

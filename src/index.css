@@ -114,3 +114,25 @@
     filter: drop-shadow(0 0 5px var(--c1));
   }
 }
+
+/* 0 % win rate: a warning - red that slides between light and dark and pulses */
+.text-warn {
+  font-weight: 700;
+  background: linear-gradient(90deg, #fca5a5 0%, #b91c1c 50%, #fca5a5 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    text-shine 1.8s linear infinite,
+    warn-pulse 1.2s ease-in-out infinite;
+}
+@keyframes warn-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

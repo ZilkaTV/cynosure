@@ -463,10 +463,6 @@ export default function Monthly({ variant }: { variant: Variant }) {
           if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
           return (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.elo ?? 0 })))} />
-                <TitleCard emoji={EMOJI.bolt} title={t.monthly.titleClimber} metric={t.monthly.metricEloGain} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.delta ?? 0 })))} />
-              </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="sticky-cols w-full min-w-[520px] text-sm">
@@ -513,6 +509,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
             })
           if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
           return (
+            <>
+            <div className="grid grid-cols-3 gap-3">
+              <TitleCard emoji={EMOJI.pickaxe} title="Grinder" metric={t.monthly.colPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+              <TitleCard emoji={EMOJI.bow} title={t.monthly.titlePredator} metric={t.monthly.metricAvgKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+              <TitleCard emoji={EMOJI.bolt} title={t.monthly.titlePro} metric={t.monthly.metricWinStreak} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+            </div>
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="sticky-cols w-full min-w-[520px] text-sm">
@@ -543,6 +545,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                 </table>
               </div>
             </div>
+            </>
           )
         })()}
 

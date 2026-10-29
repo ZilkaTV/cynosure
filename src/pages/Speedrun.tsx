@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import { tilesClass } from '../lib/gameRows'
 import { Card, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
 import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, fetchPendingSpeedruns, type PendingSpeedrun, type SubmitResult } from '../lib/speedruns'
@@ -253,7 +254,7 @@ export default function Speedrun() {
                         <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-400">{m.speedrunAttempts}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">
+                      <td className={`px-4 py-3 text-right tabular-nums ${m.tiles3minPercent != null ? tilesClass(m.tiles3minPercent) : 'text-slate-300'}`}>
                         {m.tiles3minPercent != null ? fmtPercent(m.tiles3minPercent) : <span className="text-slate-600">-</span>}
                       </td>
                       <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">

@@ -141,8 +141,18 @@ export function fmtEloChange(c: EloChange): string {
   return `${c.c > 1 ? 'Σ ' : ''}${sign}${Math.abs(c.d)}`
 }
 
+/** Colour of the tile share at 3 minutes: under 9.1 % red, up to 10 grey, up to 12 green, under 15 blue, 15 % and more pulsing gold. */
+export function tilesClass(pct: number): string {
+  if (pct >= 15) return 'animate-pulse font-bold text-gold-light'
+  if (pct > 12) return 'text-sky-400'
+  if (pct > 10) return 'text-emerald-400'
+  if (pct >= 9.1) return 'text-slate-400'
+  return 'text-rose-400'
+}
+
 /** Colour of a win rate in a game row: up to 30 % red, 31-50 grey, 51-74 green, 75-99 blue, 100 shiny gold. */
 export function winRateClass(pct: number): string {
+  if (pct <= 0) return 'text-warn'
   if (pct >= 100) return 'text-shine'
   if (pct >= 75) return 'text-sky-400'
   if (pct >= 51) return 'text-emerald-400'

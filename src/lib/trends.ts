@@ -189,22 +189,63 @@ export async function fetchMonthlyEloForAllMembers(monthKey: string): Promise<Re
     byMember.set(r.openfront_id, arr)
   }
 
+  type Key = 'elo' | 'elo_2v2'
   const result: Record<string, MonthlyEloPoint> = {}
+  // Members who are in the top 100 now but were not on the board at the start of the month (no Elo in the snapshots before it): their
+  // baseline is the last Elo seen before the month, looked up one by one (few members), else the first Elo seen inside the month.
+  const needOlder: { id: string; key: Key }[] = []
+  const inMonthFirst = new Map<string, number>()
   for (const [id, snaps] of byMember) {
     // Already ascending by snapshot_date (query order) within each member's list.
     const beforeMonth = snaps.filter((s) => s.snapshot_date < start)
     const throughMonthEnd = snaps.filter((s) => s.snapshot_date <= end)
-    const startPoint = beforeMonth[beforeMonth.length - 1] ?? throughMonthEnd[0] ?? null
     const endPoint = throughMonthEnd[throughMonthEnd.length - 1] ?? null
-
-    const elo = endPoint?.elo ?? null
-    const elo2v2 = endPoint?.elo_2v2 ?? null
-    result[id] = {
-      elo,
-      elo2v2,
-      eloDelta: elo != null && startPoint?.elo != null ? elo - startPoint.elo : null,
-      eloDelta2v2: elo2v2 != null && startPoint?.elo_2v2 != null ? elo2v2 - startPoint.elo_2v2 : null,
+    const inMonth = throughMonthEnd.filter((s) => s.snapshot_date >= start)
+    const baseline = (key: Key): number | null => {
+      for (let i = beforeMonth.length - 1; i >= 0; i--) if (beforeMonth[i][key] != null) return beforeMonth[i][key]
+      return null
     }
+    const firstInMonth = (key: Key): number | null => inMonth.find((r) => r[key] != null)?.[key] ?? null
+    const pick = (key: Key): { now: number | null; base: number | null } => {
+      const now = endPoint?.[key] ?? null
+      let base = baseline(key)
+      if (base == null && now != null) {
+        // Nothing before this month on the board: look further back; until that is known, the first value of the month.
+        if (beforeMonth.length > 0) needOlder.push({ id, key })
+        base = firstInMonth(key)
+        if (base != null) inMonthFirst.set(id + '|' + key, base)
+      }
+      return { now, base }
+    }
+    const one = pick('elo')
+    const two = pick('elo_2v2')
+    result[id] = {
+      elo: one.now,
+      elo2v2: two.now,
+      eloDelta: one.now != null && one.base != null ? one.now - one.base : null,
+      eloDelta2v2: two.now != null && two.base != null ? two.now - two.base : null,
+    }
+  }
+
+  const older = await Promise.all(
+    needOlder.map(async ({ id, key }) => {
+      const { data } = await supabase!
+        .from('cyn_member_snapshots')
+        .select(key)
+        .eq('openfront_id', id)
+        .lt('snapshot_date', start)
+        .gt(key, 0)
+        .order('snapshot_date', { ascending: false })
+        .limit(1)
+      const row = ((data ?? []) as Record<string, number | null>[])[0]
+      return { id, key, value: row?.[key] ?? null }
+    }),
+  )
+  for (const { id, key, value } of older) {
+    if (value == null) continue
+    const r = result[id]
+    if (key === 'elo' && r.elo != null) r.eloDelta = r.elo - value
+    if (key === 'elo_2v2' && r.elo2v2 != null) r.eloDelta2v2 = r.elo2v2 - value
   }
   return result
 }

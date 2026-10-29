@@ -88,6 +88,7 @@ export function GameActionsBar({
   const unsave = useArmed()
   const [problem, setProblem] = useState<string | null>(null)
   const likeRef = useRef<HTMLButtonElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const timer = useRef<number | undefined>(undefined)
   const isSaved = saved.games.some((g) => g.game_id === gameId)
   const comments = commentCounts[gameId] ?? 0
@@ -99,7 +100,7 @@ export function GameActionsBar({
     const below = r.top < 70
     setPickerAt({ left: r.left, top: below ? r.bottom + 4 : r.top - 4, below })
   }
-  // The list of reactions stays open until an emote is picked (or Escape): clicking somewhere else does not make it vanish. Only one list is open at a time.
+  // The list of reactions stays open while the mouse moves away; an emote, Escape or a click anywhere else puts it away. Only one list is open at a time.
   const openPicker = () => {
     window.clearTimeout(timer.current)
     if (!myId) return
@@ -120,6 +121,12 @@ export function GameActionsBar({
     if (!pickerAt) return
     const follow = () => placePicker()
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPickerAt(null)
+    // a click anywhere else than on the list or its Like button puts it away
+    const away = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!pickerRef.current?.contains(t) && !likeRef.current?.contains(t)) setPickerAt(null)
+    }
+    document.addEventListener('mousedown', away)
     window.addEventListener('scroll', follow, true)
     window.addEventListener('resize', follow)
     document.addEventListener('keydown', onKey)
@@ -127,6 +134,7 @@ export function GameActionsBar({
       window.removeEventListener('scroll', follow, true)
       window.removeEventListener('resize', follow)
       document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', away)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerAt !== null])
@@ -195,6 +203,7 @@ export function GameActionsBar({
       {pickerAt &&
         createPortal(
           <div
+            ref={pickerRef}
             style={{ position: 'fixed', left: pickerAt.left, top: pickerAt.top, transform: pickerAt.below ? undefined : 'translateY(-100%)' }}
             className="z-[120] flex gap-0.5 rounded-full border border-base-600 bg-base-850 p-1 shadow-xl"
             onClick={(e) => e.stopPropagation()}

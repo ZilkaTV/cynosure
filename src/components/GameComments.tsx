@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Emoji } from './Emoji'
 import { MemberNameLink } from './ui'
 import { REACTION_EMOJIS } from '../lib/reactions'
@@ -91,6 +91,16 @@ function CommentView({ node, gameId, reactions, depth, canDelete }: { node: Node
   const { profile } = useProfile()
   const [replying, setReplying] = useState(false)
   const [picking, setPicking] = useState(false)
+  const pickerBox = useRef<HTMLSpanElement>(null)
+  // a click anywhere else than on the emote list or its button closes it
+  useEffect(() => {
+    if (!picking) return
+    const away = (e: MouseEvent) => {
+      if (!pickerBox.current?.contains(e.target as globalThis.Node)) setPicking(false)
+    }
+    document.addEventListener('mousedown', away)
+    return () => document.removeEventListener('mousedown', away)
+  }, [picking])
   const [showReplies, setShowReplies] = useState(true)
   const c = node.comment
   const perEmoji = reactions[c.id] ?? {}
@@ -123,7 +133,7 @@ function CommentView({ node, gameId, reactions, depth, canDelete }: { node: Node
             </button>
           ))}
           {myId && (
-            <span className="relative">
+            <span className="relative" ref={pickerBox}>
               <button type="button" onClick={() => setPicking((p) => !p)} className="rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-base-700 hover:text-white">
                 {t.comments.react}
               </button>

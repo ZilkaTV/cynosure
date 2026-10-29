@@ -214,7 +214,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="top-btn !w-auto justify-start !px-3 sm:!w-[16.5rem]"
+        className="top-btn !w-auto justify-start !px-3"
         aria-label={t.accountMenu.ariaLabel}
       >
         <GearIcon />

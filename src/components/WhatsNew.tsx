@@ -6,8 +6,10 @@ import { winsRoleGradient } from '../lib/badges'
 import { winRateClass } from '../lib/gameRows'
 import { REACTION_EMOJIS } from '../lib/reactions'
 import { useLanguage } from '../i18n/LanguageContext'
+import { WHATS_NEW_AFTER_UPDATE_KEY } from '../lib/useSiteUpdate'
 
 const SEEN_KEY = 'cyn:seen-update'
+export const OPEN_WHATS_NEW_EVENT = 'cyn:open-whatsnew'
 
 function readSeen(): string | null {
   try {
@@ -204,18 +206,36 @@ export default function WhatsNew() {
 
   useEffect(() => {
     if (!latest) return
-    if (preview || (!isDevSite && readSeen() !== latest.id)) setOpen(true)
+    // clicking the Update button opens it after the reload (also on the dev copy), once per click and only for the newest entry
+    let afterUpdate = false
+    try {
+      afterUpdate = sessionStorage.getItem(WHATS_NEW_AFTER_UPDATE_KEY) === '1'
+      sessionStorage.removeItem(WHATS_NEW_AFTER_UPDATE_KEY)
+    } catch {
+      /* blocked storage */
+    }
+    if (preview || (afterUpdate && (isDevSite || readSeen() !== latest.id)) || (!isDevSite && readSeen() !== latest.id)) setOpen(true)
   }, [latest, isDevSite, preview])
+
+  // the "What's new" button in the header opens it again any time (e.g. after it was clicked away by accident)
+  useEffect(() => {
+    const show = () => {
+      setI(0)
+      setOpen(true)
+    }
+    window.addEventListener(OPEN_WHATS_NEW_EVENT, show)
+    return () => window.removeEventListener(OPEN_WHATS_NEW_EVENT, show)
+  }, [])
 
   const last = latest ? latest.slides.length : 0 // the page of chips comes after the slides
   const close = useCallback(() => {
     setOpen(false)
     try {
-      if (latest) localStorage.setItem(SEEN_KEY, latest.id)
+      if (latest && !preview) localStorage.setItem(SEEN_KEY, latest.id) // a preview does not count as seen
     } catch {
       /* private window: it just shows again next time */
     }
-  }, [latest])
+  }, [latest, preview])
 
   useEffect(() => {
     if (!open) return

@@ -6,7 +6,8 @@ import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
-import WhatsNew from './WhatsNew'
+import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
+import { CHANGELOG } from '../data/changelog'
 import { EVENTS } from '../data/events'
 import ProfileSearch from './ProfileSearch'
 import { useMemberRoles, type SiteRole } from '../lib/roles'
@@ -349,20 +350,32 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
               <ProfileSearch className="hidden w-60 xl:block" />
             </div>
-            <button
-              type="button"
-              onClick={siteUpdate.apply}
-              disabled={!siteUpdate.available}
-              title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              className={`top-btn-sm ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
-            >
-              <RefreshIcon className="h-4 w-4" />
-              {t.ui.siteUpdate}
-              {siteUpdate.available && (
-                <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={siteUpdate.apply}
+                disabled={!siteUpdate.available}
+                title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+                aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+                className={`top-btn-sm ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
+              >
+                <RefreshIcon className="h-4 w-4" />
+                {t.ui.siteUpdate}
+                {siteUpdate.available && (
+                  <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
+                )}
+              </button>
+              {CHANGELOG.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT))}
+                  title={language === 'de' ? 'Zeigt die Neuerungen noch einmal' : 'Shows the news again'}
+                  className="top-btn-sm"
+                >
+                  {language === 'de' ? 'Was ist neu?' : "What's new?"}
+                </button>
               )}
-            </button>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <LanguageSwitcher />

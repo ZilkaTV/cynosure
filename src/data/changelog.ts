@@ -6,7 +6,7 @@
 export type Localized = { de: string; en: string }
 
 /** The picture of a slide: a small mock-up of the feature, drawn in WhatsNew.tsx. */
-export type SlideVisual = 'strip' | 'report' | 'colors' | 'event'
+export type SlideVisual = 'site' | 'strip' | 'report' | 'colors' | 'event'
 
 export interface ChangelogSlide {
   visual: SlideVisual
@@ -37,6 +37,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       en: 'The website is much more modern and clearer.',
     },
     slides: [
+      {
+        visual: 'site',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Modern und übersichtlich', en: 'Modern and clear' },
+        text: { de: 'Neues Menü, Profil-Suchleiste, einheitliche Buttons und klare Farben auf jeder Seite.', en: 'New menu, profile search bar, matching buttons and clear colours on every page.' },
+      },
       {
         visual: 'strip',
         tag: { de: 'Neu', en: 'New' },

@@ -21,6 +21,54 @@ function readSeen(): string | null {
 
 const pill = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-300'
 
+/** The new look as a whole: header with the search bar and matching buttons, the menu with the purple outlines, a table with coloured names. */
+function SiteVisual({ de }: { de: boolean }) {
+  const nav = de ? ['Übersicht', 'Monatlich', 'Ranked', 'Speedrun', 'Events'] : ['Overview', 'Monthly', 'Ranked', 'Speedrun', 'Events']
+  const btn = 'flex h-7 items-center rounded-md border px-2 text-[10px] font-semibold'
+  const rows: [string, number, number][] = [
+    ['Calos', 307, 97],
+    ['Chuma', 223, 78],
+    ['Icey', 210, 0],
+  ]
+  return (
+    <div className="w-full max-w-md space-y-1.5 rounded-xl border border-base-700 bg-base-950/90 p-2.5 shadow-xl">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-display text-xs font-bold text-white">CynClan.com</span>
+          <span className="hidden rounded-md border border-base-600 bg-base-800 px-2 py-1 text-[9px] text-slate-500 min-[420px]:inline">{de ? 'Profil suchen…' : 'Find a profile…'}</span>
+        </div>
+        <div className="flex gap-1">
+          <span className={`${btn} border-base-600 bg-base-800 text-slate-200`}>DE</span>
+          <span className={`${btn} border-gold/60 bg-base-800 text-gold-light shadow-[0_0_8px_rgba(216,185,106,0.35)]`}>Metrics</span>
+          <span className={`${btn} border-base-600 bg-base-800 text-slate-200`}>Zilka ▾</span>
+        </div>
+      </div>
+      <div className="flex flex-wrap justify-center gap-1">
+        {nav.map((n, i) => (
+          <span key={n} className={`rounded-md border border-accent/40 px-2 py-1 text-[10px] font-medium ${i === 1 ? 'bg-accent/15 text-accent-light' : 'bg-base-800/60 text-slate-300'}`}>
+            {n}
+          </span>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-lg border border-base-700">
+        {rows.map(([name, wins, wr], i) => {
+          const c = winsRoleGradient(wins) ?? ['#fff', '#fff']
+          return (
+            <div key={name} className="flex items-center gap-2 border-b border-base-700/60 px-2 py-1 text-[10px] last:border-0">
+              <span className="w-3 font-display font-bold text-slate-500">{i + 1}</span>
+              <span className="role-name flex-1 font-bold" style={{ '--c1': c[0], '--c2': c[1] } as CSSProperties}>
+                {name}
+              </span>
+              <span className="tabular-nums text-slate-400">{wins}</span>
+              <span className={`w-9 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function StripVisual({ de }: { de: boolean }) {
   return (
     <div className="w-full max-w-sm space-y-2">
@@ -132,6 +180,7 @@ function EventVisual({ de }: { de: boolean }) {
 }
 
 function Visual({ kind, de }: { kind: SlideVisual; de: boolean }): ReactNode {
+  if (kind === 'site') return <SiteVisual de={de} />
   if (kind === 'strip') return <StripVisual de={de} />
   if (kind === 'report') return <ReportVisual />
   if (kind === 'colors') return <ColorsVisual />

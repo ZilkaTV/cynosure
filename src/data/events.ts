@@ -29,7 +29,7 @@ export interface ClanEvent {
   windowTo?: string
 }
 
-export const EVENTS: ClanEvent[] = [
+const EVENT_LIST: ClanEvent[] = [
   {
     id: 'cyn-hero-skin-2026',
     name: 'CYN Hero Skin Event',
@@ -65,3 +65,15 @@ export const EVENTS: ClanEvent[] = [
     winner: 'Team CYN',
   },
 ]
+
+/**
+ * The events as the page sees them. An event with a time window (windowFrom / windowTo) changes its status by itself: upcoming until the start,
+ * live until the end, then ended - so the CYN Hero Skin event goes live on 1 November 00:00 German time without a new release. Events without a
+ * window keep the status written above.
+ */
+export const EVENTS: ClanEvent[] = EVENT_LIST.map((ev) => {
+  if (!ev.windowFrom || !ev.windowTo) return ev
+  const now = Date.now()
+  const status: ClanEvent['status'] = now < Date.parse(ev.windowFrom) ? 'upcoming' : now <= Date.parse(ev.windowTo) ? 'live' : 'ended'
+  return { ...ev, status }
+})

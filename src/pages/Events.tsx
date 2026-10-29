@@ -123,6 +123,7 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const { language } = useLanguage()
   const de = language === 'de'
   const [rank, setRank] = useState<number | null | undefined>(undefined)
+  const [open, setOpen] = useState(true)
   // ?wheelFrom=2026-10-01 shows the wheel as if the event had started that day (to look at it before 1 November)
   const previewFrom = new URLSearchParams(window.location.search).get('wheelFrom')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? null
   useEffect(() => {
@@ -138,15 +139,30 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
   const dot = <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
   return (
     <div className="panel space-y-6 p-6">
-      <div>
-        <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
-        <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
-        <p className="mt-1 text-sm text-slate-500">
-          {fmtDate(event.start)} - {fmtDate(event.end)}
-          {event.endTime && ` ${event.endTime} ${de ? '(deutsche Zeit)' : '(German time)'}`}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
+          <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {fmtDate(event.start)} - {fmtDate(event.end)}
+            {event.endTime && ` ${event.endTime} ${de ? '(deutsche Zeit)' : '(German time)'}`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={event.name}
+          className="mt-1 shrink-0 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-slate-300 hover:bg-base-700 hover:text-white"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
 
+      {open && (
+        <>
       <div>
         <BlockLabel>{de ? 'Ziel' : 'Goal'}</BlockLabel>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
@@ -251,6 +267,8 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
         </div>
       )}
 
+        </>
+      )}
     </div>
   )
 }
@@ -624,34 +642,15 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
 export default function Events() {
   const { profile } = useProfile()
   const { t } = useLanguage()
-  // Default to the running event, else the most recent one in the list.
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   if (!profile) return <RegistrationGate />
-  const selected = EVENTS.find((ev) => ev.id === selectedId) ?? EVENTS.find((ev) => ev.status === 'live') ?? EVENTS[0]
 
   return (
     <StatsShell>
       <section className="space-y-6">
         <SectionHeading center eyebrow={t.events.eyebrow} title={t.events.title} />
         {EVENTS.length === 0 && <Card className="text-center text-sm text-slate-400">{t.events.noEvents}</Card>}
-        {/* With several events a dropdown picks which one to show; a single event needs no picker. */}
-        {EVENTS.length > 1 && (
-          <div className="flex justify-center">
-            <select
-              value={selected.id}
-              onChange={(ev) => setSelectedId(ev.target.value)}
-              aria-label={t.events.title}
-              className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
-            >
-              {EVENTS.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.status === 'ended' ? '🔴' : ev.status === 'live' ? '🟢' : '🔵'} {ev.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {selected && (selected.kind === 'raffle' ? <RaffleCard key={selected.id} event={selected} t={t} /> : <EventCard key={selected.id} event={selected} t={t} />)}
+        {/* Every event is one window of its own; the arrow at the top right folds it. */}
+        {EVENTS.map((ev) => (ev.kind === 'raffle' ? <RaffleCard key={ev.id} event={ev} t={t} /> : <EventCard key={ev.id} event={ev} t={t} />))}
       </section>
     </StatsShell>
   )

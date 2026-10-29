@@ -181,3 +181,7 @@ Build any of these only after the owner picks one.
 - Boost counts: `worker/d1/005-boosts.sql` adds `cyn_boosters.boosts` (Discord only tells "boosting", not how often) and seeds the boosters of 2026-10-29
   (Zilka 2, Chuma 2, Kaizeron 2, Tim21 3). The wheel gives +3 per boost (weights 6, 6, 6, 9). Done on the dev database; **the real database needs this file once
   before the merge.** The role-sync job only adds and removes rows, so the counts stay; a new booster starts with 1.
+- Events page: no picker above; every event is a window of its own with the fold arrow top right (CYN Hero Skin open, the ended Trio Challenge folded).
+- The CYN Hero Skin event changes its status by itself from its time window (`windowFrom` / `windowTo`): "Upcoming" until 1 Nov 00:00 German time, then "Live"
+  (the Events menu entry then pulses green "Active"), "Ended" after 31 Dec 23:59. Nothing has to be released on 1 November for that; the code only has to be on the
+  main site by then.

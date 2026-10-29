@@ -173,7 +173,7 @@ function accessLabel(a: Access, language: string): { text: string; cls: string }
   if (a.status !== 'ok' || a.daysLeft == null) return null
   const d = a.daysLeft
   const text = de ? (d === 1 ? '1 Tag' : `${d} Tage`) : d === 1 ? '1 day' : `${d} days`
-  return { text, cls: d <= 2 ? 'text-signal-red' : d <= 4 ? 'text-amber-400' : 'text-slate-400' }
+  return { text, cls: d <= 1 ? 'text-warn' : d <= 2 ? 'text-signal-red' : d <= 4 ? 'text-amber-400' : 'text-slate-400' }
 }
 
 function AccountMenu({ isInner }: { isInner: boolean }) {

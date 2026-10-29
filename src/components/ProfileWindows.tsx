@@ -263,7 +263,6 @@ export function LifetimeWindow({ publicId }: { publicId: string }) {
   return (
     <div className="space-y-2">
       <ClanCarousel slides={lifetimeSlides(stats, t)} heading={t.memberProfile.ofStatsTitle} />
-      <p className="text-center text-[11px] text-slate-500">{t.memberProfile.ofNote}</p>
     </div>
   )
 }

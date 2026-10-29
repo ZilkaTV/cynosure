@@ -134,10 +134,10 @@ export default function Speedrun() {
         </div>
       </section>
 
-      <div className="mx-auto grid w-full max-w-4xl items-start gap-6 md:grid-cols-2">
-      <section className="space-y-3">
+      <div className="mx-auto grid w-full max-w-4xl items-stretch gap-6 md:grid-cols-2">
+      <section className="flex flex-col space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.startTitle} />
-        <Card className="space-y-3 !p-4 text-center">
+        <Card className="flex-1 space-y-3 !p-4 text-center">
           <div className="flex flex-wrap justify-center gap-2">
             <a href={OPENFRONT_SOLO_URL} target="_blank" rel="noreferrer" onClick={startWatching} className="btn-accent">
               {t.speedrun.startBrowser}
@@ -166,9 +166,9 @@ export default function Speedrun() {
         </Card>
       </section>
 
-      <section className="space-y-3">
+      <section className="flex flex-col space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowSubmit} title={t.speedrun.postYourRun} />
-        <Card className="!p-4">
+        <Card className="flex-1 !p-4">
           <form className="flex flex-col gap-2" onSubmit={onSubmit}>
             <input
               value={link}

@@ -157,3 +157,11 @@ Build any of these only after the owner picks one.
 - Monthly FFA table: the average kills column is back (after Streak, sortable).
 - Win rate column: far right in Monthly FFA, between gold/min and Win Score in Monthly Team.
 - Profile badges: the "show locked" button became a checkbox "Show all" next to the title (same box as "Registered only" on the overview).
+
+## 21. Smaller things - dev, 2026-10-29
+- Speedrun: "Start a run" and "Post your run" are the same size. The OpenFront-profile note under the lifetime window is gone.
+- Live queue notification: a third switch for ranked FFA (setting stored as a list, "1v1,ffa"; old "both" still works). `src/lib/storage.ts`: a full
+  localStorage drops the rebuildable OpenFront caches so a setting can still be saved (the caches had filled the quota in a test browser).
+- "1 day left" under the name is a red warning that slides and pulses (`.text-warn`).
+- Saved games: remove drops the game from the list at once (no waiting for the reload). I found no confirmation dialog in the code.
+- Reaction chips (emoji + number) open a window with who reacted with what, the most used emoji first; own reaction can be removed there.

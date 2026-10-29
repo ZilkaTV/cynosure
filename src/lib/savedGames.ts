@@ -11,6 +11,7 @@ export interface SavedGame {
 }
 
 const CHANGED = 'cyn:saved-games-changed'
+const REMOVED = 'cyn:saved-game-removed'
 
 export async function fetchSavedGames(openfrontId: string): Promise<SavedGame[]> {
   const { data, error } = await db
@@ -31,6 +32,8 @@ export async function saveGame(openfrontId: string, gameId: string, title: strin
 }
 
 export async function unsaveGame(openfrontId: string, gameId: string): Promise<boolean> {
+  // The lists drop the game at once; the reload that follows confirms it (or brings it back if the delete failed).
+  window.dispatchEvent(new CustomEvent(REMOVED, { detail: gameId }))
   const { error } = await db.from('cyn_saved_games').delete().eq('openfront_id', openfrontId).eq('game_id', gameId)
   window.dispatchEvent(new Event(CHANGED))
   return !error
@@ -52,8 +55,13 @@ export function useSavedGames(openfrontId: string | undefined) {
 
   useEffect(() => {
     void reload()
+    const drop = (e: Event) => setGames((list) => list.filter((g) => g.game_id !== (e as CustomEvent<string>).detail))
     window.addEventListener(CHANGED, reload)
-    return () => window.removeEventListener(CHANGED, reload)
+    window.addEventListener(REMOVED, drop)
+    return () => {
+      window.removeEventListener(CHANGED, reload)
+      window.removeEventListener(REMOVED, drop)
+    }
   }, [reload])
 
   return { games, loaded, reload }

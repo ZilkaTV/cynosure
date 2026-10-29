@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Emoji } from './Emoji'
+import { MemberNameLink } from './ui'
 import { DEFAULT_REACTION, REACTION_EMOJIS } from '../lib/reactions'
 import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
 import { useCommentCounts } from '../lib/comments'
@@ -80,6 +81,7 @@ export function GameActionsBar({
   const [pickerAt, setPickerAt] = useState<{ left: number; top: number; below: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const likeRef = useRef<HTMLButtonElement>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -206,10 +208,9 @@ export function GameActionsBar({
           <button
             key={emoji}
             type="button"
-            disabled={!myId || busy}
-            onClick={() => toggle(emoji)}
+            onClick={() => setListOpen(true)}
             title={who.join(', ')}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs tabular-nums transition-colors disabled:cursor-help ${own ? 'bg-accent/20 text-accent-light' : 'bg-base-700/60 text-slate-300 hover:bg-base-600/70'}`}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs tabular-nums transition-colors ${own ? 'bg-accent/20 text-accent-light' : 'bg-base-700/60 text-slate-300 hover:bg-base-600/70'}`}
           >
             <Emoji char={emoji} className="h-3.5 w-3.5" />
             {perEmoji[emoji].size}
@@ -217,6 +218,20 @@ export function GameActionsBar({
         )
       })}
       {problem && <span className="ml-2 text-xs text-signal-red">{problem}</span>}
+      {listOpen &&
+        createPortal(
+          <ReactionList
+            emojis={[...chips].sort((a, b) => perEmoji[b].size - perEmoji[a].size)}
+            perEmoji={perEmoji}
+            names={names}
+            myId={myId}
+            title={t.history.filterReacted}
+            removeLabel={t.memberProfile.savedRemove}
+            onRemove={(emoji) => void remove(gameId, emoji)}
+            onClose={() => setListOpen(false)}
+          />,
+          document.body,
+        )}
 
       <div className="ml-auto flex items-center gap-1">
         {profile && (
@@ -241,6 +256,70 @@ export function GameActionsBar({
           </svg>
           <span className="hidden sm:inline">{copied ? t.gameActions.copied : t.gameActions.share}</span>
         </button>
+      </div>
+    </div>
+  )
+}
+
+/** The window in the middle of the page: who left which reaction, one emoji after the other, the most used first. */
+function ReactionList({
+  emojis,
+  perEmoji,
+  names,
+  myId,
+  title,
+  removeLabel,
+  onRemove,
+  onClose,
+}: {
+  emojis: string[]
+  perEmoji: Record<string, Set<string>>
+  names: Record<string, string>
+  myId: string | null
+  title: string
+  removeLabel: string
+  onRemove: (emoji: string) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); onClose() }} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-base-600 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 flex items-center justify-between border-b border-base-700 bg-base-900 px-4 py-3">
+          <h2 className="font-display text-lg font-bold text-white">{title}</h2>
+          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="divide-y divide-base-700/60">
+          {emojis.map((emoji) => {
+            const ids = [...perEmoji[emoji]].sort((a, b) => (names[a] ?? a).localeCompare(names[b] ?? b))
+            return (
+              <div key={emoji} className="px-4 py-3">
+                <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <Emoji char={emoji} className="h-6 w-6" />
+                  <span className="tabular-nums">{ids.length}</span>
+                </p>
+                <ul className="space-y-1.5">
+                  {ids.map((id) => (
+                    <li key={id} className="flex items-center justify-between gap-3 text-sm">
+                      <MemberNameLink publicId={id} name={names[id] ?? id} className="text-white hover:text-accent-light" />
+                      {id === myId && (
+                        <button type="button" onClick={() => onRemove(emoji)} className="text-xs text-slate-500 hover:text-signal-red">
+                          {removeLabel}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

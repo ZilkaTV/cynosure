@@ -96,7 +96,6 @@ export default function OpenFrontStats({ publicId }: { publicId: string }) {
           </Group>
         </div>
       </details>
-      <p className="text-center text-xs text-slate-500">{t.memberProfile.ofNote}</p>
     </div>
   )
 }

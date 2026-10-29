@@ -302,8 +302,8 @@ export default function RankedQueue() {
         <Card className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
           <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            {(['1v1', '2v2'] as const).map((l) => {
-              const on = l === '1v1' ? alert.on1v1 : alert.on2v2
+            {(['1v1', '2v2', 'ffa'] as const).map((l) => {
+              const on = alert.on(l)
               return (
                 <button
                   key={l}
@@ -313,10 +313,10 @@ export default function RankedQueue() {
                   onClick={() => alert.toggle(l, !on)}
                   className="flex items-center gap-2 text-sm text-slate-200"
                 >
-                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : 'bg-teal-500') : 'bg-base-700'}`}>
+                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : l === '2v2' ? 'bg-teal-500' : 'bg-amber-500') : 'bg-base-700'}`}>
                     <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
                   </span>
-                  <span className="font-semibold">{l}</span>
+                  <span className="font-semibold">{l === 'ffa' ? 'FFA' : l}</span>
                   <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
                 </button>
               )
@@ -329,7 +329,7 @@ export default function RankedQueue() {
           <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
             {t.queue.alertTest}
           </button>
-          {alert.permission === 'denied' && (alert.on1v1 || alert.on2v2) && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
+          {alert.permission === 'denied' && alert.ladders.length > 0 && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
           <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
         </Card>
 

@@ -7,6 +7,9 @@ import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner } from '../components/ui'
 import { Flag, RankMedal } from '../components/Emoji'
 import { EVENTS, type ClanEvent } from '../data/events'
+import { fetchTopClanLeaderboard } from '../lib/clanScore'
+import { CLAN_TAG } from '../config'
+import FactorWheel from '../components/FactorWheel'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import {
@@ -113,6 +116,144 @@ function PlayerTag({ name, roster }: { name: string; roster: { publicId: string;
 /** Translated category label (base label + the point value, pluralised per language). */
 function categoryLabel(t: TranslationShape, c: SubmissionCategory): string {
   return `${t.events.category[c]} (${t.common.pts(CATEGORY_POINTS[c])})`
+}
+
+/** The info card of a raffle event: goal, who can take part, how the points work, the prize and pictures of the skin. */
+function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const [rank, setRank] = useState<number | null | undefined>(undefined)
+  // ?wheelFrom=2026-10-01 shows the wheel as if the event had started that day (to look at it before 1 November)
+  const previewFrom = new URLSearchParams(window.location.search).get('wheelFrom')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? null
+  useEffect(() => {
+    fetchTopClanLeaderboard()
+      .then((top) => {
+        const i = top.findIndex((c) => c.clanTag === CLAN_TAG)
+        setRank(i >= 0 ? i + 1 : null)
+      })
+      .catch(() => setRank(null))
+  }, [])
+
+  const line = 'flex items-start gap-2 text-sm leading-relaxed text-slate-300'
+  const dot = <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+  return (
+    <div className="panel space-y-6 p-6">
+      <div>
+        <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
+        <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {fmtDate(event.start)} - {fmtDate(event.end)}
+          {event.endTime && ` ${event.endTime} ${de ? '(deutsche Zeit)' : '(German time)'}`}
+        </p>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'Ziel' : 'Goal'}</BlockLabel>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
+          <span>{de ? `Clan-Leaderboard Rang ${event.goalRank}` : `Clan leaderboard rank ${event.goalRank}`}</span>
+          <span className="font-display font-bold text-gold-light">
+            {de ? 'Aktuell' : 'Currently'}: {rank === undefined ? '…' : rank === null ? (de ? 'außerhalb der Top 20' : 'outside the top 20') : `#${rank}`}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'Preis' : 'Prize'}</BlockLabel>
+        <div className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
+          {de
+            ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu Plutonium.'
+            : 'An exclusive skin that will exist only 3 times in the world, plus Plutonium.'}
+        </div>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'So nimmst du teil' : 'How to take part'}</BlockLabel>
+        <ul className="space-y-2">
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Ein einziges Team-Game reicht, aber mindestens ein anderes CYN-Mitglied muss dabei gewesen sein.'
+                : 'One team game is enough, but at least one other CYN member must have been in it.'}
+            </span>
+          </li>
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Deine Chancen steigen mit jedem Spiel und mit einem höheren persönlichen Win Score im Clan.'
+                : 'Your chances grow with every game and with a higher personal Win Score in the clan.'}
+            </span>
+          </li>
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Im nächsten Jahr werden live auf Zilkas Stream 3 Spieler mit dem Factor Wheel ausgelost, die den Skin erhalten. Wer mehr Punkte hat, hat auf dem Rad ein größeres Stück.'
+                : "Next year, 3 players are drawn live on Zilka's stream with the Factor Wheel and receive the skin. The more points you have, the bigger your slice of the wheel."}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'Punkte' : 'Points'}</BlockLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(de
+            ? [
+                ['Basispunkte von Anfang an', ''],
+                ['Pro Discord-Server-Boost', '+3'],
+                ['Pro 5 € Spende an die Website', '+3'],
+                ['Für alle', ''],
+                ['Je 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
+                ['Je 50 Spiele (0-49 = 0, 50-99 = +2,5, 100-149 = +5 ...)', '+2,5'],
+              ]
+            : [
+                ['Base points from the start', ''],
+                ['Per Discord server boost', '+3'],
+                ['Per 5 € donated to the website', '+3'],
+                ['For everybody', ''],
+                ['Per 10 Win Score (0-9 = 0, 10-19 = +1, 20-29 = +2 ...)', '+1'],
+                ['Per 50 games (0-49 = 0, 50-99 = +2.5, 100-149 = +5 ...)', '+2.5'],
+              ]
+          ).map(([label, pts], i) =>
+            pts === '' ? (
+              <p key={i} className="pt-1 text-xs font-semibold uppercase tracking-widest text-slate-500 sm:col-span-2">
+                {label}
+              </p>
+            ) : (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-base-700 bg-base-850/40 px-3 py-2 text-sm">
+                <span className="text-slate-300">{label}</span>
+                <span className="font-display font-bold text-accent-light">{pts}</span>
+              </div>
+            ),
+          )}
+        </div>
+      </div>
+
+      {event.windowFrom && event.windowTo && (
+        <div>
+          <BlockLabel>Factor Wheel</BlockLabel>
+          {previewFrom && <p className="mb-2 text-xs text-amber-300">{de ? 'Vorschau: gezählt wird ab ' : 'Preview: counting from '}{previewFrom}</p>}
+          <FactorWheel fromMs={previewFrom ? Date.parse(previewFrom + 'T00:00:00Z') : Date.parse(event.windowFrom)} toMs={Date.parse(event.windowTo)} />
+        </div>
+      )}
+
+      {event.skinImages && (
+        <div>
+          <BlockLabel>{de ? 'Der Skin' : 'The skin'}</BlockLabel>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {event.skinImages.map((img) => (
+              <div key={img.url} className="space-y-1.5">
+                <SkinPreview url={img.url} alt={`${event.name} ${img.label}`} t={t} />
+                <p className="text-center text-xs text-slate-500">{de ? (img.label === 'FFA mode' ? 'FFA-Modus' : 'Team-Modus') : img.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
@@ -511,7 +652,7 @@ export default function Events() {
             </select>
           </div>
         )}
-        {selected && <EventCard key={selected.id} event={selected} t={t} />}
+        {selected && (selected.kind === 'raffle' ? <RaffleCard key={selected.id} event={selected} t={t} /> : <EventCard key={selected.id} event={selected} t={t} />)}
       </section>
     </StatsShell>
   )

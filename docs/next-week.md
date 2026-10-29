@@ -167,3 +167,11 @@ Build any of these only after the owner picks one.
 - Reaction chips (emoji + number) open a window with who reacted with what, the most used emoji first; own reaction can be removed there.
 - Player column: a name is matched to the members of THAT game (not by name over the whole roster): two members had once played a game as "zilka", which put
   "(revenflok.)" behind the real Zilka. Names several members played under no longer colour anything in the report either. The column shows up to 10 names.
+
+## 22. CYN Hero Skin event + Factor Wheel - dev, 2026-10-29
+- New event (upcoming, 1 Nov - 31 Dec 2026 23:59 German time) in `src/data/events.ts` (`kind: 'raffle'`): goal clan leaderboard rank 7 (with the current rank),
+  prize, how to take part, points, the two skin pictures (`public/events/cyn-hero-*.webp`), rendered by `RaffleCard` in `Events.tsx`.
+- Factor Wheel (`src/components/FactorWheel.tsx`, `src/lib/raffle.ts`): filled from the site's stats, nobody types anything in. Entries = members with at least one team
+  game in the event window with another registered CYN member; weight = base (+3 server booster, +3 supporter/donation, nobody starts with 1) + games (+2.5 per
+  full 50) + Win Score (+1 per full 10). The table (top 10, then all) is public, the SPIN button and "remove winner" are admin only.
+  `/events?wheelFrom=2026-10-01` previews the wheel as if the event had started that day.

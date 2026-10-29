@@ -33,8 +33,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     id: '2026-11-01',
     date: '2026-11-01',
     tldr: {
-      de: 'Reagieren, kommentieren, neuer Spielbericht und ein Skin-Event.',
-      en: 'React, comment, a new game report and a skin event.',
+      de: 'Die Webseite ist deutlich moderner und übersichtlicher geworden.',
+      en: 'The website is much more modern and clearer.',
     },
     slides: [
       {
@@ -66,15 +66,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     more: [
       { text: { de: 'Zugang: 7 Tage ohne Sieg mit [CYN]-Tag sperren die Seite', en: 'Access: 7 days without a win with the [CYN] tag lock the site' }, important: true },
-      { text: { de: 'Suche oben links', en: 'Search top left' } },
+      { text: { de: 'Profil-Suchleiste', en: 'Profile search bar' } },
       { text: { de: 'Rolle und Titel unter deinem Namen', en: 'Role and title under your name' } },
       { text: { de: 'Ranked in Gold mit Elo', en: 'Ranked in gold with Elo' } },
       { text: { de: 'Punkte-Planer in Monatlich Team', en: 'Points planner in Monthly Team' } },
-      { text: { de: 'Grinder, Predator, Pro Player', en: 'Grinder, Predator, Pro Player' } },
       { text: { de: 'Listen mit Top 10', en: 'Lists with a top 10' } },
       { text: { de: 'Queue: Alarm für Ranked FFA', en: 'Queue: alert for ranked FFA' } },
       { text: { de: 'Speedrun: Tempo-Check', en: 'Speedrun: speed check' } },
-      { text: { de: 'Weg: Bump, Trends, Planer-Seite', en: 'Gone: bump, trends, planner page' } },
     ],
   },
 ]

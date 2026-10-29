@@ -198,3 +198,4 @@ Build any of these only after the owner picks one.
 - Reaction lists (under a game and under a comment): a click anywhere else than on the list closes it; the list under a game also stays while the mouse moves away.
 - What's new window: first draft of the text (de + en) in `src/data/changelog.ts`, optional pictures (`images`, files in public/whatsnew/). Preview: `?whatsnew=1`. Date and wording are still open.
 - What's new window redone as 4 short slides (picture, headline of a few words, one sentence) plus a last page of chips; modelled on how products and game launchers announce updates (TL;DR line on top, big visual, few steps, progress dots, visible exit). Data in `src/data/changelog.ts`, mock-ups in `WhatsNew.tsx`. Preview with `?whatsnew=1`.
+- What's new text: top line says the site is much more modern and clearer; chips renamed (profile search bar) and trimmed (no Grinder/Predator/Pro Player, no list of what is gone).

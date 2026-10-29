@@ -50,6 +50,13 @@ const insertOwn = (col) => async (row, c) => {
 }
 const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 
+// The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
+const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
+const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
+const checkEmoji = (emoji) => {
+  if (!REACTIONS.has(emoji)) throw new DbError('P0001', 'invalid_emoji: unknown reaction')
+}
+
 const BLOCKED = /nigg(er|a)|faggot|retard|chink|spic|kike|coon|tranny|cunt|hurensohn|schlampe|missgeburt|untermensch|fotze|wichser|arschloch|behindert|salope|connard|encule|batard|negre|bougnoule|pute/
 const normalizeChat = (s) => s.toLowerCase().replace(/[431057$@!]/g, (ch) => ({ 4: 'a', 3: 'e', 1: 'i', 0: 'o', 5: 's', 7: 't', $: 's', '@': 'a', '!': 'i' })[ch]).replace(/[^a-z]/g, '')
 
@@ -64,18 +71,30 @@ const RULES = {
   cyn_bumps: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_xp: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_quest_claims: { read: PUBLIC, insert: insertOwn('openfront_id') },
-  cyn_kudos: { read: PUBLIC, insert: insertOwn('from_openfront_id'), delete: own('from_openfront_id') },
+  cyn_kudos: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.from_openfront_id !== m.openfront_id) return false
+      checkEmoji(row.emoji)
+      if (!ID_LIKE.test(String(row.game_id ?? '')) || !ID_LIKE.test(String(row.to_openfront_id ?? ''))) throw new DbError('P0001', 'invalid_id: bad game or member id')
+      return { game_id: row.game_id, from_openfront_id: m.openfront_id, to_openfront_id: row.to_openfront_id, emoji: row.emoji }
+    },
+    delete: own('from_openfront_id'),
+  },
   cyn_event_admins: { read: PUBLIC, insert: insertAdmin, delete: ADMIN },
   cyn_chat_moderators: { read: PUBLIC, insert: insertAdmin, delete: ADMIN },
   cyn_supporters: { read: PUBLIC, insert: insertAdmin, delete: ADMIN },
   cyn_event_teams: { read: PUBLIC, insert: insertAdmin, update: ADMIN },
   cyn_event_submissions: {
     read: PUBLIC,
-    // Anyone may submit; whatever the caller sends, a new entry starts pending and unreviewed.
-    insert: async (row) => ({ ...row, status: 'pending', reviewed_by: null, reviewed_at: null }),
+    // Any signed-in visitor may submit; whatever the caller sends, a new entry starts pending and unreviewed.
+    insert: async (row, c) => (c.user ? { ...row, status: 'pending', reviewed_by: null, reviewed_at: null } : false),
     update: ADMIN,
   },
-  cyn_game_tile_stats: { read: PUBLIC, insert: async (row) => row, update: PUBLIC },
+  // The browser stores the Max Tiles it computed from a replay (src/lib/replaySim.ts). Only signed-in visitors may write it, so an
+  // anonymous call cannot overwrite the numbers shown for a game.
+  cyn_game_tile_stats: { read: PUBLIC, insert: async (row, c) => (c.user ? row : false), update: SIGNED_IN },
   cyn_member_snapshots: { read: PUBLIC },
   cyn_ranked_matches: { read: PUBLIC },
   cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), update: own('openfront_id'), delete: own('openfront_id') },
@@ -106,7 +125,7 @@ const RULES = {
       const last = await c.db.prepare('SELECT created_at FROM cyn_clan_chat_messages WHERE author_user_id = ? ORDER BY created_at DESC LIMIT 1').bind(c.user.id).first()
       if (last && Date.now() - Date.parse(last.created_at) < 60000) throw new DbError('P0001', 'rate_limited: wait a bit before posting again')
       if (BLOCKED.test(normalizeChat(content))) throw new DbError('P0001', 'blocked_content: message contains blocked language')
-      return { author_user_id: c.user.id, author_openfront_id: m.openfront_id, author_name: String(row.author_name ?? '').slice(0, 60) || m.openfront_id, content }
+      return { author_user_id: c.user.id, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, content }
     },
     after: (row) => ({
       sql: 'INSERT INTO cyn_chat_message_counts (openfront_id, count) VALUES (?, 1) ON CONFLICT(openfront_id) DO UPDATE SET count = count + 1',
@@ -117,8 +136,10 @@ const RULES = {
   cyn_site_visits: {
     read: INNER,
     insert: async (row, c) => {
-      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_site_visits WHERE visited_at > ?').bind(new Date(Date.now() - 60000).toISOString()).first()
-      if ((recent?.n ?? 0) >= 120) return 'skip'
+      // Anybody may log a visit, so the table is capped hard (a flood must not use up the account's daily D1 write budget).
+      const since = (ms) => new Date(Date.now() - ms).toISOString()
+      const countSince = async (ms) => (await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_site_visits WHERE visited_at > ?').bind(since(ms)).first())?.n ?? 0
+      if ((await countSince(60_000)) >= 20 || (await countSince(3_600_000)) >= 300) return 'skip'
       return { is_member: row.is_member ? 1 : 0 }
     },
   },
@@ -240,7 +261,13 @@ async function runSelect(c, q, meta, rule) {
   if (!access) throw denied()
   let cols = colList(meta, q.select)
   // The public member list never exposes the account link; signed-in visitors may read the Discord id.
-  if (q.table === 'cyn_members' && !c.service) cols = cols.filter((x) => x !== 'user_id' && (x !== 'discord_user_id' || c.user))
+  if (q.table === 'cyn_members' && !c.service) {
+    const hidden = (x) => x === 'user_id' || (x === 'discord_user_id' && !c.user)
+    cols = cols.filter((x) => !hidden(x))
+    // A hidden column must not be usable as a filter or sort either: ".eq('user_id', <discord id>)" would tell who owns that account.
+    for (const f of q.filters ?? []) if (hidden(f.col)) throw new DbError('42703', `column ${f.col} does not exist`)
+    for (const o of q.order ?? []) if (hidden(o.col)) throw new DbError('42703', `column ${o.col} does not exist`)
+  }
   const { sql: where, args } = whereClause(meta, q.filters, access)
   let sql = `SELECT ${q.head ? '1 AS x' : cols.join(', ')} FROM ${q.table}${where}`
   if (q.order?.length) {
@@ -250,8 +277,9 @@ async function runSelect(c, q, meta, rule) {
     })
     sql += ` ORDER BY ${parts.join(', ')}`
   }
-  const limit = Math.min(Number.isFinite(q.limit) ? q.limit : MAX_ROWS, MAX_ROWS)
-  const offset = Number.isFinite(q.offset) ? Math.max(0, q.offset) : 0
+  // Whole numbers only: SQLite treats a negative LIMIT as "no limit", which would let one call read a whole table.
+  const limit = Number.isInteger(q.limit) && q.limit >= 0 ? Math.min(q.limit, MAX_ROWS) : MAX_ROWS
+  const offset = Number.isInteger(q.offset) && q.offset >= 0 ? q.offset : 0
   let count = null
   if (q.count) count = (await c.db.prepare(`SELECT COUNT(*) AS n FROM ${q.table}${where}`).bind(...args).first())?.n ?? 0
   if (q.head) return { data: null, count }
@@ -298,7 +326,8 @@ async function runWrite(c, q, meta, rules) {
           throw new DbError('42501', 'ownership_required')
         }
         // Identity fields always come from the verified session, never from the request body.
-        row = { ...row, user_id: c.user.id, discord_user_id: c.user.id, claimed: 1 }
+        // (The Discord username too: admin and moderator names are matched against it, so it must be the signed-in account's own.)
+        row = { ...row, user_id: c.user.id, discord_user_id: c.user.id, discord_username: c.user.username, claimed: 1 }
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -370,6 +399,8 @@ async function runWrite(c, q, meta, rules) {
     delete patch.user_id
     if (!c.service && q.table === 'cyn_members') {
       delete patch.created_at
+      delete patch.openfront_id
+      delete patch.claimed
       patch.discord_user_id = c.user.id
     }
     if (meta.cols.includes('updated_at') && patch.updated_at === undefined) patch.updated_at = nowIso()
@@ -379,6 +410,9 @@ async function runWrite(c, q, meta, rules) {
     if (!c.service) {
       scope = typeof rules.update === 'function' ? await rules.update(c) : false
       if (!scope) throw denied()
+      // A plain update of a member row is for the owner only. Taking over a free (unclaimed) id goes through the upsert above,
+      // which demands the ownership proof; here "user_id IS NULL" would let anybody edit rows nobody has claimed.
+      if (q.table === 'cyn_members') scope = { sql: 'user_id = ?', args: [c.user.id] }
     }
     const { sql: where, args } = whereClause(meta, q.filters, scope)
     if (!where) throw new DbError('21000', 'update requires a filter')

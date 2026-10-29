@@ -38,7 +38,8 @@ import { isSupporter, addSupporter, removeSupporter } from '../lib/chat'
 export default function MemberProfile() {
   const { id } = useParams()
   const { profile } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const [showLocked, setShowLocked] = useState(false)
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
@@ -232,8 +233,17 @@ export default function MemberProfile() {
       </div>
 
       <section>
-        <SectionHeading center eyebrow={t.memberProfile.achievementsEyebrow} title={t.memberProfile.badgesTitle} />
-        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} />
+        <SectionHeading
+          center
+          eyebrow={t.memberProfile.achievementsEyebrow}
+          title={t.memberProfile.badgesTitle}
+          action={
+            <button type="button" onClick={() => setShowLocked((v) => !v)} className="btn-ghost text-sm">
+              {language === 'de' ? (showLocked ? 'Nicht erreichte ausblenden' : 'Nicht erreichte anzeigen') : showLocked ? 'Hide locked' : 'Show locked'}
+            </button>
+          }
+        />
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} showLocked={showLocked} />
       </section>
 
       <section>

@@ -12,7 +12,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
 import { cleanDisplayName } from '../lib/displayName'
-import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo } from '../lib/gameRows'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 
 const PAGE_SIZE = 40
 
@@ -261,21 +261,28 @@ export default function History() {
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className={`px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
+                        <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
                           {gameModeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         {isRankedGame(g) ? (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                            {elo ? fmtEloChange(elo) : '-'}
+                            {elo ? (
+                              <>
+                                {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                                {fmtEloChange(elo)}
+                              </>
+                            ) : (
+                              '-'
+                            )}
                           </td>
                         ) : (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                           </td>
                         )}
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">
+                        <td className={`px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
                           {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
                         <td className="px-4 py-2.5 text-slate-400">

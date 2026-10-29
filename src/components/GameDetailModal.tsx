@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerStat } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
-import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
+import { fetchClanScoreLedger, fetchTopClanLeaderboard, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -12,6 +12,8 @@ import GameComments from './GameComments'
 
 // The report lists this many places (teams, or players in a solo game) before "show more".
 const TOP_PLACES = 10
+// ... and this many clan score cards.
+const TOP_SCORES = 7
 
 function fmt(n: number): string {
   if (!isFinite(n) || n === 0) return '0'
@@ -113,6 +115,14 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
   const [tileProgress, setTileProgress] = useState<ReplayProgress | null>(null)
 
   const [showAll, setShowAll] = useState(false)
+  const [showAllScores, setShowAllScores] = useState(false)
+  // Clan tags in the order of OpenFront's clan leaderboard (the clan score cards follow it).
+  const [clanOrder, setClanOrder] = useState<string[]>([])
+  useEffect(() => {
+    fetchTopClanLeaderboard()
+      .then((top) => setClanOrder(top.map((c) => c.clanTag)))
+      .catch(() => {})
+  }, [])
   const commentsRef = useRef<HTMLDivElement>(null)
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
@@ -174,6 +184,7 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
     setSortKey(null)
     setSortDir(-1)
     setShowAll(false)
+    setShowAllScores(false)
   }, [gameId])
 
   // Opened from a comment button: jump to the comments as soon as the report is on screen.
@@ -291,6 +302,21 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
     ...(clanScore && !unscored ? [{ tag: CLAN_TAG, won: clanScore.won, score: clanScore.score, ratio: fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) }] : []),
     ...otherClanScores.map((c) => ({ tag: c.clanTag, won: c.won, score: c.score, ratio: null })),
   ]
+  // [CYN] first, then the order of the clan leaderboard, clans that are not on it alphabetically.
+  const boardIndex = (tag: string) => {
+    const i = clanOrder.indexOf(tag)
+    return i < 0 ? null : i
+  }
+  scoreEntries.sort((a, b) => {
+    if (a.tag === CLAN_TAG || b.tag === CLAN_TAG) return Number(b.tag === CLAN_TAG) - Number(a.tag === CLAN_TAG)
+    const ai = boardIndex(a.tag)
+    const bi = boardIndex(b.tag)
+    if (ai !== null && bi !== null) return ai - bi
+    if (ai !== null) return -1
+    if (bi !== null) return 1
+    return a.tag.localeCompare(b.tag)
+  })
+  const shownScores = showAllScores ? scoreEntries : scoreEntries.slice(0, TOP_SCORES)
 
   function maxTilesCell(r: Row): ReactNode {
     if (tileState === 'loading') {
@@ -322,8 +348,24 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
         className="my-8 w-full max-w-6xl rounded-2xl border border-base-600 bg-base-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-base-700 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-base-700 px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="min-w-0 truncate font-display text-lg font-bold text-white sm:text-xl">{t.gameDetail.title}</h2>
+          {state === 'ok' && detail && (
+            <div className="order-last flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-1.5 md:order-none md:w-auto md:flex-1">
+              <p className="text-center text-sm text-slate-400">
+                {t.gameDetail.gameIdLabel} <span className="font-mono text-slate-200">{detail.gameId}</span>
+                {detail.start ? ' · ' + new Date(detail.start).toLocaleString('en-GB') : ''}
+              </p>
+              <a
+                href={replayUrl(detail.gameId)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-3 py-1.5 text-sm font-semibold text-accent-light hover:border-accent hover:text-white"
+              >
+                <Emoji char={EMOJI.map} className="h-4 w-4" /> {t.gameDetail.watchReplay}
+              </a>
+            </div>
+          )}
           <div className="flex shrink-0 items-center gap-2">
             {saveFailed && <span className="text-xs text-signal-red">{t.gameDetail.saveFailed}</span>}
             {profile && gameId && (
@@ -361,23 +403,7 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
               <Tile label={t.gameDetail.tileMap} value={detail.map} />
             </div>
 
-            {/* game id + replay */}
-            <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
-              <p className="text-center text-xs text-slate-500">
-                {t.gameDetail.gameIdLabel} <span className="font-mono text-slate-300">{detail.gameId}</span>
-                {detail.start ? ` · ${new Date(detail.start).toLocaleString('en-GB')}` : ''}
-              </p>
-              <a
-                href={replayUrl(detail.gameId)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-2.5 py-1 text-xs font-semibold text-accent-light hover:border-accent hover:text-white"
-              >
-                <Emoji char={EMOJI.map} className="h-3.5 w-3.5" /> {t.gameDetail.watchReplay}
-              </a>
-            </div>
-
-            <div className={`grid gap-4 ${scoreEntries.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_200px]' : ''}`}>
+            <div className={`grid gap-4 ${scoreEntries.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_165px]' : ''}`}>
               <div className="min-w-0">
                 {/* table-fixed + a fixed column width plan (colgroup below) keeps the
                     table's total width constant no matter how long any single
@@ -491,13 +517,12 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                     </button>
                   </div>
                 )}
-                {grouped && places.some((p) => p.isTeam) && <p className="mt-2 text-center text-[11px] text-slate-600">{t.report.teamsApprox}</p>}
               </div>
 
               {scoreEntries.length > 0 && (
                 <aside className="space-y-2 lg:self-start">
                   <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{t.report.clanScores}</p>
-                  {scoreEntries.map((e) => (
+                  {shownScores.map((e) => (
                     <div
                       key={e.tag}
                       className={`rounded-lg border px-3 py-2 ${e.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'}`}
@@ -509,6 +534,11 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                       {e.ratio && <p className="text-xs text-slate-400">Ratio: {e.ratio}</p>}
                     </div>
                   ))}
+                  {scoreEntries.length > TOP_SCORES && (
+                    <button type="button" onClick={() => setShowAllScores((v) => !v)} className="btn-ghost w-full !px-2 !py-1.5 text-xs">
+                      {showAllScores ? t.report.showLess : t.report.showMore(scoreEntries.length - TOP_SCORES)}
+                    </button>
+                  )}
                 </aside>
               )}
             </div>

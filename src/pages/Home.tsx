@@ -11,7 +11,7 @@ import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import GameDetailModal from '../components/GameDetailModal'
 import { cleanDisplayName } from '../lib/displayName'
-import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo } from '../lib/gameRows'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
   fetchClanScoreLedger,
@@ -288,18 +288,25 @@ export default function Home() {
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className={`px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                        <td className={`whitespace-nowrap px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
                         {isRankedGame(g) ? (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                            {elo ? fmtEloChange(elo) : '-'}
+                            {elo ? (
+                              <>
+                                {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                                {fmtEloChange(elo)}
+                              </>
+                            ) : (
+                              '-'
+                            )}
                           </td>
                         ) : (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
                           </td>
                         )}
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">
+                        <td className={`px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
                           {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
                         <td className="px-4 py-2.5 text-slate-400">

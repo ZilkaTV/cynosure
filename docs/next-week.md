@@ -108,3 +108,11 @@ Build any of these only after the owner picks one.
 - Live Ranked Queue: lamp, last 5 min, last 15 min in one row of equal cards; the 30-minute number is gone (the lamp still uses it, rule text under the row).
 - Game tables: ranked modes in gold, "(Compact)" in gold behind the map of ranked games. The size comes from OpenFront once per game and is kept in the
   browser (`fetchGameMapSize`); `mapSize` is also stored in new post-game reports (`scripts/refresh-details.mjs`).
+
+## 12. Rows, badges, report - dev, 2026-10-29
+- Win rate colours in the game rows: up to 30 % red, 31-50 grey, 51-74 green, 75-99 blue, 100 % shiny gold (`winRateClass`, `.text-shine`).
+  Ranked rows show the Elo before the game (from the ranked feed, top 100 only) and the change after it.
+- Profile badges: only earned ones; a button next to the heading shows / hides the locked ones.
+- Language button: flag, language name and "Select language"; all four buttons top right are exactly 140 x 48 (`shrink-0`, they were squeezed before).
+- Post-game report: id, date and replay in the middle of the header; clan score cards narrower, 7 shown then "show more", [CYN] first, then the
+  order of OpenFront's clan leaderboard, clans not on it alphabetically; the team explanation text is gone.

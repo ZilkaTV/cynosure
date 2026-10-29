@@ -141,7 +141,7 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
 }
 
 /** Full badge board (for the profile): earned in colour, others greyed. */
-export function BadgeBoard({ badges }: { badges: Badge[] }) {
+export function BadgeBoard({ badges, showLocked = true }: { badges: Badge[]; showLocked?: boolean }) {
   const { t } = useLanguage()
   const groups: { key: Badge['group']; label: string }[] = [
     { key: 'rank', label: t.badges.groupRank },
@@ -151,7 +151,8 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
   return (
     <div className="space-y-5">
       {groups.map((g) => {
-        const items = badges.filter((b) => b.group === g.key)
+        const items = badges.filter((b) => b.group === g.key && (showLocked || b.earned))
+        if (items.length === 0) return null
         return (
           <div key={g.key}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{g.label}</p>

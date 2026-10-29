@@ -39,6 +39,8 @@ export function groupWinRate(member: MemberStats | undefined, g: PlayerGame): nu
 export interface EloChange {
   d: number
   c: number
+  /** The member's Elo when the game was stored (before this change was booked), when the feed knew it. */
+  before?: number
 }
 
 type EloByGame = Map<string, Map<string, EloChange>>
@@ -63,9 +65,9 @@ export function useRankedElo(games: PlayerGame[]): EloByGame {
       for (let i = 0; i < todo.length; i += 90) {
         const { data, error } = await db.from('cyn_ranked_matches').select('game_id, players').in('game_id', todo.slice(i, i + 90))
         if (error || !data) continue
-        for (const row of data as { game_id: string; players: { id?: string; d?: number; c?: number }[] }[]) {
+        for (const row of data as { game_id: string; players: { id?: string; d?: number; c?: number; e?: number }[] }[]) {
           const byPlayer = new Map<string, EloChange>()
-          for (const p of row.players ?? []) if (p.id && typeof p.d === 'number') byPlayer.set(p.id, { d: p.d, c: p.c ?? 1 })
+          for (const p of row.players ?? []) if (p.id && typeof p.d === 'number') byPlayer.set(p.id, { d: p.d, c: p.c ?? 1, before: p.e })
           known.set(row.game_id, byPlayer)
         }
       }
@@ -136,5 +138,14 @@ export function eloChangeFor(known: EloByGame, gameId: string, memberIds: string
 
 export function fmtEloChange(c: EloChange): string {
   const sign = c.d > 0 ? '+' : c.d < 0 ? '−' : '±'
-  return `${c.c > 1 ? 'Σ ' : ''}${sign}${Math.abs(c.d)} Elo`
+  return `${c.c > 1 ? 'Σ ' : ''}${sign}${Math.abs(c.d)}`
+}
+
+/** Colour of a win rate in a game row: up to 30 % red, 31-50 grey, 51-74 green, 75-99 blue, 100 shiny gold. */
+export function winRateClass(pct: number): string {
+  if (pct >= 100) return 'text-shine'
+  if (pct >= 75) return 'text-sky-400'
+  if (pct >= 51) return 'text-emerald-400'
+  if (pct >= 31) return 'text-slate-400'
+  return 'text-rose-400'
 }

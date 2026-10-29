@@ -504,6 +504,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
               if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
               if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
               if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
+              if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
               if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
               return b.r.points - a.r.points || b.r.wins - a.r.wins
             })
@@ -527,6 +528,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label="Streak" sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
                     </tr>
                   </thead>
                   <tbody>
@@ -539,6 +541,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                         <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak || '-'}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? <span className="text-slate-600">-</span>}</td>
                       </tr>
                     ))}
                   </tbody>

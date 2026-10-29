@@ -154,3 +154,4 @@ Build any of these only after the owner picks one.
 - Monthly FFA: the three title cards Grinder (points), Predator (avg kills), Pro Player (win streak) are back; Ranked FFA has no Top rated / Climber cards.
 - 0 % win rate = warning: red that slides light to dark and pulses (`.text-warn`, from `winRateClass(0)`), in all win-rate cells.
 - Speedrun "tiles at 3 min": under 9.1 % red, to 10 grey, to 12 green, under 15 blue, 15 % and more pulsing gold (`tilesClass`).
+- Monthly FFA table: the average kills column is back (after Streak, sortable).

@@ -99,17 +99,17 @@ function winsTierFromWins(allWins: number): { tier: WinsTier; name: string } | n
   return null
 }
 
-// Two colours per wins role: the name slides between them like a Discord gradient role.
+// Two shades of one colour per wins role (light and dark): the name slides between them like a Discord gradient role.
 const WINS_ROLE_GRADIENTS: Record<WinsTier, [string, string]> = {
-  winsBronze: ['#cd7f32', '#ffb067'],
-  winsSilver: ['#c0c0c0', '#6ea8ff'],
-  winsGold: ['#f2c14e', '#ff8a3d'],
-  winsDiamond: ['#7fe3f0', '#6a8dff'],
-  winsMaster: ['#a78bfa', '#f472b6'],
-  winsChampion: ['#fb7185', '#fbbf24'],
-  winsChallenger: ['#fb923c', '#ef4444'],
-  winsImmortal: ['#e879f9', '#60a5fa'],
-  winsGodTier: ['#fbbf24', '#f43f5e'],
+  winsBronze: ['#e8a468', '#7a4515'],
+  winsSilver: ['#f1f5f9', '#7b8794'],
+  winsGold: ['#ffe08a', '#b07d12'],
+  winsDiamond: ['#b6f4ff', '#0891b2'],
+  winsMaster: ['#d8c8ff', '#6d28d9'],
+  winsChampion: ['#ffc2cb', '#be123c'],
+  winsChallenger: ['#ffc690', '#c2410c'],
+  winsImmortal: ['#f6c4ff', '#a21caf'],
+  winsGodTier: ['#ffffff', '#f59e0b'],
 }
 
 /** The two gradient colours of the Discord wins role (Bronze from 50 wins, Silver 100, Gold Legionnaire 250, ...) a member has earned; null below the first rank. */

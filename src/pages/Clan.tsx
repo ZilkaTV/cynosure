@@ -38,6 +38,7 @@ export default function Clan() {
       .catch(() => {})
   }, [profile])
 
+  const [allMembers, setAllMembers] = useState(false)
   const rows = useMemo(() => {
     const list = (members ?? []).filter((m) => {
       if (filter === 'registered') return registered.has(m.id)
@@ -136,7 +137,7 @@ export default function Clan() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((m) => {
+                {(allMembers ? rows : rows.slice(0, 10)).map((m) => {
                   const isReg = registered.has(m.id)
                   const display = cleanDisplayName(m.name ?? m.id)
                   return (
@@ -174,6 +175,13 @@ export default function Clan() {
             </table>
           </div>
         </div>
+        {rows.length > 10 && (
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setAllMembers((v) => !v)} className="btn-ghost text-sm">
+              {allMembers ? t.common.showTopOnly(10) : t.common.showAll(rows.length)}
+            </button>
+          </div>
+        )}
         {leftClan.length > 0 && <p className="text-center text-xs text-slate-500">{t.clanPage.leftClan(leftClan.join(', '))}</p>}
         <p className="text-center text-xs text-slate-500">{t.clanPage.note}</p>
       </section>

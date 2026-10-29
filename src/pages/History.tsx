@@ -14,7 +14,7 @@ import { CLAN_TAG } from '../config'
 import { cleanDisplayName } from '../lib/displayName'
 import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 
-const PAGE_SIZE = 40
+const PAGE_SIZE = 10
 
 type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'other' | 'reacted'
 

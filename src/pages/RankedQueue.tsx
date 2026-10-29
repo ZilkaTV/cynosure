@@ -195,6 +195,7 @@ export default function RankedQueue() {
   const [matches, setMatches] = useState<FeedMatch[] | null>(null)
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const [allQueue, setAllQueue] = useState(false)
   const alert = useQueueAlertSettings()
   const [me, setMe] = useState<MyAccount | null>(null)
   const [boards, setBoards] = useState<Boards | null>(null)
@@ -360,7 +361,7 @@ export default function RankedQueue() {
           {!matches && !error && <Spinner />}
           {matches && shown.length === 0 && <p className="text-sm text-slate-400">{t.queue.empty}</p>}
           <div className="space-y-2">
-            {shown.slice(0, LIST_LIMIT).map((m) => {
+            {shown.slice(0, allQueue ? LIST_LIMIT : 10).map((m) => {
               const players = withMirroredElo(m)
               const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
               // Ranked FFA: everybody is a side of their own, the winner first.
@@ -422,6 +423,13 @@ export default function RankedQueue() {
           </div>
         </div>
 
+        {shown.length > 10 && (
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setAllQueue((v) => !v)} className="btn-ghost text-sm">
+              {allQueue ? t.common.showTopOnly(10) : t.common.showAll(Math.min(shown.length, LIST_LIMIT))}
+            </button>
+          </div>
+        )}
         <p className="text-center text-xs text-slate-500">{t.queue.eloNote}</p>
         <p className="text-center text-xs text-slate-500">{t.queue.privacyNote}</p>
         <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />

@@ -39,6 +39,7 @@ export default function MemberProfile() {
   const { profile } = useProfile()
   const { t, language } = useLanguage()
   const [showLocked, setShowLocked] = useState(false)
+  const [allGames, setAllGames] = useState(false)
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
@@ -300,7 +301,7 @@ export default function MemberProfile() {
                 </tr>
               </thead>
               <>
-                {recent.map((g) => {
+                {(allGames ? recent : recent.slice(0, 10)).map((g) => {
                   const clanScore = clanScores.get(g.gameId)
                   const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
                   const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, [m.publicId]) : null
@@ -346,6 +347,13 @@ export default function MemberProfile() {
             </table>
           </div>
         </div>
+        {recent.length > 10 && (
+          <div className="mt-3 flex justify-center">
+            <button type="button" onClick={() => setAllGames((v) => !v)} className="btn-ghost text-sm">
+              {allGames ? t.common.showTopOnly(10) : t.common.showAll(recent.length)}
+            </button>
+          </div>
+        )}
         <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.clickForReport}</p>
       </section>
 

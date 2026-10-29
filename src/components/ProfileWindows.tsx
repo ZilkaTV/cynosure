@@ -28,7 +28,7 @@ export function CareerWindow({ m }: { m: MemberStats }) {
       key: 'elo',
       title: 'Elo',
       node: (
-        <div className="grid grid-cols-1 gap-y-3">
+        <div className="grid grid-cols-3 gap-x-2">
           {stat(t.memberProfile.stat1v1Elo, m.elo ?? '-', 'text-gold-light', m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined)}
           {stat(t.memberProfile.stat2v2Elo, m.elo2v2 ?? '-', 'text-gold-light', m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined)}
           {stat('FFA Elo', m.eloFfa ?? '-', 'text-gold-light', m.peakEloFfa ? t.memberProfile.peakPrefix(m.peakEloFfa) : undefined)}

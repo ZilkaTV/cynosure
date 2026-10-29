@@ -18,6 +18,7 @@ export default function Speedrun() {
   const { t } = useLanguage()
   const { data, loading, refresh } = useRoster(!!profile)
   const [link, setLink] = useState('')
+  const [allRuns, setAllRuns] = useState(false)
   const [busy, setBusy] = useState(false)
   // 0..1 while a submission replays the game (the replay takes 20-30 s), null otherwise.
   const [progress, setProgress] = useState<number | null>(null)
@@ -243,7 +244,7 @@ export default function Speedrun() {
                   </tr>
                 </thead>
                 <tbody>
-                  {board.map((m, i) => (
+                  {(allRuns ? board : board.slice(0, 10)).map((m, i) => (
                     <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                       <td className="px-4 py-3 font-display font-bold">
                         <RankMedal rank={i + 1} />
@@ -288,6 +289,13 @@ export default function Speedrun() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+        {board.length > 10 && (
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setAllRuns((v) => !v)} className="btn-ghost text-sm">
+              {allRuns ? t.common.showTopOnly(10) : t.common.showAll(board.length)}
+            </button>
           </div>
         )}
       </section>

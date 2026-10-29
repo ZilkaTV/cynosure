@@ -134,3 +134,8 @@ Build any of these only after the owner picks one.
 - Profile button: arrow that shows it is a menu; Update button a bit bigger.
 - Overview: every name with a Discord wins role (50 wins bronze, 100 silver, ...) slides between two colours of that role with a soft pulsing glow (`winsRoleGradient` in `badges.ts`, `.role-name` in `index.css`).
 - Career window: FFA Elo next to 1v1 and 2v2.
+
+## 17. Lists show 10 then "show all" - dev, 2026-10-29
+- Monthly FFA/Team, the ranked boards, speedrun leaderboard, clan list, History (pages of 10), live queue and the last games on the profile show 10
+  rows and a button for the rest (Home's member table and the latest games already did).
+- Career window: 1v1, 2v2 and FFA Elo side by side in one row.

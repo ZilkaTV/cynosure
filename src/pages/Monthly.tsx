@@ -254,6 +254,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
     }
   }, [variant, month])
   const [sortKey, setSortKey] = useState<string | null>(null)
+  const [allRows, setAllRows] = useState(false)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
   const [openGame, setOpenGame] = useState<string | null>(null)
   // Elo for the SELECTED month specifically (see fetchMonthlyEloForAllMembers's
@@ -265,6 +266,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
   useEffect(() => {
     setSortKey(null)
     setSortDir(-1)
+    setAllRows(false)
   }, [variant])
 
   useEffect(() => {
@@ -387,6 +389,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
   const isRanked = variant === '1v1' || variant === '2v2' || variant === 'rffa'
   const rules = rulesFor(variant, t)
 
+  // The tables show their first 10 rows; the button after the table opens the rest (the table that is shown reports its size).
+  let tableRows = 0
+  const top = <T,>(list: T[]): T[] => {
+    tableRows = list.length
+    return allRows ? list : list.slice(0, 10)
+  }
+
   return (
     <StatsShell
       leftExtra={
@@ -471,7 +480,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, rank, elo, peak, delta, rk }, i) => (
+                      {top(rows).map(({ m, rank, elo, peak, delta, rk }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -518,7 +527,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, r }, i) => (
+                    {top(rows).map(({ m, r }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -594,7 +603,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, r, winScore }, i) => (
+                      {top(rows).map(({ m, r, winScore }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -649,7 +658,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {top(rows).map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -700,7 +709,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {top(rows).map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -720,6 +729,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && (
           <>
+            {tableRows > 10 && (
+              <div className="flex justify-center">
+                <button type="button" onClick={() => setAllRows((v) => !v)} className="btn-ghost text-sm">
+                  {allRows ? t.common.showTopOnly(10) : t.common.showAll(tableRows)}
+                </button>
+              </div>
+            )}
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
             {variant === 'team' && (
               <p className="text-center text-xs text-slate-500">{t.monthly.killsNote(true)}</p>

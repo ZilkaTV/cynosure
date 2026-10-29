@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase as db } from './supabase'
 import { is1v1, is2v2, isFfa, isRankedFfa, isTeam, type MemberStats } from './stats'
-import type { PlayerGame } from './openfront'
+import { fetchGameMapSize, type PlayerGame } from './openfront'
 
 // Shared bits of the game tables on Home (latest games) and History: the mode name, the Elo a ranked game gave, and the win rate
 // shown where a game has no clan ratio.
@@ -78,6 +78,49 @@ export function useRankedElo(games: PlayerGame[]): EloByGame {
   }, [key])
 
   return known
+}
+
+const mapSizes = new Map<string, string | null>()
+const sizeAsked = new Set<string>()
+const sizeListeners = new Set<() => void>()
+
+/**
+ * Map size of the ranked games in the list (ranked maps are the compact ones), one OpenFront request per game, kept in the
+ * browser afterwards. A game whose size is not known yet simply shows no label.
+ */
+export function useMapSizes(games: PlayerGame[]): Map<string, string | null> {
+  const [, tick] = useState(0)
+  const ids = games.filter(isRankedGame).map((g) => g.gameId)
+  const key = ids.join(',')
+
+  useEffect(() => {
+    const on = () => tick((n) => n + 1)
+    sizeListeners.add(on)
+    return () => {
+      sizeListeners.delete(on)
+    }
+  }, [])
+
+  useEffect(() => {
+    const todo = ids.filter((id) => !sizeAsked.has(id))
+    if (todo.length === 0) return
+    todo.forEach((id) => sizeAsked.add(id))
+    void (async () => {
+      const queue = [...todo]
+      const worker = async () => {
+        for (let id = queue.shift(); id; id = queue.shift()) {
+          const size = await fetchGameMapSize(id)
+          if (size === null) sizeAsked.delete(id)
+          else mapSizes.set(id, size)
+          sizeListeners.forEach((fn) => fn())
+        }
+      }
+      await Promise.all([worker(), worker(), worker()])
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return mapSizes
 }
 
 /** The Elo change of the first of these members that has one for the game. */

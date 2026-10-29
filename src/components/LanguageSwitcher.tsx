@@ -23,7 +23,7 @@ export default function LanguageSwitcher() {
         onClick={() => setOpen((o) => !o)}
         aria-label="Change language"
         aria-expanded={open}
-        className="btn-ghost inline-flex items-center gap-1.5 !px-3 !py-2 text-xs font-bold uppercase tracking-wide"
+        className="top-btn text-xs font-bold uppercase tracking-wide"
       >
         <Emoji char={current.flag} className="h-3.5 w-3.5" />
         <span className="hidden min-[400px]:inline">{language}</span>

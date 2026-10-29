@@ -12,7 +12,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
 import { cleanDisplayName } from '../lib/displayName'
-import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useRankedElo } from '../lib/gameRows'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo } from '../lib/gameRows'
 
 const PAGE_SIZE = 40
 
@@ -117,6 +117,7 @@ export default function History() {
   const remaining = filteredGames.length - visibleGames.length
   const gameActions = useGameActions(visibleGames.map(({ g }) => g.gameId))
   const eloByGame = useRankedElo(visibleGames.map(({ g }) => g))
+  const mapSizes = useMapSizes(visibleGames.map(({ g }) => g))
   const memberById = useMemo(() => new Map((data?.members ?? []).map((m) => [m.publicId, m])), [data])
   const sortedMembers = useMemo(() => [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [data])
 
@@ -260,7 +261,7 @@ export default function History() {
                       >
                         <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className="px-4 py-2.5 text-slate-300">
+                        <td className={`px-4 py-2.5 ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
                           {gameModeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
                         </td>
@@ -277,7 +278,10 @@ export default function History() {
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">
                           {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
+                        <td className="px-4 py-2.5 text-slate-400">
+                          {g.map}
+                          {mapSizes.get(g.gameId) === 'Compact' && <span className="ml-1 text-gold-light">({t.queue.mapCompact})</span>}
+                        </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}

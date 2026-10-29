@@ -7,6 +7,7 @@ import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew from './WhatsNew'
+import { EVENTS } from '../data/events'
 import ProfileSearch from './ProfileSearch'
 import { useMemberRoles, type SiteRole } from '../lib/roles'
 import { useQueueAlert } from '../lib/queueNotify'
@@ -121,7 +122,6 @@ function navItems(t: TranslationShape) {
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
-    { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
   ]
 }
 
@@ -223,7 +223,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
             <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gold-light">
               {t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}
               {lvl.next != null && (
-                <span className="h-1 w-10 overflow-hidden rounded-full bg-base-700">
+                <span className="h-1.5 w-10 overflow-hidden rounded-full border border-white/80 bg-base-700">
                   <span className="block h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.min(100, (lvl.into / lvl.span) * 100)}%` }} />
                 </span>
               )}
@@ -285,6 +285,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const siteUpdate = useSiteUpdate()
   const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
+  const liveEvent = EVENTS.some((e) => e.status === 'live')
   const innerOnly = language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
@@ -347,9 +348,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               disabled={!siteUpdate.available}
               title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
               aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              className={`btn-ghost relative inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm ${
-                siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'
-              }`}
+              className={`top-btn ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
             >
               <RefreshIcon />
               <span className="hidden sm:inline">{t.ui.siteUpdate}</span>
@@ -359,20 +358,20 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             <LanguageSwitcher />
             {isInnerCircle && (
-              <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.home.gameNightsTitle}>
+              <Link to="/game-nights" className="top-btn top-btn-inner" aria-label={t.home.gameNightsTitle}>
                 <CalendarIcon />
-                <span className="hidden flex-col items-start leading-tight sm:flex">
+                <span className="hidden flex-col items-center leading-tight sm:flex">
                   {t.home.gameNightsTitle}
-                  <span className="text-[9px] font-normal uppercase tracking-wide text-slate-500">{innerOnly}</span>
+                  <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{innerOnly}</span>
                 </span>
               </Link>
             )}
             {isInnerCircle && (
-              <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.metrics.navLabel}>
+              <Link to="/metrics" className="top-btn top-btn-inner" aria-label={t.metrics.navLabel}>
                 <ChartIcon />
-                <span className="hidden flex-col items-start leading-tight sm:flex">
+                <span className="hidden flex-col items-center leading-tight sm:flex">
                   {t.metrics.navLabel}
-                  <span className="text-[9px] font-normal uppercase tracking-wide text-slate-500">{innerOnly}</span>
+                  <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{innerOnly}</span>
                 </span>
               </Link>
             )}
@@ -386,7 +385,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="mt-1 flex flex-row items-center justify-center gap-2.5 px-4 pb-2 sm:-mt-6 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
+        <Link to="/" className="mt-1 flex flex-row items-center justify-center gap-2.5 px-4 pb-2 sm:mt-1 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
           <CynLogo className="h-11 w-11 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
           <span className="text-center font-display text-lg font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
@@ -409,6 +408,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               >
                 <span className="sm:hidden">{n.shortLabel}</span>
                 <span className="hidden sm:inline">{n.label}</span>
+                {n.to === '/events' && liveEvent && (
+                  <span className="ml-1.5 inline-block animate-pulse rounded-full bg-signal-green/20 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-signal-green">
+                    {language === 'de' ? 'Aktiv' : 'Active'}
+                  </span>
+                )}
                 {n.to === '/queue' && queueUnseen > 0 && (
                   <span className="ml-1.5 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 align-middle" aria-label={String(queueUnseen)} />
                 )}

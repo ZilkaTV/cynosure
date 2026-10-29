@@ -333,28 +333,26 @@ export default function RankedQueue() {
         </Card>
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
-          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
-          <StatCard label={t.queue.active30} value={String(activity.m30)} accent="gold" />
-        </div>
-
-        <Card className="flex items-center gap-4 !py-4">
-          <div className="flex shrink-0 flex-col gap-1.5 rounded-xl bg-base-950 p-2" role="img" aria-label={t.queue.levels[level]}>
-            {(['low', 'medium', 'high'] as const).map((l) => (
-              <span
-                key={l}
-                className={`block h-5 w-5 rounded-full transition-all ${
+          <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>
+            <div className="flex shrink-0 flex-col gap-1 rounded-lg bg-base-950 p-1.5" role="img" aria-label={t.queue.levels[level]}>
+              {(['low', 'medium', 'high'] as const).map((l) => (
+                <span
+                  key={l}
+                  className={`block h-3.5 w-3.5 rounded-full transition-all ${
                   l === 'low' ? (level === l ? 'bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.7)]' : 'bg-red-950') : l === 'medium' ? (level === l ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]' : 'bg-amber-950') : level === l ? 'bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]' : 'bg-emerald-950'
                 }`}
-              />
-            ))}
+                />
+              ))}
+            </div>
+            <div className="hidden min-w-0 sm:block">
+              <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.queue.level}</p>
+              <p className="font-display text-2xl font-bold text-white">{t.queue.levels[level]}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t.queue.level}</div>
-            <div className="font-display text-xl font-bold text-white">{t.queue.levels[level]}</div>
-            <p className="mt-1 text-xs text-slate-400">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
-          </div>
-        </Card>
+          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
+          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
+        </div>
+        <p className="text-center text-xs text-slate-500">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
 
         <div>
           <h3 className="mb-3 font-display text-base font-bold text-white">{t.queue.recent}</h3>

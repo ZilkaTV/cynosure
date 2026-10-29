@@ -545,6 +545,8 @@ export interface GameDetail {
   numTeams: number | null
   /** Ranked ladder of the game ('1v1', '2v2', 'ffa', 'clanwars' or 'unranked'); missing in reports cached before it was kept. */
   rankedType?: string | null
+  /** 'Compact' or 'Normal'; missing in reports cached before it was kept. */
+  mapSize?: string | null
   start: number
   players: GamePlayerStat[]
 }
@@ -671,7 +673,7 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
       // deriveNumTeams's own comment. Can come through as either a number or
       // a string depending on which, so normalized to a string below before
       // parsing either way.
-      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number; rankedType?: string }
+      config?: { gameMap?: string; gameMapSize?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number; rankedType?: string }
       players?: GamePlayerStat[]
     }
   } | null
@@ -690,6 +692,7 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
         winnerClientIds: parseWinnerClientIds(info.winner),
         numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, info.players?.length ?? null),
         rankedType: info.config?.rankedType ?? null,
+        mapSize: info.config?.gameMapSize ?? null,
         start: info.start ?? 0,
         players: info.players ?? [],
       }
@@ -697,6 +700,21 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
   cachePermSet(key, detail)
   if (detail) saveSharedGameDetail(gameId, detail)
   return detail
+}
+
+/**
+ * The map size ('Compact' / 'Normal') of one game, for the game tables. Reports cached before the size was kept do not
+ * have it, so it is read from OpenFront once per game and kept in this browser for good; null when it cannot be read.
+ */
+export async function fetchGameMapSize(gameId: string): Promise<string | null> {
+  const key = `${CACHE_NS}:mapsize:${gameId}`
+  const cached = cachePermGet<string | null>(key)
+  if (cached.hit) return cached.data
+  const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as { info?: { config?: { gameMapSize?: string } } } | null
+  if (json === null) return null // failed: try again next time
+  const size = json.info?.config?.gameMapSize ?? null
+  cachePermSet(key, size)
+  return size
 }
 
 export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {

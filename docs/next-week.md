@@ -100,3 +100,11 @@ Build any of these only after the owner picks one.
 - Header: profile search left of CynClan.com (own row under 1280 px), "Inner circle only" under Game nights / Metrics, under the name the roles
   (Inner Circle, Captain of a running event, Leader / Officer / Member from OpenFront's clan list - `src/lib/roles.ts`), the title next to the level.
 - Clan overview: the 1v1, 2v2 and FFA Elo columns and their note are gone.
+
+## 11. Header buttons, queue, trends gone - dev, 2026-10-29
+- Buttons top right share one size (`.top-btn` in `index.css`); Game nights and Metrics glow gold (`.top-btn-inner`). The crest sits below that row now.
+- Events menu entry pulses with a green "Active" while an event has status `live` in `src/data/events.ts` (none right now).
+- Trends page and menu entry removed (`/trends` redirects home); the data is in the profile windows and on Metrics.
+- Live Ranked Queue: lamp, last 5 min, last 15 min in one row of equal cards; the 30-minute number is gone (the lamp still uses it, rule text under the row).
+- Game tables: ranked modes in gold, "(Compact)" in gold behind the map of ranked games. The size comes from OpenFront once per game and is kept in the
+  browser (`fetchGameMapSize`); `mapSize` is also stored in new post-game reports (`scripts/refresh-details.mjs`).

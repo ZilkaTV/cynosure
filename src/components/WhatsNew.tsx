@@ -41,9 +41,16 @@ export default function WhatsNew() {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={close} role="dialog" aria-modal="true" aria-label={text.title}>
-      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-base-600 bg-base-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-base-600 bg-base-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <p className="text-xs font-semibold uppercase tracking-widest text-gold">{new Date(latest.date).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
         <h2 className="mt-1 font-display text-xl font-bold text-white">{text.title}</h2>
+        {latest.images && latest.images.length > 0 && (
+          <div className="mt-4 grid gap-2">
+            {latest.images.map((img) => (
+              <img key={img.url} src={img.url} alt={img.alt} className="w-full rounded-lg border border-base-700" />
+            ))}
+          </div>
+        )}
         <ul className="mt-4 space-y-2 text-sm text-slate-300">
           {text.items.map((item) => (
             <li key={item} className="flex gap-2">

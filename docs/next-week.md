@@ -196,3 +196,4 @@ Build any of these only after the owner picks one.
   wheel on dev is empty until 1 Nov (boosters show). Weights are covered by `src/lib/raffle.test.ts`.
 - The reaction list under a game stays open until an emote is picked (or Escape); clicking elsewhere no longer closes it, only one list is open at a time, it follows its Like button when scrolling.
 - Reaction lists (under a game and under a comment): a click anywhere else than on the list closes it; the list under a game also stays while the mouse moves away.
+- What's new window: first draft of the text (de + en) in `src/data/changelog.ts`, optional pictures (`images`, files in public/whatsnew/). Preview: `?whatsnew=1`. Date and wording are still open.

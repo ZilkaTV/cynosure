@@ -541,7 +541,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak || '-'}</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? <span className="text-slate-600">-</span>}</td>
-                        <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
+                        <td className={`px-3 py-3 text-right tabular-nums ${winRateClass(r.winRatePct)}`}>{r.winRatePct}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -618,7 +618,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
-                          <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
+                          <td className={`px-3 py-3 text-right tabular-nums ${winRateClass(r.winRatePct)}`}>{r.winRatePct}%</td>
                           <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore != null && winScore < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
                             {winScore == null ? '-' : winScore.toFixed(2)}
                           </td>
@@ -671,7 +671,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
-                        <td className={`px-4 py-3 text-right tabular-nums ${b.wins + b.losses > 0 ? winRateClass(wr) : 'text-slate-600'}`}>{wr}%</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
@@ -722,7 +722,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
-                        <td className={`px-4 py-3 text-right tabular-nums ${b.wins + b.losses > 0 ? winRateClass(wr) : 'text-slate-600'}`}>{wr}%</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>

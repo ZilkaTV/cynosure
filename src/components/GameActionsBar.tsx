@@ -143,7 +143,7 @@ export function GameActionsBar({
   const chips = REACTION_EMOJIS.filter((e) => perEmoji[e]?.size)
 
   return (
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-1" onClick={(e) => e.stopPropagation()}>
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1" onClick={(e) => (e.target as HTMLElement).closest('button') && e.stopPropagation()}>
       <button
         ref={likeRef}
         type="button"

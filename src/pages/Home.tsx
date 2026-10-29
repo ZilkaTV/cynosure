@@ -318,7 +318,7 @@ export default function Home() {
                           {g.result}
                         </td>
                       </tr>
-                      <tr className="border-b border-base-700/50 last:border-0">
+                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50">
                         <td colSpan={9} className="px-3 pb-1.5">
                           <GameActionsBar
                             gameId={g.gameId}

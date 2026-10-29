@@ -520,12 +520,12 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
               </div>
 
               {scoreEntries.length > 0 && (
-                <aside className="space-y-2 lg:self-start">
+                <aside className="flex flex-col gap-2">
                   <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{t.report.clanScores}</p>
                   {shownScores.map((e) => (
                     <div
                       key={e.tag}
-                      className={`rounded-lg border px-3 py-2 ${e.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'}`}
+                      className={`flex flex-col justify-center rounded-lg border px-3 py-2 lg:flex-1 ${e.won ? 'border-signal-green/30 bg-signal-green/10' : 'border-signal-red/30 bg-signal-red/10'}`}
                     >
                       <p className="font-display text-sm font-bold text-white">[{e.tag}]</p>
                       <p className={`text-sm font-semibold tabular-nums ${e.won ? 'text-signal-green' : 'text-signal-red'}`}>

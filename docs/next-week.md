@@ -116,3 +116,10 @@ Build any of these only after the owner picks one.
 - Language button: flag, language name and "Select language"; all four buttons top right are exactly 140 x 48 (`shrink-0`, they were squeezed before).
 - Post-game report: id, date and replay in the middle of the header; clan score cards narrower, 7 shown then "show more", [CYN] first, then the
   order of OpenFront's clan leaderboard, clans not on it alphabetically; the team explanation text is gone.
+
+## 13. Menu, archive, clickable strip - dev, 2026-10-29
+- Game nights moved from the button row into the account menu (own row, gold, inner circle only); the header now has Update, language, Metrics.
+- Admins: account menu entry "Archived" -> `/archive` (`src/pages/Archive.tsx`) with the survey and the survey results (the two menu entries moved there). New
+  archived things get a card in `items`.
+- The whole actions strip under a game opens the report (buttons keep their own action).
+- Clan score column of the report is as tall as the table, the cards share the height.

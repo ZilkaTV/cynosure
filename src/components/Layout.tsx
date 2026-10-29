@@ -238,7 +238,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
           <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.myProfile}
           </Link>
@@ -248,14 +248,18 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
           <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             {t.accountMenu.settings}
           </Link>
-          {isAdmin && (
-            <Link to="/survey" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {t.nav.survey}
+          {isInner && (
+            <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">
+              <CalendarIcon />
+              <span className="flex flex-col leading-tight">
+                {t.home.gameNightsTitle}
+                <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'}</span>
+              </span>
             </Link>
           )}
           {isAdmin && (
-            <Link to="/survey/results" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {t.nav.surveyResults}
+            <Link to="/archive" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              {language === 'de' ? 'Archiviert' : 'Archived'}
             </Link>
           )}
           <button
@@ -357,15 +361,6 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </button>
             <LanguageSwitcher />
-            {isInnerCircle && (
-              <Link to="/game-nights" className="top-btn top-btn-inner" aria-label={t.home.gameNightsTitle}>
-                <CalendarIcon />
-                <span className="hidden flex-col items-center leading-tight sm:flex">
-                  {t.home.gameNightsTitle}
-                  <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{innerOnly}</span>
-                </span>
-              </Link>
-            )}
             {isInnerCircle && (
               <Link to="/metrics" className="top-btn top-btn-inner" aria-label={t.metrics.navLabel}>
                 <ChartIcon />

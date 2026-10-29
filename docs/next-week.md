@@ -123,3 +123,7 @@ Build any of these only after the owner picks one.
   archived things get a card in `items`.
 - The whole actions strip under a game opens the report (buttons keep their own action).
 - Clan score column of the report is as tall as the table, the cards share the height.
+
+## 14. Header buttons again - dev, 2026-10-29
+- Language, Metrics and the account button share one box (264 x 72 px, `.top-btn`); Update is a small button under CynClan.com (`.top-btn-sm`);
+  Game nights sit above Settings in the account menu.

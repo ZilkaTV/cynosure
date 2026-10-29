@@ -214,7 +214,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
+        className="top-btn !w-auto justify-start !px-3 sm:!w-[16.5rem]"
         aria-label={t.accountMenu.ariaLabel}
       >
         <GearIcon />
@@ -245,9 +245,6 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
           <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             ★ {t.accountMenu.savedGames}
           </Link>
-          <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-            {t.accountMenu.settings}
-          </Link>
           {isInner && (
             <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">
               <CalendarIcon />
@@ -257,6 +254,9 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
               </span>
             </Link>
           )}
+          <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            {t.accountMenu.settings}
+          </Link>
           {isAdmin && (
             <Link to="/archive" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
               {language === 'de' ? 'Archiviert' : 'Archived'}
@@ -339,27 +339,29 @@ export default function Layout({ children }: { children: ReactNode }) {
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
         <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">
-          <div className="flex shrink-0 items-center gap-4 sm:absolute sm:left-4 sm:top-3 sm:z-10">
-            <Link to="/" className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:text-2xl lg:text-3xl">
-              CynClan.com
-            </Link>
-            <ProfileSearch className="hidden w-60 xl:block" />
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 flex-col items-start gap-1.5 sm:absolute sm:left-4 sm:top-3 sm:z-10">
+            <div className="flex items-center gap-4">
+              <Link to="/" className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:text-2xl lg:text-3xl">
+                CynClan.com
+              </Link>
+              <ProfileSearch className="hidden w-60 xl:block" />
+            </div>
             <button
               type="button"
               onClick={siteUpdate.apply}
               disabled={!siteUpdate.available}
               title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
               aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              className={`top-btn ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
+              className={`top-btn-sm ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
             >
-              <RefreshIcon />
-              <span className="hidden sm:inline">{t.ui.siteUpdate}</span>
+              <RefreshIcon className="h-3.5 w-3.5" />
+              {t.ui.siteUpdate}
               {siteUpdate.available && (
                 <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
               )}
             </button>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <LanguageSwitcher />
             {isInnerCircle && (
               <Link to="/metrics" className="top-btn top-btn-inner" aria-label={t.metrics.navLabel}>

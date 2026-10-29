@@ -7,6 +7,7 @@ import { fetchClanScoreLedger, type ClanScoreRow } from './clanScore'
 //   games factor  = +1 per game, win or loss alike
 //   win score     = +1 per full 10 Win Score    (0-9 = 0, 10-19 = 1, 20-29 = 2 ...)
 // Games and Win Score only count team games inside the event window in which at least one other registered CYN member played.
+// Discord server boosters stand on the wheel from the start, with their base weight, even before their first game.
 
 export interface RaffleEntry {
   id: string
@@ -65,6 +66,13 @@ export async function computeRaffleEntries(members: MemberStats[], boosters: Set
     const gf = gamesFactor(mine.length)
     const wf = winScoreFactor(winScore)
     out.push({ id: m.publicId, name: m.name, games: mine.length, winScore, base, gamesFactor: gf, winScoreFactor: wf, weight: base + gf + wf })
+  }
+  // Discord server boosters are on the wheel from the start: their base weight counts even before the first team game.
+  const have = new Set(out.map((e) => e.id))
+  for (const m of members) {
+    if (!boosters.has(m.publicId) || have.has(m.publicId)) continue
+    const base = BASE_WEIGHT + BOOST_BONUS + (m.isSupporter ? DONATION_BONUS : 0)
+    out.push({ id: m.publicId, name: m.name, games: 0, winScore: 0, base, gamesFactor: 0, winScoreFactor: 0, weight: base })
   }
   return out.sort((a, b) => b.weight - a.weight || b.games - a.games)
 }

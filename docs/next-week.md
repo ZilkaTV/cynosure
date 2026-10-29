@@ -176,3 +176,5 @@ Build any of these only after the owner picks one.
   full 50) + Win Score (+1 per full 10). The table (top 10, then all) is public, the SPIN button and "remove winner" are admin only.
   `/events?wheelFrom=2026-10-01` previews the wheel as if the event had started that day.
 - Update: the games factor is +1 per team game with another registered CYN member, win or loss alike (instead of +2.5 per 50 games).
+- The two skin pictures sit in the "Prize" block now. Discord server boosters are on the wheel from the start (base weight 3, even before a first team game) as soon
+  as `cyn_boosters` knows them; the role-sync job of this branch fills that table from Discord. It is empty right now (checked on the real and the dev database).

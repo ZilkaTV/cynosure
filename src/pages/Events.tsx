@@ -164,6 +164,18 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu Plutonium.'
             : 'An exclusive skin that will exist only 3 times in the world, plus Plutonium.'}
         </div>
+        {event.skinImages && (
+          <div className="mt-3">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {event.skinImages.map((img) => (
+                <div key={img.url} className="space-y-1.5">
+                  <SkinPreview url={img.url} alt={`${event.name} ${img.label}`} t={t} />
+                  <p className="text-center text-xs text-slate-500">{de ? (img.label === 'FFA mode' ? 'FFA-Modus' : 'Team-Modus') : img.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
@@ -239,19 +251,6 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
         </div>
       )}
 
-      {event.skinImages && (
-        <div>
-          <BlockLabel>{de ? 'Der Skin' : 'The skin'}</BlockLabel>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {event.skinImages.map((img) => (
-              <div key={img.url} className="space-y-1.5">
-                <SkinPreview url={img.url} alt={`${event.name} ${img.label}`} t={t} />
-                <p className="text-center text-xs text-slate-500">{de ? (img.label === 'FFA mode' ? 'FFA-Modus' : 'Team-Modus') : img.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -526,9 +526,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <SortTh label="Points" sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
-                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label="Streak" sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                     </tr>
                   </thead>
                   <tbody>
@@ -539,9 +539,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{r.points}</td>
                         <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                        <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak || '-'}</td>
                         <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? <span className="text-slate-600">-</span>}</td>
+                        <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -603,9 +603,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
                         <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colKills} sortKey="kills" active={sortKey === 'kills'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colGoldMin} sortKey="avgGold" active={sortKey === 'avgGold'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Win Score" sortKey="winScore" active={sortKey === 'winScore'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
@@ -616,9 +616,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                          <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
+                          <td className={`px-3 py-3 text-right tabular-nums ${r.wins + r.losses > 0 ? winRateClass(r.winRatePct) : 'text-slate-600'}`}>{r.winRatePct}%</td>
                           <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore != null && winScore < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
                             {winScore == null ? '-' : winScore.toFixed(2)}
                           </td>

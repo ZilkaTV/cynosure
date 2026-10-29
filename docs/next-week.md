@@ -155,3 +155,5 @@ Build any of these only after the owner picks one.
 - 0 % win rate = warning: red that slides light to dark and pulses (`.text-warn`, from `winRateClass(0)`), in all win-rate cells.
 - Speedrun "tiles at 3 min": under 9.1 % red, to 10 grey, to 12 green, under 15 blue, 15 % and more pulsing gold (`tilesClass`).
 - Monthly FFA table: the average kills column is back (after Streak, sortable).
+- Win rate column: far right in Monthly FFA, between gold/min and Win Score in Monthly Team.
+- Profile badges: the "show locked" button became a checkbox "Show all" next to the title (same box as "Registered only" on the overview).

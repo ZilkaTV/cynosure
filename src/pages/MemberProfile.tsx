@@ -241,16 +241,16 @@ export default function MemberProfile() {
       </div>
 
       <section>
-        <SectionHeading
-          center
-          eyebrow={t.memberProfile.achievementsEyebrow}
-          title={t.memberProfile.badgesTitle}
-          action={
-            <button type="button" onClick={() => setShowLocked((v) => !v)} className="btn-ghost text-sm">
-              {language === 'de' ? (showLocked ? 'Nicht erreichte ausblenden' : 'Nicht erreichte anzeigen') : showLocked ? 'Hide locked' : 'Show locked'}
-            </button>
-          }
-        />
+        <div className="mb-6 text-center">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.achievementsEyebrow}</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <h2 className="font-display text-2xl font-bold text-white md:text-3xl">{t.memberProfile.badgesTitle}</h2>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-xs text-slate-300">
+              <input type="checkbox" checked={showLocked} onChange={(e) => setShowLocked(e.target.checked)} className="accent-[#8b5cf6]" />
+              {language === 'de' ? 'Alle anzeigen' : 'Show all'}
+            </label>
+          </div>
+        </div>
         <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} showLocked={showLocked} />
       </section>
 

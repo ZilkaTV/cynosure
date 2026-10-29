@@ -3,7 +3,7 @@ import { fetchClanScoreLedger, type ClanScoreRow } from './clanScore'
 
 // The numbers of the Factor Wheel (CYN Hero Skin event), taken from the site's own stats so nobody types them in:
 //   weight = base weight + games factor + win score factor
-//   base weight   = +3 for a Discord server booster, +3 for a donation of 5 EUR or more (supporter); nobody starts with a base weight
+//   base weight   = +3 per Discord server boost (cyn_boosters.boosts), +3 for a donation of 5 EUR or more (supporter); nobody starts with a base weight
 //   games factor  = +1 per game, win or loss alike
 //   win score     = +1 per full 10 Win Score    (0-9 = 0, 10-19 = 1, 20-29 = 2 ...)
 // Games and Win Score only count team games inside the event window in which at least one other registered CYN member played.
@@ -34,7 +34,7 @@ export function winScoreFactor(winScore: number): number {
 }
 
 /** Every member with at least one qualifying team game in the window, with games, Win Score and weight. */
-export async function computeRaffleEntries(members: MemberStats[], boosters: Set<string>, fromMs: number, toMs: number): Promise<RaffleEntry[]> {
+export async function computeRaffleEntries(members: MemberStats[], boosts: Map<string, number>, fromMs: number, toMs: number): Promise<RaffleEntry[]> {
   // how many registered members played each team game of the window
   const players = new Map<string, number>()
   const byMember = new Map<string, Set<string>>()
@@ -62,7 +62,7 @@ export async function computeRaffleEntries(members: MemberStats[], boosters: Set
       if (row) winScore += (row.won ? row.score : -row.score) / (players.get(id) ?? 1)
     }
     winScore = Math.round(winScore * 100) / 100
-    const base = BASE_WEIGHT + (boosters.has(m.publicId) ? BOOST_BONUS : 0) + (m.isSupporter ? DONATION_BONUS : 0)
+    const base = BASE_WEIGHT + BOOST_BONUS * (boosts.get(m.publicId) ?? 0) + (m.isSupporter ? DONATION_BONUS : 0)
     const gf = gamesFactor(mine.length)
     const wf = winScoreFactor(winScore)
     out.push({ id: m.publicId, name: m.name, games: mine.length, winScore, base, gamesFactor: gf, winScoreFactor: wf, weight: base + gf + wf })
@@ -70,8 +70,8 @@ export async function computeRaffleEntries(members: MemberStats[], boosters: Set
   // Discord server boosters are on the wheel from the start: their base weight counts even before the first team game.
   const have = new Set(out.map((e) => e.id))
   for (const m of members) {
-    if (!boosters.has(m.publicId) || have.has(m.publicId)) continue
-    const base = BASE_WEIGHT + BOOST_BONUS + (m.isSupporter ? DONATION_BONUS : 0)
+    if (!boosts.has(m.publicId) || have.has(m.publicId)) continue
+    const base = BASE_WEIGHT + BOOST_BONUS * (boosts.get(m.publicId) ?? 0) + (m.isSupporter ? DONATION_BONUS : 0)
     out.push({ id: m.publicId, name: m.name, games: 0, winScore: 0, base, gamesFactor: 0, winScoreFactor: 0, weight: base })
   }
   return out.sort((a, b) => b.weight - a.weight || b.games - a.games)

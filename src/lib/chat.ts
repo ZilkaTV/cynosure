@@ -38,6 +38,19 @@ export async function fetchBoosters(): Promise<string[]> {
   return (data as { openfront_id: string }[]).map((r) => r.openfront_id)
 }
 
+/** Boosts per boosting member (3 boosts = 3): the Factor Wheel gives +3 per boost. A table without the count column counts every booster once. */
+export async function fetchBoostCounts(): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (!supabase) return out
+  const { data, error } = await supabase.from('cyn_boosters').select('openfront_id, boosts')
+  if (error || !data) {
+    for (const id of await fetchBoosters()) out.set(id, 1)
+    return out
+  }
+  for (const r of data as { openfront_id: string; boosts: number | null }[]) out.set(r.openfront_id, Math.max(1, r.boosts ?? 1))
+  return out
+}
+
 /** Every member's chat message count at once - for buildRoster's up-front pass (the Chatter badge). */
 export async function fetchAllChatMessageCounts(): Promise<Record<string, number>> {
   if (!supabase) return {}

@@ -428,7 +428,8 @@ export const USERS_META = {
       "openfront_id"
     ],
     "cols": [
-      "openfront_id"
+      "openfront_id",
+      "boosts"
     ]
   },
   "cyn_game_comments": {

@@ -178,3 +178,6 @@ Build any of these only after the owner picks one.
 - Update: the games factor is +1 per team game with another registered CYN member, win or loss alike (instead of +2.5 per 50 games).
 - The two skin pictures sit in the "Prize" block now. Discord server boosters are on the wheel from the start (base weight 3, even before a first team game) as soon
   as `cyn_boosters` knows them; the role-sync job of this branch fills that table from Discord. It is empty right now (checked on the real and the dev database).
+- Boost counts: `worker/d1/005-boosts.sql` adds `cyn_boosters.boosts` (Discord only tells "boosting", not how often) and seeds the boosters of 2026-10-29
+  (Zilka 2, Chuma 2, Kaizeron 2, Tim21 3). The wheel gives +3 per boost (weights 6, 6, 6, 9). Done on the dev database; **the real database needs this file once
+  before the merge.** The role-sync job only adds and removes rows, so the counts stay; a new booster starts with 1.

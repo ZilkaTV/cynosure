@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSharedRoster } from '../lib/access'
-import { fetchBoosters } from '../lib/chat'
+import { fetchBoostCounts } from '../lib/chat'
 import { computeRaffleEntries, type RaffleEntry } from '../lib/raffle'
 import { useIsAdmin } from '../lib/useSession'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -18,7 +18,7 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
   const de = language === 'de'
   const isAdmin = useIsAdmin()
   const roster = useSharedRoster()
-  const [boosters, setBoosters] = useState<Set<string> | null>(null)
+  const [boosts, setBoosts] = useState<Map<string, number> | null>(null)
   const [entries, setEntries] = useState<RaffleEntry[] | null>(null)
   const [removed, setRemoved] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
@@ -29,19 +29,19 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
   const confetti = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
-    fetchBoosters()
-      .then((ids) => setBoosters(new Set(ids)))
-      .catch(() => setBoosters(new Set()))
+    fetchBoostCounts()
+      .then(setBoosts)
+      .catch(() => setBoosts(new Map()))
   }, [])
 
   useEffect(() => {
-    if (!roster || !boosters) return
+    if (!roster || !boosts) return
     let alive = true
-    computeRaffleEntries(roster.members, boosters, fromMs, toMs).then((e) => alive && setEntries(e))
+    computeRaffleEntries(roster.members, boosts, fromMs, toMs).then((e) => alive && setEntries(e))
     return () => {
       alive = false
     }
-  }, [roster, boosters, fromMs, toMs])
+  }, [roster, boosts, fromMs, toMs])
 
   const live = useMemo(() => (entries ?? []).filter((e) => !removed.has(e.id)), [entries, removed])
   const total = live.reduce((s, e) => s + e.weight, 0)

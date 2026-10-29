@@ -209,6 +209,9 @@
     },
     {
       "path": "./src/vendor/openfront-core-9f4a28f"
+    },
+    {
+      "path": "./src/vendor/openfront-core-c144d13"
     }
   ]
 }

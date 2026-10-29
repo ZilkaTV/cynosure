@@ -9,9 +9,10 @@ import { GameActionsBar, useGameActions, useOpenReport } from '../components/Gam
 import { fetchReactionTotals } from '../lib/reactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
-import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
 import { cleanDisplayName } from '../lib/displayName'
+import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 
 const PAGE_SIZE = 10
@@ -54,6 +55,7 @@ export default function History() {
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const report = useOpenReport()
+  const winsIndex = useWinsIndex()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -251,7 +253,7 @@ export default function History() {
                     const detail = gameDetails.get(g.gameId)
                     const memberUsernames = members.map((m) => m.username)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberUsernames.map(cleanDisplayName).join(', ')
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} byName={winsIndex.byName} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr

@@ -3,12 +3,14 @@ import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerSt
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
 import { fetchClanScoreLedger, fetchTopClanLeaderboard, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
+import { cleanDisplayName } from '../lib/displayName'
 import { Emoji, EMOJI } from './Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
 import { saveGame, unsaveGame, useSavedGames } from '../lib/savedGames'
 import type { TranslationShape } from '../i18n/translations'
 import GameComments from './GameComments'
+import { RoleName, useWinsIndex } from './RoleName'
 
 // The report lists this many places (teams, or players in a solo game) before "show more".
 const TOP_PLACES = 10
@@ -115,6 +117,7 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
   const [tileProgress, setTileProgress] = useState<ReplayProgress | null>(null)
 
   const [showAll, setShowAll] = useState(false)
+  const winsIndex = useWinsIndex()
   const [showAllScores, setShowAllScores] = useState(false)
   // Clan tags in the order of OpenFront's clan leaderboard (the clan score cards follow it).
   const [clanOrder, setClanOrder] = useState<string[]>([])
@@ -463,7 +466,7 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                                         )}{' '}
                                       </span>
                                     )}
-                                    {r.p.username}
+                                    {isCyn ? <RoleName wins={winsIndex.byName.get(cleanDisplayName(r.p.username).toLowerCase())}>{r.p.username}</RoleName> : r.p.username}
                                   </span>
                                   {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}
                                 </span>

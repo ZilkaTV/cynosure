@@ -100,9 +100,6 @@
     role-slide 3.2s linear infinite,
     role-glow 2.6s ease-in-out infinite;
 }
-.role-name a {
-  color: transparent;
-}
 @keyframes role-slide {
   to {
     background-position: -200% 0;

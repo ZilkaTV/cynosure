@@ -139,3 +139,8 @@ Build any of these only after the owner picks one.
 - Monthly FFA/Team, the ranked boards, speedrun leaderboard, clan list, History (pages of 10), live queue and the last games on the profile show 10
   rows and a button for the rest (Home's member table and the latest games already did).
 - Career window: 1v1, 2v2 and FFA Elo side by side in one row.
+
+## 18. Role names everywhere, win rates in colour - dev, 2026-10-29
+- `RoleName` / `useWinsIndex` (`src/components/RoleName.tsx`): the name (not the flag) of every member with a wins role slides between two shades with a soft glow.
+  Used by `MemberNameLink` (all tables, comments, ...), the profile title, the player column of Home / History (`RosterNames`) and [CYN] players in the report.
+- Win rates are coloured like in the game rows (`winRateClass`): Monthly FFA / Team / 1v1 / 2v2 tables and the profile breakdown bars.

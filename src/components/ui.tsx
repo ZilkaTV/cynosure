@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
+import { RoleName, useWinsIndex } from './RoleName'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import { Flag } from './Emoji'
@@ -176,10 +177,13 @@ export function LastUpdated({
 /** A member's linked name with their nationality flag (if set) shown to the left, for use in every table/roster. */
 export function MemberNameLink({ publicId, name, nationality, className = 'font-medium text-white hover:text-accent-light' }: { publicId: string; name: string; nationality?: string; className?: string }) {
   const { t } = useLanguage()
+  const wins = useWinsIndex()
   return (
     <Link to={`/member/${publicId}`} className={`inline-flex items-center gap-1.5 ${className}`}>
       {nationality && <Flag code={nationality} />}
-      <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
+      <RoleName wins={wins.byId.get(publicId)}>
+        <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
+      </RoleName>
       {isUnclaimedMember(publicId) && (
         <span className="rounded-full bg-base-700/70 px-1.5 text-[10px] font-normal text-slate-400" title={t.memberProfile.unregisteredNote}>
           {t.memberProfile.unregisteredShort}

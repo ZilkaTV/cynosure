@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
-import { computeBadges, winsRoleGradient } from '../lib/badges'
+import { computeBadges } from '../lib/badges'
+import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import GameDetailModal from '../components/GameDetailModal'
-import { cleanDisplayName } from '../lib/displayName'
 import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
@@ -23,7 +23,7 @@ import { GameActionsBar, useGameActions, useOpenReport } from '../components/Gam
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
-import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, type PlayerGame, type GameDetail } from '../lib/openfront'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
@@ -32,18 +32,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
     {
       key: 'name',
       label: t.monthly.colName,
-      render: (m) => {
-        const link = <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
-        // Every name with a Discord wins role (from 50 wins: bronze, 100: silver, ...) slides between the two colours of that role.
-        const colors = winsRoleGradient(m.allWins)
-        return colors ? (
-          <span className="role-name inline-block font-bold" style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
-            {link}
-          </span>
-        ) : (
-          link
-        )
-      },
+      render: (m) => <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />,
       sortValue: (m) => m.name.toLowerCase(),
     },
     {
@@ -145,6 +134,7 @@ export default function Home() {
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
   const report = useOpenReport()
+  const winsIndex = useWinsIndex()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -289,7 +279,7 @@ export default function Home() {
                     const winRate = groupWinRate(data?.members.find((x) => x.publicId === memberIds[0]), g)
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} byName={winsIndex.byName} />
                     return (
                       <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr

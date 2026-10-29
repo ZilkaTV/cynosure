@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { is1v1, is2v2, isFfa, isTeam } from '../lib/stats'
 import { deriveNumTeams, type PlayerGame } from '../lib/openfront'
 import { useLanguage } from '../i18n/LanguageContext'
+import { winRateClass } from '../lib/gameRows'
 
 export interface Tally {
   wins: number
@@ -39,7 +40,7 @@ export function Row({ label, tally, hint, compact = false }: { label: string; ta
       </div>
       <span className="whitespace-nowrap text-right tabular-nums text-slate-400">
         <span className="text-signal-green">{tally.wins}</span>-<span className="text-signal-red">{tally.losses}</span>
-        <span className={`inline-block text-slate-200 ${compact ? 'ml-1 w-9' : 'ml-2 w-12'}`}>{p == null ? '-' : `${p.toFixed(0)}%`}</span>
+        <span className={`inline-block ${p == null ? 'text-slate-500' : winRateClass(p)} ${compact ? 'ml-1 w-9' : 'ml-2 w-12'}`}>{p == null ? '-' : `${p.toFixed(0)}%`}</span>
       </span>
     </div>
   )

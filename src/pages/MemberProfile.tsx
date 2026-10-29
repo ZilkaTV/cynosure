@@ -12,6 +12,7 @@ import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winSco
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { Flag } from '../components/Emoji'
+import { RoleName } from '../components/RoleName'
 import { splitAccountUsername } from '../lib/openfront'
 import { cleanDisplayName } from '../lib/displayName'
 import { SectionHeading, Spinner } from '../components/ui'
@@ -187,7 +188,7 @@ export default function MemberProfile() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
         <h1 className="mt-1 inline-flex items-center gap-2 font-display text-3xl font-bold text-white">
           {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
-          {cleanDisplayName(m.name)}
+          <RoleName wins={m.allWins}>{cleanDisplayName(m.name)}</RoleName>
           {isOwnProfile && viewerIsAdmin && (
             <span className="ml-2 align-middle rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-gold-light">
               {t.accountMenu.adminBadge}

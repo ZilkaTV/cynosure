@@ -5,6 +5,8 @@ import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
+import { useSharedRoster } from '../lib/access'
+import { cleanDisplayName } from '../lib/displayName'
 
 // The signed-in visitor's own account (GET /api/queue/me): named next to the in-game name when they played under another name.
 interface MyAccount {
@@ -140,17 +142,21 @@ function fmtDuration(s: number | null): string {
 
 type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }>; ffa: Record<string, { rank: number; elo: number }> }
 
-function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null }) {
+function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null; names?: Map<string, string> }) {
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
   const boardEntry = p.r == null && p.id && ladder ? boards?.[ladder]?.[p.id] : undefined
   const ownBoard = (own && ladder ? own.boards[ladder] : undefined) ?? boardEntry
+  // A registered member who plays under another name in the queue: the public id tells who it is, so the member's own name is added.
+  const real = !own && p.id ? names?.get(p.id) : undefined
+  const showReal = real && cleanDisplayName(real).toLowerCase() !== cleanDisplayName(p.n).toLowerCase() ? real : null
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
       {p.n}
       {own && <span className="ml-1 text-gold-light">({own.name})</span>}
+      {showReal && <span className="ml-1 text-gold-light">({cleanDisplayName(showReal)})</span>}
       {p.id && <span className="block font-mono text-[10px] font-normal text-slate-500">({p.id})</span>}
     </span>
   )
@@ -199,6 +205,9 @@ export default function RankedQueue() {
   const alert = useQueueAlertSettings()
   const [me, setMe] = useState<MyAccount | null>(null)
   const [boards, setBoards] = useState<Boards | null>(null)
+  // public OpenFront id -> the name the member is registered under (the member list is public on the site)
+  const roster = useSharedRoster()
+  const memberNames = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
   // Current top-100 boards (the site's roster document, cached for a minute at the edge): rank and Elo of players who
   // play under another name.
   useEffect(() => {
@@ -409,7 +418,7 @@ export default function RankedQueue() {
                           <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
-                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} />
+                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
                             ))}
                           </div>
                         </div>

@@ -8,14 +8,22 @@
   }
   body {
     @apply bg-base-950 text-slate-200 font-body antialiased;
+  }
+  /* the purple glow lives on its own fixed layer: "background-attachment: fixed" on the body repaints the whole window on every scroll step */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image: radial-gradient(circle at 50% -10%, rgba(139, 92, 246, 0.14), transparent 55%);
-    background-attachment: fixed;
   }
 }
 
 @layer components {
+  /* no backdrop blur: it re-blurs everything behind every panel on each scroll step, and the page behind is almost flat anyway */
   .panel {
-    @apply rounded-2xl border border-base-700 bg-base-900/70 backdrop-blur-sm;
+    @apply rounded-2xl border border-base-700 bg-base-900/70;
   }
   .badge {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
@@ -290,6 +298,7 @@ h1 .role-name.role-bolts .bolt-8 {
 /* Calm mode: the decorative animations stand still. It is on while this window does not have the focus (somebody watching a stream next to it
    does not want the page to use the graphics card) and when the member switched it on in the settings (see useCalmMode in Layout.tsx). */
 html[data-calm] .role-name,
+html[data-calm] .text-shine,
 html[data-calm] .role-frame-shine,
 html[data-calm] .role-frame-bolt,
 html[data-calm] .role-frame-shine::before,
@@ -305,6 +314,22 @@ html[data-calm] .animate-pulse {
 }
 html[data-calm] .glow-ready::after {
   opacity: 0.6;
+}
+/* while the page scrolls the same animations are paused (not removed: they go on from the same spot afterwards), see useCalmMode */
+html[data-scrolling] .role-name,
+html[data-scrolling] .text-shine,
+html[data-scrolling] .role-frame-shine,
+html[data-scrolling] .role-frame-bolt,
+html[data-scrolling] .role-frame-shine::before,
+html[data-scrolling] .role-frame-shine::after,
+html[data-scrolling] .role-bolts .bolt,
+html[data-scrolling] .role-sparks::before,
+html[data-scrolling] .role-sparks::after,
+html[data-scrolling] .glow-ready::after,
+html[data-scrolling] .crest-glow::before,
+html[data-scrolling] .text-warn,
+html[data-scrolling] .animate-pulse {
+  animation-play-state: paused !important;
 }
 
 /* a card turned over in the booster window */

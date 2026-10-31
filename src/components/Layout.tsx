@@ -391,12 +391,24 @@ function useCalmMode() {
       else delete root.dataset.calm
     }
     apply()
+    // while the page scrolls the decorative animations pause (they pick up where they were afterwards): scrolling and animating names
+    // at the same time makes the browser repaint a lot, which hurts a stream or a game running next to the site
+    let scrollTimer = 0
+    const onScroll = () => {
+      root.dataset.scrolling = '1'
+      window.clearTimeout(scrollTimer)
+      scrollTimer = window.setTimeout(() => delete root.dataset.scrolling, 180)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('focus', apply)
     window.addEventListener('blur', apply)
     document.addEventListener('visibilitychange', apply)
     window.addEventListener(CALM_CHANGED, apply)
     window.addEventListener('storage', apply)
     return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.clearTimeout(scrollTimer)
+      delete root.dataset.scrolling
       window.removeEventListener('focus', apply)
       window.removeEventListener('blur', apply)
       document.removeEventListener('visibilitychange', apply)

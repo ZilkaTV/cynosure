@@ -83,13 +83,12 @@ export function fmtTime(s: number): string {
 }
 
 /**
- * Check a game meets the speedrun category. Also requires the winner to be
- * the submitting member themselves, playing under the [CYN] tag - otherwise
- * anyone could submit someone else's (or a stranger's) replay as their own.
+ * Check a game meets the speedrun category and was won under the [CYN] tag. WHO won is not decided by the name: the server
+ * (worker/speedrun.js) compares the winner's public OpenFront id with the id of the signed-in member, so a member who plays
+ * under another name still counts, and the board shows the member's registered name, not the name used in the game.
  */
 export function verifySpeedrun(
   d: GameDetail,
-  inGameName: string,
 ): { ok: boolean; reason?: string; seconds: number; clientID?: string } {
   if (d.map !== 'Australia') return { ok: false, reason: `Map must be Australia (this game was ${d.map}).`, seconds: 0 }
   if (d.gameType !== 'Singleplayer') return { ok: false, reason: `Must be a solo (singleplayer) game (this was ${d.gameType}).`, seconds: 0 }
@@ -99,9 +98,7 @@ export function verifySpeedrun(
 
   // A solo (Singleplayer) game - already required above - only ever has one winner.
   const winner = d.players.find((p) => p.clientID === d.winnerClientIds[0])
-  if (!winner || winner.username.trim().toLowerCase() !== inGameName.trim().toLowerCase()) {
-    return { ok: false, reason: 'The winner of this game doesn’t match your registered in-game name. You can only submit your own runs.', seconds: 0 }
-  }
+  if (!winner) return { ok: false, reason: 'The winner is not in the player list of the record.', seconds: 0 }
   if (winner.clanTag !== CLAN_TAG) {
     return { ok: false, reason: 'You must be playing with the [CYN] tag for the run to count.', seconds: 0 }
   }

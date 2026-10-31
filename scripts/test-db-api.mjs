@@ -193,5 +193,39 @@ r = await q({ table: 'cyn_saved_games', op: 'delete', filters: [{ col: 'openfron
 const after = await q({ table: 'cyn_saved_games', op: 'select', select: 'game_id', filters: [], order: [] }, A)
 check('member removes a saved game', !r.error && after.data.length === 0, [r, after])
 
+// clan donors (needs the hot schema: npx wrangler d1 execute cynosure-hot --local --file worker/d1/hot-schema.sql, same --persist-to)
+const donors = async (method, who, body) => {
+  const res = await fetch(`${BASE}/api/clan-donors`, { method, headers: { 'Content-Type': 'application/json', ...(who ? { Cookie: cookie(...who) } : {}) }, body: body ? JSON.stringify(body) : undefined })
+  return { status: res.status, body: await res.json().catch(() => null) }
+}
+const row = (id, total, donations = 1, username = 'U' + id) => ({ playerId: id, username, total, donations })
+const goodBoards = () => {
+  const b = { soft: {}, hard: {} }
+  for (const c of ['soft', 'hard']) for (const p of ['all', 'month', 'week']) b[c][p] = [row('BBBB2222', '500'), row('AAAA1111', '12000', 4)]
+  return b
+}
+r = await donors('GET', null)
+check('donors: not signed in -> 401', r.status === 401, r)
+r = await donors('GET', C)
+check('donors: signed in but no member -> 403', r.status === 403, r)
+r = await donors('GET', A)
+check('donors: member sees "no data yet"', r.status === 200 && r.body?.boards === null, r)
+r = await donors('POST', ['d2', 'bob'], { boards: goodBoards() })
+check('donors: a member who is no admin cannot save', r.status === 403, r)
+r = await donors('POST', A, { boards: { soft: { all: [] } } })
+check('donors: incomplete boards refused', r.status === 400, r)
+const evil = goodBoards()
+evil.soft.all[0].total = '12abc'
+r = await donors('POST', A, { boards: evil })
+check('donors: a bad amount is refused', r.status === 400, r)
+const evil2 = goodBoards()
+evil2.hard.week[0].playerId = '../../x'
+r = await donors('POST', A, { boards: evil2 })
+check('donors: a bad player id is refused', r.status === 400, r)
+r = await donors('POST', A, { boards: goodBoards(), extra: '<script>' })
+check('donors: admin saves', r.status === 200 && r.body?.ok === true, r)
+r = await donors('GET', A)
+check('donors: stored, sorted by amount, ranks recomputed', r.body?.boards?.soft?.all?.[0]?.playerId === 'AAAA1111' && r.body.boards.soft.all[0].rank === 1 && r.body.boards.hard.week[1].rank === 2 && r.body.by === 'AAAA1111', r)
+
 console.log(fails ? `${fails} FAILED` : 'ALL OK')
 process.exit(fails ? 1 : 0)

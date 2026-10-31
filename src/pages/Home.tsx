@@ -9,6 +9,7 @@ import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import { ClanTreasuryCards } from '../components/ClanDonations'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
 import GameDetailModal from '../components/GameDetailModal'
@@ -237,6 +238,8 @@ export default function Home() {
       </section>
 
       <TagNotice />
+
+      <ClanTreasuryCards />
 
       <section className="space-y-4">
         <SectionHeading center eyebrow={t.home.rosterEyebrow} title={t.home.memberStatsTitle} />

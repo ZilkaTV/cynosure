@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
+import ClanDonations from '../components/ClanDonations'
 import { fetchClanMembers, type ClanMember, type WinLoss } from '../lib/clanMembers'
 import { fetchRegistered } from '../lib/profiles'
 import { fetchRankedMap } from '../lib/openfront'
@@ -185,6 +186,8 @@ export default function Clan() {
         {leftClan.length > 0 && <p className="text-center text-xs text-slate-500">{t.clanPage.leftClan(leftClan.join(', '))}</p>}
         <p className="text-center text-xs text-slate-500">{t.clanPage.note}</p>
       </section>
+
+      <ClanDonations />
     </StatsShell>
   )
 }

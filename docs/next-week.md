@@ -218,3 +218,14 @@ Known and left as is (decide separately): the access gate ("7 days without a win
 Discord ids of the members; anonymous read endpoints (`/api/member-games`, `/api/game-detail`, `/db`) have no rate limit of their own (a Cloudflare rate-limit rule would add one);
 screenshot uploads have no per-member quota; `cyn_kudos` rows are not rate limited; `cyn_xp` can be set by the member (cosmetic level only); the lobby userscript is no longer served
 (`/cynosure-lobby-points.user.js` answers with the site's HTML page).
+
+## Clan treasury and donors (2026-10-31)
+- OpenFront's public clan card `GET api.openfront.io/clans/CYN` gives the treasury (`softBalance` = caps, `hardBalance` = plutonium). The Worker proxy lets exactly that path through
+  (`worker/of.js`); two small cards show it at the top of the start page and on the Clan page (`ClanTreasuryCards` in `src/components/ClanDonations.tsx`).
+- The ranking of the donors (`/clans/CYN/donations/leaderboard`, caps / plutonium, all time / 30 days / 7 days) is members-only at OpenFront (401 without the login of a clan member). So an admin imports it:
+  `public/cynosure-donors.user.js` (Tampermonkey) runs on openfront.io, reuses the page's own login for the requests to api.openfront.io (the token never leaves the browser), and hands the
+  six lists to the import panel on `/clan?import=donors` through `postMessage` (origin checked on both sides); pasting the copied text works as a fallback. The admin sees the number of entries and saves.
+- `POST /api/clan-donors` (`worker/clanDonors.js`): admins only, same origin lock as the data API, every field rebuilt and checked (ids, amounts as digit strings, max 100 rows per list), ranks recomputed.
+  `GET`: signed-in members of the site only. Stored in the hot database (`blobs`, key `clan-donors`). Checked by `scripts/test-db-api.mjs` (needs `hot-schema.sql` on the local hot database too).
+- Registered members appear with the name of the site and link to their profile; everybody else with the name OpenFront gives.
+- Speedruns: who won is decided by the public OpenFront id (server) and the [CYN] tag; the name used in the game does not matter, the board shows the registered name. `verifySpeedrun` lost its name check.

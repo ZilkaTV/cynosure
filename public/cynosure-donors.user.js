@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Cynosure clan donors
 // @namespace    https://cynclan.com
-// @version      1.1.0
-// @description  Sends the donors of your clan (caps and plutonium, all time / 30 days / 7 days) from OpenFront to cynclan.com. For admins of the site who are in the clan.
+// @version      2.0.0
+// @description  Sends the donors of your clan (caps and plutonium) from OpenFront to cynclan.com, by itself with a sync key or by a click. For admins and the inner circle of the site who are in the clan.
 // @match        https://openfront.io/*
 // @run-at       document-start
 // @grant        none
@@ -14,6 +14,8 @@
 // browser, reads the list with YOUR login (the same requests the clan page makes itself) and hands the result to the import panel on
 // cynclan.com/clan, which you confirm there. Your login is never sent to cynclan.com or anywhere else: it is only used for requests to
 // api.openfront.io, exactly like the page does.
+// With a sync key (made on cynclan.com/clan, entered once with the key button at the bottom left) it also sends the list by itself, at most
+// every 10 minutes, whenever you are on openfront.io. The key only allows sending the donor list to cynclan.com.
 (function () {
   'use strict'
 
@@ -41,6 +43,97 @@
       /* never get in the way of the page */
     }
     return realFetch.apply(this, arguments)
+  }
+
+  // ── automatic sending with the sync key ──
+  var KEY_STORE = 'cyn-donors-key'
+  var LAST_STORE = 'cyn-donors-last'
+  var GAP_MS = 10 * 60 * 1000
+  var KEY_FORMAT = /^cdk_[0-9a-f]{64}$/
+  function getKey() {
+    try {
+      return localStorage.getItem(KEY_STORE) || ''
+    } catch (e) {
+      return ''
+    }
+  }
+  function setKey(v) {
+    try {
+      if (v) localStorage.setItem(KEY_STORE, v)
+      else localStorage.removeItem(KEY_STORE)
+    } catch (e) {
+      /* no storage */
+    }
+  }
+  function lastSent() {
+    try {
+      return Number(localStorage.getItem(LAST_STORE)) || 0
+    } catch (e) {
+      return 0
+    }
+  }
+  function markSent() {
+    try {
+      localStorage.setItem(LAST_STORE, String(Date.now()))
+    } catch (e) {
+      /* no storage */
+    }
+  }
+
+  // Waits for the page's own authenticated request; if the page makes none, asks for a token the way the page itself does.
+  function ensureAuth() {
+    return new Promise(function (resolve) {
+      var tries = 0
+      var timer = setInterval(function () {
+        tries++
+        if (auth) {
+          clearInterval(timer)
+          return resolve()
+        }
+        if (tries >= 25) {
+          clearInterval(timer)
+          realFetch(API + '/auth/refresh', { method: 'POST', credentials: 'include' })
+            .then(function (res) {
+              return res.ok ? res.json() : null
+            })
+            .then(function (j) {
+              if (j && j.jwt) auth = 'Bearer ' + j.jwt
+              resolve()
+            })
+            .catch(function () {
+              resolve()
+            })
+        }
+      }, 1000)
+    })
+  }
+
+  function autoSend(say) {
+    var key = getKey()
+    if (!KEY_FORMAT.test(key) || Date.now() - lastSent() < GAP_MS) return
+    ensureAuth()
+      .then(function () {
+        return auth ? collect() : null
+      })
+      .then(function (result) {
+        if (!result) return null
+        return realFetch(SITE + '/api/clan-donors/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify({ boards: result.boards, recent: result.recent }),
+        }).then(function (res) {
+          if (res.status === 401) {
+            setKey('')
+            say('CynClan: the sync key is not valid any more. Make a new one on cynclan.com/clan.', 0)
+          } else if (res.ok || res.status === 429) {
+            markSent()
+            if (res.ok) say('CynClan: donors updated ✓', 6000)
+          } else say('CynClan: sending failed (' + res.status + '). Use the button.', 0)
+        })
+      })
+      .catch(function (err) {
+        say('CynClan: sending by itself did not work (' + ((err && err.message) || err) + '). Use the button.', 0)
+      })
   }
 
   function board(currency, period) {
@@ -141,10 +234,36 @@
     button.type = 'button'
     button.textContent = 'Send to CynClan'
     button.style.cssText = 'padding:8px 12px;border-radius:999px;border:1px solid #d8b96a;background:linear-gradient(180deg,#eed699,#b0913f);color:#1a1405;cursor:pointer;font:inherit'
-    function say(text) {
+    var hideTimer = null
+    function say(text, hideAfterMs) {
       note.textContent = text
       note.style.display = text ? 'block' : 'none'
+      clearTimeout(hideTimer)
+      if (text && hideAfterMs) hideTimer = setTimeout(function () { note.style.display = 'none' }, hideAfterMs)
     }
+    var keyButton = document.createElement('button')
+    keyButton.type = 'button'
+    keyButton.textContent = '\uD83D\uDD11'
+    keyButton.title = 'Sync key for sending the donors by itself'
+    keyButton.style.cssText = 'padding:8px 10px;border-radius:999px;border:1px solid #463a7d;background:#141225;color:#e8e4ff;cursor:pointer;font:inherit'
+    keyButton.addEventListener('click', function () {
+      var k = prompt('Sync key from cynclan.com/clan (empty = remove the key):', getKey())
+      if (k === null) return
+      k = k.trim()
+      if (!k) {
+        setKey('')
+        say('Sync key removed.', 5000)
+      } else if (KEY_FORMAT.test(k)) {
+        setKey(k)
+        try {
+          localStorage.removeItem(LAST_STORE)
+        } catch (e) {
+          /* no storage */
+        }
+        say('Key saved. The donors are sent by themselves now.', 5000)
+        autoSend(say)
+      } else say('That is not a sync key (it starts with cdk_).', 6000)
+    })
     button.addEventListener('click', function () {
       if (!auth) {
         say('Open your clan page on openfront.io (Donations tab) first, then click again.')
@@ -162,9 +281,20 @@
         },
       )
     })
+    var row = document.createElement('div')
+    row.style.cssText = 'display:flex;gap:6px'
+    row.appendChild(button)
+    row.appendChild(keyButton)
     wrap.appendChild(note)
-    wrap.appendChild(button)
+    wrap.appendChild(row)
     document.body.appendChild(wrap)
+    // by itself: shortly after the page opened, then every 5 minutes while it stays open (sent at most every 10 minutes)
+    setTimeout(function () {
+      autoSend(say)
+    }, 4000)
+    setInterval(function () {
+      autoSend(say)
+    }, 5 * 60 * 1000)
   }
 
   if (document.body) mount()

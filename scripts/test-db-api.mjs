@@ -365,5 +365,62 @@ r = await donors('POST', A, { boards: goodBoards(), recent: [{ playerId: 'BBBB22
 check('donors: an unknown currency is refused', r.status === 400, r)
 r = await donors('POST', A, { boards: goodBoards(), recent: 'nope' })
 check('donors: a recent list that is no list is refused', r.status === 400, r)
+// donor sync key and the userscript's ingest endpoint
+const keyCall = async (method, who) => {
+  const res = await fetch(`${BASE}/api/clan-donors/key`, { method, headers: who ? { Cookie: cookie(...who) } : {} })
+  return { status: res.status, body: await res.json().catch(() => null) }
+}
+const ingest = async (key, body, origin = 'https://openfront.io', method = 'POST') => {
+  const res = await fetch(`${BASE}/api/clan-donors/ingest`, { method, headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}), ...(origin ? { Origin: origin } : {}) }, body: method === 'POST' ? JSON.stringify(body) : undefined })
+  return { status: res.status, body: await res.json().catch(() => null), acao: res.headers.get('access-control-allow-origin') }
+}
+r = await keyCall('GET', null)
+check('sync key: not signed in -> 401', r.status === 401, r)
+r = await keyCall('POST', B)
+check('sync key: a member who is no admin and not in the inner circle is refused', r.status === 403, r)
+r = await keyCall('GET', A)
+check('sync key: admin has no key yet', r.status === 200 && r.body?.hasKey === false, r)
+r = await keyCall('POST', A)
+check('sync key: admin gets a key', r.status === 200 && /^cdk_[0-9a-f]{64}$/.test(r.body?.key ?? ''), r)
+const K1 = r.body?.key
+r = await keyCall('GET', A)
+check('sync key: the key is registered (only its hash is kept)', r.body?.hasKey === true && !('key' in r.body), r)
+r = await ingest(null, { boards: goodBoards(), recent: [] })
+check('ingest: without a key -> 401', r.status === 401 && r.acao === 'https://openfront.io', r)
+r = await ingest('cdk_' + '0'.repeat(64), { boards: goodBoards(), recent: [] })
+check('ingest: a wrong key -> 401', r.status === 401, r)
+r = await ingest(K1, { boards: goodBoards(), recent: [] }, 'https://evil.example')
+check('ingest: from another site -> 403', r.status === 403, r)
+r = await ingest(K1, null, 'https://openfront.io', 'OPTIONS')
+check('ingest: the preflight answers for openfront.io only', r.status === 204 && r.acao === 'https://openfront.io', r)
+const syncBoards = goodBoards()
+syncBoards.soft.all[0].total = '777'
+r = await ingest(K1, { boards: syncBoards, recent: [{ playerId: 'BBBB2222', currency: 'soft', amount: '250', at: new Date().toISOString() }] })
+check('ingest: a good upload with the key is stored', r.status === 200 && r.body?.ok === true && r.acao === 'https://openfront.io', r)
+r = await donors('GET', A)
+check('ingest: the stored ranking shows it, written by the key owner', r.body?.by === 'AAAA1111' && r.body?.recent?.[0]?.amount === '250' && r.body?.boards?.soft?.all?.some((x) => x.total === '777'), r)
+r = await ingest(K1, { boards: goodBoards(), recent: [] })
+check('ingest: a second upload right away is slowed down -> 429', r.status === 429, r)
+r = await keyCall('POST', A)
+const K2 = r.body?.key
+check('sync key: a new key replaces the old one', /^cdk_/.test(K2 ?? '') && K2 !== K1, r)
+r = await ingest(K1, { boards: goodBoards(), recent: [] })
+check('ingest: the old key does not work any more', r.status === 401, r)
+const badBoards = goodBoards()
+badBoards.soft.all[0].total = 'many'
+r = await ingest(K2, { boards: badBoards, recent: [] })
+check('ingest: bad data is refused -> 400 (and does not use up the key)', r.status === 400 && r.acao === 'https://openfront.io', r)
+r = await ingest(K2, { boards: goodBoards(), recent: [{ playerId: 'BBBB2222', currency: 'gold', amount: '1', at: '2026-01-01T00:00:00Z' }] })
+check('ingest: a bad single donation is refused -> 400', r.status === 400, r)
+r = await keyCall('DELETE', A)
+check('sync key: revoked', r.status === 200, r)
+r = await ingest(K2, { boards: goodBoards(), recent: [] })
+check('ingest: a revoked key -> 401', r.status === 401, r)
+await svc('import?table=cyn_inner_circle', [{ openfront_id: 'BBBB2222' }])
+r = await keyCall('POST', B)
+check('sync key: a member of the inner circle may make one', r.status === 200 && /^cdk_/.test(r.body?.key ?? ''), r)
+r = await donors('POST', B, { boards: goodBoards(), recent: [] })
+check('donors: a member of the inner circle may also import by hand', r.status === 200, r)
+
 console.log(fails ? `${fails} FAILED` : 'ALL OK')
 process.exit(fails ? 1 : 0)

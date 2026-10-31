@@ -3,9 +3,13 @@ import { Link } from 'react-router-dom'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
 import { useIsAdmin } from '../lib/useSession'
+import { useIsInnerCircle } from '../lib/metrics'
 import { cleanDisplayName } from '../lib/displayName'
 import {
+  createDonorKey,
+  fetchDonorKeyStatus,
   reloadClanDonors,
+  revokeDonorKey,
   useClanDonors,
   fetchClanTreasury,
   parseDonorExport,
@@ -14,6 +18,7 @@ import {
   type Currency,
   type Donor,
   type DonorExport,
+  type DonorKeyStatus,
   type Period,
 } from '../lib/clanDonors'
 import { RankMedal } from './Emoji'
@@ -75,6 +80,85 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
   )
 }
 
+/** The sync key: the userscript uses it to send the donors by itself (at most every 10 minutes) whenever its owner is on openfront.io. */
+function SyncKey() {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const [status, setStatus] = useState<DonorKeyStatus | null | undefined>(undefined)
+  const [key, setKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    void fetchDonorKeyStatus().then(setStatus)
+  }, [])
+  async function make() {
+    setBusy(true)
+    const k = await createDonorKey()
+    setBusy(false)
+    if (k) {
+      setKey(k)
+      setCopied(false)
+      setStatus(await fetchDonorKeyStatus())
+    }
+  }
+  async function revoke() {
+    if (await revokeDonorKey()) {
+      setKey(null)
+      setStatus(await fetchDonorKeyStatus())
+    }
+  }
+  if (status === undefined) return null
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–')
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-base-600 bg-base-850/60 p-3">
+      <p className="font-semibold text-white">{de ? 'Automatisch aktualisieren (empfohlen)' : 'Update by itself (recommended)'}</p>
+      <ol className="list-inside list-decimal space-y-1 text-slate-400">
+        <li>
+          {de ? 'Userscript einmal installieren (Tampermonkey):' : 'Install the userscript once (Tampermonkey):'}{' '}
+          <a href="/cynosure-donors.user.js" className="text-accent-light underline hover:text-accent">
+            cynosure-donors.user.js
+          </a>
+        </li>
+        <li>{de ? 'Hier einen Schlüssel erzeugen und kopieren.' : 'Make a key here and copy it.'}</li>
+        <li>{de ? 'Auf openfront.io das Schlüssel-Symbol 🔑 unten links klicken und den Schlüssel einfügen. Fertig.' : 'On openfront.io click the key symbol 🔑 at the bottom left and paste the key. Done.'}</li>
+      </ol>
+      <p className="text-xs text-slate-500">
+        {de
+          ? 'Danach schickt das Script die Spender von selbst, höchstens alle 10 Minuten, sobald du auf openfront.io bist (du musst im Clan sein). Quests und das Spender-Abzeichen sind dann aktuell, ohne dass jemand klicken muss. Der Schlüssel erlaubt nur das Senden der Spenderliste. Je mehr Admins oder Inner-Circle-Mitglieder ihn nutzen, desto aktueller die Liste.'
+          : 'After that the script sends the donors by itself, at most every 10 minutes, whenever you are on openfront.io (you have to be in the clan). Quests and the donor badge are then up to date without anybody clicking. The key only allows sending the donor list. The more admins or inner circle members use it, the fresher the list.'}
+      </p>
+      {key && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-base-800 px-3 py-2">
+          <code className="break-all font-mono text-xs text-gold-light">{key}</code>
+          <button
+            type="button"
+            onClick={() => void navigator.clipboard?.writeText(key).then(() => setCopied(true))}
+            className="shrink-0 rounded-md border border-base-600 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-accent"
+          >
+            {copied ? (de ? 'Kopiert' : 'Copied') : de ? 'Kopieren' : 'Copy'}
+          </button>
+          <span className="w-full text-[11px] text-slate-500">{de ? 'Wird nur jetzt angezeigt. Ein neuer Schlüssel macht den alten ungültig.' : 'Shown only now. A new key makes the old one invalid.'}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => void make()} disabled={busy} className="btn-accent !px-4 !py-1.5 text-xs disabled:opacity-50">
+          {busy ? '…' : status?.hasKey ? (de ? 'Neuen Schlüssel erzeugen' : 'Make a new key') : de ? 'Schlüssel erzeugen' : 'Make a key'}
+        </button>
+        {status?.hasKey && (
+          <>
+            <button type="button" onClick={() => void revoke()} className="rounded-lg border border-base-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-signal-red hover:text-signal-red">
+              {de ? 'Widerrufen' : 'Revoke'}
+            </button>
+            <span className="text-xs text-slate-500">
+              {de ? 'Zuletzt benutzt:' : 'Last used:'} {when(status.last_used)}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** The page of an admin who imports: gets the ranking from the userscript on openfront.io (or pasted), shows it, saves it. */
 function ImportPanel({ onSaved }: { onSaved: () => void }) {
   const { language } = useLanguage()
@@ -130,8 +214,10 @@ function ImportPanel({ onSaved }: { onSaved: () => void }) {
   const count = pending ? pending.boards.soft.all.length + pending.boards.hard.all.length : 0
   return (
     <details open={autoOpen} className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
-      <summary className="cursor-pointer font-semibold text-gold-light">{de ? 'Admin: Spender aktualisieren' : 'Admin: update the donors'}</summary>
-      <ol className="mt-3 list-inside list-decimal space-y-1 text-slate-400">
+      <summary className="cursor-pointer font-semibold text-gold-light">{de ? 'Admin / Inner Circle: Spender aktualisieren' : 'Admin / inner circle: update the donors'}</summary>
+      <SyncKey />
+      <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Oder von Hand' : 'Or by hand'}</p>
+      <ol className="mt-1 list-inside list-decimal space-y-1 text-slate-400">
         <li>
           {de ? 'Userscript einmal installieren (Tampermonkey):' : 'Install the userscript once (Tampermonkey):'}{' '}
           <a href="/cynosure-donors.user.js" className="text-accent-light underline hover:text-accent">
@@ -204,6 +290,7 @@ export default function ClanDonations() {
   const { language } = useLanguage()
   const de = language === 'de'
   const isAdmin = useIsAdmin()
+  const isInner = useIsInnerCircle()
   const roster = useSharedRoster()
   const doc = useClanDonors()
   const [currency, setCurrency] = useState<Currency>('soft')
@@ -285,7 +372,7 @@ export default function ClanDonations() {
         )}
         {updated && <p className="text-center text-xs text-slate-500">{de ? `Stand: ${updated}` : `Updated: ${updated}`}</p>}
       </Card>
-      {isAdmin && <ImportPanel onSaved={reload} />}
+      {(isAdmin || isInner) && <ImportPanel onSaved={reload} />}
     </section>
   )
 }

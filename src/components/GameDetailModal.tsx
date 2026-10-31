@@ -10,6 +10,8 @@ import { useProfile } from '../lib/useProfile'
 import { saveGame, unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import type { TranslationShape } from '../i18n/translations'
 import GameComments from './GameComments'
+import { GameActionsBar, useGameActions } from './GameActionsBar'
+import { useSharedRoster } from '../lib/access'
 import { RoleName, useWinsIndex } from './RoleName'
 
 // The report lists this many places (teams, or players in a solo game) before "show more".
@@ -128,6 +130,10 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
       .catch(() => {})
   }, [])
   const commentsRef = useRef<HTMLDivElement>(null)
+  // the like strip of the report: like (hold for the other reactions), how many liked / laughed ..., comment, save, share - the same as under the game in the lists
+  const actions = useGameActions(gameId ? [gameId] : [])
+  const roster = useSharedRoster()
+  const playedBy = gameId ? (roster?.members ?? []).filter((m) => m.cynGames.some((g) => g.gameId === gameId)).map((m) => m.publicId) : []
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -402,6 +408,18 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
 
         {state === 'ok' && detail && (
           <div className="p-4 sm:p-6">
+            {/* like, reactions with their numbers, comment, save, share */}
+            {gameId && (
+              <div className="mb-4 rounded-xl border border-base-700 bg-base-850/50 px-2 py-1.5">
+                <GameActionsBar
+                  gameId={gameId}
+                  memberIds={playedBy}
+                  title={`${detail.map} · ${detail.players.length}`}
+                  actions={actions}
+                  onOpenComments={() => commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                />
+              </div>
+            )}
             {/* header tiles */}
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tile label={t.gameDetail.tileDuration} value={fmtDuration(detail.durationSeconds)} />

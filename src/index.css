@@ -96,58 +96,64 @@
   }
 }
 
-/* From 500 wins: two small bolts flash around the name now and then, in the colour of the role (--c1) */
+/* From 500 wins: lightning crackles around the name, like a Super Saiyan 2 - jagged arcs in the colour of the role (--c1) with a white core.
+   The drawing is in RoleName.tsx; every bolt flashes on its own rhythm so there is always something sparking. */
 .role-bolts {
   position: relative;
+  display: inline-block;
 }
-.role-bolts::before,
-.role-bolts::after {
-  content: '';
+.role-bolts .bolts {
   position: absolute;
-  width: 0.5em;
-  height: 0.95em;
+  left: -0.7em;
+  right: -0.7em;
+  top: -0.85em;
+  bottom: -0.85em;
+  overflow: visible;
   pointer-events: none;
-  background: var(--c1);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
-  filter: drop-shadow(0 0 3px var(--c1));
+}
+.role-bolts .bolt {
   opacity: 0;
+  animation: bolt-crackle 1.9s steps(1, end) infinite;
 }
-.role-bolts::before {
-  left: -0.45em;
-  top: -0.4em;
-  transform: rotate(-14deg);
-  animation: bolt-flash 3.8s linear infinite;
+.role-bolts .bolt path {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
-.role-bolts::after {
-  right: -0.45em;
-  bottom: -0.35em;
-  transform: rotate(166deg);
-  animation: bolt-flash 4.6s linear 1.4s infinite;
+.role-bolts .bolt .glow {
+  stroke: var(--c1);
+  stroke-width: 3.2px;
+  opacity: 0.7;
+  filter: drop-shadow(0 0 4px var(--c1));
 }
-@keyframes bolt-flash {
-  0%,
-  84%,
-  100% {
-    opacity: 0;
-  }
-  86% {
-    opacity: 0.95;
-  }
-  88% {
-    opacity: 0.15;
-  }
-  90% {
-    opacity: 1;
-  }
-  94% {
-    opacity: 0;
-  }
+.role-bolts .bolt .core {
+  stroke: #fff;
+  stroke-width: 1.1px;
+}
+.role-bolts .bolt-1 { animation-duration: 1.7s; animation-delay: 0s; }
+.role-bolts .bolt-2 { animation-duration: 2.3s; animation-delay: 0.35s; }
+.role-bolts .bolt-3 { animation-duration: 1.9s; animation-delay: 0.9s; }
+.role-bolts .bolt-4 { animation-duration: 2.7s; animation-delay: 1.3s; }
+.role-bolts .bolt-5 { animation-duration: 2.1s; animation-delay: 0.6s; }
+.role-bolts .bolt-6 { animation-duration: 1.6s; animation-delay: 1.1s; }
+@keyframes bolt-crackle {
+  0% { opacity: 0; }
+  6% { opacity: 1; }
+  9% { opacity: 0; }
+  12% { opacity: 0.85; }
+  15% { opacity: 0; }
+  58% { opacity: 0; }
+  61% { opacity: 1; }
+  64% { opacity: 0.2; }
+  67% { opacity: 0.95; }
+  71% { opacity: 0; }
+  100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .role-bolts::before,
-  .role-bolts::after {
+  .role-bolts .bolt {
     animation: none;
+    opacity: 0;
   }
 }
 
@@ -161,6 +167,26 @@
   animation:
     role-slide 3.2s linear infinite,
     role-glow 2.6s ease-in-out infinite;
+}
+/* Silver and gold: a bright glint sweeps over the letters, on top of the sliding colours */
+.role-name.role-glint {
+  background-image: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%), linear-gradient(90deg, var(--c1), var(--c2), var(--c1));
+  background-size: 260% 100%, 200% 100%;
+  background-position: 160% 0, 0 0;
+  animation:
+    role-glint 3.4s linear infinite,
+    role-glow 2.6s ease-in-out infinite;
+}
+@keyframes role-glint {
+  to {
+    background-position: -100% 0, -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-name.role-glint {
+    animation: role-glow 2.6s ease-in-out infinite;
+    background-position: 160% 0, 0 0;
+  }
 }
 @keyframes role-slide {
   to {

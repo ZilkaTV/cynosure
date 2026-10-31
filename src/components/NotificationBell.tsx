@@ -4,8 +4,31 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
 import { cleanDisplayName } from '../lib/displayName'
 import { QUESTS } from '../lib/quests'
-import { useNotifications, type Notice } from '../lib/notifications'
+import { SOUND_KEY, soundEnabled, useNotifications, type Notice } from '../lib/notifications'
+import { setTabBadge } from '../lib/tabBadge'
 import { relativeTime } from './ui'
+
+/** A short two-note chime for a new notification (silent when the browser does not allow sound yet). */
+function chime() {
+  try {
+    const ac = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    const now = ac.currentTime
+    ;[659.25, 880].forEach((freq, i) => {
+      const osc = ac.createOscillator()
+      const gain = ac.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, now + i * 0.13)
+      gain.gain.linearRampToValueAtTime(0.14, now + i * 0.13 + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.13 + 0.4)
+      osc.connect(gain).connect(ac.destination)
+      osc.start(now + i * 0.13)
+      osc.stop(now + i * 0.13 + 0.45)
+    })
+  } catch {
+    /* no audio */
+  }
+}
 
 const ICON: Record<Notice['kind'], string> = {
   game_reaction: '❤️',
@@ -23,13 +46,37 @@ export default function NotificationBell() {
   const { t, language } = useLanguage()
   const de = language === 'de'
   const roster = useSharedRoster()
-  const { notices, unread, isUnread, markSeen, reload } = useNotifications()
+  const { notices, unread, isUnread, markSeen, reload, loaded } = useNotifications()
+  const [sound, setSound] = useState(soundEnabled)
+  const previous = useRef<number | null>(null)
   const [open, setOpen] = useState(false)
   // what was new when the list was opened stays marked while it is open, even though the number goes away at once
   const [newAtOpen, setNewAtOpen] = useState<Set<string>>(new Set())
   const box = useRef<HTMLDivElement>(null)
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
   const nameOf = (id?: string) => cleanDisplayName((id && names.get(id)) || id || '?')
+
+  // the number on the browser tab, and a chime when something new arrives (not for what was already there at the start)
+  useEffect(() => {
+    setTabBadge(unread)
+    return () => setTabBadge(0)
+  }, [unread])
+  useEffect(() => {
+    if (!loaded) return
+    if (previous.current != null && unread > previous.current && sound && !open) chime()
+    previous.current = unread
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unread, loaded])
+  function toggleSound() {
+    const next = !sound
+    setSound(next)
+    try {
+      localStorage.setItem(SOUND_KEY, next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    if (next) chime()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -114,7 +161,28 @@ export default function NotificationBell() {
         <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-base-600 bg-base-850 shadow-xl">
           <div className="flex items-center justify-between border-b border-base-700 px-4 py-2.5">
             <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{de ? 'Benachrichtigungen' : 'Notifications'}</span>
-            <span className="text-xs text-slate-500">{de ? 'alle 5 Min. aktualisiert' : 'refreshed every 5 min'}</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={toggleSound}
+                className="rounded-md border border-base-600 px-2 py-1 text-xs font-semibold text-slate-300 hover:border-accent hover:text-white"
+                title={sound ? (de ? 'Ton ausschalten' : 'Turn sound off') : de ? 'Ton einschalten' : 'Turn sound on'}
+                aria-pressed={sound}
+              >
+                {sound ? '🔔' : '🔕'} {sound ? (de ? 'Ton an' : 'Sound on') : de ? 'Ton aus' : 'Sound off'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  markSeen()
+                  setNewAtOpen(new Set())
+                }}
+                disabled={notices.length === 0}
+                className="rounded-md border border-base-600 px-2 py-1 text-xs font-semibold text-slate-300 hover:border-accent hover:text-white disabled:opacity-40"
+              >
+                {de ? 'Alle gelesen' : 'Read all'}
+              </button>
+            </div>
           </div>
           <div className="max-h-[70vh] overflow-y-auto">
             {notices.length === 0 ? (

@@ -4,16 +4,64 @@ import { winsRoleGradient } from '../lib/badges'
 import { cleanDisplayName } from '../lib/displayName'
 import type { MemberStats } from '../lib/stats'
 
-/** From this many wins a few small bolts flash around the name, in the colour of the role. */
+/** From this many wins real lightning crackles around the name (like a Super Saiyan 2), in the colour of the role. */
 export const BOLT_WINS = 500
+/** Silver (100 wins) and gold (250 wins) names get a bright glint that sweeps over the letters now and then. */
+export const GLINT_WINS = 100
 
-/** A name in the colours of the Discord wins role (50 wins bronze, 100 silver, ...): two shades slide through the letters; no role = plain. From 500 wins small bolts flash around it. */
+// Jagged bolts drawn once (in a 120 x 40 box that is stretched over the name): arcs that run along the letters and spikes that leave the name
+// upwards and downwards, a few with a small branch. They flash one after the other (CSS, see .bolts in index.css).
+function bolt(seed: number, from: [number, number], to: [number, number], steps: number, jag: number): string {
+  let s = seed
+  const rnd = () => {
+    s = (s * 16807) % 2147483647
+    return s / 2147483647
+  }
+  const pts: [number, number][] = [from]
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps
+    const x = from[0] + (to[0] - from[0]) * t
+    const y = from[1] + (to[1] - from[1]) * t
+    pts.push([x + (rnd() - 0.5) * jag, y + (rnd() - 0.5) * jag * 1.4])
+  }
+  pts.push(to)
+  return 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')
+}
+const BOLT_PATHS: { d: string; branch?: string }[] = [
+  { d: bolt(11, [2, 20], [118, 20], 14, 11), branch: bolt(3, [38, 20], [52, 36], 4, 5) },
+  { d: bolt(23, [10, 6], [60, 40], 7, 9) },
+  { d: bolt(37, [112, 34], [70, 0], 7, 9), branch: bolt(5, [90, 17], [108, 8], 3, 4) },
+  { d: bolt(41, [0, 30], [112, 12], 13, 10) },
+  { d: bolt(53, [30, 0], [20, 40], 6, 10) },
+  { d: bolt(67, [96, 40], [104, 0], 6, 9), branch: bolt(7, [100, 18], [118, 28], 3, 4) },
+]
+
+/** The lightning around a name (from 500 wins): drawn over the name, never in the way of the mouse. */
+function Bolts() {
+  return (
+    <svg className="bolts" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
+      {BOLT_PATHS.map((b, i) => (
+        <g key={i} className={`bolt bolt-${i + 1}`}>
+          <path d={b.d} className="glow" />
+          {b.branch && <path d={b.branch} className="glow" />}
+          <path d={b.d} className="core" />
+          {b.branch && <path d={b.branch} className="core" />}
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+/** A name in the colours of the Discord wins role (50 wins bronze, 100 silver, ...): two shades slide through the letters; no role = plain. From 500 wins lightning crackles around it. */
 export function RoleName({ wins, className = '', children }: { wins: number | undefined; className?: string; children: ReactNode }) {
   const colors = wins == null ? null : winsRoleGradient(wins)
   if (!colors) return <span className={className}>{children}</span>
+  const bolts = wins != null && wins >= BOLT_WINS
+  const glint = wins != null && wins >= GLINT_WINS && !bolts
   return (
-    <span className={`role-name ${wins != null && wins >= BOLT_WINS ? 'role-bolts' : ''} ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
+    <span className={`role-name ${bolts ? 'role-bolts' : ''} ${glint ? 'role-glint' : ''} ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
       {children}
+      {bolts && <Bolts />}
     </span>
   )
 }

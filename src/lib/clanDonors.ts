@@ -69,6 +69,40 @@ export async function fetchClanTreasury(): Promise<ClanTreasury | null> {
   }
 }
 
+export interface DonorKeyStatus {
+  hasKey: boolean
+  created_at: string | null
+  last_used: string | null
+}
+
+/** Whether this member has a sync key and when the userscript last used it (admins and the inner circle; null for everybody else). */
+export async function fetchDonorKeyStatus(): Promise<DonorKeyStatus | null> {
+  try {
+    const res = await fetch('/api/clan-donors/key', { credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as DonorKeyStatus) : null
+  } catch {
+    return null
+  }
+}
+
+/** Makes a new sync key (the old one stops working); shown once, only its hash is kept on the server. */
+export async function createDonorKey(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/clan-donors/key', { method: 'POST', credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as { key: string }).key : null
+  } catch {
+    return null
+  }
+}
+
+export async function revokeDonorKey(): Promise<boolean> {
+  try {
+    return (await fetch('/api/clan-donors/key', { method: 'DELETE', credentials: 'same-origin' })).ok
+  } catch {
+    return false
+  }
+}
+
 /** The stored ranking; null when the request failed (not signed in, not a member, offline). */
 export async function fetchClanDonors(): Promise<DonorDoc | null> {
   try {

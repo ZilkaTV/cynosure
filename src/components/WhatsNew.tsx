@@ -77,7 +77,7 @@ function SiteVisual({ de }: { de: boolean }) {
 /** A profile page: banner and icon in the frame of the wins role, name with the channel icons, like, comment. */
 function ProfileVisual({ de }: { de: boolean }) {
   return (
-    <div className="w-full max-w-sm px-3 py-3">
+    <div className="name-bolts-off w-full max-w-sm px-3 py-3">
       <RoleFrame wins={620} radius="0.9rem" width={3} variant="banner" plain="border border-base-700 bg-base-900">
         <div className="bg-base-900">
           <div className="h-20 bg-gradient-to-br from-accent/50 via-base-800 to-gold/30" />

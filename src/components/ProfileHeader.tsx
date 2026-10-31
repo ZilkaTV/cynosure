@@ -26,6 +26,7 @@ import {
 } from '../lib/profileExtras'
 import FitImage from './FitImage'
 import ReportDialog from './ReportDialog'
+import { toggleFavoriteProfile, useSearchLists } from '../lib/searchLists'
 import RoleFrame from './RoleFrame'
 import { Flag } from './Emoji'
 import { RoleName } from './RoleName'
@@ -61,6 +62,27 @@ function ChannelLinks({ yt, twitch }: { yt: string | null | undefined; twitch: s
         </a>
       )}
     </span>
+  )
+}
+
+/** The star of a profile: puts it in (or takes it out of) the favourites of the profile search in the header. */
+function FavoriteButton({ profileId, de }: { profileId: string; de: boolean }) {
+  const { favs } = useSearchLists()
+  const fav = favs.includes(profileId)
+  const label = fav ? (de ? 'Aus den Favoriten nehmen' : 'Remove from favorites') : de ? 'Zu den Favoriten (Profilsuche)' : 'Add to favorites (profile search)'
+  return (
+    <button
+      type="button"
+      onClick={() => toggleFavoriteProfile(profileId)}
+      aria-pressed={fav}
+      title={label}
+      aria-label={label}
+      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${fav ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 bg-base-800/70 text-slate-200 hover:border-gold/60 hover:text-gold-light'}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+        <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+      </svg>
+    </button>
   )
 }
 
@@ -352,6 +374,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
           <div className="flex flex-col items-end gap-2 pt-3">
             <div className="flex flex-wrap items-start justify-end gap-2">
               <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
+              {!isOwn && <FavoriteButton profileId={m.publicId} de={de} />}
               <button
                 type="button"
                 onClick={() => document.getElementById('pinnwand')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}

@@ -5,12 +5,13 @@ import { useProfile } from '../lib/useProfile'
 import { useSharedRoster } from '../lib/access'
 import { cleanDisplayName } from '../lib/displayName'
 import { useClanDonors, type Currency, type Period } from '../lib/clanDonors'
-import { Emoji, EMOJI, RankMedal } from './Emoji'
+import { RankMedal } from './Emoji'
+import { CurrencyIcon } from './CurrencyIcon'
 
 const TOP = 5
-const CURRENCIES: { key: Currency; label: string; icon: string }[] = [
-  { key: 'soft', label: 'Caps', icon: EMOJI.coin },
-  { key: 'hard', label: 'Plutonium', icon: EMOJI.radioactive },
+const CURRENCIES: { key: Currency; label: string }[] = [
+  { key: 'soft', label: 'Caps' },
+  { key: 'hard', label: 'Plutonium' },
 ]
 
 /** The sidebar window under the clan window: the top donors (caps / plutonium, all time / 30 days / 7 days). The full list is on the Clan page. */
@@ -45,7 +46,7 @@ export function DonorsWindow() {
           <div className="inline-flex rounded-lg border border-base-600 bg-base-850/60 p-0.5">
             {CURRENCIES.map((c) => (
               <button key={c.key} type="button" onClick={() => setCurrency(c.key)} aria-label={c.label} title={c.label} className={`inline-flex items-center ${chip(currency === c.key)}`}>
-                <Emoji char={c.icon} className="h-3.5 w-3.5" />
+                <CurrencyIcon currency={c.key} className="h-3.5 w-3.5" />
               </button>
             ))}
           </div>

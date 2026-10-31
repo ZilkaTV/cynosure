@@ -16,10 +16,10 @@ import {
   type DonorBoards,
   type Period,
 } from '../lib/clanDonors'
-import { Emoji, EMOJI, RankMedal } from './Emoji'
+import { RankMedal } from './Emoji'
+import { CurrencyIcon } from './CurrencyIcon'
 import { Card, SectionHeading } from './ui'
 
-const CURRENCY_ICON: Record<Currency, string> = { soft: EMOJI.coin, hard: EMOJI.radioactive }
 const fmt = (n: number | bigint, de: boolean) => n.toLocaleString(de ? 'de-DE' : 'en-US')
 const TOP_ROWS = 10
 /** The page that sends the data (the userscript runs there). */
@@ -46,7 +46,7 @@ export function ClanTreasuryCards() {
     <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
         <div key={c.cur} className="flex items-center gap-3 rounded-xl border border-base-600 bg-base-850/60 px-4 py-3">
-          <Emoji char={CURRENCY_ICON[c.cur]} className="h-7 w-7" label={c.label} />
+          <CurrencyIcon currency={c.cur} className="h-7 w-7" />
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{de ? `Clan-Kasse · ${c.label}` : `Clan treasury · ${c.label}`}</p>
             <p className="font-display text-xl font-bold text-white tabular-nums">{c.value == null ? '…' : fmt(c.value, de)}</p>
@@ -57,7 +57,7 @@ export function ClanTreasuryCards() {
   )
 }
 
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { key: T; label: string; icon?: string }[]; onChange: (k: T) => void }) {
+function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { key: T; label: string; currency?: Currency }[]; onChange: (k: T) => void }) {
   return (
     <div className="inline-flex rounded-lg border border-base-600 bg-base-850/60 p-0.5">
       {options.map((o) => (
@@ -67,7 +67,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
           onClick={() => onChange(o.key)}
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${value === o.key ? 'bg-accent text-white' : 'text-slate-400 hover:text-white'}`}
         >
-          {o.icon && <Emoji char={o.icon} className="h-4 w-4" />}
+          {o.currency && <CurrencyIcon currency={o.currency} className="h-4 w-4" />}
           {o.label}
         </button>
       ))}
@@ -238,8 +238,8 @@ export default function ClanDonations() {
               setShowAll(false)
             }}
             options={[
-              { key: 'soft', label: 'Caps', icon: CURRENCY_ICON.soft },
-              { key: 'hard', label: 'Plutonium', icon: CURRENCY_ICON.hard },
+              { key: 'soft', label: 'Caps', currency: 'soft' },
+              { key: 'hard', label: 'Plutonium', currency: 'hard' },
             ]}
           />
           <Segmented

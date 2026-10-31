@@ -9,7 +9,7 @@ import { cleanDisplayName } from '../lib/displayName'
 import { useLanguage } from '../i18n/LanguageContext'
 import { fetchClanTreasury, type ClanTreasury } from '../lib/clanDonors'
 import { ClanCarousel, type CarouselSlide } from './ClanCarousel'
-import { Emoji, EMOJI } from './Emoji'
+import { CurrencyIcon } from './CurrencyIcon'
 
 const mini = (label: ReactNode, value: ReactNode, cls: string) => (
   <div>
@@ -72,8 +72,8 @@ export function ClanWindow() {
           {mini(t.home.stat2v2Wins, totals ? totals.twoVTwoWins : '…', 'text-accent-light')}
           {mini(t.home.statTeamWins, totals ? totals.teamWins : '…', 'text-accent-light')}
           {mini(t.home.statAllWins, totals ? totals.allWins : '…', 'text-gold-light')}
-          {mini(<><Emoji char={EMOJI.coin} className="h-3 w-3" />Caps</>, treasury ? treasury.caps.toLocaleString(language === 'de' ? 'de-DE' : 'en-US') : '…', 'text-amber-300')}
-          {mini(<><Emoji char={EMOJI.radioactive} className="h-3 w-3" />Plutonium</>, treasury ? treasury.plutonium.toLocaleString(language === 'de' ? 'de-DE' : 'en-US') : '…', 'text-emerald-300')}
+          {mini(<><CurrencyIcon currency="soft" className="h-3 w-3" />Caps</>, treasury ? treasury.caps.toLocaleString(language === 'de' ? 'de-DE' : 'en-US') : '…', 'text-amber-300')}
+          {mini(<><CurrencyIcon currency="hard" className="h-3 w-3" />Plutonium</>, treasury ? treasury.plutonium.toLocaleString(language === 'de' ? 'de-DE' : 'en-US') : '…', 'text-emerald-300')}
         </div>
       ),
     },

@@ -155,6 +155,11 @@
   }
 }
 
+/* in the What's New picture the diamond name stays readable: the arc that runs along the letters is left out */
+.bolts-clean .bolt-1 {
+  display: none;
+}
+
 /* A name in the colours of a wins role: two colours slide through the letters, with a soft glow that pulses */
 .role-name {
   background-image: linear-gradient(90deg, var(--c1), var(--c2), var(--c1));

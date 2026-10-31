@@ -209,7 +209,7 @@ function ColorsVisual() {
   ]
   return (
     <div className="w-full max-w-sm space-y-3">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-base-700 bg-base-900/90 px-4 py-3">
+      <div className="bolts-clean grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-xl border border-base-700 bg-base-900/90 px-4 py-4">
         {names.map(([n, wins]) => {
           const c = winsRoleGradient(wins) ?? ['#fff', '#fff']
           return (

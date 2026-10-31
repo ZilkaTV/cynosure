@@ -78,7 +78,8 @@
   // (see SCAN_CONCURRENCY's own note in scripts/refresh-details.mjs, dropped
   // 5 -> 2 at the same time).
   "triggers": {
-    "crons": ["*/10 * * * *"]
+    // the second one is the CYN bot (worker/donorBot.js): its own run, so it has its own limit of requests
+    "crons": ["*/10 * * * *", "5,35 * * * *"]
   },
   // Edge-replicated read cache in front of Supabase for the hottest,
   // cron-populated, every-visitor-reads-it table (cyn_roster_cache) - see

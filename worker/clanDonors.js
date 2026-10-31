@@ -163,10 +163,24 @@ export async function handleClanDonors(request, env) {
   if (!env.DB || !env.HOT_DB) return json(503, { error: 'not_configured' })
   const { pathname } = new URL(request.url)
   if (pathname === '/api/clan-donors/ingest') return ingest(request, env)
-  if (pathname !== '/api/clan-donors' && pathname !== '/api/clan-donors/key' && pathname !== '/api/clan-donors/bot') return json(404, { error: 'not_found' })
+  const TRACKED = { '/api/clan-donors/members': 'clan-members', '/api/clan-donors/games': 'clan-games' }
+  if (pathname !== '/api/clan-donors' && pathname !== '/api/clan-donors/key' && pathname !== '/api/clan-donors/bot' && !TRACKED[pathname]) return json(404, { error: 'not_found' })
   if (!env.DB || !env.HOT_DB) return json(503, { error: 'not_configured' })
   const user = await readSession(request, env)
   if (!user) return json(401, { error: 'not_signed_in' })
+
+  // the member list and the games of the clan, as the bot stored them (members of the site only)
+  if (TRACKED[pathname]) {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const member = await env.DB.prepare('SELECT 1 AS x FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()
+    if (!member) return json(403, { error: 'members_only' })
+    const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(TRACKED[pathname]).first()
+    try {
+      return json(200, row?.value ? JSON.parse(row.value) : { empty: true })
+    } catch {
+      return json(200, { empty: true })
+    }
+  }
 
   // what the bot (worker/donorBot.js) did last, for admins and the inner circle
   if (pathname === '/api/clan-donors/bot') {

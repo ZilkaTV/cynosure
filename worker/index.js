@@ -104,6 +104,11 @@ export default {
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
   async scheduled(event, env, ctx) {
+    // the CYN bot has its own cron (minute 5 and 35): nothing else runs on that tick
+    if (event.cron === '5,35 * * * *') {
+      ctx.waitUntil(syncClanDonors(env).catch((err) => console.error('donor bot failed:', err?.message ?? err)))
+      return
+    }
     // Ticks every 10 minutes and every job runs on every tick. That is affordable now that the big
     // data (member game lists, game details, roster, ledger) lives in Cloudflare D1 instead of
     // Supabase, whose free egress limit is what forced the slower cadence on 2026-10-04.
@@ -121,8 +126,6 @@ export default {
     ctx.waitUntil(hasPendingSpeedruns(env).then((pending) => pending && startVerifyWorkflow(env)))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
-    // the CYN bot reads the clan's donations (does nothing until its cookie secret is set)
-    if (minute % 30 === 0) ctx.waitUntil(syncClanDonors(env).catch((err) => console.error('donor bot failed:', err?.message ?? err)))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))
   },
 }

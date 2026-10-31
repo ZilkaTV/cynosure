@@ -21,3 +21,13 @@ until the secret `OPENFRONT_BOT_COOKIE` exists.
 - `not_in_clan`: the bot account is not (yet) a member of CYN.
 - A renewed cookie that OpenFront hands out is stored in the hot database (`blobs`, key `donor-bot-cookie`) and used from then on; a new secret starts over.
 - Free plan limits: at most 17 OpenFront requests per run (one login, up to 2 pages x 6 rankings, up to 4 pages of single donations).
+
+## Members and games
+
+The same run also reads the clan's member list (`GET /clans/CYN/members`) and the clan's games (`GET /clans/CYN/games`, newest 3 pages per run) and stores them in the
+hot database (`blobs`: `clan-members`, `clan-games`). The member document keeps a log of who joined, left or changed the role (newest 100); a list that is
+more than 30 % shorter than the last one is refused (`members_incomplete`) so a failed read does not look like half the clan leaving. The games are merged
+over the runs (newest 300). Shown on the Clan page below the donations (`ClanTracker.tsx`); `GET /api/clan-donors/members|games` for members of the site.
+
+The bot has its own cron (`5,35 * * * *` in wrangler.jsonc, minute 5 and 35) so that it has its own limit of requests and does not take part of the budget of
+the other jobs. The status line shows the first part that failed; `parts` and `shape` (the field names OpenFront sent) are in the status document.

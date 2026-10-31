@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 // The clan treasury (public) and the ranking of the clan's donors (OpenFront shows it to clan members only).
 //
 // Treasury: OpenFront's public clan card, through the Worker's /api/of proxy.
@@ -109,4 +111,30 @@ export function parseDonorExport(input: unknown): DonorBoards | null {
     }
   }
   return out
+}
+
+// ── shared by the sidebar window and the Clan page block ──
+let donorCache: { at: number; doc: DonorDoc | null } | null = null
+const donorListeners = new Set<() => void>()
+
+/** Reads the stored ranking again (after an admin saved a new one) and tells every component that shows it. */
+export async function reloadClanDonors(): Promise<void> {
+  const doc = await fetchClanDonors()
+  // a failed read (not signed in yet, offline) is tried again after 10 seconds, a good one is kept for 2 minutes
+  donorCache = { at: doc ? Date.now() : Date.now() - 110_000, doc }
+  donorListeners.forEach((l) => l())
+}
+
+/** The stored ranking, one read for the whole page: undefined while loading, null when the visitor may not see it. */
+export function useClanDonors(): DonorDoc | null | undefined {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const on = () => tick((n) => n + 1)
+    donorListeners.add(on)
+    if (!donorCache || Date.now() - donorCache.at > 2 * 60_000) void reloadClanDonors()
+    return () => {
+      donorListeners.delete(on)
+    }
+  }, [])
+  return donorCache ? donorCache.doc : undefined
 }

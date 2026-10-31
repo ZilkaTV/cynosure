@@ -163,8 +163,8 @@ export default function Metrics() {
 
   return (
     <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[300px_minmax(0,1fr)_300px] 2xl:gap-8">
-      <aside className="order-2 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">{visitorsWindow}</aside>
-      <aside className="order-3 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">{quietWindow}</aside>
+      <aside className="order-2 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">{visitorsWindow}</aside>
+      <aside className="order-3 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">{quietWindow}</aside>
     <div className="order-1 mx-auto w-full min-w-0 max-w-5xl md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.title} center />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

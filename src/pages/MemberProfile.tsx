@@ -191,11 +191,11 @@ export default function MemberProfile() {
 
   return (
     <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[280px_minmax(0,1fr)_280px] 2xl:gap-8">
-      <aside className="order-1 space-y-4 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:self-start">
+      <aside className="order-1 space-y-4 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">
         <CareerWindow m={m} />
         <MonthWindow m={m} heading={`${t.memberProfile.thisMonthTitle} · ${monthLabel(mk)}`} ffa={ffa} team={team} teamWinScore={teamWinScore} one={one} twoVTwo={twoVTwo} />
       </aside>
-      <aside className="order-2 space-y-4 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:self-start">
+      <aside className="order-2 space-y-4 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">
         <LifetimeWindow publicId={m.publicId} />
         <TrendsWindow trend={trend} />
       </aside>

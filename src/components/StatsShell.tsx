@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
 import { GameNightsSidebar } from './GameNightsCard'
 import { ClanWindow } from './ClanWindow'
+import { DonorsWindow } from './DonorsWindow'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -53,8 +54,12 @@ export function StatsShell({ children, leftExtra }: { children: ReactNode; leftE
       <aside className="order-2 xl:order-none xl:col-start-2 xl:row-start-1 2xl:col-start-1">
         <DiscordWidget />
         <GameNightsSidebar />
-        {leftExtra}
-        <ClanWindow />
+        {/* the windows of this page and the clan windows move along when the page is scrolled, like the useful links on the right */}
+        <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:[scrollbar-width:thin]">
+          {leftExtra}
+          <ClanWindow />
+          <DonorsWindow />
+        </div>
       </aside>
       <aside className="order-3 xl:order-none xl:col-start-2 xl:row-start-2 2xl:col-start-3 2xl:row-start-1 xl:sticky xl:top-6 xl:self-start">
         <UsefulLinks />

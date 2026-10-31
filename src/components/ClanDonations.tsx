@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
 import { useIsAdmin } from '../lib/useSession'
 import { cleanDisplayName } from '../lib/displayName'
 import {
-  fetchClanDonors,
+  reloadClanDonors,
+  useClanDonors,
   fetchClanTreasury,
   parseDonorExport,
   saveClanDonors,
@@ -13,7 +14,6 @@ import {
   type Currency,
   type Donor,
   type DonorBoards,
-  type DonorDoc,
   type Period,
 } from '../lib/clanDonors'
 import { Emoji, EMOJI, RankMedal } from './Emoji'
@@ -25,19 +25,8 @@ const TOP_ROWS = 10
 /** The page that sends the data (the userscript runs there). */
 const OPENFRONT_ORIGIN = 'https://openfront.io'
 
-const CARD = 'flex items-center gap-3 rounded-xl border border-base-600 bg-base-850/60 px-4 py-3'
-/** A treasury card; on the start page it leads to the donors block of the Clan page. */
-function Wrap({ linked, de, children }: { linked: boolean; de: boolean; children: ReactNode }) {
-  if (!linked) return <div className={CARD}>{children}</div>
-  return (
-    <Link to="/clan#spenden" title={de ? 'Zu den Spendern' : 'To the donors'} className={`${CARD} transition-colors hover:border-accent/70 hover:bg-base-800`}>
-      {children}
-    </Link>
-  )
-}
-
 /** Caps and plutonium in the clan's treasury, two small cards. */
-export function ClanTreasuryCards({ linked = false }: { linked?: boolean }) {
+export function ClanTreasuryCards() {
   const { language } = useLanguage()
   const de = language === 'de'
   const [t, setT] = useState<ClanTreasury | null | undefined>(undefined)
@@ -56,13 +45,13 @@ export function ClanTreasuryCards({ linked = false }: { linked?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
-        <Wrap key={c.cur} linked={linked} de={de}>
+        <div key={c.cur} className="flex items-center gap-3 rounded-xl border border-base-600 bg-base-850/60 px-4 py-3">
           <Emoji char={CURRENCY_ICON[c.cur]} className="h-7 w-7" label={c.label} />
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{de ? `Clan-Kasse · ${c.label}` : `Clan treasury · ${c.label}`}</p>
             <p className="font-display text-xl font-bold text-white tabular-nums">{c.value == null ? '…' : fmt(c.value, de)}</p>
           </div>
-        </Wrap>
+        </div>
       ))}
     </div>
   )
@@ -216,20 +205,17 @@ export default function ClanDonations() {
   const de = language === 'de'
   const isAdmin = useIsAdmin()
   const roster = useSharedRoster()
-  const [doc, setDoc] = useState<DonorDoc | null | undefined>(undefined)
+  const doc = useClanDonors()
   const [currency, setCurrency] = useState<Currency>('soft')
   const [period, setPeriod] = useState<Period>('all')
   const [showAll, setShowAll] = useState(false)
 
-  const reload = () => void fetchClanDonors().then(setDoc)
+  const reload = () => void reloadClanDonors()
   // coming from the start page (/clan#spenden): scroll to this block once the page has been drawn
   useEffect(() => {
     if (window.location.hash !== '#spenden') return
     const timer = window.setTimeout(() => document.getElementById('spenden')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700)
     return () => window.clearTimeout(timer)
-  }, [])
-  useEffect(() => {
-    reload()
   }, [])
 
   // registered members are shown with the name of the site, everybody else with the name OpenFront gives

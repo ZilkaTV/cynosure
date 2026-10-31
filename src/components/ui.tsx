@@ -7,14 +7,20 @@ import type { TranslationShape } from '../i18n/translations'
 import { Flag } from './Emoji'
 import { cleanDisplayName } from '../lib/displayName'
 import { isUnclaimedMember } from '../lib/stats'
+import { isCalm } from '../lib/calm'
 
 /** Ticking "1h 23m" / "23m 05s" countdown to a target timestamp, or null once it's passed. */
 export function useCountdown(targetMs: number | null): string | null {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (targetMs == null) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
+    const id = setInterval(() => !isCalm() && setNow(Date.now()), 1000)
+    const onFocus = () => setNow(Date.now())
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [targetMs])
 
   if (targetMs == null) return null

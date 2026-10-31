@@ -30,6 +30,7 @@ import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
 import { useIsAdmin } from '../lib/useSession'
 import { DONATE_URL } from '../config'
+import { isCalm } from '../lib/calm'
 
 type Avatars = Record<string, { src: string; fit: Fit | null }>
 const TILES_SHOWN = 24
@@ -131,7 +132,7 @@ export default function Collection() {
     void reload()
   }, [reload])
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    const timer = window.setInterval(() => !isCalm() && setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
   // admins: the "I paid" requests waiting for them

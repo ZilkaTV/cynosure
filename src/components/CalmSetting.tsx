@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useLanguage } from '../i18n/LanguageContext'
 
-const KEY = 'cyn:calm'
-// the same names as in Layout.tsx (kept here so this file only exports a component)
+import { CALM_KEY as KEY } from '../lib/calm'
+
+// the same name as in Layout.tsx (kept here so this file only exports a component)
 const CHANGED = 'cyn:calm-changed'
 
 /** Settings: calm mode. The glowing names, frames and lightning stand still, which saves a lot of graphics power (for example while a stream runs next to the site). */
@@ -33,8 +34,8 @@ export default function CalmSetting() {
         <input type="checkbox" checked={on} onChange={(e) => toggle(e.target.checked)} className="mt-1 accent-[#8b5cf6]" />
         <span>
           {de
-            ? 'Leuchtende Namen, Rahmen und Blitze stehen still. Spart viel Grafikleistung, zum Beispiel wenn nebenbei ein Stream läuft.'
-            : 'Glowing names, frames and lightning stand still. Saves a lot of graphics power, for example while a stream runs next to the site.'}
+            ? 'Leuchtende Namen, Rahmen und Blitze stehen still, und die Seite lädt im Hintergrund nichts mehr nach. Spart viel Leistung, zum Beispiel wenn nebenbei ein Stream läuft.'
+            : 'Glowing names, frames and lightning stand still and the page stops reloading in the background. Saves a lot of power, for example while a stream runs next to the site.'}
         </span>
       </label>
       <p className="text-xs text-slate-500">{de ? 'Auch ohne diesen Schalter ruht alles von selbst, solange das Fenster der Seite nicht im Vordergrund ist.' : 'Even without this switch everything rests by itself while the window of the site is not in front.'}</p>

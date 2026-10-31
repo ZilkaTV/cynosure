@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { isCalm } from './calm'
 
 // Boosters and the card collection (the Worker side is worker/boosters.js: the draw happens there).
 
@@ -82,7 +83,7 @@ export function useBoosterState(): BoosterState | null {
   )
   useEffect(() => {
     if (!cache || Date.now() - cache.at > 60_000) void refreshBoosterState()
-    const timer = window.setInterval(() => document.visibilityState === 'visible' && void refreshBoosterState(), 5 * 60_000)
+    const timer = window.setInterval(() => document.visibilityState === 'visible' && !isCalm() && void refreshBoosterState(), 5 * 60_000)
     return () => window.clearInterval(timer)
   }, [])
   const due = state?.nextFreeAt ? Date.parse(state.nextFreeAt) : null

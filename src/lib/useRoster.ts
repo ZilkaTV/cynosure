@@ -6,6 +6,7 @@ import { fetchAllChatMessageCounts, fetchAllSupporters } from './chat'
 import { buildRoster, type RosterResult, type MemberStats } from './stats'
 import { clearOpenFrontCache, getLastUpdated } from './openfront'
 import { loadPersistedRoster, savePersistedRoster } from './rosterCache'
+import { isCalm } from './calm'
 
 // Numeric fields worth showing a "+N" delta for after a manual refresh.
 const DELTA_FIELDS = ['ffaWins', 'teamWins', 'rankedWins', 'twoVTwoWins', 'allWins', 'elo', 'elo2v2'] as const
@@ -168,10 +169,25 @@ export function useRoster(enabled = true): RosterState {
   // so an open tab quietly reloads it every 2 minutes and whenever it becomes visible again.
   useEffect(() => {
     if (!enabled) return
+    let last = Date.now()
     const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') backgroundReload()
+      if (document.visibilityState === 'visible' && !isCalm()) {
+        last = Date.now()
+        backgroundReload()
+      }
     }, 120000)
-    return () => clearInterval(timer)
+    // a window that had no focus catches up as soon as it gets it back
+    const onFocus = () => {
+      if (Date.now() - last > 120000) {
+        last = Date.now()
+        backgroundReload()
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [enabled, backgroundReload])
 
   return { data, loading, refreshing, error, lastUpdated, deltas, refresh }

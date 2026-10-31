@@ -194,6 +194,26 @@ async function postMessage(botToken, channelId, content) {
   if (!res.ok) throw new Error(`POST message to ${channelId}: ${res.status}`)
 }
 
+// Members who are not in the OpenFront clan any more (for example somebody who left with a lot of wins) get no wins-tier role and lose the one they
+// had: the clan's public member list decides. When that list cannot be read, or looks cut off, nobody is excluded (a failed read must never strip the
+// whole clan of its roles).
+async function fetchClanIds() {
+  const ids = new Set()
+  let total = 0
+  for (let page = 1; page <= 12; page++) {
+    const res = await fetch(`https://api.openfront.io/public/clan/${CLAN_TAG}/members?limit=50&page=${page}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'CynosureClanSite (cynclan.com)' },
+    })
+    if (!res.ok) return null
+    const body = await res.json()
+    total = Number(body.total) || total
+    const list = body.results ?? []
+    for (const m of list) if (m?.publicId) ids.add(m.publicId)
+    if (list.length < 50 || (total && ids.size >= total)) break
+  }
+  return ids.size >= 20 && (!total || ids.size >= total) ? ids : null
+}
+
 async function main() {
   const botToken = process.env.DISCORD_BOT_TOKEN
   const roleIdsJson = process.env.DISCORD_WINS_ROLE_IDS
@@ -249,6 +269,12 @@ async function main() {
     }
   }
   const membersByOpenfrontId = new Map((members ?? []).map((m) => [m.openfront_id, m]))
+  const clanIds = await fetchClanIds().catch((err) => {
+    console.error('clan member list unavailable, nobody is excluded:', err?.message ?? err)
+    return null
+  })
+  console.log(clanIds ? `clan list: ${clanIds.size} members` : 'clan list: not available, nobody is excluded')
+  let leftClan = 0
   // Filled in during the per-member loop below (currentRoles is already
   // fetched there for the wins-tier sync) - reused after the loop by the
   // Flash/Hero/Master of Cyn sections so they don't need their own
@@ -309,7 +335,10 @@ async function main() {
     }
     checked++
     try {
-      const allWins = latestWinsByMember.get(m.openfront_id) ?? 0
+      // somebody who is not in the clan any more counts as 0 wins here: no wins-tier role (an existing one is taken away below)
+      const inClan = !clanIds || clanIds.has(m.openfront_id)
+      if (!inClan) leftClan++
+      const allWins = inClan ? (latestWinsByMember.get(m.openfront_id) ?? 0) : 0
       const targetTier = tierFromWins(allWins)
       const targetRoleId = targetTier ? roleIdByTier[targetTier] : null
       const wants100GamesRole = (totalGamesByMember.get(m.openfront_id) ?? 0) >= GAMES_100_THRESHOLD
@@ -527,7 +556,7 @@ Can you beat that? [cynclan.com](https://cynclan.com/)
     }
   }
 
-  console.log(JSON.stringify({ checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
+  console.log(JSON.stringify({ checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, leftClan, updated, unchanged, failed }, null, 2))
 }
 
 main().catch((err) => {

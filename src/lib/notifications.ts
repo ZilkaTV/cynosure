@@ -7,6 +7,7 @@ import { QUESTS, fetchClaimsToday, periodKey, questPeriod } from './quests'
 import { fetchReactedToday } from './reactions'
 import { donationTotals, useClanDonors } from './clanDonors'
 import { currentBoosterState } from './boosters'
+import { isCalm } from './calm'
 
 // The notification bell (like on Facebook): who reacted to my games, who commented under them or answered my comments, who liked my profile
 // or wrote on its wall, quests that can be collected, and (for admins) open reports. Nothing is stored for it: it reads the existing tables
@@ -215,14 +216,16 @@ export function useNotifications() {
   useEffect(() => {
     if (!me || !roster) return
     void load()
-    const timer = setInterval(() => document.visibilityState === 'visible' && void load(), POLL_MS)
+    const timer = setInterval(() => document.visibilityState === 'visible' && !isCalm() && void load(), POLL_MS)
     const onVisible = () => document.visibilityState === 'visible' && Date.now() - lastLoad.current > 2 * 60_000 && void load()
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
     const onQuests = () => void load()
     window.addEventListener(QUESTS_CHANGED, onQuests)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
       window.removeEventListener(QUESTS_CHANGED, onQuests)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useSharedRoster } from '../lib/access'
+import { fetchClanMembers } from '../lib/clanMembers'
 import { winsRoleGradient } from '../lib/badges'
 import { cleanDisplayName } from '../lib/displayName'
 import type { MemberStats } from '../lib/stats'
@@ -108,36 +110,78 @@ interface WinsIndex {
 
 const NO_MEMBERS: MemberStats[] = []
 let indexedFor: MemberStats[] | null = null
+let indexedClan: ReadonlySet<string> | null = null
 let index: WinsIndex = { byId: new Map(), nameById: new Map(), byName: new Map() }
 
-/** All-time wins per member, by id and by (lower-case) name, from the roster that is shared on the page; empty until it is there. */
+/**
+ * The wins index of a roster. With the list of the people who are in the clan right now (`clan`), members who are not in it any more (they left
+ * with a lot of wins) are left out: no coloured name and no frame, like the Discord role the role sync no longer gives them. `clan` null = not known
+ * (yet): everybody counts.
+ */
+export function buildWinsIndex(all: MemberStats[], clan: ReadonlySet<string> | null): WinsIndex {
+  const members = clan ? all.filter((m) => clan.has(m.publicId)) : all
+  const byName = new Map<string, number>()
+  // Registered names first: they identify the member. Names members only played under in a game count when exactly one member did.
+  for (const m of members) byName.set(cleanDisplayName(m.name).toLowerCase(), m.allWins)
+  const owners = new Map<string, Set<string>>()
+  for (const m of members) {
+    for (const g of m.cynGames) {
+      const played = cleanDisplayName(g.username).toLowerCase()
+      const set = owners.get(played) ?? new Set<string>()
+      set.add(m.publicId)
+      owners.set(played, set)
+    }
+  }
+  for (const m of members) {
+    for (const g of m.cynGames) {
+      const played = cleanDisplayName(g.username).toLowerCase()
+      if (!byName.has(played) && owners.get(played)?.size === 1) byName.set(played, m.allWins)
+    }
+  }
+  return {
+    byId: new Map(members.map((m) => [m.publicId, m.allWins])),
+    // the registered names stay for everybody: a member who left is still named correctly, just without the colours
+    nameById: new Map(all.map((m) => [m.publicId, cleanDisplayName(m.name)])),
+    byName,
+  }
+}
+
+let clanIds: ReadonlySet<string> | null = null
+let clanAsked = false
+const clanListeners = new Set<() => void>()
+/** The ids of everybody who is in the clan on OpenFront right now (null until known, and when the list cannot be read or is too short to be believed). */
+function useClanIds(): ReadonlySet<string> | null {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const on = () => tick((n) => n + 1)
+    clanListeners.add(on)
+    if (!clanAsked) {
+      clanAsked = true
+      void fetchClanMembers()
+        .then((list) => {
+          // a failed or cut-off read must never strip everybody of their colours
+          if (list.length >= 20) clanIds = new Set(list.map((m) => m.id))
+          clanListeners.forEach((l) => l())
+        })
+        .catch(() => {
+          clanAsked = false
+        })
+    }
+    return () => {
+      clanListeners.delete(on)
+    }
+  }, [])
+  return clanIds
+}
+
+/** All-time wins per member, by id and by (lower-case) name, from the roster that is shared on the page; empty until it is there. Members who left the clan are not in it. */
 export function useWinsIndex(): WinsIndex {
   const members = useSharedRoster()?.members ?? NO_MEMBERS
-  if (indexedFor !== members) {
+  const clan = useClanIds()
+  if (indexedFor !== members || indexedClan !== clan) {
     indexedFor = members
-    const byName = new Map<string, number>()
-    // Registered names first: they identify the member. Names members only played under in a game count when exactly one member did.
-    for (const m of members) byName.set(cleanDisplayName(m.name).toLowerCase(), m.allWins)
-    const owners = new Map<string, Set<string>>()
-    for (const m of members) {
-      for (const g of m.cynGames) {
-        const played = cleanDisplayName(g.username).toLowerCase()
-        const set = owners.get(played) ?? new Set<string>()
-        set.add(m.publicId)
-        owners.set(played, set)
-      }
-    }
-    for (const m of members) {
-      for (const g of m.cynGames) {
-        const played = cleanDisplayName(g.username).toLowerCase()
-        if (!byName.has(played) && owners.get(played)?.size === 1) byName.set(played, m.allWins)
-      }
-    }
-    index = {
-      byId: new Map(members.map((m) => [m.publicId, m.allWins])),
-      nameById: new Map(members.map((m) => [m.publicId, cleanDisplayName(m.name)])),
-      byName,
-    }
+    indexedClan = clan
+    index = buildWinsIndex(members, clan)
   }
   return index
 }

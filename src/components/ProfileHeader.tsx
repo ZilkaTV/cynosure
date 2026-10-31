@@ -30,7 +30,7 @@ import ReportDialog from './ReportDialog'
 import { toggleFavoriteProfile, useSearchLists } from '../lib/searchLists'
 import RoleFrame from './RoleFrame'
 import { Flag } from './Emoji'
-import { RoleName } from './RoleName'
+import { RoleName, useWinsIndex } from './RoleName'
 
 const HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
 
@@ -302,6 +302,8 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
   const roster = useSharedRoster()
   const [editing, setEditing] = useState(false)
   const [reporting, setReporting] = useState(false)
+  // the colours and the frame of the wins role only for members who are in the clan
+  const roleWins = useWinsIndex().byId.get(m.publicId)
   const { profile: viewer } = useProfile()
   const me = viewer?.openfront_id
   const [modMessage, setModMessage] = useState<string | null>(null)
@@ -324,14 +326,14 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
 
   return (
     <div className="space-y-4">
-      <RoleFrame wins={m.allWins} radius="1rem" width={3} variant="banner" plain="border border-base-700 bg-base-900/70">
+      <RoleFrame wins={roleWins} radius="1rem" width={3} variant="banner" plain="border border-base-700 bg-base-900/70">
       <div className="bg-base-900/70">
         <div className="relative h-36 sm:h-56">
           {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
         </div>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 pb-4 sm:px-6">
-          <RoleFrame wins={m.allWins} radius="1rem" width={4} className="relative z-10 -mt-14 h-24 w-24 shrink-0 sm:-mt-16 sm:h-32 sm:w-32" plain="border-4 border-base-900 bg-base-800 shadow-xl">
+          <RoleFrame wins={roleWins} radius="1rem" width={4} className="relative z-10 -mt-14 h-24 w-24 shrink-0 sm:-mt-16 sm:h-32 sm:w-32" plain="border-4 border-base-900 bg-base-800 shadow-xl">
             {avatar ? (
               <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
             ) : (
@@ -342,7 +344,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
             <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
-              <RoleName wins={m.allWins}>{name}</RoleName>
+              <RoleName wins={roleWins}>{name}</RoleName>
               <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
               <Link
                 to={`/card/${m.publicId}`}

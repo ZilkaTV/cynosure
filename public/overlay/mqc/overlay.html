@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MQC overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="overlay.css" />
+  </head>
+  <body>
+    <!-- OBS: Browser Source, 1920 x 1080, no custom CSS needed. Add ?bg=1 to the address to see the layout over a sample picture of the game. -->
+    <div id="stage">
+      <div id="bug" class="layer">
+        <div class="side left" id="sideA"></div>
+        <div class="mid" id="mid"></div>
+        <div class="side right" id="sideB"></div>
+      </div>
+      <div id="intro" class="layer full"></div>
+      <div id="schedule" class="layer full"></div>
+    </div>
+    <script src="data.js"></script>
+    <script src="state.js"></script>
+    <script src="overlay.js"></script>
+  </body>
+</html>

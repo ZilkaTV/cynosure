@@ -1,0 +1,132 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 12px 14px 24px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  color: #e8ecf8;
+  background: #12151f;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 18px;
+}
+h2 {
+  margin: 16px 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f9bbd;
+}
+.sync {
+  font-size: 11px;
+  color: #6e7a9c;
+}
+button {
+  font: inherit;
+  color: #e8ecf8;
+  background: #232a3d;
+  border: 1px solid #34405e;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+button:hover {
+  border-color: #6f8cff;
+}
+button.on {
+  background: #2f4aa8;
+  border-color: #6f8cff;
+}
+button.primary {
+  background: #3358d4;
+  border-color: #6f8cff;
+  font-weight: 600;
+  width: 100%;
+  padding: 11px;
+}
+button.live.on {
+  background: #b3243a;
+  border-color: #ff6b7d;
+}
+button.final.on {
+  background: #1f7a45;
+  border-color: #5fd493;
+}
+button.ghost {
+  background: transparent;
+}
+button.danger {
+  color: #ff8a96;
+  border-color: #5b2a33;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.matches {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.matches button {
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.matches .res {
+  color: #9aa6c2;
+  font-variant-numeric: tabular-nums;
+}
+.scorerow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.team {
+  background: #1a1f2e;
+  border: 1px solid #2c3550;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.team .tag {
+  font-weight: 700;
+  font-size: 18px;
+}
+.team .num {
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.team .btns {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.team .btns button {
+  min-width: 48px;
+  font-size: 18px;
+}
+.small p {
+  color: #aab4d0;
+  line-height: 1.45;
+}
+code {
+  background: #1c2234;
+  padding: 1px 5px;
+  border-radius: 4px;
+  word-break: break-all;
+}

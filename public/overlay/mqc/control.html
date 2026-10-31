@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MQC control</title>
+    <link rel="stylesheet" href="control.css" />
+  </head>
+  <body>
+    <header>
+      <h1>MQC Overlay</h1>
+      <span id="sync" class="sync">…</span>
+    </header>
+
+    <section>
+      <h2>Match</h2>
+      <div id="matches" class="matches"></div>
+    </section>
+
+    <section>
+      <h2 id="curTitle">Stand</h2>
+      <div class="scorerow">
+        <div class="team" id="teamA"></div>
+        <div class="team" id="teamB"></div>
+      </div>
+      <div class="row">
+        <button data-status="upcoming">Offen</button>
+        <button data-status="live" class="live">LIVE</button>
+        <button data-status="final" class="final">FINAL</button>
+        <button id="resetScore" class="ghost">Stand 0:0</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Anzeige</h2>
+      <div class="row views">
+        <button data-view="game">Spiel (Scorebug)</button>
+        <button data-view="intro" data-secs="9">Intro 9 s</button>
+        <button data-view="result" data-secs="10">Ergebnis 10 s</button>
+        <button data-view="schedule">Spielplan</button>
+        <button data-view="off" class="ghost">Overlay aus</button>
+      </div>
+      <div class="row">
+        <button id="next" class="primary">Nächstes Match starten (LIVE + Intro)</button>
+      </div>
+    </section>
+
+    <section class="small">
+      <h2>Hilfe</h2>
+      <p>Overlay in OBS: <b>Quelle → Browser</b>, Breite 1920, Höhe 1080, Adresse <code id="ovUrl"></code>. Dieses Pult als <b>Andockfenster → Benutzerdefinierte Browser-Docks</b> mit der Adresse dieser Seite.</p>
+      <p>Layout ansehen: <code>?bg=1</code> hinter die Overlay-Adresse hängen.</p>
+      <button id="resetAll" class="ghost danger">Alles zurücksetzen</button>
+    </section>
+
+    <script src="data.js"></script>
+    <script src="state.js"></script>
+    <script src="control.js"></script>
+  </body>
+</html>

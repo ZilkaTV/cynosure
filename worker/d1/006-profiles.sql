@@ -23,3 +23,23 @@ CREATE TABLE IF NOT EXISTS cyn_profile_comments (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS cyn_profile_comments_profile ON cyn_profile_comments (profile_id);
+
+-- Reports of profiles and comments (members report, admins read and close them)
+CREATE TABLE IF NOT EXISTS cyn_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporter_openfront_id TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  handled_by TEXT,
+  handled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS cyn_reports_status ON cyn_reports (status);
+
+-- Indexes for the notification bell (who reacted to my games, who answered my comments)
+CREATE INDEX IF NOT EXISTS cyn_kudos_to ON cyn_kudos (to_openfront_id, created_at);
+CREATE INDEX IF NOT EXISTS cyn_game_comments_author ON cyn_game_comments (author_openfront_id);
+CREATE INDEX IF NOT EXISTS cyn_game_comments_parent ON cyn_game_comments (parent_id);

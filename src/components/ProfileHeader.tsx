@@ -23,6 +23,7 @@ import {
   type ProfileExtras,
 } from '../lib/profileExtras'
 import FitImage from './FitImage'
+import ReportDialog from './ReportDialog'
 import { Flag } from './Emoji'
 import { RoleName } from './RoleName'
 
@@ -223,9 +224,14 @@ function ProfileEditor({ m, extras, fits, onFits, onChanged, onClose }: { m: Mem
           <span className="text-xs text-slate-500">
             {bio.length}/{MAX_BIO}
           </span>
-          <button type="button" className="btn-accent !px-5 !py-1.5 text-sm disabled:opacity-50" disabled={busy !== null} onClick={() => void saveText()}>
-            {busy === 'bio' ? '…' : de ? 'Text speichern' : 'Save text'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-accent !px-5 !py-1.5 text-sm disabled:opacity-50" disabled={busy !== null} onClick={() => void saveText()}>
+              {busy === 'bio' ? '…' : de ? 'Text speichern' : 'Save text'}
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-1.5 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+              {de ? 'Fertig' : 'Done'}
+            </button>
+          </div>
         </div>
       </div>
       <p className="text-xs text-slate-500">
@@ -245,6 +251,9 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
   const de = language === 'de'
   const roster = useSharedRoster()
   const [editing, setEditing] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const { profile: viewer } = useProfile()
+  const me = viewer?.openfront_id
   const [modMessage, setModMessage] = useState<string | null>(null)
   // placement while the owner edits (dragging and zoom show at once, saved with the button)
   const [draft, setDraft] = useState<{ avatar: Fit; banner: Fit } | null>(null)
@@ -271,7 +280,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
         </div>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 pb-4 sm:px-6">
-          <div className="-mt-14 h-24 w-24 shrink-0 overflow-hidden rounded-2xl border-4 border-base-900 bg-base-800 shadow-xl sm:-mt-16 sm:h-32 sm:w-32">
+          <div className="relative z-10 -mt-14 h-24 w-24 shrink-0 overflow-hidden rounded-2xl border-4 border-base-900 bg-base-800 shadow-xl sm:-mt-16 sm:h-32 sm:w-32">
             {avatar ? (
               <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
             ) : (
@@ -312,10 +321,36 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 pt-3">
-            <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
-            {isOwn && (
-              <button type="button" onClick={() => { setDraft(null); setEditing((v) => !v) }} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
-                {editing ? (de ? 'Fertig' : 'Done') : de ? 'Profil bearbeiten' : 'Edit profile'}
+            <div className="flex flex-wrap items-start justify-end gap-2">
+              <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
+              <button
+                type="button"
+                onClick={() => document.getElementById('pinnwand')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white"
+                title={de ? 'Zu den Kommentaren' : 'Go to the comments'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12c0 4.4-4 8-9 8-1.2 0-2.4-.2-3.4-.6L3 21l1.7-4.3C3.6 15.3 3 13.7 3 12c0-4.4 4-8 9-8s9 3.6 9 8z" />
+                </svg>
+                {de ? 'Kommentare' : 'Comments'}
+              </button>
+              {!isOwn && me && (
+                <button
+                  type="button"
+                  onClick={() => setReporting(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-signal-red/60 hover:text-signal-red"
+                  title={de ? 'Dieses Profil melden' : 'Report this profile'}
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                    <path d="M5 21V4m0 0h11l-2 4 2 4H5" />
+                  </svg>
+                  {de ? 'Melden' : 'Report'}
+                </button>
+              )}
+            </div>
+            {isOwn && !editing && (
+              <button type="button" onClick={() => { setDraft(null); setEditing(true) }} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+                {de ? 'Profil bearbeiten' : 'Edit profile'}
               </button>
             )}
           </div>
@@ -327,6 +362,8 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
           </div>
         )}
       </div>
+
+      {reporting && me && <ReportDialog myId={me} target="profile" targetId={m.publicId} subject={name} onClose={() => setReporting(false)} />}
 
       {isOwn && editing && <ProfileEditor m={m} extras={extras} fits={fits} onFits={setDraft} onChanged={() => { setDraft(null); reloadExtras() }} onClose={() => { setDraft(null); setEditing(false) }} />}
 

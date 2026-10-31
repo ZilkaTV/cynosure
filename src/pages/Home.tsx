@@ -4,7 +4,8 @@ import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
-import { computeBadges } from '../lib/badges'
+import { computeBadges, type BadgeExtras } from '../lib/badges'
+import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
 import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
@@ -28,7 +29,7 @@ import { fetchGameDetailsBatch, teamRosterNames, type PlayerGame, type GameDetai
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape, extras: BadgeExtras): Column[] {
   return [
     {
       key: 'name',
@@ -48,8 +49,8 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       minWidth: 168,
       label: t.home.colBadges,
       align: 'center',
-      render: (m) => <BadgeStrip badges={computeBadges(m, all, t)} />,
-      sortValue: (m) => computeBadges(m, all, t).filter((b) => b.earned).length,
+      render: (m) => <BadgeStrip badges={computeBadges(m, all, t, extras)} />,
+      sortValue: (m) => computeBadges(m, all, t, extras).filter((b) => b.earned).length,
     },
     {
       key: 'ffa',
@@ -172,7 +173,9 @@ export default function Home() {
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
 
-  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
+  const donors = useClanDonors()
+  const badgeExtras = useMemo<BadgeExtras>(() => ({ capsDonated: capsDonatedMap(donors), de: language === 'de' }), [donors, language])
+  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t, badgeExtras), [data, deltas, t, badgeExtras])
 
   const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))
   const eloByGame = useRankedElo(recentGames.map(({ g }) => g))

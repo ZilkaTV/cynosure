@@ -123,21 +123,21 @@ export default function Speedrun() {
     <StatsShell>
       <section className="space-y-4">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.title} />
-        <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
-          <p className="flex items-center justify-center gap-2 font-display text-lg font-bold uppercase tracking-wide text-gold-light">
-            <Emoji char={EMOJI.flag} className="h-5 w-5" /> {t.speedrun.ruleBadge}
-          </p>
-          <p className="mt-1 text-sm text-slate-300">
-            {t.speedrun.introPrefix} <span className="font-semibold text-white">Australia</span> {t.speedrun.introMid}{' '}
-            <span className="font-semibold text-white">{t.speedrun.introNationsDisabled}</span> {t.speedrun.introSuffix}
-          </p>
-        </div>
       </section>
 
       <div className="mx-auto grid w-full max-w-4xl items-stretch gap-6 md:grid-cols-2">
       <section className="flex flex-col space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.startTitle} />
         <Card className="flex-1 space-y-3 !p-4 text-center">
+          <div className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-2.5">
+            <p className="flex items-center justify-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-gold-light">
+              <Emoji char={EMOJI.flag} className="h-4 w-4" /> {t.speedrun.ruleBadge}
+            </p>
+            <p className="mt-1 text-xs text-slate-300">
+              {t.speedrun.introPrefix} <span className="font-semibold text-white">Australia</span> {t.speedrun.introMid}{' '}
+              <span className="font-semibold text-white">{t.speedrun.introNationsDisabled}</span> {t.speedrun.introSuffix}
+            </p>
+          </div>
           <div className="flex flex-wrap justify-center gap-2">
             <a href={OPENFRONT_SOLO_URL} target="_blank" rel="noreferrer" onClick={startWatching} className="btn-accent">
               {t.speedrun.startBrowser}

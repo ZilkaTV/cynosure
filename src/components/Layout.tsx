@@ -7,6 +7,7 @@ import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
+import NotificationBell from './NotificationBell'
 import { CHANGELOG } from '../data/changelog'
 import { EVENTS } from '../data/events'
 import ProfileSearch from './ProfileSearch'
@@ -267,6 +268,11 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
             {t.accountMenu.settings}
           </Link>
           {isAdmin && (
+            <Link to="/reports" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              {language === 'de' ? 'Meldungen' : 'Reports'}
+            </Link>
+          )}
+          {isAdmin && (
             <Link to="/archive" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
               {language === 'de' ? 'Archiviert' : 'Archived'}
             </Link>
@@ -382,6 +388,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </div>
           </div>
+          <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <LanguageSwitcher />
             {isInnerCircle && (
@@ -394,6 +401,8 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             )}
             <AccountMenu isInner={isInnerCircle} />
+          </div>
+          {profile && <NotificationBell />}
           </div>
         </div>
 

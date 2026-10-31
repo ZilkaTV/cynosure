@@ -17,8 +17,24 @@ export interface Donor {
   donations: number
 }
 export type DonorBoards = Record<Currency, Record<Period, Donor[]>>
+/** One single donation (the newest ones are stored for the quests). */
+export interface RecentDonation {
+  playerId: string
+  currency: Currency
+  amount: string
+  /** ISO time */
+  at: string
+}
+/** What the userscript hands over: the rankings and the newest single donations. */
+export interface DonorExport {
+  boards: DonorBoards
+  recent: RecentDonation[]
+}
+
 export interface DonorDoc {
   boards: DonorBoards | null
+  /** Newest single donations; missing in a ranking imported with an older userscript. */
+  recent?: RecentDonation[]
   updated_at?: string
   /** OpenFront id of the admin who saved it. */
   by?: string | null
@@ -64,13 +80,13 @@ export async function fetchClanDonors(): Promise<DonorDoc | null> {
   }
 }
 
-export async function saveClanDonors(boards: DonorBoards): Promise<{ ok: boolean; message: string }> {
+export async function saveClanDonors(data: DonorExport): Promise<{ ok: boolean; message: string }> {
   try {
     const res = await fetch('/api/clan-donors', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boards }),
+      body: JSON.stringify({ boards: data.boards, recent: data.recent }),
     })
     const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string }
     if (res.ok && body.ok) return { ok: true, message: 'Saved.' }
@@ -83,10 +99,10 @@ export async function saveClanDonors(boards: DonorBoards): Promise<{ ok: boolean
 
 /**
  * What the userscript hands over (or an admin pastes): { boards: { soft: { all, month, week }, hard: { ... } } } with rows
- * { playerId, username, total, donations }. Returns the boards in the stored shape, or null when it does not look right.
+ * { playerId, username, total, donations } and (optional) recent: [{ playerId, currency, amount, at }]. Returns both in the stored shape, or null when it does not look right.
  * The Worker checks everything again; this is for the preview and for a friendly message.
  */
-export function parseDonorExport(input: unknown): DonorBoards | null {
+export function parseDonorExport(input: unknown): DonorExport | null {
   let data = input
   if (typeof data === 'string') {
     try {
@@ -96,6 +112,7 @@ export function parseDonorExport(input: unknown): DonorBoards | null {
     }
   }
   const boards = (data as { boards?: Record<string, Record<string, unknown>> } | null)?.boards
+  const rawRecent = (data as { recent?: unknown } | null)?.recent
   if (!boards || typeof boards !== 'object') return null
   const out = { soft: {}, hard: {} } as unknown as DonorBoards
   for (const c of CURRENCIES) {
@@ -110,7 +127,55 @@ export function parseDonorExport(input: unknown): DonorBoards | null {
       out[c][p] = rows
     }
   }
+  const recent: RecentDonation[] = []
+  if (rawRecent != null) {
+    if (!Array.isArray(rawRecent)) return null
+    for (const r of rawRecent as Record<string, unknown>[]) {
+      const at = typeof r?.at === 'string' ? Date.parse(r.at) : NaN
+      const currency = r?.currency === 'soft' || r?.currency === 'hard' ? r.currency : null
+      if (!r || typeof r.playerId !== 'string' || !currency || !/^\d{1,18}$/.test(String(r.amount)) || !Number.isFinite(at)) return null
+      recent.push({ playerId: r.playerId, currency, amount: String(r.amount), at: new Date(at).toISOString() })
+    }
+  }
+  return { boards: out, recent }
+}
+
+/** Caps donated all time per member, from the ranking (and the single donations when they add up to more). */
+export function capsDonatedMap(doc: DonorDoc | null | undefined): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const r of doc?.boards?.soft.all ?? []) out.set(r.playerId, Number(r.total))
+  const sums = new Map<string, number>()
+  for (const r of doc?.recent ?? []) if (r.currency === 'soft') sums.set(r.playerId, (sums.get(r.playerId) ?? 0) + Number(r.amount))
+  for (const [id, n] of sums) if (n > (out.get(id) ?? 0)) out.set(id, n)
   return out
+}
+
+/** What one member donated, for the quests and the badge. Today / this week / this month count from midnight UTC (Monday for the week). */
+export interface DonationTotals {
+  capsAll: number
+  capsDay: number
+  capsWeek: number
+  plutoniumMonth: number
+  /** False while the stored ranking has no list of single donations (the quests cannot be checked then). */
+  hasRecent: boolean
+}
+
+const startOfDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+/** Monday 00:00 UTC of the week of `d`. */
+export const startOfWeek = (d: Date) => startOfDay(d) - ((d.getUTCDay() + 6) % 7) * 86_400_000
+const startOfMonth = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+
+export function donationTotals(doc: DonorDoc | null | undefined, playerId: string, now = new Date()): DonationTotals {
+  const caps = Number(doc?.boards?.soft.all.find((r) => r.playerId === playerId)?.total ?? 0)
+  const mine = (doc?.recent ?? []).filter((r) => r.playerId === playerId)
+  const sum = (currency: Currency, from: number) => mine.filter((r) => r.currency === currency && Date.parse(r.at) >= from).reduce((s, r) => s + Number(r.amount), 0)
+  return {
+    capsAll: Math.max(caps, sum('soft', 0)),
+    capsDay: sum('soft', startOfDay(now)),
+    capsWeek: sum('soft', startOfWeek(now)),
+    plutoniumMonth: sum('hard', startOfMonth(now)),
+    hasRecent: doc?.recent !== undefined,
+  }
 }
 
 // ── shared by the sidebar window and the Clan page block ──

@@ -229,3 +229,16 @@ screenshot uploads have no per-member quota; `cyn_kudos` rows are not rate limit
   `GET`: signed-in members of the site only. Stored in the hot database (`blobs`, key `clan-donors`). Checked by `scripts/test-db-api.mjs` (needs `hot-schema.sql` on the local hot database too).
 - Registered members appear with the name of the site and link to their profile; everybody else with the name OpenFront gives.
 - Speedruns: who won is decided by the public OpenFront id (server) and the [CYN] tag; the name used in the game does not matter, the board shows the registered name. `verifySpeedrun` lost its name check.
+
+## Donation quests, donor badge, reports, notification bell, profile details (2026-10-31, evening)
+- Quests: `donate_caps_day` (100 caps today, 15 XP), `donate_caps_week` (10,000 caps since Monday 00:00 UTC, 60 XP), `donate_plutonium_month` (100 plutonium this month, 100 XP). Quests now have a period (day / week / month);
+  the claim is stored in `cyn_quest_claims.claim_date` as the date, `W<monday>` or `<year-month>`. The page shows three lists. The donation quests are checked against the **single donations**
+  of the stored donor list (`recent`, written by the userscript v1.1.0, newest 400), so they are as current as the last import by an admin - the page says so.
+- Badge "Clan Spender" / "Clan Donor": 10,000 caps donated all time (ranking, or the sum of the single donations if higher); on the profile and in the roster table.
+- Profile: the icon sits above the banner (z-index), next to the like button there are "Kommentare" (scrolls to the wall) and "Melden", "Fertig" sits next to "Text speichern".
+- Reports (`cyn_reports`, `src/lib/reports.ts`, `ReportDialog.tsx`, admin page `/reports` in the account menu): reasons picture / insult / spam / impersonation / other + a note of 200 characters; once per target while open, 5 an hour; also for single comments on a wall (flag). Admins read and close them (and can take icon / banner / text away from the list).
+- Notification bell (`NotificationBell.tsx`, `src/lib/notifications.ts`) under the account button: reactions to my games and comments, comments under my games, answers to my comments, likes and wall comments on my profile, quests ready to collect, open reports (admins).
+  Nothing is stored: it reads the tables every 5 minutes while the page is visible; "seen" is a timestamp in localStorage per browser (a waiting quest / report stays counted). The indexes at the end of `006-profiles.sql` keep these reads cheap.
+- From 500 wins the name gets small bolts in the colour of the role (`.role-bolts`, off with reduced motion).
+- Speedrun page: the "Solo game / Australia / No Nations" box is part of the "Start a run" window now.
+- `worker/d1/006-profiles.sql` now also has `cyn_reports` and three indexes (run once on the real database before the release; the dev database has all of it).

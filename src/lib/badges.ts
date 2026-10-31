@@ -218,7 +218,14 @@ function getLeaders(all: MemberStats[]): Leaders {
   return leaders
 }
 
-export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape): Badge[] {
+/** Facts that do not come from the roster: how many caps each member donated (from the stored donor list), and the language for the badges that have no translation table entry. */
+export interface BadgeExtras {
+  capsDonated?: ReadonlyMap<string, number>
+  de?: boolean
+}
+export const DONOR_BADGE_CAPS = 10_000
+
+export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape, extras?: BadgeExtras): Badge[] {
   const b = t.badges
 
   const { mostWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
@@ -273,6 +280,15 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
     },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
     { id: 'supporter', name: b.supporter.name, kind: 'icon', icon: 'heart', earned: m.isSupporter, group: 'milestone', desc: b.supporter.desc },
+    {
+      id: 'donor',
+      name: extras?.de ? 'Clan Spender' : 'Clan Donor',
+      kind: 'icon',
+      icon: 'handshake',
+      earned: (extras?.capsDonated?.get(m.publicId) ?? 0) >= DONOR_BADGE_CAPS,
+      group: 'milestone',
+      desc: extras?.de ? `Spende mindestens ${DONOR_BADGE_CAPS.toLocaleString('de-DE')} Caps an den Clan` : `Donate at least ${DONOR_BADGE_CAPS.toLocaleString('en-US')} caps to the clan`,
+    },
     // ── monthly (losable) ──
     {
       id: 'predator',

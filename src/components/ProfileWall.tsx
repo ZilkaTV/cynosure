@@ -7,6 +7,7 @@ import { useIsAdmin } from '../lib/useSession'
 import { cleanDisplayName } from '../lib/displayName'
 import { MAX_COMMENT, deleteProfileComment, fetchAvatars, fetchProfileComments, postProfileComment, type Fit, type ProfileComment } from '../lib/profileExtras'
 import FitImage from './FitImage'
+import ReportDialog from './ReportDialog'
 import { relativeTime } from './ui'
 
 /** The comment wall of a profile (flat, newest first, like on a Steam profile). Members write; the author, the profile's owner and admins delete. */
@@ -22,6 +23,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [reporting, setReporting] = useState<ProfileComment | null>(null)
   const me = profile?.openfront_id
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
 
@@ -54,7 +56,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
   const shown = showAll ? comments ?? [] : (comments ?? []).slice(0, 10)
   const canDelete = (c: ProfileComment) => isAdmin || c.author_openfront_id === me || profileId === me
   return (
-    <section className="space-y-3">
+    <section id="pinnwand" className="scroll-mt-6 space-y-3">
       <div className="text-center">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{de ? 'Pinnwand' : 'Wall'}</p>
         <h2 className="font-display text-2xl font-bold text-white md:text-3xl">
@@ -102,6 +104,11 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
                     </Link>
                     <span className="flex items-center gap-3 text-xs text-slate-500">
                       <span title={new Date(c.created_at).toLocaleString()}>{relativeTime(new Date(c.created_at).getTime(), t)}</span>
+                      {me && c.author_openfront_id !== me && (
+                        <button type="button" onClick={() => setReporting(c)} className="text-slate-500 hover:text-signal-red" aria-label={de ? 'Kommentar melden' : 'Report comment'} title={de ? 'Melden' : 'Report'}>
+                          ⚑
+                        </button>
+                      )}
                       {canDelete(c) && (
                         <button type="button" onClick={() => void remove(c.id)} className="text-slate-500 hover:text-signal-red" aria-label={de ? 'Kommentar löschen' : 'Delete comment'}>
                           ✕
@@ -116,6 +123,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
           })}
         </ul>
       )}
+      {reporting && me && <ReportDialog myId={me} target="comment" targetId={String(reporting.id)} subject={`${cleanDisplayName(names.get(reporting.author_openfront_id) ?? reporting.author_name ?? reporting.author_openfront_id)}: ${reporting.body.slice(0, 80)}`} onClose={() => setReporting(null)} />}
       {comments && comments.length > 10 && (
         <div className="flex justify-center">
           <button type="button" onClick={() => setShowAll((v) => !v)} className="btn-ghost text-sm">

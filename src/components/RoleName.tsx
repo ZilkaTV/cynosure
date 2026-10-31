@@ -4,12 +4,15 @@ import { winsRoleGradient } from '../lib/badges'
 import { cleanDisplayName } from '../lib/displayName'
 import type { MemberStats } from '../lib/stats'
 
-/** A name in the colours of the Discord wins role (50 wins bronze, 100 silver, ...): two shades slide through the letters; no role = plain. */
+/** From this many wins a few small bolts flash around the name, in the colour of the role. */
+export const BOLT_WINS = 500
+
+/** A name in the colours of the Discord wins role (50 wins bronze, 100 silver, ...): two shades slide through the letters; no role = plain. From 500 wins small bolts flash around it. */
 export function RoleName({ wins, className = '', children }: { wins: number | undefined; className?: string; children: ReactNode }) {
   const colors = wins == null ? null : winsRoleGradient(wins)
   if (!colors) return <span className={className}>{children}</span>
   return (
-    <span className={`role-name ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
+    <span className={`role-name ${wins != null && wins >= BOLT_WINS ? 'role-bolts' : ''} ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
       {children}
     </span>
   )

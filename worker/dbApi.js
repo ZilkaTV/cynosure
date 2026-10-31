@@ -53,6 +53,8 @@ const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 // The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
 const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
 const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
+// the answers a report offers (src/lib/reports.ts)
+const REPORT_REASONS = new Set(['image', 'insult', 'spam', 'impersonation', 'other'])
 /** How a picture is placed in its frame: "x,y,zoom" (x and y 0-100 percent, zoom 1-3) or empty. */
 function cleanFit(v) {
   if (v == null || v === '') return null
@@ -191,6 +193,31 @@ const RULES = {
       const m = await c.myMember()
       return m ? { sql: '(author_openfront_id = ? OR profile_id = ?)', args: [m.openfront_id, m.openfront_id] } : false
     },
+  },
+  // Reports of a profile or of a comment on a wall: any member reports (a few per hour, once per target), only admins read and close them.
+  cyn_reports: {
+    read: ADMIN,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.reporter_openfront_id !== m.openfront_id) return false
+      if (!REPORT_REASONS.has(row.reason)) throw new DbError('P0001', 'invalid_reason: unknown reason')
+      const type = row.target_type
+      const target = String(row.target_id ?? '')
+      if (type !== 'profile' && type !== 'comment') throw new DbError('P0001', 'invalid_target: unknown target')
+      if (!ID_LIKE.test(target)) throw new DbError('P0001', 'invalid_target: bad id')
+      const note = row.note == null ? null : String(row.note).trim().slice(0, 200) || null
+      if (note && BLOCKED.test(normalizeChat(note))) throw new DbError('P0001', 'blocked_content: text contains blocked language')
+      if (type === 'profile') {
+        if (target === m.openfront_id) throw new DbError('P0001', 'invalid_target: you cannot report your own profile')
+        if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(target).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      } else if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_profile_comments WHERE id = ?').bind(Number(target)).first())) throw new DbError('P0001', 'invalid_target: comment not found')
+      const dup = await c.db.prepare("SELECT 1 AS x FROM cyn_reports WHERE reporter_openfront_id = ? AND target_type = ? AND target_id = ? AND status = 'open'").bind(m.openfront_id, type, target).first()
+      if (dup) throw new DbError('P0001', 'already_reported: you have already reported this')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_reports WHERE reporter_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 3_600_000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 5) throw new DbError('P0001', 'rate_limited: too many reports, try again later')
+      return { reporter_openfront_id: m.openfront_id, target_type: type, target_id: target, reason: row.reason, note, status: 'open' }
+    },
+    update: ADMIN,
   },
   cyn_inner_circle: { read: PUBLIC },
   cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access

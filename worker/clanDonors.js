@@ -14,6 +14,7 @@ import { readSession } from './session.js'
 const KEY = 'clan-donors'
 const MAX_BODY = 200_000
 const MAX_ROWS = 100
+const MAX_RECENT = 400
 const CURRENCIES = ['soft', 'hard'] // soft = caps, hard = plutonium
 const PERIODS = ['all', 'month', 'week']
 const PLAYER_ID = /^[A-Za-z0-9_-]{1,40}$/
@@ -30,6 +31,22 @@ function cleanRow(r) {
   if (!Number.isInteger(donations) || donations < 0 || donations > 1_000_000) return null
   const username = typeof r.username === 'string' ? r.username.slice(0, 60) : null
   return { playerId: r.playerId, username, total, donations }
+}
+
+/** The newest single donations (for the daily / weekly / monthly quests): { playerId, currency, amount, at }. Empty list when the sender has none. */
+export function cleanRecent(input) {
+  if (input == null) return { recent: [] }
+  if (!Array.isArray(input) || input.length > MAX_RECENT) return { error: 'bad recent list' }
+  const recent = []
+  for (const r of input) {
+    if (!r || typeof r.playerId !== 'string' || !PLAYER_ID.test(r.playerId)) return { error: 'bad recent row' }
+    const currency = r.currency === 'soft' || r.currency === 'hard' ? r.currency : null
+    const amount = typeof r.amount === 'number' ? String(Math.trunc(r.amount)) : r.amount
+    const at = typeof r.at === 'string' ? Date.parse(r.at) : NaN
+    if (!currency || typeof amount !== 'string' || !/^\d{1,18}$/.test(amount) || !Number.isFinite(at)) return { error: 'bad recent row' }
+    recent.push({ playerId: r.playerId, currency, amount, at: new Date(at).toISOString() })
+  }
+  return { recent: recent.sort((a, b) => (a.at < b.at ? 1 : -1)) }
 }
 
 /** The submitted ranking as a clean document, or a message saying what is wrong. */
@@ -85,8 +102,10 @@ export async function handleClanDonors(request, env) {
   }
   const cleaned = cleanBoards(body?.boards)
   if (cleaned.error) return json(400, { error: 'bad_boards', message: cleaned.error })
+  const cleanedRecent = cleanRecent(body?.recent)
+  if (cleanedRecent.error) return json(400, { error: 'bad_recent', message: cleanedRecent.error })
   const member = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()
-  const doc = { boards: cleaned.boards, updated_at: new Date().toISOString(), by: member?.openfront_id ?? null }
+  const doc = { boards: cleaned.boards, recent: cleanedRecent.recent, updated_at: new Date().toISOString(), by: member?.openfront_id ?? null }
   const text = JSON.stringify(doc)
   if (text.length > MAX_BODY) return json(413, { error: 'too_large' })
   await env.HOT_DB.prepare('INSERT INTO blobs (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at').bind(KEY, text, doc.updated_at).run()

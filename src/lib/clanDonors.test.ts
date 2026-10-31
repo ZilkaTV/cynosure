@@ -11,15 +11,15 @@ const boards = () => {
 describe('parseDonorExport', () => {
   it('reads what the userscript sends, as an object or as text', () => {
     const parsed = parseDonorExport({ boards: boards() })
-    expect(parsed?.soft.all.map((d) => d.playerId)).toEqual(['AAAA1111', 'BBBB2222'])
-    expect(parsed?.hard.week[1].rank).toBe(2)
-    expect(parseDonorExport(JSON.stringify({ boards: boards() }))?.soft.month).toHaveLength(2)
+    expect(parsed?.boards.soft.all.map((d) => d.playerId)).toEqual(['AAAA1111', 'BBBB2222'])
+    expect(parsed?.boards.hard.week[1].rank).toBe(2)
+    expect(parseDonorExport(JSON.stringify({ boards: boards() }))?.boards.soft.month).toHaveLength(2)
   })
 
   it('takes amounts too big for a Number as text', () => {
     const b = boards()
     b.soft.all = [row('AAAA1111', '123456789012345678')]
-    expect(parseDonorExport({ boards: b })?.soft.all[0].total).toBe('123456789012345678')
+    expect(parseDonorExport({ boards: b })?.boards.soft.all[0].total).toBe('123456789012345678')
   })
 
   it('refuses text that is not the export', () => {

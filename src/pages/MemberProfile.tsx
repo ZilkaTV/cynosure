@@ -14,6 +14,7 @@ import { computeBadges } from '../lib/badges'
 import ProfileHeader from '../components/ProfileHeader'
 import ProfileWall from '../components/ProfileWall'
 import { useProfileExtras } from '../lib/profileExtras'
+import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
 import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
 import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
@@ -62,6 +63,7 @@ export default function MemberProfile() {
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
+  const donors = useClanDonors()
   // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
   useEffect(() => {
     if (window.location.hash !== '#saved') return
@@ -240,7 +242,7 @@ export default function MemberProfile() {
             </label>
           </div>
         </div>
-        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} showLocked={showLocked} />
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), de: language === 'de' })} showLocked={showLocked} />
       </section>
 
       <section>

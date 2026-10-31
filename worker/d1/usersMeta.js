@@ -495,5 +495,24 @@ export const USERS_META = {
       "body",
       "created_at"
     ]
+  },
+  "cyn_reports": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "reporter_openfront_id",
+      "target_type",
+      "target_id",
+      "reason",
+      "note",
+      "status",
+      "created_at",
+      "handled_by",
+      "handled_at"
+    ]
   }
 }

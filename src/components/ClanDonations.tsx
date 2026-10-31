@@ -13,7 +13,7 @@ import {
   type ClanTreasury,
   type Currency,
   type Donor,
-  type DonorBoards,
+  type DonorExport,
   type Period,
 } from '../lib/clanDonors'
 import { RankMedal } from './Emoji'
@@ -79,7 +79,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 function ImportPanel({ onSaved }: { onSaved: () => void }) {
   const { language } = useLanguage()
   const de = language === 'de'
-  const [pending, setPending] = useState<DonorBoards | null>(null)
+  const [pending, setPending] = useState<DonorExport | null>(null)
   const [paste, setPaste] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -127,7 +127,7 @@ function ImportPanel({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  const count = pending ? pending.soft.all.length + pending.hard.all.length : 0
+  const count = pending ? pending.boards.soft.all.length + pending.boards.hard.all.length : 0
   return (
     <details open={autoOpen} className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
       <summary className="cursor-pointer font-semibold text-gold-light">{de ? 'Admin: Spender aktualisieren' : 'Admin: update the donors'}</summary>
@@ -154,7 +154,7 @@ function ImportPanel({ onSaved }: { onSaved: () => void }) {
       {pending && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <span className="text-slate-200">
-            {de ? `Bereit: ${count} Spender-Einträge (Gesamt, Caps und Plutonium).` : `Ready: ${count} donor entries (all time, caps and plutonium).`}
+            {de ? `Bereit: ${count} Spender-Einträge (Gesamt, Caps und Plutonium) und ${pending?.recent.length ?? 0} einzelne Spenden.` : `Ready: ${count} donor entries (all time, caps and plutonium) and ${pending?.recent.length ?? 0} single donations.`}
           </span>
           <button type="button" onClick={save} disabled={saving} className="btn-accent !px-5 !py-1.5 text-sm disabled:opacity-50">
             {saving ? '…' : de ? 'Speichern' : 'Save'}

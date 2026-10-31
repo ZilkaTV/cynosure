@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cynosure clan donors
 // @namespace    https://cynclan.com
-// @version      1.0.0
+// @version      1.1.0
 // @description  Sends the donors of your clan (caps and plutonium, all time / 30 days / 7 days) from OpenFront to cynclan.com. For admins of the site who are in the clan.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -67,6 +67,26 @@
     })
   }
 
+  // The newest single donations (both currencies), for the daily / weekly / monthly donation quests.
+  function recent() {
+    var rows = []
+    function page(n) {
+      var url = API + '/clans/' + TAG + '/donations?page=' + n + '&limit=50'
+      return realFetch(url, { headers: { Accept: 'application/json', Authorization: auth } }).then(function (res) {
+        if (!res.ok) return rows // the ranking above is the main thing; a missing list only switches the donation quests off
+        return res.json().then(function (j) {
+          var list = j.results || []
+          list.forEach(function (r) {
+            if (r.createdBy && r.createdAt) rows.push({ playerId: r.createdBy, currency: r.currencyType, amount: String(r.amount), at: r.createdAt })
+          })
+          if (list.length < 50 || rows.length >= 400 || n >= 8) return rows
+          return page(n + 1)
+        })
+      })
+    }
+    return page(1)
+  }
+
   function collect() {
     var data = { soft: {}, hard: {} }
     var jobs = []
@@ -79,15 +99,18 @@
         })
       })
     })
-    return jobs.reduce(function (chain, job) {
-      return chain.then(job)
-    }, Promise.resolve()).then(function () {
-      return data
-    })
+    return jobs
+      .reduce(function (chain, job) {
+        return chain.then(job)
+      }, Promise.resolve())
+      .then(recent)
+      .then(function (rows) {
+        return { boards: data, recent: rows }
+      })
   }
 
-  function send(boards, button, say) {
-    var payload = { type: 'cyn-donors', boards: boards }
+  function send(result, button, say) {
+    var payload = { type: 'cyn-donors', boards: result.boards, recent: result.recent }
     var w = window.open(SITE + '/clan?import=donors', 'cyn-donors')
     // The import page says when it is ready; answer only the real site, and only to the window this script opened.
     function onMessage(e) {
@@ -99,7 +122,7 @@
     window.addEventListener('message', onMessage)
     // Fallback: the same data as text, to paste into the import panel.
     try {
-      navigator.clipboard.writeText(JSON.stringify({ boards: boards })).catch(function () {})
+      navigator.clipboard.writeText(JSON.stringify({ boards: result.boards, recent: result.recent })).catch(function () {})
     } catch (e) {
       /* no clipboard access */
     }
@@ -130,8 +153,8 @@
       button.disabled = true
       say('Reading the donors from OpenFront …')
       collect().then(
-        function (boards) {
-          send(boards, button, say)
+        function (result) {
+          send(result, button, say)
         },
         function (err) {
           say(String((err && err.message) || err))

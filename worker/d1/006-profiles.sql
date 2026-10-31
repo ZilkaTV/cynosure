@@ -3,6 +3,9 @@
 ALTER TABLE cyn_members ADD COLUMN avatar_url TEXT;
 ALTER TABLE cyn_members ADD COLUMN banner_url TEXT;
 ALTER TABLE cyn_members ADD COLUMN bio TEXT;
+-- how the pictures are placed: "x,y,zoom" (x and y 0-100 percent, zoom 1-3), set by the owner with the mouse on the page
+ALTER TABLE cyn_members ADD COLUMN avatar_fit TEXT;
+ALTER TABLE cyn_members ADD COLUMN banner_fit TEXT;
 
 CREATE TABLE IF NOT EXISTS cyn_profile_likes (
   profile_id TEXT NOT NULL,

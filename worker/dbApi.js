@@ -53,6 +53,14 @@ const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 // The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
 const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
 const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
+/** How a picture is placed in its frame: "x,y,zoom" (x and y 0-100 percent, zoom 1-3) or empty. */
+function cleanFit(v) {
+  if (v == null || v === '') return null
+  const m = /^(\d{1,3}(?:\.\d{1,2})?),(\d{1,3}(?:\.\d{1,2})?),(\d(?:\.\d{1,2})?)$/.exec(String(v))
+  if (!m || Number(m[1]) > 100 || Number(m[2]) > 100 || Number(m[3]) < 1 || Number(m[3]) > 3) throw new DbError('P0001', 'invalid_fit: bad picture placement')
+  return `${m[1]},${m[2]},${m[3]}`
+}
+
 /** The "about me" text of a profile: empty (null) or up to 300 characters without blocked language. */
 function cleanBio(v) {
   if (v == null) return null
@@ -273,8 +281,11 @@ function sqlValue(v) {
   return v
 }
 
+// Profile extras (worker/d1/006-profiles.sql): only returned when asked for by name, so "*" keeps working on a database that does not have them yet.
+const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit'])
+
 function colList(meta, wanted) {
-  if (!wanted || wanted === '*') return meta.cols
+  if (!wanted || wanted === '*') return meta.cols.filter((c) => !OPTIONAL_COLS.has(c))
   const cols = wanted.split(',').map((s) => s.trim()).filter(Boolean)
   for (const c of cols) if (!meta.cols.includes(c)) throw new DbError('42703', `column ${c} does not exist`)
   return cols
@@ -417,6 +428,8 @@ async function runWrite(c, q, meta, rules) {
         delete row.avatar_url
         delete row.banner_url
         if ('bio' in row) row.bio = cleanBio(row.bio)
+        delete row.avatar_fit
+        delete row.banner_fit
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -493,6 +506,8 @@ async function runWrite(c, q, meta, rules) {
       delete patch.avatar_url
       delete patch.banner_url
       if ('bio' in patch) patch.bio = cleanBio(patch.bio)
+      if ('avatar_fit' in patch) patch.avatar_fit = cleanFit(patch.avatar_fit)
+      if ('banner_fit' in patch) patch.banner_fit = cleanFit(patch.banner_fit)
       patch.discord_user_id = c.user.id
     }
     if (meta.cols.includes('updated_at') && patch.updated_at === undefined) patch.updated_at = nowIso()

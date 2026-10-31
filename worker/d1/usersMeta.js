@@ -21,7 +21,9 @@ export const USERS_META = {
       "claimed",
       "avatar_url",
       "banner_url",
-      "bio"
+      "bio",
+      "avatar_fit",
+      "banner_fit"
     ]
   },
   "cyn_speedruns": {

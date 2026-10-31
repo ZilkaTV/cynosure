@@ -9,7 +9,27 @@ export interface ProfileExtras {
   avatar_url: string | null
   banner_url: string | null
   bio: string | null
+  avatar_fit: string | null
+  banner_fit: string | null
 }
+
+/** How a picture sits in its frame: x / y = how much of the overflow is cut off left / top (0-100 %), zoom 1 = the picture just covers the frame. */
+export interface Fit {
+  x: number
+  y: number
+  zoom: number
+}
+export const DEFAULT_FIT: Fit = { x: 50, y: 50, zoom: 1 }
+export const MAX_ZOOM = 3
+
+/** The stored text "x,y,zoom" as numbers (null when there is none or it is not valid). */
+export function parseFit(text: string | null | undefined): Fit | null {
+  const m = /^(\d{1,3}(?:\.\d{1,2})?),(\d{1,3}(?:\.\d{1,2})?),(\d(?:\.\d{1,2})?)$/.exec(text ?? '')
+  if (!m) return null
+  const f = { x: Number(m[1]), y: Number(m[2]), zoom: Number(m[3]) }
+  return f.x <= 100 && f.y <= 100 && f.zoom >= 1 && f.zoom <= MAX_ZOOM ? f : null
+}
+export const fitToString = (f: Fit) => `${Math.round(f.x * 10) / 10},${Math.round(f.y * 10) / 10},${Math.round(f.zoom * 100) / 100}`
 
 export interface ProfileComment {
   id: number
@@ -32,20 +52,20 @@ export function profileImageSrc(url: string | null | undefined): string | null {
 }
 
 export async function fetchProfileExtras(id: string): Promise<ProfileExtras | null> {
-  const { data, error } = await db.from('cyn_members').select('avatar_url, banner_url, bio').eq('openfront_id', id).maybeSingle()
+  const { data, error } = await db.from('cyn_members').select('avatar_url, banner_url, bio, avatar_fit, banner_fit').eq('openfront_id', id).maybeSingle()
   if (error) return null
-  return (data as ProfileExtras | null) ?? { avatar_url: null, banner_url: null, bio: null }
+  return (data as ProfileExtras | null) ?? { avatar_url: null, banner_url: null, bio: null, avatar_fit: null, banner_fit: null }
 }
 
 /** The icons of several members at once (comment authors). */
-export async function fetchAvatars(ids: string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {}
+export async function fetchAvatars(ids: string[]): Promise<Record<string, { src: string; fit: Fit | null }>> {
+  const out: Record<string, { src: string; fit: Fit | null }> = {}
   for (let i = 0; i < ids.length; i += 80) {
-    const { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url').in('openfront_id', ids.slice(i, i + 80))
+    const { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit').in('openfront_id', ids.slice(i, i + 80))
     if (error || !data) continue
-    for (const r of data as { openfront_id: string; avatar_url: string | null }[]) {
+    for (const r of data as { openfront_id: string; avatar_url: string | null; avatar_fit: string | null }[]) {
       const src = profileImageSrc(r.avatar_url)
-      if (src) out[r.openfront_id] = src
+      if (src) out[r.openfront_id] = { src, fit: parseFit(r.avatar_fit) }
     }
   }
   return out
@@ -90,6 +110,16 @@ export async function deleteProfileComment(id: number): Promise<boolean> {
 
 export async function saveBio(myId: string, text: string): Promise<string | null> {
   const { error } = await db.from('cyn_members').update({ bio: text.trim() === '' ? null : text.trim() }).eq('openfront_id', myId)
+  return error ? error.message.replace(/^[a-z_]+: /, '') : null
+}
+
+/** Saves how the icon and / or the banner are placed (only what is given). */
+export async function saveFits(myId: string, fits: { avatar?: Fit; banner?: Fit }): Promise<string | null> {
+  const patch: Record<string, string> = {}
+  if (fits.avatar) patch.avatar_fit = fitToString(fits.avatar)
+  if (fits.banner) patch.banner_fit = fitToString(fits.banner)
+  if (Object.keys(patch).length === 0) return null
+  const { error } = await db.from('cyn_members').update(patch).eq('openfront_id', myId)
   return error ? error.message.replace(/^[a-z_]+: /, '') : null
 }
 

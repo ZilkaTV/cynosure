@@ -5,7 +5,8 @@ import { useProfile } from '../lib/useProfile'
 import { useSharedRoster } from '../lib/access'
 import { useIsAdmin } from '../lib/useSession'
 import { cleanDisplayName } from '../lib/displayName'
-import { MAX_COMMENT, deleteProfileComment, fetchAvatars, fetchProfileComments, postProfileComment, type ProfileComment } from '../lib/profileExtras'
+import { MAX_COMMENT, deleteProfileComment, fetchAvatars, fetchProfileComments, postProfileComment, type Fit, type ProfileComment } from '../lib/profileExtras'
+import FitImage from './FitImage'
 import { relativeTime } from './ui'
 
 /** The comment wall of a profile (flat, newest first, like on a Steam profile). Members write; the author, the profile's owner and admins delete. */
@@ -16,7 +17,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
   const isAdmin = useIsAdmin()
   const roster = useSharedRoster()
   const [comments, setComments] = useState<ProfileComment[] | null>(null)
-  const [avatars, setAvatars] = useState<Record<string, string>>({})
+  const [avatars, setAvatars] = useState<Record<string, { src: string; fit: Fit | null }>>({})
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -92,7 +93,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
             return (
               <li key={c.id} className="flex gap-3 rounded-xl border border-base-700 bg-base-850/50 px-3 py-3">
                 <Link to={`/member/${c.author_openfront_id}`} className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">
-                  {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/40 to-base-800 font-display text-lg font-bold text-white">{name.slice(0, 1).toUpperCase()}</span>}
+                  {avatar ? <FitImage src={avatar.src} fit={avatar.fit} /> : <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/40 to-base-800 font-display text-lg font-bold text-white">{name.slice(0, 1).toUpperCase()}</span>}
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">

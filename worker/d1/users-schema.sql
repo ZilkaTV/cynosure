@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS cyn_members (
   claimed INTEGER NOT NULL DEFAULT 1,
   avatar_url TEXT,
   banner_url TEXT,
-  bio TEXT
+  bio TEXT,
+  avatar_fit TEXT,
+  banner_fit TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cyn_speedruns (

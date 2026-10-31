@@ -8,15 +8,21 @@ import { cleanDisplayName } from '../lib/displayName'
 import { splitAccountUsername } from '../lib/openfront'
 import type { MemberStats } from '../lib/stats'
 import {
+  DEFAULT_FIT,
   MAX_BIO,
+  MAX_ZOOM,
   fetchProfileLikes,
+  parseFit,
   profileImageSrc,
   removeProfileMedia,
   saveBio,
+  saveFits,
   setProfileLike,
   uploadProfileImage,
+  type Fit,
   type ProfileExtras,
 } from '../lib/profileExtras'
+import FitImage from './FitImage'
 import { Flag } from './Emoji'
 import { RoleName } from './RoleName'
 
@@ -82,8 +88,22 @@ function LikeButton({ profileId, isOwn, names }: { profileId: string; isOwn: boo
   )
 }
 
+/** A slider for the zoom of a picture, with a reset. */
+function ZoomRow({ label, value, onChange, onReset, de }: { label: string; value: number; onChange: (zoom: number) => void; onReset: () => void; de: boolean }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-slate-400">
+      <span className="w-12 shrink-0">{label}</span>
+      <input type="range" min={1} max={MAX_ZOOM} step={0.05} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-1.5 flex-1 cursor-pointer accent-[#8b5cf6]" aria-label={label} />
+      <span className="w-10 shrink-0 text-right tabular-nums">{value.toFixed(2)}×</span>
+      <button type="button" onClick={onReset} className="shrink-0 rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-base-800 hover:text-white" title={de ? 'Zurücksetzen' : 'Reset'}>
+        ↺
+      </button>
+    </div>
+  )
+}
+
 /** The panel where the owner sets icon, banner and the about-me text. */
-function ProfileEditor({ m, extras, onChanged, onClose }: { m: MemberStats; extras: ProfileExtras | null; onChanged: () => void; onClose: () => void }) {
+function ProfileEditor({ m, extras, fits, onFits, onChanged, onClose }: { m: MemberStats; extras: ProfileExtras | null; fits: { avatar: Fit; banner: Fit }; onFits: (f: { avatar: Fit; banner: Fit }) => void; onChanged: () => void; onClose: () => void }) {
   const { language } = useLanguage()
   const de = language === 'de'
   const [bio, setBio] = useState(extras?.bio ?? '')
@@ -112,6 +132,21 @@ function ProfileEditor({ m, extras, onChanged, onClose }: { m: MemberStats; extr
     setMessage(ok ? (de ? 'Entfernt.' : 'Removed.') : de ? 'Entfernen fehlgeschlagen.' : 'Removing failed.')
     if (ok) onChanged()
   }
+  const savedAvatar = parseFit(extras?.avatar_fit) ?? DEFAULT_FIT
+  const savedBanner = parseFit(extras?.banner_fit) ?? DEFAULT_FIT
+  const moved = (a: Fit, b: Fit) => a.x !== b.x || a.y !== b.y || a.zoom !== b.zoom
+  const fitChanged = moved(fits.avatar, savedAvatar) || moved(fits.banner, savedBanner)
+  async function saveFit() {
+    setBusy('fit')
+    setMessage(null)
+    const problem = await saveFits(m.publicId, {
+      ...(avatar && moved(fits.avatar, savedAvatar) ? { avatar: fits.avatar } : {}),
+      ...(banner && moved(fits.banner, savedBanner) ? { banner: fits.banner } : {}),
+    })
+    setBusy(null)
+    setMessage(problem ?? (de ? 'Ausschnitt gespeichert.' : 'Placement saved.'))
+    if (!problem) onChanged()
+  }
   async function saveText() {
     setBusy('bio')
     setMessage(null)
@@ -133,7 +168,7 @@ function ProfileEditor({ m, extras, onChanged, onClose }: { m: MemberStats; extr
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Icon (max. 2 MB, auch GIF)' : 'Icon (max 2 MB, GIFs too)'}</p>
           <div className="flex items-center gap-3">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-base-600 bg-base-800">{avatar && <img src={avatar} alt="" className="h-full w-full object-cover" />}</div>
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-base-600 bg-base-800">{avatar && <FitImage src={avatar} fit={fits.avatar} />}</div>
             <div className="flex flex-wrap gap-2">
               <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => void pick('avatar', e.target.files?.[0])} />
               <button type="button" className={btn} disabled={busy !== null} onClick={() => avatarInput.current?.click()}>
@@ -146,11 +181,12 @@ function ProfileEditor({ m, extras, onChanged, onClose }: { m: MemberStats; extr
               )}
             </div>
           </div>
+          {avatar && <ZoomRow label={de ? 'Größe' : 'Size'} value={fits.avatar.zoom} onChange={(zoom) => onFits({ ...fits, avatar: { ...fits.avatar, zoom } })} onReset={() => onFits({ ...fits, avatar: DEFAULT_FIT })} de={de} />}
         </div>
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Banner (max. 5 MB, auch GIF)' : 'Banner (max 5 MB, GIFs too)'}</p>
           <div className="flex items-center gap-3">
-            <div className="h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">{banner && <img src={banner} alt="" className="h-full w-full object-cover" />}</div>
+            <div className="h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">{banner && <FitImage src={banner} fit={fits.banner} />}</div>
             <div className="flex flex-wrap gap-2">
               <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => void pick('banner', e.target.files?.[0])} />
               <button type="button" className={btn} disabled={busy !== null} onClick={() => bannerInput.current?.click()}>
@@ -163,8 +199,17 @@ function ProfileEditor({ m, extras, onChanged, onClose }: { m: MemberStats; extr
               )}
             </div>
           </div>
+          {banner && <ZoomRow label={de ? 'Größe' : 'Size'} value={fits.banner.zoom} onChange={(zoom) => onFits({ ...fits, banner: { ...fits.banner, zoom } })} onReset={() => onFits({ ...fits, banner: DEFAULT_FIT })} de={de} />}
         </div>
       </div>
+      {(avatar || banner) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-700 bg-base-850/50 px-3 py-2">
+          <span className="text-xs text-slate-400">{de ? 'Tipp: Ziehe Icon und Banner oben direkt mit der Maus (oder dem Finger), um den Ausschnitt zu verschieben. Mit „Größe“ zoomst du hinein.' : 'Tip: drag the icon and the banner above with the mouse (or a finger) to move the picture. Use “Size” to zoom in.'}</span>
+          <button type="button" className="btn-accent !px-4 !py-1.5 text-xs disabled:opacity-50" disabled={busy !== null || !fitChanged} onClick={() => void saveFit()}>
+            {busy === 'fit' ? '…' : de ? 'Ausschnitt speichern' : 'Save placement'}
+          </button>
+        </div>
+      )}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Über mich' : 'About me'}</p>
         <textarea
@@ -201,10 +246,15 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
   const roster = useSharedRoster()
   const [editing, setEditing] = useState(false)
   const [modMessage, setModMessage] = useState<string | null>(null)
+  // placement while the owner edits (dragging and zoom show at once, saved with the button)
+  const [draft, setDraft] = useState<{ avatar: Fit; banner: Fit } | null>(null)
   const names = useMemo(() => new Map((roster?.members ?? []).map((x) => [x.publicId, x.name] as const)), [roster])
   const banner = profileImageSrc(extras?.banner_url)
   const avatar = profileImageSrc(extras?.avatar_url)
   const level = xpProgress(m.xp ?? 0).level
+  const savedFits = { avatar: parseFit(extras?.avatar_fit) ?? DEFAULT_FIT, banner: parseFit(extras?.banner_fit) ?? DEFAULT_FIT }
+  const editingNow = isOwn && editing
+  const fits = editingNow && draft ? draft : savedFits
   const name = cleanDisplayName(m.name)
 
   async function moderate(kind: 'avatar' | 'banner' | 'bio') {
@@ -217,13 +267,13 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl border border-base-700 bg-base-900/70">
         <div className="relative h-36 sm:h-56">
-          {banner ? <img src={banner} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
+          {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
         </div>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 pb-4 sm:px-6">
           <div className="-mt-14 h-24 w-24 shrink-0 overflow-hidden rounded-2xl border-4 border-base-900 bg-base-800 shadow-xl sm:-mt-16 sm:h-32 sm:w-32">
             {avatar ? (
-              <img src={avatar} alt={name} className="h-full w-full object-cover" />
+              <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{name.slice(0, 1).toUpperCase()}</div>
             )}
@@ -264,7 +314,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
           <div className="flex flex-col items-end gap-2 pt-3">
             <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
             {isOwn && (
-              <button type="button" onClick={() => setEditing((v) => !v)} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+              <button type="button" onClick={() => { setDraft(null); setEditing((v) => !v) }} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
                 {editing ? (de ? 'Fertig' : 'Done') : de ? 'Profil bearbeiten' : 'Edit profile'}
               </button>
             )}
@@ -278,7 +328,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
         )}
       </div>
 
-      {isOwn && editing && <ProfileEditor m={m} extras={extras} onChanged={reloadExtras} onClose={() => setEditing(false)} />}
+      {isOwn && editing && <ProfileEditor m={m} extras={extras} fits={fits} onFits={setDraft} onChanged={() => { setDraft(null); reloadExtras() }} onClose={() => { setDraft(null); setEditing(false) }} />}
 
       {!isOwn && viewerIsAdmin && (avatar || banner || extras?.bio) && (
         <div className="flex flex-wrap items-center justify-center gap-2 text-xs">

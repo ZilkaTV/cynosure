@@ -12,6 +12,8 @@ import { sniffImage } from './screenshots.js'
 
 const MAX_BYTES = { avatar: 2 * 1024 * 1024, banner: 5 * 1024 * 1024 }
 const COLUMN = { avatar: 'avatar_url', banner: 'banner_url', bio: 'bio' }
+// a new (or removed) picture starts without the placement of the old one
+const FIT = { avatar: 'avatar_fit', banner: 'banner_fit' }
 const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }
 const OWN_URL = /^\/api\/screenshots\/(profiles\/[A-Za-z0-9_.-]{1,120})$/
 const PROFILE_ID = /^[A-Za-z0-9_-]{4,40}$/
@@ -54,7 +56,7 @@ export async function handleProfileMedia(request, env) {
       target = other
     }
     const row = await env.DB.prepare(`SELECT ${COLUMN[kind]} AS v FROM cyn_members WHERE openfront_id = ?`).bind(target).first()
-    await env.DB.prepare(`UPDATE cyn_members SET ${COLUMN[kind]} = NULL WHERE openfront_id = ?`).bind(target).run()
+    await env.DB.prepare(`UPDATE cyn_members SET ${COLUMN[kind]} = NULL${FIT[kind] ? `, ${FIT[kind]} = NULL` : ''} WHERE openfront_id = ?`).bind(target).run()
     if (kind !== 'bio') await dropFile(env, row?.v)
     return json(200, { ok: true })
   }
@@ -78,7 +80,7 @@ export async function handleProfileMedia(request, env) {
   const old = await env.DB.prepare(`SELECT ${COLUMN[kind]} AS v FROM cyn_members WHERE openfront_id = ?`).bind(me.openfront_id).first()
   await env.SCREENSHOTS.put(key, bytes, { httpMetadata: { contentType: MIME[ext] } })
   const url = `/api/screenshots/${key}`
-  await env.DB.prepare(`UPDATE cyn_members SET ${COLUMN[kind]} = ? WHERE openfront_id = ?`).bind(url, me.openfront_id).run()
+  await env.DB.prepare(`UPDATE cyn_members SET ${COLUMN[kind]} = ?, ${FIT[kind]} = NULL WHERE openfront_id = ?`).bind(url, me.openfront_id).run()
   await dropFile(env, old?.v)
   return json(200, { url })
 }

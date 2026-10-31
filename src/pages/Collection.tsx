@@ -233,9 +233,20 @@ export default function Collection() {
               </p>
               <p className="text-xs text-slate-500">{de ? `Bisher geöffnet: ${collection?.openedTotal ?? 0}.` : `Opened so far: ${collection?.openedTotal ?? 0}.`}</p>
             </div>
-            <button type="button" onClick={() => void open()} disabled={busy || !canOpen} className={`btn-accent !px-7 text-sm disabled:opacity-50 ${canOpen && !busy ? 'glow-ready' : ''}`}>
-              {busy ? '…' : de ? 'Booster öffnen' : 'Open a booster'}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => void open()} disabled={busy || !canOpen} className={`btn-accent !px-7 text-sm disabled:opacity-50 ${canOpen && !busy ? 'glow-ready' : ''}`}>
+                {busy ? '…' : de ? 'Booster öffnen' : 'Open a booster'}
+              </button>
+              <a
+                href={`${DONATE_URL}/1EUR`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={de ? 'Öffnet PayPal: 1 € pro Booster, die Anleitung steht weiter unten' : 'Opens PayPal: 1 € per booster, the steps are below'}
+                className="btn-gold !px-7 text-sm"
+              >
+                {de ? 'Booster kaufen' : 'Buy a booster'} ↗
+              </a>
+            </div>
             {message && <p className="text-sm text-slate-300">{message}</p>}
             <p className="text-xs text-slate-500">{de ? 'Die tägliche Quest „Booster-Zeit“ gibt XP, wenn du einen Booster öffnest.' : 'The daily quest "Booster Time" gives XP when you open a booster.'}</p>
             <div className="rounded-xl border border-base-600 bg-base-850/60 p-3 text-xs text-slate-400">

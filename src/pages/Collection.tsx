@@ -7,18 +7,21 @@ import { useLanguage } from '../i18n/LanguageContext'
 import {
   RARITIES,
   RARITY_INFO,
-  fetchBoosterState,
+  boostersReady,
   fetchCollection,
   grantBoosters,
   openBooster,
-  type BoosterState,
+  refreshBoosterState,
+  setBoosterState,
+  useBoosterState,
   type CollectedCard,
   type PulledCard,
   type Rarity,
 } from '../lib/boosters'
 import { RARITY_LOOK } from '../lib/drawPlayerCard'
 import type { PlayerCardData } from '../lib/playerCard'
-import { fetchAvatars, type Fit } from '../lib/profileExtras'
+import { EXTRAS_CHANGED, fetchAvatars, type Fit } from '../lib/profileExtras'
+import { QUESTS_CHANGED } from '../lib/notifications'
 import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
 import { useIsAdmin } from '../lib/useSession'
@@ -100,7 +103,7 @@ export default function Collection() {
   const isAdmin = useIsAdmin()
   const { cards, loading } = useCardData()
   const [collection, setCollection] = useState<{ openedTotal: number; cards: CollectedCard[] } | null | undefined>(undefined)
-  const [state, setState] = useState<BoosterState | null>(null)
+  const state = useBoosterState()
   const [avatars, setAvatars] = useState<Avatars>({})
   const [opened, setOpened] = useState<PulledCard[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -114,7 +117,7 @@ export default function Collection() {
   const reload = useCallback(async () => {
     if (!id) return
     setCollection(await fetchCollection(id))
-    if (isOwn) setState(await fetchBoosterState())
+    if (isOwn) await refreshBoosterState()
   }, [id, isOwn])
   useEffect(() => {
     setCollection(undefined)
@@ -124,10 +127,12 @@ export default function Collection() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-  // the free booster comes back at midnight (Berlin): ask again when the time is up
+  // a new profile picture shows on the cards at once
   useEffect(() => {
-    if (state?.nextFreeAt && now >= Date.parse(state.nextFreeAt)) void fetchBoosterState().then(setState)
-  }, [state, now])
+    const on = () => setAvatars({})
+    window.addEventListener(EXTRAS_CHANGED, on)
+    return () => window.removeEventListener(EXTRAS_CHANGED, on)
+  }, [])
 
   // the pictures of the members whose cards are shown (the collection and a booster that was just opened)
   const wanted = useMemo(() => [...new Set([...(collection?.cards ?? []).map((c) => c.card_id), ...(opened ?? []).map((c) => c.card_id)])].filter((x) => !avatars[x]), [collection, opened, avatars])
@@ -154,7 +159,8 @@ export default function Collection() {
       void reload()
       return
     }
-    setState(r.state)
+    setBoosterState(r.state)
+    window.dispatchEvent(new Event(QUESTS_CHANGED)) // the daily quest may be claimable now
     setOpened(r.cards)
   }
   async function grant() {
@@ -171,7 +177,7 @@ export default function Collection() {
     .filter((c) => cards.has(c.card_id))
     .sort((a, b) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity) || (cards.get(b.card_id)?.overall ?? 0) - (cards.get(a.card_id)?.overall ?? 0))
   const shown = showAll ? list : list.slice(0, TILES_SHOWN)
-  const canOpen = !!state && (state.freeAvailable || state.extra > 0)
+  const canOpen = boostersReady(state) > 0
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -200,7 +206,7 @@ export default function Collection() {
               </p>
               <p className="text-xs text-slate-500">{de ? `Bisher geöffnet: ${collection?.openedTotal ?? 0}. Mehr Booster gibt es bei besonderen Aktionen.` : `Opened so far: ${collection?.openedTotal ?? 0}. More boosters come with special occasions.`}</p>
             </div>
-            <button type="button" onClick={() => void open()} disabled={busy || !canOpen} className="btn-accent !px-7 text-sm disabled:opacity-50">
+            <button type="button" onClick={() => void open()} disabled={busy || !canOpen} className={`btn-accent !px-7 text-sm disabled:opacity-50 ${canOpen && !busy ? 'glow-ready' : ''}`}>
               {busy ? '…' : de ? 'Booster öffnen' : 'Open a booster'}
             </button>
             {message && <p className="text-sm text-slate-300">{message}</p>}

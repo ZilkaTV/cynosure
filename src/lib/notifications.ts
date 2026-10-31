@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { supabase as db } from './supabase'
 import { useProfile } from './useProfile'
 import { useSharedRoster } from './access'
@@ -6,6 +6,7 @@ import { useIsAdmin } from './useSession'
 import { QUESTS, fetchClaimsToday, periodKey, questPeriod } from './quests'
 import { fetchReactedToday } from './reactions'
 import { donationTotals, useClanDonors } from './clanDonors'
+import { currentBoosterState } from './boosters'
 
 // The notification bell (like on Facebook): who reacted to my games, who commented under them or answered my comments, who liked my profile
 // or wrote on its wall, quests that can be collected, and (for admins) open reports. Nothing is stored for it: it reads the existing tables
@@ -139,6 +140,26 @@ export async function fetchNotices(me: string, myGameIds: string[], isAdmin: boo
   return out.sort((a, b) => (b.at ?? Infinity) - (a.at ?? Infinity)).slice(0, 60)
 }
 
+// How many quests can be claimed right now: the "Quests" entry of the menu glows by it.
+let questsReady = 0
+const questListeners = new Set<() => void>()
+function publishQuestsReady(n: number) {
+  if (n === questsReady) return
+  questsReady = n
+  questListeners.forEach((l) => l())
+}
+export function useQuestsReady(): number {
+  return useSyncExternalStore(
+    (cb) => {
+      questListeners.add(cb)
+      return () => questListeners.delete(cb)
+    },
+    () => questsReady,
+  )
+}
+/** Something changed that can make a quest claimable (a booster was opened) or claimed: the list is looked at again. */
+export const QUESTS_CHANGED = 'cyn:quests-changed'
+
 /** The notices of the signed-in member, reloaded every few minutes while the page is open, with the unread count. */
 export function useNotifications() {
   const { profile } = useProfile()
@@ -170,9 +191,11 @@ export function useNotifications() {
     lastLoad.current = Date.now()
     setNotices(await fetchNotices(me, gameKey ? gameKey.split(',') : [], isAdmin))
     if (member && roster) {
-      const [claims, reacted] = await Promise.all([fetchClaimsToday(me), fetchReactedToday(me)])
-      const ctx = { reactedToday: reacted, donated: donationTotals(donors, me) }
-      setClaimable(QUESTS.filter((q) => q.check(member, roster.coopByGame, ctx) && !claims.has(q.id)).map((q) => ({ id: q.id, key: `${q.id}:${periodKey(questPeriod(q))}` })))
+      const [claims, reacted, booster] = await Promise.all([fetchClaimsToday(me), fetchReactedToday(me), currentBoosterState()])
+      const ctx = { reactedToday: reacted, donated: donationTotals(donors, me), openedBooster: !!booster?.openedToday }
+      const ready = QUESTS.filter((q) => q.check(member, roster.coopByGame, ctx) && !claims.has(q.id)).map((q) => ({ id: q.id, key: `${q.id}:${periodKey(questPeriod(q))}` }))
+      setClaimable(ready)
+      publishQuestsReady(ready.length)
     }
     setLoaded(true)
   }, [me, gameKey, isAdmin, member, roster, donors])
@@ -195,9 +218,12 @@ export function useNotifications() {
     const timer = setInterval(() => document.visibilityState === 'visible' && void load(), POLL_MS)
     const onVisible = () => document.visibilityState === 'visible' && Date.now() - lastLoad.current > 2 * 60_000 && void load()
     document.addEventListener('visibilitychange', onVisible)
+    const onQuests = () => void load()
+    window.addEventListener(QUESTS_CHANGED, onQuests)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener(QUESTS_CHANGED, onQuests)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me, !!roster, gameKey])

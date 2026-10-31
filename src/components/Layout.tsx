@@ -7,6 +7,8 @@ import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
 import NotificationBell from './NotificationBell'
+import { boostersReady, useBoosterState } from '../lib/boosters'
+import { useQuestsReady } from '../lib/notifications'
 import RoleFrame from './RoleFrame'
 import { RoleName, useWinsIndex } from './RoleName'
 import FitImage from './FitImage'
@@ -368,6 +370,30 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
   )
 }
 
+/** The Booster button: glows in gold while a booster can be opened (the free one of the day or one on hand). */
+function BoosterButton() {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const state = useBoosterState()
+  const ready = boostersReady(state)
+  const title = ready > 0 ? (de ? `${ready} Booster bereit: öffnen` : `${ready} booster(s) ready: open`) : de ? 'Sammlung und Booster' : 'Collection and boosters'
+  return (
+    <Link
+      to="/collection"
+      title={title}
+      aria-label={title}
+      className={`relative inline-flex h-10 items-center gap-2 rounded-lg border border-base-600 bg-base-800/60 px-3 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white ${ready > 0 ? 'glow-ready' : ''}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+        <rect x="5" y="3" width="14" height="18" rx="2" />
+        <path d="M9 8h6M9 12h6M12 16h.01" />
+      </svg>
+      <span className="hidden sm:inline">Booster</span>
+      {ready > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[11px] font-bold text-base-950 ring-2 ring-base-900">{ready}</span>}
+    </Link>
+  )
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   // The dev copy of the site (dev.cynclan.com / cynosure-dev.*.workers.dev) shows an orange bar and a test sign-in.
   const isDevSite = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
@@ -379,6 +405,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
   const liveEvent = EVENTS.some((e) => e.status === 'live')
+  const questsReady = useQuestsReady()
   const innerOnly = language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
@@ -476,7 +503,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             <AccountMenu isInner={isInnerCircle} />
           </div>
           {profile && (
-            <div className="sm:absolute sm:right-0 sm:top-full sm:z-20 sm:mt-1.5">
+            <div className="flex items-center gap-2 sm:absolute sm:right-0 sm:top-full sm:z-20 sm:mt-1.5">
+              <BoosterButton />
               <NotificationBell />
             </div>
           )}
@@ -526,7 +554,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 to={n.to}
                 end={n.end}
                 className={({ isActive }) =>
-                  `nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''}`
+                  `nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''} ${n.to === '/quests' && questsReady > 0 ? 'glow-ready' : ''}`
                 }
               >
                 <span className="sm:hidden">{n.shortLabel}</span>
@@ -535,6 +563,9 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <span className="ml-1.5 inline-block animate-pulse rounded-full bg-signal-green/20 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-signal-green">
                     {language === 'de' ? 'Aktiv' : 'Active'}
                   </span>
+                )}
+                {n.to === '/quests' && questsReady > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 align-middle text-[10px] font-bold text-base-950">{questsReady}</span>
                 )}
                 {n.to === '/queue' && queueUnseen > 0 && (
                   <span className="ml-1.5 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 align-middle" aria-label={String(queueUnseen)} />

@@ -6,7 +6,8 @@ import { SectionHeading, Card, Spinner, LastUpdated, useCountdown } from '../com
 import { QUESTS, fetchClaimsToday, claimQuest, nextResetAt, periodKey, questPeriod, type QuestDef } from '../lib/quests'
 import { donationTotals, useClanDonors } from '../lib/clanDonors'
 import { fetchReactedToday } from '../lib/reactions'
-import { fetchBoosterState } from '../lib/boosters'
+import { currentBoosterState } from '../lib/boosters'
+import { QUESTS_CHANGED } from '../lib/notifications'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -29,7 +30,7 @@ export default function Quests() {
     if (profile) {
       fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
       fetchReactedToday(profile.openfront_id).then(setReactedToday)
-      void fetchBoosterState().then((b) => setOpenedBooster(!!b?.openedToday))
+      void currentBoosterState().then((b) => setOpenedBooster(!!b?.openedToday))
     }
   }, [profile, data])
 
@@ -50,6 +51,7 @@ export default function Quests() {
     setBusyId(null)
     if (r.ok) {
       setClaimedToday((s) => new Set(s).add(questId))
+      window.dispatchEvent(new Event(QUESTS_CHANGED)) // the Quests entry of the menu stops glowing
       refresh()
     }
   }

@@ -6,7 +6,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { drawPlayerCard } from '../lib/drawPlayerCard'
 import { loadCardAssets, loadCardFonts } from '../lib/cardImages'
 import { CARD_STATS, TIER_FROM, type CardStat } from '../lib/playerCard'
-import { fetchProfileExtras, profileImageSrc } from '../lib/profileExtras'
+import { EXTRAS_CHANGED, fetchProfileExtras, profileImageSrc } from '../lib/profileExtras'
 import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
 
@@ -33,9 +33,13 @@ export default function PlayerCard() {
     setPicture(undefined)
     if (!id) return
     let alive = true
-    void fetchProfileExtras(id).then((e) => alive && setPicture({ src: profileImageSrc(e?.avatar_url), fit: e?.avatar_fit ?? null }))
+    const load = () => void fetchProfileExtras(id).then((e) => alive && setPicture({ src: profileImageSrc(e?.avatar_url), fit: e?.avatar_fit ?? null }))
+    load()
+    // a new profile picture shows on the card at once
+    window.addEventListener(EXTRAS_CHANGED, load)
     return () => {
       alive = false
+      window.removeEventListener(EXTRAS_CHANGED, load)
     }
   }, [id])
   const canvas = useRef<HTMLCanvasElement>(null)

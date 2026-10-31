@@ -1,3 +1,5 @@
+import { useEffect, useSyncExternalStore } from 'react'
+
 // Boosters and the card collection (the Worker side is worker/boosters.js: the draw happens there).
 
 export type Rarity = 'common' | 'rare' | 'epic' | 'ultra' | 'legendary'
@@ -45,6 +47,53 @@ export async function fetchBoosterState(): Promise<BoosterState | null> {
   const r = await call<BoosterState>('/api/boosters/me')
   return r.ok ? r.data : null
 }
+// The state of the signed-in member, kept once for the whole page: the Booster button in the header glows by it, the collection page and the daily quest read it.
+let cache: { at: number; state: BoosterState | null } | null = null
+const listeners = new Set<() => void>()
+const publish = (state: BoosterState | null) => {
+  cache = { at: Date.now(), state }
+  listeners.forEach((l) => l())
+}
+/** Asks the server and shares the answer. */
+export async function refreshBoosterState(): Promise<BoosterState | null> {
+  const state = await fetchBoosterState()
+  publish(state)
+  return state
+}
+/** The answer of the last 60 seconds, or a fresh one. */
+export async function currentBoosterState(): Promise<BoosterState | null> {
+  return cache && Date.now() - cache.at < 60_000 ? cache.state : refreshBoosterState()
+}
+/** After opening a booster: the state that came with the answer. */
+export function setBoosterState(state: BoosterState) {
+  publish(state)
+}
+
+/** The shared state (null until it is known or when it cannot be read). Looks again every 5 minutes and when the free booster is due. */
+export function useBoosterState(): BoosterState | null {
+  const state = useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb)
+      return () => listeners.delete(cb)
+    },
+    () => cache?.state ?? null,
+  )
+  useEffect(() => {
+    if (!cache || Date.now() - cache.at > 60_000) void refreshBoosterState()
+    const timer = window.setInterval(() => document.visibilityState === 'visible' && void refreshBoosterState(), 5 * 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const due = state?.nextFreeAt ? Date.parse(state.nextFreeAt) : null
+  useEffect(() => {
+    if (due == null) return
+    const timer = window.setTimeout(() => void refreshBoosterState(), Math.max(1000, due - Date.now() + 1500))
+    return () => window.clearTimeout(timer)
+  }, [due])
+  return state
+}
+/** How many boosters can be opened right now (the free one of the day counts). */
+export const boostersReady = (s: BoosterState | null) => (s ? (s.freeAvailable ? 1 : 0) + s.extra : 0)
+
 export async function fetchCollection(id?: string): Promise<{ id: string; openedTotal: number; cards: CollectedCard[] } | null> {
   const r = await call<{ id: string; openedTotal: number; cards: CollectedCard[] }>(`/api/boosters/collection${id ? `?id=${encodeURIComponent(id)}` : ''}`)
   return r.ok ? r.data : null

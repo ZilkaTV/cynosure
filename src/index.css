@@ -231,6 +231,30 @@
   }
 }
 
+/* something is waiting: the Booster button and the Quests entry glow in gold */
+.glow-ready {
+  border-color: rgba(216, 185, 106, 0.85) !important;
+  color: #f3dc9a !important;
+  animation: glow-ready 1.9s ease-in-out infinite;
+}
+@keyframes glow-ready {
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(216, 185, 106, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 14px rgba(216, 185, 106, 0.75),
+      0 0 26px rgba(216, 185, 106, 0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-ready {
+    animation: none;
+    box-shadow: 0 0 10px rgba(216, 185, 106, 0.5);
+  }
+}
+
 /* a card turned over in the booster window */
 @keyframes pack-pop {
   0% {

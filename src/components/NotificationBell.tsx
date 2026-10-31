@@ -6,6 +6,7 @@ import { cleanDisplayName } from '../lib/displayName'
 import { QUESTS } from '../lib/quests'
 import { SOUND_KEY, soundEnabled, useNotifications, type Notice } from '../lib/notifications'
 import { setTabBadge } from '../lib/tabBadge'
+import { askDesktopPermission, desktopPermission } from '../lib/queueNotify'
 import { relativeTime } from './ui'
 import { RoleName, useWinsIndex } from './RoleName'
 import type { ReactNode } from 'react'
@@ -66,7 +67,25 @@ export default function NotificationBell() {
   }, [unread])
   useEffect(() => {
     if (!loaded) return
-    if (previous.current != null && unread > previous.current && sound && !open) chime()
+    if (previous.current != null && unread > previous.current && sound && !open) {
+      chime()
+      // with the tab in the background (or another window in front) the browser shows it as a system notification, if it was allowed
+      if ((document.visibilityState === 'hidden' || !document.hasFocus()) && desktopPermission() === 'granted') {
+        try {
+          const n = new Notification(de ? 'CynClan: Neue Benachrichtigung' : 'CynClan: new notification', {
+            body: de ? `${unread} neu` : `${unread} new`,
+            tag: 'cyn-notice',
+            icon: '/favicon-64.png',
+          })
+          n.onclick = () => {
+            window.focus()
+            n.close()
+          }
+        } catch {
+          /* some browsers only allow notifications from a service worker - the chime and the tab number still work */
+        }
+      }
+    }
     previous.current = unread
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, loaded])
@@ -78,7 +97,11 @@ export default function NotificationBell() {
     } catch {
       /* ignore */
     }
-    if (next) chime()
+    if (next) {
+      chime()
+      // turning the sound on is the moment to ask the browser for system notifications (only asked once, only from a click)
+      if (desktopPermission() === 'default') void askDesktopPermission()
+    }
   }
 
   useEffect(() => {
@@ -96,6 +119,8 @@ export default function NotificationBell() {
   }, [open])
 
   function toggle() {
+    // the first time the bell is opened with the sound on, the browser is asked once whether it may show notifications
+    if (!open && sound && desktopPermission() === 'default') void askDesktopPermission()
     if (!open) {
       setNewAtOpen(new Set(notices.filter(isUnread).map((n) => n.id)))
       markSeen()

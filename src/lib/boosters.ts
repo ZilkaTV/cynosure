@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 // Boosters and the card collection (the Worker side is worker/boosters.js: the draw happens there).
 
@@ -131,6 +131,30 @@ export async function handleBoosterRequest(id: number, action: 'grant' | 'reject
   const r = await call<{ error?: string }>('/api/boosters/requests/handle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) })
   return r.ok ? null : (r.data?.error ?? 'failed')
 }
+/** How many different cards each member has per rarity (for the Card Collector badge). */
+export type CardSummary = Record<string, Partial<Record<Rarity, number>>>
+export async function fetchCardSummary(): Promise<CardSummary> {
+  const r = await call<{ summary: CardSummary }>('/api/boosters/summary')
+  return r.ok && r.data ? r.data.summary : {}
+}
+let summaryCache: { at: number; map: Map<string, Partial<Record<Rarity, number>>> } | null = null
+/** The summary as a map by member, kept for 5 minutes; null while it loads. */
+export function useCardSets(enabled = true): Map<string, Partial<Record<Rarity, number>>> | null {
+  const [map, setMap] = useState<Map<string, Partial<Record<Rarity, number>>> | null>(summaryCache && Date.now() - summaryCache.at < 300_000 ? summaryCache.map : null)
+  useEffect(() => {
+    if (!enabled || (summaryCache && Date.now() - summaryCache.at < 300_000)) return
+    let alive = true
+    void fetchCardSummary().then((s) => {
+      summaryCache = { at: Date.now(), map: new Map(Object.entries(s)) }
+      if (alive) setMap(summaryCache.map)
+    })
+    return () => {
+      alive = false
+    }
+  }, [enabled])
+  return map
+}
+
 /** Comments and reactions written per member (the COM value of the cards). */
 export async function fetchCardSocial(): Promise<Record<string, number>> {
   const r = await call<{ counts: Record<string, number> }>('/api/card-social')

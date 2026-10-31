@@ -10,6 +10,7 @@ import { currentMonthKey, ffaMonthly, teamMonthly, type MemberStats } from './st
 import { levelFromXp, titleForLevel } from './levels'
 import { fmtTime } from './speedruns'
 import type { TranslationShape } from '../i18n/translations'
+import { RARITIES, RARITY_INFO, type Rarity } from './boosters'
 
 /** "2786767" -> "2.7M", "15400" -> "15.4k" - matches the abbreviation used elsewhere for gold figures. */
 function fmtCompact(n: number): string {
@@ -48,6 +49,7 @@ export type IconKey =
   | 'chatBubble'
   | 'heart'
   | 'handshake'
+  | 'cards'
 
 export interface Badge {
   id: string
@@ -221,9 +223,35 @@ function getLeaders(all: MemberStats[]): Leaders {
 /** Facts that do not come from the roster: how many caps each member donated (from the stored donor list), and the language for the badges that have no translation table entry. */
 export interface BadgeExtras {
   capsDonated?: ReadonlyMap<string, number>
+  /** how many different cards each member has per rarity (from the booster collection) */
+  cardSets?: ReadonlyMap<string, Partial<Record<Rarity, number>>> | null
   de?: boolean
 }
+
+/** The Card Collector badge upgrades with every rarity: all cards once in Common = bronze, then Rare = silver, Epic = gold, Ultra = diamond, Legendary = the top colour. */
+const CARD_BADGE_TIER: (BadgeTier | WinsTier)[] = ['bronze', 'silver', 'gold', 'diamond', 'winsChampion']
+
+/** How far a collector is: `done` rarities are complete (every card once), `next` is the one they work on (null when all are done), `have` how many they have of it. */
+export function cardCollectorProgress(sets: Partial<Record<Rarity, number>> | undefined, total: number): { done: number; next: Rarity | null; have: number } {
+  let done = 0
+  while (done < RARITIES.length && total > 0 && (sets?.[RARITIES[done]] ?? 0) >= total) done++
+  const next = done < RARITIES.length ? RARITIES[done] : null
+  return { done, next, have: next ? Math.min(sets?.[next] ?? 0, total) : total }
+}
 export const DONOR_BADGE_CAPS = 10_000
+
+function cardCollectorBadge(m: MemberStats, all: MemberStats[], extras?: BadgeExtras): Badge {
+  const de = !!extras?.de
+  const total = all.length
+  const { done, next, have } = cardCollectorProgress(extras?.cardSets?.get(m.publicId), total)
+  const name = (r: Rarity) => RARITY_INFO[r][de ? 'de' : 'en']
+  const desc = !next
+    ? de ? 'Jede Karte in jeder Seltenheit gesammelt.' : 'Every card collected in every rarity.'
+    : done === 0
+      ? de ? `Sammle jede Karte einmal in ${name(next)}: ${have}/${total}` : `Collect every card once in ${name(next)}: ${have}/${total}`
+      : de ? `Jede Karte in ${name(RARITIES[done - 1])} gesammelt. Weiter: ${name(next)} ${have}/${total}` : `Every card collected in ${name(RARITIES[done - 1])}. Next: ${name(next)} ${have}/${total}`
+  return { id: 'cardCollector', name: de ? 'Kartensammler' : 'Card Collector', kind: 'icon', icon: 'cards', tier: done > 0 ? CARD_BADGE_TIER[done - 1] : undefined, earned: done > 0, group: 'milestone', desc }
+}
 
 export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape, extras?: BadgeExtras): Badge[] {
   const b = t.badges
@@ -289,6 +317,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       group: 'milestone',
       desc: extras?.de ? `Spende mindestens ${DONOR_BADGE_CAPS.toLocaleString('de-DE')} Caps an den Clan` : `Donate at least ${DONOR_BADGE_CAPS.toLocaleString('en-US')} caps to the clan`,
     },
+    cardCollectorBadge(m, all, extras),
     // ── monthly (losable) ──
     {
       id: 'predator',

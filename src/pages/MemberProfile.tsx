@@ -11,6 +11,7 @@ import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow 
 import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
+import { useCardSets } from '../lib/boosters'
 import ProfileHeader from '../components/ProfileHeader'
 import ProfileWall from '../components/ProfileWall'
 import { useProfileExtras } from '../lib/profileExtras'
@@ -64,6 +65,7 @@ export default function MemberProfile() {
   const savedGames = useSavedGames(profile?.openfront_id)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
   const donors = useClanDonors()
+  const cardSets = useCardSets(!!profile)
   // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered, and again on every click while already on the profile
   // (the link then only changes the hash, so the location is part of the dependencies).
   const location = useLocation()
@@ -244,7 +246,7 @@ export default function MemberProfile() {
             </label>
           </div>
         </div>
-        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), de: language === 'de' })} showLocked={showLocked} />
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), cardSets, de: language === 'de' })} showLocked={showLocked} />
       </section>
 
       <section>

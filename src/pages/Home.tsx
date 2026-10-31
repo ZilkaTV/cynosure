@@ -6,6 +6,7 @@ import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
 import { computeBadges, type BadgeExtras } from '../lib/badges'
 import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
+import { useCardSets } from '../lib/boosters'
 import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { fmtTime } from '../lib/speedruns'
 import { isIncompleteRanked } from '../lib/stats'
@@ -174,7 +175,8 @@ export default function Home() {
   // reload, ...).
 
   const donors = useClanDonors()
-  const badgeExtras = useMemo<BadgeExtras>(() => ({ capsDonated: capsDonatedMap(donors), de: language === 'de' }), [donors, language])
+  const cardSets = useCardSets()
+  const badgeExtras = useMemo<BadgeExtras>(() => ({ capsDonated: capsDonatedMap(donors), cardSets, de: language === 'de' }), [donors, cardSets, language])
   const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t, badgeExtras), [data, deltas, t, badgeExtras])
 
   const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))

@@ -7,6 +7,7 @@
 //   POST /api/boosters/request            a member says they paid for boosters: { count }
 //   GET  /api/boosters/requests           admins: the open "I paid" requests
 //   POST /api/boosters/requests/handle    admins: credit (grant) or reject one: { id, action }
+//   GET  /api/boosters/summary            how many different cards each member has per rarity (the Card Collector badge), cached for 5 minutes
 //   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
 //   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
 //   POST /api/cards/update                the member updates the own card (once a month): { stats: { COM, INT, ECO, SPE, DEF, ATK } }
@@ -249,6 +250,28 @@ export async function handleBoosters(request, env) {
       await env.DB.prepare('INSERT INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?) ON CONFLICT(openfront_id) DO UPDATE SET extra = MIN(?, extra + ?)').bind(row.openfront_id, Math.min(row.count, MAX_ON_HAND), MAX_ON_HAND, row.count).run()
     }
     return json(200, { ok: true })
+  }
+
+  if (pathname === '/api/boosters/summary') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const compute = async () => {
+      const { results } = await env.DB.prepare('SELECT openfront_id, rarity, COUNT(DISTINCT card_id) AS n FROM cyn_card_pulls GROUP BY openfront_id, rarity').all()
+      const summary = {}
+      for (const r of results ?? []) (summary[r.openfront_id] ??= {})[r.rarity] = Number(r.n)
+      return { summary }
+    }
+    // the table grows with every booster: one answer for everybody for five minutes (the Cache API only works on a real domain, elsewhere it is computed)
+    try {
+      const cache = caches.default
+      const key = new Request(new URL('/api/boosters/summary', request.url).href)
+      const hit = await cache.match(key)
+      if (hit) return hit
+      const res = new Response(JSON.stringify(await compute()), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } })
+      await cache.put(key, res.clone())
+      return res
+    } catch {
+      return json(200, await compute())
+    }
   }
 
   if (pathname === '/api/boosters/collection') {

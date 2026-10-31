@@ -540,5 +540,10 @@ check('requests: an admin can reject', r.status === 200, r)
 r = await boost('GET', '/api/boosters/me', BOB)
 check('requests: a rejected request credits nothing', r.body.extra === beforeExtra + 3 && r.body.pendingRequest === null, r)
 
+r = await boost('GET', '/api/boosters/summary', A)
+check('summary: different cards per rarity for every collector', r.status === 200 && typeof r.body.summary.AAAA1111 === 'object' && Object.values(r.body.summary.AAAA1111).every((n) => Number.isInteger(n) && n >= 1), r)
+r = await boost('GET', '/api/boosters/summary')
+check('summary: signed out -> 401', r.status === 401, r)
+
 console.log(fails ? `${fails} FAILED` : 'ALL OK')
 process.exit(fails ? 1 : 0)

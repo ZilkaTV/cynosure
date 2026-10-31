@@ -22,6 +22,7 @@ import {
   ShieldIcon,
 } from './BadgeIcons'
 import { useLanguage } from '../i18n/LanguageContext'
+import { CardsIcon } from './CardBadgeIcon'
 
 const TIER_RING: Record<BadgeTier | WinsTier, string> = {
   bronze: 'ring-2 ring-[#cd7f32]/70',
@@ -77,6 +78,7 @@ const ICON_COMPONENT: Record<IconKey, ComponentType<SVGProps<SVGSVGElement>>> = 
   chatBubble: ChatBubbleIcon,
   heart: HeartIcon,
   handshake: HandshakeIcon,
+  cards: CardsIcon,
 }
 
 /** Renders a badge's visual: the level number for the level badge, an icon otherwise. */

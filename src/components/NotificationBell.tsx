@@ -89,6 +89,32 @@ export default function NotificationBell() {
     previous.current = unread
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unread, loaded])
+  // A quest that just became claimable (the member opened a booster, a donation was imported, ...) shows a notice on the page itself too: the bell number
+  // and the chime are easy to miss, and a system notification only comes while the window is in the background.
+  const [toast, setToast] = useState<{ id: string; name: string } | null>(null)
+  const knownQuests = useRef<Set<string> | null>(null)
+  const questKey = notices
+    .filter((n) => n.kind === 'quest')
+    .map((n) => n.id)
+    .join('|')
+  useEffect(() => {
+    if (!loaded) return
+    const now = new Set(questKey ? questKey.split('|') : [])
+    const known = knownQuests.current
+    knownQuests.current = now
+    if (!known) return // what was already claimable at the start is no news
+    const fresh = notices.find((n) => n.kind === 'quest' && !known.has(n.id))
+    if (!fresh) return
+    const q = QUESTS.find((x) => x.id === fresh.detail)
+    const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined
+    setToast({ id: fresh.id, name: qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? '' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questKey, loaded])
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 10_000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
   function toggleSound() {
     const next = !sound
     setSound(next)
@@ -170,6 +196,18 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={box}>
+      {toast && (
+        <div role="status" className="fixed bottom-5 left-1/2 z-[140] flex w-[min(24rem,calc(100vw-1.5rem))] -translate-x-1/2 items-center gap-3 rounded-xl border border-gold/60 bg-base-850 px-4 py-3 text-sm shadow-2xl">
+          <span className="text-xl leading-none" aria-hidden>🎯</span>
+          <Link to="/quests" onClick={() => setToast(null)} className="min-w-0 flex-1 text-slate-200 hover:text-white">
+            <span className="block font-semibold text-white">{de ? 'Quest abgeschlossen' : 'Quest completed'}</span>
+            <span className="block truncate text-xs text-slate-400">{de ? `${toast.name}: jetzt abholen` : `${toast.name}: collect it now`}</span>
+          </Link>
+          <button type="button" onClick={() => setToast(null)} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={de ? 'Schließen' : 'Close'}>
+            ✕
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={toggle}

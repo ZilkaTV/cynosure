@@ -27,6 +27,9 @@ export function useGameActions(gameIds: string[]): GameActions {
 
 // the one open reaction list on the page (see openPicker)
 let closeOpenPicker: (() => void) | null = null
+// when the page last scrolled: content that moves under a still mouse makes the browser report a "hover", which must not open a list
+let lastScrollAt = 0
+if (typeof window !== 'undefined') window.addEventListener('scroll', () => (lastScrollAt = Date.now()), { capture: true, passive: true })
 
 const icon = 'h-5 w-5'
 const btn = 'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-base-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50'
@@ -112,6 +115,8 @@ export function GameActionsBar({
     window.clearTimeout(timer.current)
     cancelClose()
     if (!myId) return
+    // rows that slide under a mouse that is not moving (scrolling) are no hover: only a real mouse move opens the list
+    if (Date.now() - lastScrollAt < 400) return
     if (closeOpenPicker && closeOpenPicker !== closeMine.current) closeOpenPicker()
     closeOpenPicker = closeMine.current
     placePicker()
@@ -125,10 +130,11 @@ export function GameActionsBar({
       window.clearTimeout(leaveTimer.current)
     }
   }, [])
-  // it follows its Like button when the page scrolls or the window changes size
+  // it puts itself away when the page scrolls and follows its Like button when the window changes size
   useEffect(() => {
     if (!pickerAt) return
     const follow = () => placePicker()
+    const onScroll = () => setPickerAt(null)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPickerAt(null)
     // a click anywhere else than on the list or its Like button puts it away
     const away = (e: MouseEvent) => {
@@ -136,11 +142,11 @@ export function GameActionsBar({
       if (!pickerRef.current?.contains(t) && !likeRef.current?.contains(t)) setPickerAt(null)
     }
     document.addEventListener('mousedown', away)
-    window.addEventListener('scroll', follow, true)
+    window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', follow)
     document.addEventListener('keydown', onKey)
     return () => {
-      window.removeEventListener('scroll', follow, true)
+      window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', follow)
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', away)

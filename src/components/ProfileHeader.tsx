@@ -31,6 +31,7 @@ import { toggleFavoriteProfile, useSearchLists } from '../lib/searchLists'
 import RoleFrame from './RoleFrame'
 import { Flag } from './Emoji'
 import { RoleName, useWinsIndex } from './RoleName'
+import ProfileCards from './ProfileCards'
 
 const HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
 
@@ -327,7 +328,11 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
   return (
     <div className="space-y-4">
       <RoleFrame wins={roleWins} radius="1rem" width={3} variant="banner" plain="border border-base-700 bg-base-900/70">
-      <div className="bg-base-900/70">
+      <div className="relative bg-base-900/70">
+        {/* the own card (swipe for the favourites picked in the collection) in the free space on the right, over the lower edge of the banner */}
+        <div className="absolute right-4 top-[8.25rem] z-10 hidden sm:block lg:right-8">
+          <ProfileCards memberId={m.publicId} />
+        </div>
         <div className="relative h-36 sm:h-56">
           {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
@@ -346,16 +351,6 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
               <RoleName wins={roleWins}>{name}</RoleName>
               <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
-              <Link
-                to={`/card/${m.publicId}`}
-                title={de ? 'Dieses Mitglied hat eine eigene Spielerkarte' : 'This member has an own player card'}
-                className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light transition-colors hover:bg-gold/20"
-              >
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
-                </svg>
-                {de ? 'Eigene Karte' : 'Own card'}
-              </Link>
               {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">

@@ -10,6 +10,8 @@ import {
   boostersReady,
   fetchBoosterRequests,
   fetchCollection,
+  fetchFeatured,
+  setFeatured,
   grantBoosters,
   handleBoosterRequest,
   openBooster,
@@ -124,6 +126,8 @@ export default function Collection() {
   const state = useBoosterState()
   const [avatars, setAvatars] = useState<Avatars>({})
   const [opened, setOpened] = useState<PulledCard[] | null>(null)
+  // the cards this member shows on the profile (own collection only): the tick on a card
+  const [featured, setFeaturedList] = useState<Set<string>>(new Set())
   // ?preview=ultra or ?preview=legendary shows the booster window with made-up cards (nothing is opened or saved): to look at the animations
   const [query] = useSearchParams()
   const preview = query.get('preview')
@@ -157,6 +161,30 @@ export default function Collection() {
     setCollection(undefined)
     void reload()
   }, [reload])
+  useEffect(() => {
+    if (!isOwn || !id) return
+    let alive = true
+    void fetchFeatured(id).then((list) => alive && setFeaturedList(new Set(list.map((f) => `${f.card_id}|${f.rarity}`))))
+    return () => {
+      alive = false
+    }
+  }, [isOwn, id])
+  async function toggleFeatured(c: CollectedCard) {
+    const key = `${c.card_id}|${c.rarity}`
+    const on = !featured.has(key)
+    setMessage(null)
+    const problem = await setFeatured(c.card_id, c.rarity, on)
+    if (problem) {
+      setMessage(problem === 'too_many' ? (de ? 'Du kannst höchstens 8 Karten im Profil zeigen.' : 'You can show at most 8 cards on your profile.') : de ? 'Das hat nicht geklappt. Versuch es gleich noch einmal.' : 'That did not work. Try again in a moment.')
+      return
+    }
+    setFeaturedList((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
   useEffect(() => {
     const timer = window.setInterval(() => !isCalm() && setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
@@ -349,6 +377,17 @@ export default function Collection() {
                       )}
                     </div>
                     {c.n > 1 && <span className="absolute right-1.5 top-1.5 rounded-full bg-base-950/85 px-2 py-0.5 text-xs font-bold text-white">×{c.n}</span>}
+                    {isOwn && (
+                      <button
+                        type="button"
+                        onClick={() => void toggleFeatured(c)}
+                        aria-pressed={featured.has(`${c.card_id}|${c.rarity}`)}
+                        title={featured.has(`${c.card_id}|${c.rarity}`) ? (de ? 'Aus dem Profil entfernen' : 'Remove from your profile') : de ? 'Im Profil zeigen' : 'Show on your profile'}
+                        className={`absolute bottom-1.5 left-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${featured.has(`${c.card_id}|${c.rarity}`) ? 'border-gold bg-gold text-base-950' : 'border-slate-400 bg-base-950/80 text-transparent hover:border-gold hover:text-gold-light'}`}
+                      >
+                        ✓
+                      </button>
+                    )}
                   </div>
                 )
               })}

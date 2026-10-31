@@ -7,6 +7,8 @@
 //   POST /api/boosters/request            a member says they paid for boosters: { count }
 //   GET  /api/boosters/requests           admins: the open "I paid" requests
 //   POST /api/boosters/requests/handle    admins: credit (grant) or reject one: { id, action }
+//   GET  /api/boosters/featured?id=ID     the cards a member shows on the own profile, in the order they were picked
+//   POST /api/boosters/feature            the member picks or removes a card of the own collection for the profile: { card_id, rarity, on }
 //   GET  /api/boosters/summary            how many different cards each member has per rarity (the Card Collector badge), cached for 5 minutes
 //   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
 //   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
@@ -28,6 +30,7 @@ export const RARITIES = [
 export const PACK_SIZE = 3
 const STARTER_BOOSTERS = 1
 const MAX_ON_HAND = 500
+export const MAX_FEATURED = 8
 const ID = /^[A-Za-z0-9_-]{4,40}$/
 
 /** A whole number 0..n-1 from the secure random source, without the bias of a plain modulo. */
@@ -272,6 +275,38 @@ export async function handleBoosters(request, env) {
     } catch {
       return json(200, await compute())
     }
+  }
+
+  if (pathname === '/api/boosters/featured') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const id = searchParams.get('id') ?? myId
+    if (!ID.test(id)) return json(400, { error: 'bad_id' })
+    const { results } = await env.DB.prepare('SELECT card_id, rarity FROM cyn_profile_cards WHERE openfront_id = ? ORDER BY added_at, rowid LIMIT ?').bind(id, MAX_FEATURED).all()
+    return json(200, { id, cards: results ?? [] })
+  }
+
+  if (pathname === '/api/boosters/feature') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const cardId = typeof body?.card_id === 'string' ? body.card_id : ''
+    const rarity = typeof body?.rarity === 'string' ? body.rarity : ''
+    if (!ID.test(cardId) || !RARITIES.some(([r]) => r === rarity)) return json(400, { error: 'bad_request' })
+    if (!body?.on) {
+      await env.DB.prepare('DELETE FROM cyn_profile_cards WHERE openfront_id = ? AND card_id = ? AND rarity = ?').bind(myId, cardId, rarity).run()
+      return json(200, { ok: true })
+    }
+    // only a card the member really pulled can be shown, and only a few of them
+    if (!(await env.DB.prepare('SELECT 1 AS x FROM cyn_card_pulls WHERE openfront_id = ? AND card_id = ? AND rarity = ? LIMIT 1').bind(myId, cardId, rarity).first())) return json(403, { error: 'not_owned' })
+    const have = await env.DB.prepare('SELECT COUNT(*) AS n FROM cyn_profile_cards WHERE openfront_id = ?').bind(myId).first()
+    if (Number(have?.n ?? 0) >= MAX_FEATURED) return json(409, { error: 'too_many', max: MAX_FEATURED })
+    await env.DB.prepare('INSERT OR IGNORE INTO cyn_profile_cards (openfront_id, card_id, rarity, added_at) VALUES (?, ?, ?, ?)').bind(myId, cardId, rarity, new Date().toISOString()).run()
+    return json(200, { ok: true })
   }
 
   if (pathname === '/api/boosters/collection') {

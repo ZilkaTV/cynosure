@@ -101,6 +101,19 @@ export async function fetchCollection(id?: string): Promise<{ id: string; opened
   const r = await call<{ id: string; openedTotal: number; cards: CollectedCard[] }>(`/api/boosters/collection${id ? `?id=${encodeURIComponent(id)}` : ''}`)
   return r.ok ? r.data : null
 }
+/** The cards a member shows on the own profile, in the order they were picked. */
+export async function fetchFeatured(id: string): Promise<PulledCard[]> {
+  const r = await call<{ cards: PulledCard[] }>(`/api/boosters/featured?id=${encodeURIComponent(id)}`)
+  return r.ok && r.data ? r.data.cards : []
+}
+/** Fired after the own picks changed, so an open profile shows the new list. */
+export const FEATURED_CHANGED = 'cyn:featured-changed'
+/** Picks (on) or removes a card of the own collection for the profile. Null when it worked, otherwise what is wrong (too_many, not_owned, ...). */
+export async function setFeatured(cardId: string, rarity: Rarity, on: boolean): Promise<string | null> {
+  const r = await call<{ error?: string }>('/api/boosters/feature', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_id: cardId, rarity, on }) })
+  if (r.ok) window.dispatchEvent(new Event(FEATURED_CHANGED))
+  return r.ok ? null : (r.data?.error ?? 'failed')
+}
 export async function openBooster(): Promise<{ ok: true; cards: PulledCard[]; source: 'free' | 'extra'; state: BoosterState } | { ok: false; error: string }> {
   const r = await call<{ cards: PulledCard[]; source: 'free' | 'extra'; state: BoosterState; error?: string }>('/api/boosters/open', { method: 'POST' })
   if (r.ok && r.data) return { ok: true, cards: r.data.cards, source: r.data.source, state: r.data.state }

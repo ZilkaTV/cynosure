@@ -339,6 +339,15 @@ CREATE TABLE IF NOT EXISTS cyn_card_snapshots (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Cards a member shows on the own profile (picked in the collection): at most 8 per member
+CREATE TABLE IF NOT EXISTS cyn_profile_cards (
+  openfront_id TEXT NOT NULL,
+  card_id TEXT NOT NULL,
+  rarity TEXT NOT NULL,
+  added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (openfront_id, card_id, rarity)
+);
+
 -- "I paid": a member says they paid for boosters (PayPal); an admin checks the payment and credits them with one click
 CREATE TABLE IF NOT EXISTS cyn_booster_requests (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

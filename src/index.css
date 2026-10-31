@@ -355,6 +355,154 @@ html[data-scrolling] .animate-pulse {
   }
 }
 
+/* Booster window: ultra cards shine and glitter a little, legendary ones do that too and pulse on top of it */
+/* the shine lies over the card (blended into it, so the empty corners of the picture stay dark); the glow is a drop shadow of the card picture itself */
+.reveal-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 1rem;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+.reveal-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.5) 49%, rgba(255, 236, 170, 0.35) 53%, transparent 64%);
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  background-position: 160% 0;
+  animation: reveal-shine 3.2s ease-in-out 0.5s infinite;
+}
+.reveal-glint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 24%, #fff 0 1.5px, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(circle at 80% 16%, #fff 0 1.5px, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(circle at 68% 70%, #fff 0 1.5px, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(circle at 28% 84%, #fff 0 1.5px, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(circle at 52% 44%, #fff 0 1px, rgba(255, 255, 255, 0) 2.5px);
+  animation: reveal-glint 2.4s ease-in-out infinite alternate;
+}
+@keyframes reveal-shine {
+  0% {
+    background-position: 160% 0;
+  }
+  55%,
+  100% {
+    background-position: -60% 0;
+  }
+}
+@keyframes reveal-glint {
+  0% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 0.95;
+  }
+}
+.reveal-ultra .reveal-card canvas {
+  filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.55)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+}
+.reveal-legendary .reveal-shine {
+  animation-duration: 2.2s;
+}
+.reveal-legendary .reveal-glint {
+  animation-duration: 1.2s;
+}
+.pack-pop.reveal-legendary {
+  animation:
+    pack-pop 0.6s ease-out both,
+    reveal-pulse 1.7s ease-in-out 0.6s infinite;
+}
+.reveal-legendary .reveal-card canvas {
+  filter: drop-shadow(0 0 14px rgba(251, 113, 133, 0.6)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+  animation: reveal-glow 1.7s ease-in-out 0.6s infinite;
+}
+@keyframes reveal-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+@keyframes reveal-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgba(251, 113, 133, 0.45)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 26px rgba(251, 113, 133, 0.95)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
+  }
+}
+/* a ring that spreads from a legendary card once when it is turned over */
+.reveal-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(251, 113, 133, 0.9);
+  border-radius: 1rem;
+  pointer-events: none;
+  opacity: 0;
+  animation: reveal-ring 1.1s ease-out 0.35s both;
+}
+@keyframes reveal-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+/* the whole window flashes for a moment when an ultra (gold) or legendary (red) card comes out */
+.reveal-flash {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, rgba(250, 204, 21, 0.4), rgba(0, 0, 0, 0) 65%);
+  animation: reveal-flash 1.1s ease-out both;
+}
+.reveal-flash.legendary {
+  background: radial-gradient(circle at 50% 45%, rgba(251, 113, 133, 0.55), rgba(0, 0, 0, 0) 70%);
+}
+@keyframes reveal-flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-shine,
+  .reveal-glint,
+  .reveal-ring,
+  .reveal-flash,
+  .pack-pop.reveal-legendary,
+  .reveal-legendary .reveal-card canvas {
+    animation: none;
+  }
+}
+/* calm mode: the same effects stand still */
+html[data-calm] .reveal-shine,
+html[data-calm] .reveal-glint,
+html[data-calm] .reveal-ring,
+html[data-calm] .reveal-flash,
+html[data-calm] .reveal-legendary .reveal-card canvas,
+html[data-calm] .pack-pop.reveal-legendary {
+  animation: none !important;
+}
+
 /* The crest in the header: a purple glow behind it that slowly pulses */
 .crest-glow {
   position: relative;

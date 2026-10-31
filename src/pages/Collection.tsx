@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import CardCanvas from '../components/CardCanvas'
 import { RegistrationGate } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
@@ -59,8 +59,11 @@ function PackReveal({ pulled, cards, avatars, de, onClose }: { pulled: PulledCar
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
   const best = pulled.reduce((b, c) => (RARITIES.indexOf(c.rarity) > RARITIES.indexOf(b) ? c.rarity : b), 'common' as Rarity)
+  // the card that was just turned over: an ultra one lights the window up in gold, a legendary one in red
+  const justShown = shown > 0 ? pulled[shown - 1]?.rarity : undefined
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto bg-black/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={de ? 'Booster geöffnet' : 'Booster opened'}>
+    <div className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={de ? 'Booster geöffnet' : 'Booster opened'}>
+      {(justShown === 'ultra' || justShown === 'legendary') && <div key={shown} className={`reveal-flash ${justShown}`} aria-hidden />}
       <div className="w-full max-w-4xl py-6">
         <h2 className="mb-5 text-center font-display text-2xl font-bold text-white">{de ? 'Dein Booster' : 'Your booster'}</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -70,8 +73,17 @@ function PackReveal({ pulled, cards, avatars, de, onClose }: { pulled: PulledCar
             return (
               <div key={i} className="mx-auto w-full max-w-[230px]">
                 {out && card ? (
-                  <div className="pack-pop">
-                    <CardCanvas card={card} look={RARITY_LOOK[c.rarity]} label={rarityName(c.rarity, false).toUpperCase()} scale={0.7} avatar={avatars[c.card_id]} className="w-full rounded-2xl drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
+                  <div className={`pack-pop relative ${c.rarity === 'ultra' ? 'reveal-ultra' : c.rarity === 'legendary' ? 'reveal-legendary' : ''}`}>
+                    {c.rarity === 'legendary' && <span className="reveal-ring" aria-hidden />}
+                    <div className="reveal-card relative rounded-2xl">
+                      <CardCanvas card={card} look={RARITY_LOOK[c.rarity]} label={rarityName(c.rarity, false).toUpperCase()} scale={0.7} avatar={avatars[c.card_id]} className="w-full rounded-2xl drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
+                      {(c.rarity === 'ultra' || c.rarity === 'legendary') && (
+                        <span className="reveal-fx" aria-hidden>
+                          <span className="reveal-shine" />
+                          <span className="reveal-glint" />
+                        </span>
+                      )}
+                    </div>
                     <p className={`mt-2 text-center text-sm font-bold uppercase tracking-wide ${RARITY_INFO[c.rarity].text}`}>{rarityName(c.rarity, de)}</p>
                   </div>
                 ) : (
@@ -112,6 +124,20 @@ export default function Collection() {
   const state = useBoosterState()
   const [avatars, setAvatars] = useState<Avatars>({})
   const [opened, setOpened] = useState<PulledCard[] | null>(null)
+  // ?preview=ultra or ?preview=legendary shows the booster window with made-up cards (nothing is opened or saved): to look at the animations
+  const [query] = useSearchParams()
+  const preview = query.get('preview')
+  useEffect(() => {
+    if (preview !== 'ultra' && preview !== 'legendary') return
+    const ids = [...(cards?.keys() ?? [])]
+    if (ids.length < 3) return
+    setOpened([
+      { card_id: ids[0], rarity: 'epic' },
+      { card_id: ids[1], rarity: 'ultra' },
+      { card_id: ids[2], rarity: preview === 'legendary' ? 'legendary' : 'rare' },
+    ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, cards?.size])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [filter, setFilter] = useState<Rarity | 'all'>('all')

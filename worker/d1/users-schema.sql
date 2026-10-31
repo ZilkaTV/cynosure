@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS cyn_members (
   banner_url TEXT,
   bio TEXT,
   avatar_fit TEXT,
-  banner_fit TEXT
+  banner_fit TEXT,
+  yt_channel TEXT,
+  twitch_channel TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cyn_speedruns (

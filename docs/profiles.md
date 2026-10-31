@@ -20,3 +20,8 @@ What a Steam profile has, and what we took over: a **banner** and a big **icon**
 ## Not done yet (ideas)
 - Show the icon next to names in tables, the account menu, the profile search and comments of games.
 - A "report" button for pictures; a picture check before it is shown (nothing is checked automatically, admins remove).
+
+## Win-role frames, role-coloured names, channels
+
+- The wins role of a member frames the banner and the icon (`RoleFrame.tsx`, also the icon in the account button and the comment avatars): bronze (50) a brown edge, silver (100) and gold (250) a shimmering edge in the role's colour, diamond (500) and above a glowing bluish edge with lightning. Names (account button, profile, wall comments, notifications) use `RoleName` and so the same colours; silver and gold names also get the small flashing sparks (`.role-sparks`).
+- Settings (Register page, `ChannelSettings.tsx`): YouTube (`@handle`, channel id or link) and Twitch (name or link). Saved in `cyn_members.yt_channel` / `twitch_channel` (006-profiles.sql), validated in `worker/dbApi.js` (`cleanYoutube`, `cleanTwitch`) and shown as small icon links next to the name on the profile.

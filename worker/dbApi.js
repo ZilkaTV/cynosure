@@ -63,6 +63,21 @@ function cleanFit(v) {
   return `${m[1]},${m[2]},${m[3]}`
 }
 
+/** A YouTube channel: "@handle" or a channel id (UC...), or empty. */
+function cleanYoutube(v) {
+  if (v == null || String(v).trim() === '') return null
+  const t = String(v).trim()
+  if (/^@[A-Za-z0-9._-]{3,30}$/.test(t) || /^UC[A-Za-z0-9_-]{22}$/.test(t)) return t
+  throw new DbError('P0001', 'invalid_channel: bad YouTube channel')
+}
+/** A Twitch channel: the login name, or empty. */
+function cleanTwitch(v) {
+  if (v == null || String(v).trim() === '') return null
+  const t = String(v).trim()
+  if (/^[A-Za-z0-9_]{4,25}$/.test(t)) return t
+  throw new DbError('P0001', 'invalid_channel: bad Twitch channel')
+}
+
 /** The "about me" text of a profile: empty (null) or up to 300 characters without blocked language. */
 function cleanBio(v) {
   if (v == null) return null
@@ -309,7 +324,7 @@ function sqlValue(v) {
 }
 
 // Profile extras (worker/d1/006-profiles.sql): only returned when asked for by name, so "*" keeps working on a database that does not have them yet.
-const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit'])
+const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit', 'yt_channel', 'twitch_channel'])
 
 function colList(meta, wanted) {
   if (!wanted || wanted === '*') return meta.cols.filter((c) => !OPTIONAL_COLS.has(c))
@@ -457,6 +472,8 @@ async function runWrite(c, q, meta, rules) {
         if ('bio' in row) row.bio = cleanBio(row.bio)
         delete row.avatar_fit
         delete row.banner_fit
+        delete row.yt_channel
+        delete row.twitch_channel
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -535,6 +552,8 @@ async function runWrite(c, q, meta, rules) {
       if ('bio' in patch) patch.bio = cleanBio(patch.bio)
       if ('avatar_fit' in patch) patch.avatar_fit = cleanFit(patch.avatar_fit)
       if ('banner_fit' in patch) patch.banner_fit = cleanFit(patch.banner_fit)
+      if ('yt_channel' in patch) patch.yt_channel = cleanYoutube(patch.yt_channel)
+      if ('twitch_channel' in patch) patch.twitch_channel = cleanTwitch(patch.twitch_channel)
       patch.discord_user_id = c.user.id
     }
     if (meta.cols.includes('updated_at') && patch.updated_at === undefined) patch.updated_at = nowIso()

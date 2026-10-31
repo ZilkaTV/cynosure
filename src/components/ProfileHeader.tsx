@@ -18,12 +18,15 @@ import {
   saveBio,
   saveFits,
   setProfileLike,
+  twitchUrl,
+  youtubeUrl,
   uploadProfileImage,
   type Fit,
   type ProfileExtras,
 } from '../lib/profileExtras'
 import FitImage from './FitImage'
 import ReportDialog from './ReportDialog'
+import RoleFrame from './RoleFrame'
 import { Flag } from './Emoji'
 import { RoleName } from './RoleName'
 
@@ -34,6 +37,30 @@ function Heart({ filled, className = 'h-5 w-5' }: { filled: boolean; className?:
     <svg viewBox="0 0 24 24" className={className} fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
       <path d={HEART} />
     </svg>
+  )
+}
+
+/** YouTube and Twitch of the member, as small icons that open the channel. */
+function ChannelLinks({ yt, twitch }: { yt: string | null | undefined; twitch: string | null | undefined }) {
+  if (!yt && !twitch) return null
+  const cls = 'inline-flex h-7 w-7 items-center justify-center rounded-md border border-base-600 bg-base-800/70 transition-colors'
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {yt && (
+        <a href={youtubeUrl(yt)} target="_blank" rel="noopener noreferrer" title={`YouTube ${yt}`} aria-label={`YouTube ${yt}`} className={`${cls} text-[#ff0000] hover:border-[#ff0000]/70`}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z" />
+          </svg>
+        </a>
+      )}
+      {twitch && (
+        <a href={twitchUrl(twitch)} target="_blank" rel="noopener noreferrer" title={`Twitch ${twitch}`} aria-label={`Twitch ${twitch}`} className={`${cls} text-[#9146ff] hover:border-[#9146ff]/70`}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path d="M4.3 3 3 6.5v13.1h4.5V22h2.6l2.4-2.4h3.7L21 14.5V3H4.3zm14.9 10.3-2.9 2.9h-4.6l-2.4 2.4v-2.4H6.8V4.7h12.4v8.6zM16.3 7.6h-1.7v4.7h1.7V7.6zm-4.6 0H10v4.7h1.7V7.6z" />
+          </svg>
+        </a>
+      )}
+    </span>
   )
 }
 
@@ -274,25 +301,27 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-base-700 bg-base-900/70">
+      <RoleFrame wins={m.allWins} radius="1rem" width={3} bolts={false} plain="border border-base-700 bg-base-900/70">
+      <div className="bg-base-900/70">
         <div className="relative h-36 sm:h-56">
           {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
         </div>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 pb-4 sm:px-6">
-          <div className="relative z-10 -mt-14 h-24 w-24 shrink-0 overflow-hidden rounded-2xl border-4 border-base-900 bg-base-800 shadow-xl sm:-mt-16 sm:h-32 sm:w-32">
+          <RoleFrame wins={m.allWins} radius="1rem" width={4} className="relative z-10 -mt-14 h-24 w-24 shrink-0 sm:-mt-16 sm:h-32 sm:w-32" plain="border-4 border-base-900 bg-base-800 shadow-xl">
             {avatar ? (
               <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{initialOf(m.name)}</div>
             )}
-          </div>
+          </RoleFrame>
           <div className="min-w-0 flex-1 pt-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
             <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
               <RoleName wins={m.allWins}>{name}</RoleName>
               {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
+              <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-xs font-semibold text-gold-light" title={titleForLevel(level)}>
@@ -362,6 +391,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
           </div>
         )}
       </div>
+      </RoleFrame>
 
       {reporting && me && <ReportDialog myId={me} target="profile" targetId={m.publicId} subject={name} onClose={() => setReporting(false)} />}
 

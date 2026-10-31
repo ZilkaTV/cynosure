@@ -8,6 +8,8 @@ import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
 import NotificationBell from './NotificationBell'
+import RoleFrame from './RoleFrame'
+import { RoleName, useWinsIndex } from './RoleName'
 import FitImage from './FitImage'
 import { parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
 import { initialOf } from '../lib/displayName'
@@ -191,6 +193,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { extras } = useProfileExtras(profile?.openfront_id)
+  const myWins = useWinsIndex().byId.get(profile?.openfront_id ?? '')
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -217,13 +220,13 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
         aria-label={t.accountMenu.ariaLabel}
       >
         {/* the member's own icon (or the first letter of the name; a clan tag in front is ignored) instead of the gear */}
-        <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">
+        <RoleFrame wins={myWins} radius="0.6rem" width={2} className="h-9 w-9 shrink-0" plain="border border-base-600 bg-base-800">
           {profileImageSrc(extras?.avatar_url) ? (
             <FitImage src={profileImageSrc(extras?.avatar_url)!} fit={parseFit(extras?.avatar_fit)} />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-lg font-bold text-white">{initialOf(profile.in_game_name)}</span>
           )}
-        </span>
+        </RoleFrame>
         <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
           {lvl && (
             <span className="flex items-center gap-1.5 text-[11px] font-semibold text-gold-light">
@@ -235,7 +238,9 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
               )}
             </span>
           )}
-          <span className="max-w-[8rem] truncate">{profile.in_game_name}</span>
+          <span className="max-w-[8rem] truncate">
+            <RoleName wins={myWins}>{profile.in_game_name}</RoleName>
+          </span>
           <span className="max-w-[10rem] truncate text-[10px] font-medium text-slate-400">{rolesText}</span>
           {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
         </span>

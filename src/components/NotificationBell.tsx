@@ -7,6 +7,8 @@ import { QUESTS } from '../lib/quests'
 import { SOUND_KEY, soundEnabled, useNotifications, type Notice } from '../lib/notifications'
 import { setTabBadge } from '../lib/tabBadge'
 import { relativeTime } from './ui'
+import { RoleName, useWinsIndex } from './RoleName'
+import type { ReactNode } from 'react'
 
 /** A short two-note chime for a new notification (silent when the browser does not allow sound yet). */
 function chime() {
@@ -54,6 +56,7 @@ export default function NotificationBell() {
   const [newAtOpen, setNewAtOpen] = useState<Set<string>>(new Set())
   const box = useRef<HTMLDivElement>(null)
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
+  const wins = useWinsIndex()
   const nameOf = (id?: string) => cleanDisplayName((id && names.get(id)) || id || '?')
 
   // the number on the browser tab, and a chime when something new arrives (not for what was already there at the start)
@@ -101,21 +104,22 @@ export default function NotificationBell() {
     setOpen((o) => !o)
   }
 
-  function text(n: Notice): string {
-    const who = nameOf(n.who)
+  function text(n: Notice): ReactNode {
+    // the name carries the colours of the member's wins role, like everywhere else on the site
+    const who = <RoleName wins={n.who ? wins.byId.get(n.who) : undefined}>{nameOf(n.who)}</RoleName>
     switch (n.kind) {
       case 'game_reaction':
-        return de ? `${who} hat auf dein Spiel reagiert ${n.detail ?? ''}` : `${who} reacted to your game ${n.detail ?? ''}`
+        return de ? <>{who} hat auf dein Spiel reagiert {n.detail}</> : <>{who} reacted to your game {n.detail}</>
       case 'comment_reaction':
-        return de ? `${who} hat auf deinen Kommentar reagiert ${n.detail ?? ''}` : `${who} reacted to your comment ${n.detail ?? ''}`
+        return de ? <>{who} hat auf deinen Kommentar reagiert {n.detail}</> : <>{who} reacted to your comment {n.detail}</>
       case 'game_comment':
-        return de ? `${who} hat ein Spiel von dir kommentiert` : `${who} commented on a game of yours`
+        return de ? <>{who} hat ein Spiel von dir kommentiert</> : <>{who} commented on a game of yours</>
       case 'comment_reply':
-        return de ? `${who} hat auf deinen Kommentar geantwortet` : `${who} replied to your comment`
+        return de ? <>{who} hat auf deinen Kommentar geantwortet</> : <>{who} replied to your comment</>
       case 'profile_like':
-        return de ? `${who} gefällt dein Profil` : `${who} likes your profile`
+        return de ? <>{who} gefällt dein Profil</> : <>{who} likes your profile</>
       case 'profile_comment':
-        return de ? `${who} hat auf deine Pinnwand geschrieben` : `${who} wrote on your wall`
+        return de ? <>{who} hat auf deine Pinnwand geschrieben</> : <>{who} wrote on your wall</>
       case 'quest': {
         const q = QUESTS.find((x) => x.id === n.detail)
         const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined

@@ -166,6 +166,114 @@
     role-slide 3.2s linear infinite,
     role-glow 2.6s ease-in-out infinite;
 }
+/* Silver and gold: two small light bolts flash at the sides of the name now and then (the diamond lightning below is the big version) */
+.role-name.role-sparks {
+  position: relative;
+}
+.role-sparks::before,
+.role-sparks::after {
+  content: '';
+  position: absolute;
+  width: 0.5em;
+  height: 0.95em;
+  pointer-events: none;
+  background: var(--c1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 3px var(--c1));
+  opacity: 0;
+}
+.role-sparks::before {
+  left: -0.45em;
+  top: -0.4em;
+  transform: rotate(-14deg);
+  animation: spark-flash 3.8s linear infinite;
+}
+.role-sparks::after {
+  right: -0.45em;
+  bottom: -0.35em;
+  transform: rotate(166deg);
+  animation: spark-flash 4.6s linear 1.4s infinite;
+}
+@keyframes spark-flash {
+  0%,
+  84%,
+  100% {
+    opacity: 0;
+  }
+  86% {
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.15;
+  }
+  90% {
+    opacity: 1;
+  }
+  94% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-sparks::before,
+  .role-sparks::after {
+    animation: none;
+  }
+}
+
+/* The frame of a wins role around the banner and the icon (RoleFrame.tsx): bronze a brown edge, silver / gold a shimmering one in the role's colour,
+   diamond and above a glowing bluish one (the lightning is drawn by RoleName's Bolts) */
+.role-frame {
+  position: relative;
+  padding: var(--fw, 3px);
+  border-radius: var(--fr, 1rem);
+}
+.role-frame-inner {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--fr, 1rem) - var(--fw, 3px));
+}
+.role-frame-bronze {
+  background: linear-gradient(135deg, var(--c1), var(--c2) 55%, var(--c1));
+  box-shadow: 0 0 6px rgba(122, 69, 21, 0.45);
+}
+.role-frame-shine,
+.role-frame-bolt {
+  background-image: linear-gradient(110deg, var(--c2) 0%, var(--c1) 28%, #ffffff 50%, var(--c1) 72%, var(--c2) 100%);
+  background-size: 300% 100%;
+  animation: frame-shimmer 3.4s linear infinite;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c1) 55%, transparent);
+}
+.role-frame-bolt {
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--c1) 70%, transparent),
+    0 0 26px color-mix(in srgb, var(--c2) 45%, transparent);
+}
+@keyframes frame-shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-frame-shine,
+  .role-frame-bolt {
+    animation: none;
+  }
+}
+/* lightning around a frame: the bolts reach a little beyond its edge */
+.role-frame.role-bolts {
+  display: block;
+}
+.role-frame.role-bolts > .bolts {
+  left: -10px;
+  right: -10px;
+  top: -10px;
+  bottom: -10px;
+  width: auto;
+  height: auto;
+}
+
 /* Silver and gold: a bright glint sweeps over the letters, on top of the sliding colours */
 .role-name.role-glint {
   background-image: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%), linear-gradient(90deg, var(--c1), var(--c2), var(--c1));

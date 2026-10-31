@@ -6,7 +6,7 @@ import type { MemberStats } from '../lib/stats'
 
 /** From this many wins real lightning crackles around the name (like a Super Saiyan 2), in the colour of the role. */
 export const BOLT_WINS = 500
-/** Silver (100 wins) and gold (250 wins) names get a bright glint that sweeps over the letters now and then. */
+/** Silver (100 wins) and gold (250 wins) names get a bright glint that sweeps over the letters and a few small sparks (light bolts) now and then. */
 export const GLINT_WINS = 100
 
 // Jagged bolts drawn once (in a 120 x 40 box that is stretched over the name): arcs that run along the letters and spikes that leave the name
@@ -39,7 +39,7 @@ const BOLT_PATHS: { d: string; branch?: string }[] = [
 ]
 
 /** The lightning around a name (from 500 wins): drawn over the name, never in the way of the mouse. */
-function Bolts() {
+export function Bolts() {
   return (
     <svg className="bolts" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
       {BOLT_PATHS.map((b, i) => (
@@ -61,7 +61,7 @@ export function RoleName({ wins, className = '', children }: { wins: number | un
   const bolts = wins != null && wins >= BOLT_WINS
   const glint = wins != null && wins >= GLINT_WINS && !bolts
   return (
-    <span className={`role-name ${bolts ? 'role-bolts' : ''} ${glint ? 'role-glint' : ''} ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
+    <span className={`role-name ${bolts ? 'role-bolts' : ''} ${glint ? 'role-glint role-sparks' : ''} ${className}`} style={{ '--c1': colors[0], '--c2': colors[1] } as CSSProperties}>
       {children}
       {bolts && <Bolts />}
     </span>

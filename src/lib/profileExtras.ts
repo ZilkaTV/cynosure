@@ -11,6 +11,8 @@ export interface ProfileExtras {
   bio: string | null
   avatar_fit: string | null
   banner_fit: string | null
+  yt_channel: string | null
+  twitch_channel: string | null
 }
 
 /** How a picture sits in its frame: x / y = how much of the overflow is cut off left / top (0-100 %), zoom 1 = the picture just covers the frame. */
@@ -56,9 +58,9 @@ export function profileImageSrc(url: string | null | undefined): string | null {
 }
 
 export async function fetchProfileExtras(id: string): Promise<ProfileExtras | null> {
-  const { data, error } = await db.from('cyn_members').select('avatar_url, banner_url, bio, avatar_fit, banner_fit').eq('openfront_id', id).maybeSingle()
+  const { data, error } = await db.from('cyn_members').select('avatar_url, banner_url, bio, avatar_fit, banner_fit, yt_channel, twitch_channel').eq('openfront_id', id).maybeSingle()
   if (error) return null
-  return (data as ProfileExtras | null) ?? { avatar_url: null, banner_url: null, bio: null, avatar_fit: null, banner_fit: null }
+  return (data as ProfileExtras | null) ?? { avatar_url: null, banner_url: null, bio: null, avatar_fit: null, banner_fit: null, yt_channel: null, twitch_channel: null }
 }
 
 /** The icons of several members at once (comment authors). */
@@ -125,6 +127,36 @@ export async function saveFits(myId: string, fits: { avatar?: Fit; banner?: Fit 
   if (fits.banner) patch.banner_fit = fitToString(fits.banner)
   if (Object.keys(patch).length === 0) return null
   const { error } = await db.from('cyn_members').update(patch).eq('openfront_id', myId)
+  if (!error) changed()
+  return error ? error.message.replace(/^[a-z_]+: /, '') : null
+}
+
+// ── YouTube and Twitch channels (shown as small icons next to the name) ──
+
+/** "@handle" or a channel id from whatever the member typed or pasted ("youtube.com/@name", "https://www.youtube.com/channel/UC...", "name"); null when it is none. */
+export function parseYoutube(input: string): string | null {
+  const t = input.trim()
+  if (!t) return null
+  const url = /youtube\.com\/(@[A-Za-z0-9._-]{3,30}|channel\/(UC[A-Za-z0-9_-]{22}))/i.exec(t)
+  if (url) return url[2] ?? url[1]
+  if (/^UC[A-Za-z0-9_-]{22}$/.test(t)) return t
+  const handle = t.replace(/^@/, '')
+  return /^[A-Za-z0-9._-]{3,30}$/.test(handle) ? '@' + handle : null
+}
+/** The login name from a Twitch link or name; null when it is none. */
+export function parseTwitch(input: string): string | null {
+  const t = input.trim()
+  if (!t) return null
+  const url = /twitch\.tv\/([A-Za-z0-9_]{4,25})/i.exec(t)
+  const login = url ? url[1] : t.replace(/^@/, '')
+  return /^[A-Za-z0-9_]{4,25}$/.test(login) ? login : null
+}
+export const youtubeUrl = (v: string) => (v.startsWith('@') ? `https://www.youtube.com/${v}` : `https://www.youtube.com/channel/${v}`)
+export const twitchUrl = (v: string) => `https://www.twitch.tv/${v}`
+
+/** Saves the two channels (empty = remove). Null when it worked, otherwise what is wrong. */
+export async function saveChannels(myId: string, yt: string | null, twitch: string | null): Promise<string | null> {
+  const { error } = await db.from('cyn_members').update({ yt_channel: yt, twitch_channel: twitch }).eq('openfront_id', myId)
   if (!error) changed()
   return error ? error.message.replace(/^[a-z_]+: /, '') : null
 }

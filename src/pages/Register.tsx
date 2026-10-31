@@ -11,6 +11,7 @@ import { checkOwnership, newVerifyCode } from '../lib/ownership'
 import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
+import ChannelSettings from '../components/ChannelSettings'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia', 'Oceania']
@@ -442,6 +443,7 @@ export default function Register() {
           </div>
         </form>
       </Card>
+      {profile && <ChannelSettings />}
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { cleanDisplayName, initialOf } from '../lib/displayName'
 import { MAX_COMMENT, deleteProfileComment, fetchAvatars, fetchProfileComments, postProfileComment, type Fit, type ProfileComment } from '../lib/profileExtras'
 import FitImage from './FitImage'
 import ReportDialog from './ReportDialog'
+import RoleFrame from './RoleFrame'
+import { RoleName, useWinsIndex } from './RoleName'
 import { relativeTime } from './ui'
 
 /** The comment wall of a profile (flat, newest first, like on a Steam profile). Members write; the author, the profile's owner and admins delete. */
@@ -25,6 +27,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
   const [showAll, setShowAll] = useState(false)
   const [reporting, setReporting] = useState<ProfileComment | null>(null)
   const me = profile?.openfront_id
+  const wins = useWinsIndex()
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
 
   const reload = useCallback(async () => {
@@ -94,13 +97,15 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
             const avatar = avatars[c.author_openfront_id]
             return (
               <li key={c.id} className="flex gap-3 rounded-xl border border-base-700 bg-base-850/50 px-3 py-3">
-                <Link to={`/member/${c.author_openfront_id}`} className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">
+                <Link to={`/member/${c.author_openfront_id}`} className="block shrink-0">
+                  <RoleFrame wins={wins.byId.get(c.author_openfront_id)} radius="0.6rem" width={2} className="h-10 w-10" plain="border border-base-600 bg-base-800">
                   {avatar ? <FitImage src={avatar.src} fit={avatar.fit} /> : <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/40 to-base-800 font-display text-lg font-bold text-white">{initialOf(names.get(c.author_openfront_id) ?? c.author_name ?? c.author_openfront_id)}</span>}
+                  </RoleFrame>
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <Link to={`/member/${c.author_openfront_id}`} className="truncate text-sm font-semibold text-white hover:text-accent-light">
-                      {name}
+                      <RoleName wins={wins.byId.get(c.author_openfront_id)}>{name}</RoleName>
                     </Link>
                     <span className="flex items-center gap-3 text-xs text-slate-500">
                       <span title={new Date(c.created_at).toLocaleString()}>{relativeTime(new Date(c.created_at).getTime(), t)}</span>

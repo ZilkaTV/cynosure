@@ -362,8 +362,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       <WhatsNew />
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
-        <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:min-h-[5.75rem] sm:justify-end sm:px-4 2xl:min-h-0">
-          <div className="flex shrink-0 flex-col items-start gap-1.5 sm:absolute sm:left-4 sm:top-3 sm:z-10 2xl:flex-row 2xl:items-center 2xl:gap-4">
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:min-h-[5.75rem] sm:justify-end sm:px-4 2xl:min-h-[9rem]">
+          <div className="flex shrink-0 flex-col items-start gap-1.5 sm:absolute sm:left-4 sm:top-3 sm:z-10">
             <div className="flex items-center gap-4">
               <Link to="/" className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:text-2xl lg:text-3xl">
                 CynClan.com
@@ -442,9 +442,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="mt-0.5 flex flex-row items-center justify-center gap-2 px-4 pb-0.5 sm:mt-0 sm:gap-4 sm:pb-0" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
+        <Link to="/" className="mt-0.5 flex flex-row items-center justify-center gap-2 px-4 pb-0.5 sm:mt-0 sm:flex-col sm:gap-1 sm:pb-1 2xl:absolute 2xl:left-1/2 2xl:top-2 2xl:z-10 2xl:w-max 2xl:-translate-x-1/2 2xl:p-0" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
           <span className="crest-glow">
-            <CynLogo className="h-10 w-10 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-14 sm:w-14 sm:drop-shadow-[0_0_16px_rgba(139,92,246,0.5)] lg:h-12 lg:w-12" />
+            <CynLogo className="h-10 w-10 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-20 sm:w-20 sm:drop-shadow-[0_0_16px_rgba(139,92,246,0.5)] 2xl:h-24 2xl:w-24" />
           </span>
           <span className="text-center font-display text-base font-bold tracking-[0.08em] text-white sm:text-2xl sm:tracking-[0.25em]">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>

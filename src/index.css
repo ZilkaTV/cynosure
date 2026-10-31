@@ -508,6 +508,13 @@ html[data-calm] .reveal-legendary:not(.pack-pop),
 html[data-calm] .pack-pop.reveal-legendary {
   animation: none !important;
 }
+/* the page behind an open window (What's new) stands still: only what is inside the window moves */
+html[data-modal] :is(main, header, footer) :is(.role-name, .text-shine, .role-frame-shine, .role-frame-bolt, .role-bolts .bolt, .text-warn, .animate-pulse, .reveal-shine, .reveal-glint),
+html[data-modal] :is(main, header, footer) :is(.role-frame-shine, .role-frame-bolt, .glow-ready, .crest-glow, .role-sparks)::before,
+html[data-modal] :is(main, header, footer) :is(.role-frame-shine, .glow-ready, .role-sparks)::after {
+  animation-play-state: paused !important;
+}
+
 /* and they pause while the page scrolls */
 html[data-scrolling] .reveal-shine,
 html[data-scrolling] .reveal-glint,

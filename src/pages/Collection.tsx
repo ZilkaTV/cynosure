@@ -62,7 +62,7 @@ function PackReveal({ pulled, cards, avatars, de, onClose }: { pulled: PulledCar
   // the card that was just turned over: an ultra one lights the window up in gold, a legendary one in red
   const justShown = shown > 0 ? pulled[shown - 1]?.rarity : undefined
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={de ? 'Booster geöffnet' : 'Booster opened'}>
+    <div className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/85 p-4" role="dialog" aria-modal="true" aria-label={de ? 'Booster geöffnet' : 'Booster opened'}>
       {(justShown === 'ultra' || justShown === 'legendary') && <div key={shown} className={`reveal-flash ${justShown}`} aria-hidden />}
       <div className="w-full max-w-4xl py-6">
         <h2 className="mb-5 text-center font-display text-2xl font-bold text-white">{de ? 'Dein Booster' : 'Your booster'}</h2>

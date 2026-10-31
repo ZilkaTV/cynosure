@@ -29,6 +29,8 @@ interface FeedPlayer {
   e?: number
   id?: string
   b?: string
+  /** a member of the clan (the clan list is public, so the public id is stored) */
+  m?: boolean
   d?: number // Elo change (only for top-100 players using their own name); with `c` it is the total of the last c games
   c?: number
   /** Elo change worked out from the opponent's (1v1 is zero-sum), not measured for this player. */
@@ -190,6 +192,7 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
           {p.e != null ? ` · ${p.e}` : ''}
         </span>
       )}
+      {(p.m || memberId) && p.t !== 'CYN' && <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] font-bold text-accent-light">CYN</span>}
       {p.d !== undefined && (
         <span title={p.mirrored ? "Elo is zero-sum in 1v1: the opponent’s change, mirrored" : undefined} className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
           {p.c ? 'Σ ' : p.mirrored ? '≈ ' : ''}

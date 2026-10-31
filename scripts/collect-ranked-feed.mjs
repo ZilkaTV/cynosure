@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Feeds the "Live Ranked Queue" page: finished ranked 1v1 / 2v2 games in which at least one top-100 player took part.
+// Feeds the "Live Ranked Queue" page: finished ranked 1v1 / 2v2 / FFA games in which at least one top-100 player or one member of the
+// clan (every row of cyn_members: registered members and the clan list) took part.
 //
 // Source: OpenFront's official public API - GET /public/games (list of finished games in a time window) and
 // GET /public/game/:id (players + winner). The top-100 boards come from the Worker's own copy (blob "ranked"/"roster").
@@ -132,12 +133,13 @@ async function backfillPublicIds(limit = 200) {
   return done
 }
 
-function buildMatch(game, detail, board, known) {
+function buildMatch(game, detail, board, known, memberIds) {
   const info = detail.info
   const players = info.players ?? []
   const winner = Array.isArray(info.winner) ? info.winner : []
   const winnerIds = new Set(winner[0] === 'team' ? winner.slice(2) : winner[0] === 'player' ? [winner[1]] : [])
   let top = 0
+  let members = 0
   const owners = []
   const out = players.map((p, i) => {
     const entry = p.publicID ? board[p.publicID] : null
@@ -146,6 +148,9 @@ function buildMatch(game, detail, board, known) {
     const entryNames = entry ? [normName(entry.accountUsername), normName(entry.username)] : []
     const ownName = entry && entryNames.includes(normName(p.username))
     if (isTop) top++
+    // A member of the clan: the public id is stored (the member list is public on the site) and the row is marked, top 100 or not.
+    const isMember = Boolean(p.publicID && memberIds?.has(p.publicID))
+    if (isMember) members++
     if (ownName) owners.push({ k: hashId(p.publicID), pid: p.publicID, w: winnerIds.has(p.clientID) })
     return {
       n: String(p.username ?? '').slice(0, 40),
@@ -153,10 +158,11 @@ function buildMatch(game, detail, board, known) {
       s: p.teamIndex ?? i,
       w: winnerIds.has(p.clientID),
       ...(isTop ? { k: hashId(p.publicID) } : {}),
-      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : isTop ? { b: 'Top 100', id: p.publicID } : {}),
+      ...(ownName ? { r: entry.rank, e: entry.elo, id: p.publicID } : isTop ? { b: 'Top 100', id: p.publicID } : isMember ? { id: p.publicID } : {}),
+      ...(isMember ? { m: true } : {}),
     }
   })
-  if (top === 0) return null
+  if (top === 0 && members === 0) return null
   return {
     owners,
     game_id: game.game,
@@ -258,7 +264,23 @@ function resolveBatches(state, nowMs) {
   return updates
 }
 
+// Public ids of everybody in the clan (the members table), read again every ten minutes.
+let memberIdsAt = 0
+let memberIds = new Set()
+async function loadMemberIds() {
+  if (Date.now() - memberIdsAt < 10 * 60_000) return memberIds
+  const { data, error } = await usersDb.from('cyn_members').select('openfront_id').limit(5000)
+  if (error) throw error
+  memberIds = new Set((data ?? []).map((r) => r.openfront_id).filter(Boolean))
+  memberIdsAt = Date.now()
+  return memberIds
+}
+
 async function main() {
+  const clanIds = await loadMemberIds().catch((err) => {
+    console.error('member ids unavailable, only top-100 games are stored this pass:', err.message ?? err)
+    return new Set()
+  })
   const live = await fetchLiveBoards().catch((err) => {
     console.error('live boards unavailable, using the stored copy:', err.message ?? err)
     return null
@@ -302,7 +324,7 @@ async function main() {
       todo.slice(i, i + CONCURRENCY).map(async (g) => {
         try {
           const detail = await getJson(`${API}/game/${encodeURIComponent(g.game)}?turns=false`)
-          const row = buildMatch(g, detail, boards[g.rankedType] ?? {}, state.known?.[g.rankedType])
+          const row = buildMatch(g, detail, boards[g.rankedType] ?? {}, state.known?.[g.rankedType], clanIds)
           if (!row) skipped++
           else {
             const { owners, ...dbRow } = row
@@ -351,7 +373,7 @@ async function main() {
     state.lastMaintenance = now
     await hotPutBlob('ranked-elo', JSON.stringify(state)).catch(() => {})
   }
-  console.log(JSON.stringify({ stored, skippedNoTop100: skipped, failed, leftOver: backlog.length - backlogTodo.length, mapSizeBackfilled: sized, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
+  console.log(JSON.stringify({ stored, skippedNoTopOrMember: skipped, failed, leftOver: backlog.length - backlogTodo.length, mapSizeBackfilled: sized, fresh: fresh.length, ms: Date.now() - now, elo: { liveBoards: Boolean(live), batches: state.batches.length, pending: state.pending.length, resolved: Object.keys(updates).length } }))
   process.exitCode = failed > 4 && failed > todo.length / 2 ? 1 : 0
 }
 

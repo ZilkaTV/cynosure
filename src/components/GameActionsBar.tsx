@@ -341,7 +341,7 @@ function ReactionList({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); onClose() }} role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); onClose() }} role="dialog" aria-modal="true" aria-label={title}>
       <div className="max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-base-600 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 flex items-center justify-between border-b border-base-700 bg-base-900 px-4 py-3">
           <h2 className="font-display text-lg font-bold text-white">{title}</h2>

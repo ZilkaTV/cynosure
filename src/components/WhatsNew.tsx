@@ -350,6 +350,16 @@ export default function WhatsNew() {
     }
   }, [latest, preview])
 
+  // while the window is open the page behind it stands still (html[data-modal], see index.css): all its moving names and frames would be repainted under the dark layer for nothing
+  useEffect(() => {
+    if (!open) return
+    const root = document.documentElement
+    root.dataset.modal = '1'
+    return () => {
+      delete root.dataset.modal
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -366,7 +376,7 @@ export default function WhatsNew() {
   const slide = i < last ? latest.slides[i] : null
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={close} role="dialog" aria-modal="true" aria-label={de ? 'Das ist neu' : 'What is new'}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4" onClick={close} role="dialog" aria-modal="true" aria-label={de ? 'Das ist neu' : 'What is new'}>
       <div className="w-full max-w-lg overflow-hidden md:max-w-3xl rounded-2xl border border-accent/40 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* header: tag, date, one line of what it is about */}
         <div className="flex items-start justify-between gap-3 px-5 pt-4 md:px-8 md:pt-6">

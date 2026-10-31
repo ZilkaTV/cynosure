@@ -20,7 +20,7 @@ export default function ReportDialog({ myId, target, targetId, subject, onClose 
   }
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-label={de ? 'Melden' : 'Report'}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={de ? 'Melden' : 'Report'}>
       <div className="w-full max-w-md rounded-2xl border border-base-600 bg-base-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>

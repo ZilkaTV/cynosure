@@ -27,6 +27,7 @@ import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
 import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleClanDonors } from './clanDonors.js'
+import { handleProfileMedia } from './profileMedia.js'
 import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
@@ -66,6 +67,7 @@ export default {
     if (pathname === '/api/ffa-month') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleFfaMonth(request, env)))
     if (pathname === '/api/speedrun/submit') return withSecurityHeaders(await handleSpeedrunSubmit(request, env, ctx))
     if (pathname === '/api/speedrun/pending') return withSecurityHeaders(await handleSpeedrunPending(request, env))
+    if (pathname === '/api/profile-media') return withSecurityHeaders(await handleProfileMedia(request, env))
     if (pathname === '/api/clan-donors') return withSecurityHeaders(await handleClanDonors(request, env))
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))

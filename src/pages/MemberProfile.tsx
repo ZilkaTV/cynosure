@@ -11,10 +11,9 @@ import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow 
 import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
-import { Flag } from '../components/Emoji'
-import { RoleName } from '../components/RoleName'
-import { splitAccountUsername } from '../lib/openfront'
-import { cleanDisplayName } from '../lib/displayName'
+import ProfileHeader from '../components/ProfileHeader'
+import ProfileWall from '../components/ProfileWall'
+import { useProfileExtras } from '../lib/profileExtras'
 import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
 import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
@@ -62,6 +61,7 @@ export default function MemberProfile() {
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
+  const { extras, reload: reloadExtras } = useProfileExtras(id)
   // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
   useEffect(() => {
     if (window.location.hash !== '#saved') return
@@ -202,36 +202,7 @@ export default function MemberProfile() {
     <div className="order-3 mx-auto w-full min-w-0 max-w-4xl space-y-10 md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <Link to="/" className="inline-block text-sm text-slate-400 hover:text-accent-light">{t.memberProfile.backToRoster}</Link>
 
-      <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
-        <h1 className="mt-1 inline-flex items-center gap-2 font-display text-3xl font-bold text-white">
-          {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
-          <RoleName wins={m.allWins}>{cleanDisplayName(m.name)}</RoleName>
-          {isOwnProfile && viewerIsAdmin && (
-            <span className="ml-2 align-middle rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-gold-light">
-              {t.accountMenu.adminBadge}
-            </span>
-          )}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {m.timezone && <span>{m.timezone}</span>}
-          {m.discord && <span> · {t.memberProfile.discordPrefix} {m.discord}</span>}
-          {m.accountUsername && (
-            <span>
-              {' '}
-              · {t.memberProfile.accountUsernamePrefix}{' '}
-              {(() => {
-                const { base, discriminator } = splitAccountUsername(m.accountUsername)
-                return (
-                  <>
-                    {base}
-                    {discriminator && <span className="text-slate-600">#{discriminator}</span>}
-                  </>
-                )
-              })()}
-            </span>
-          )}
-        </p>
+      <ProfileHeader m={m} isOwn={isOwnProfile} viewerIsAdmin={viewerIsAdmin} extras={extras} reloadExtras={() => void reloadExtras()}>
         {!isOwnProfile && viewerIsAdmin && m.discord && (
           <div className="mt-3 flex flex-col items-center gap-1.5">
             <div className="flex flex-wrap justify-center gap-2">
@@ -256,7 +227,7 @@ export default function MemberProfile() {
             {supporterMsg && <p className="text-xs text-slate-500">{supporterMsg}</p>}
           </div>
         )}
-      </div>
+      </ProfileHeader>
 
       <section>
         <div className="mb-6 text-center">
@@ -373,6 +344,8 @@ export default function MemberProfile() {
         )}
         <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.clickForReport}</p>
       </section>
+
+      <ProfileWall profileId={m.publicId} />
 
       <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
     </div>

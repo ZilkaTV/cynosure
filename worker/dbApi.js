@@ -53,6 +53,15 @@ const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 // The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
 const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
 const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
+/** The "about me" text of a profile: empty (null) or up to 300 characters without blocked language. */
+function cleanBio(v) {
+  if (v == null) return null
+  const text = String(v).trim()
+  if (text.length === 0) return null
+  if (text.length > 300) throw new DbError('P0001', 'invalid_length: about me is too long (max 300 characters)')
+  if (BLOCKED.test(normalizeChat(text))) throw new DbError('P0001', 'blocked_content: text contains blocked language')
+  return text
+}
 const checkEmoji = (emoji) => {
   if (!REACTIONS.has(emoji)) throw new DbError('P0001', 'invalid_emoji: unknown reaction')
 }
@@ -138,6 +147,42 @@ const RULES = {
       return { comment_id: Number(row.comment_id), openfront_id: m.openfront_id, emoji: row.emoji }
     },
     delete: own('openfront_id'),
+  },
+  // Profile page: a like per member (not for yourself) and a comment wall, flat like the one on a Steam profile. The profile's owner and the
+  // admins may delete any comment on it, the author their own.
+  cyn_profile_likes: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.from_id !== m.openfront_id) return false
+      if (!ID_LIKE.test(String(row.profile_id ?? ''))) throw new DbError('P0001', 'invalid_id: bad profile id')
+      if (row.profile_id === m.openfront_id) throw new DbError('P0001', 'invalid_target: you cannot like your own profile')
+      if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(row.profile_id).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      return { profile_id: row.profile_id, from_id: m.openfront_id }
+    },
+    delete: own('from_id'),
+  },
+  cyn_profile_comments: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.author_openfront_id !== m.openfront_id) return false
+      if (!ID_LIKE.test(String(row.profile_id ?? ''))) throw new DbError('P0001', 'invalid_id: bad profile id')
+      const body = String(row.body ?? '').trim()
+      if (body.length === 0) throw new DbError('P0001', 'invalid_length: comment is empty')
+      if (body.length > 500) throw new DbError('P0001', 'invalid_length: comment is too long (max 500 characters)')
+      if (BLOCKED.test(normalizeChat(body))) throw new DbError('P0001', 'blocked_content: comment contains blocked language')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_profile_comments WHERE author_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 30000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 3) throw new DbError('P0001', 'rate_limited: wait a bit before commenting again')
+      if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(row.profile_id).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      return { profile_id: row.profile_id, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, body }
+    },
+    delete: async (c) => {
+      if (!c.user) return false
+      if (await c.isAdmin()) return true
+      const m = await c.myMember()
+      return m ? { sql: '(author_openfront_id = ? OR profile_id = ?)', args: [m.openfront_id, m.openfront_id] } : false
+    },
   },
   cyn_inner_circle: { read: PUBLIC },
   cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access
@@ -369,6 +414,9 @@ async function runWrite(c, q, meta, rules) {
         // Identity fields always come from the verified session, never from the request body.
         // (The Discord username too: admin and moderator names are matched against it, so it must be the signed-in account's own.)
         row = { ...row, user_id: c.user.id, discord_user_id: c.user.id, discord_username: c.user.username, claimed: 1 }
+        delete row.avatar_url
+        delete row.banner_url
+        if ('bio' in row) row.bio = cleanBio(row.bio)
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -442,6 +490,9 @@ async function runWrite(c, q, meta, rules) {
       delete patch.created_at
       delete patch.openfront_id
       delete patch.claimed
+      delete patch.avatar_url
+      delete patch.banner_url
+      if ('bio' in patch) patch.bio = cleanBio(patch.bio)
       patch.discord_user_id = c.user.id
     }
     if (meta.cols.includes('updated_at') && patch.updated_at === undefined) patch.updated_at = nowIso()

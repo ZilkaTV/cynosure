@@ -18,7 +18,10 @@ export const USERS_META = {
       "updated_at",
       "user_id",
       "discord_user_id",
-      "claimed"
+      "claimed",
+      "avatar_url",
+      "banner_url",
+      "bio"
     ]
   },
   "cyn_speedruns": {
@@ -460,6 +463,34 @@ export const USERS_META = {
       "comment_id",
       "openfront_id",
       "emoji",
+      "created_at"
+    ]
+  },
+  "cyn_profile_likes": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "profile_id",
+      "from_id"
+    ],
+    "cols": [
+      "profile_id",
+      "from_id",
+      "created_at"
+    ]
+  },
+  "cyn_profile_comments": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "profile_id",
+      "author_openfront_id",
+      "author_name",
+      "body",
       "created_at"
     ]
   }

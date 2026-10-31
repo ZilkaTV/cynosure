@@ -10,7 +10,10 @@ CREATE TABLE IF NOT EXISTS cyn_members (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   user_id TEXT,
   discord_user_id TEXT,
-  claimed INTEGER NOT NULL DEFAULT 1
+  claimed INTEGER NOT NULL DEFAULT 1,
+  avatar_url TEXT,
+  banner_url TEXT,
+  bio TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cyn_speedruns (
@@ -265,3 +268,20 @@ CREATE TABLE IF NOT EXISTS cyn_comment_reactions (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY (comment_id, openfront_id, emoji)
 );
+
+CREATE TABLE IF NOT EXISTS cyn_profile_likes (
+  profile_id TEXT NOT NULL,
+  from_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (profile_id, from_id)
+);
+
+CREATE TABLE IF NOT EXISTS cyn_profile_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id TEXT NOT NULL,
+  author_openfront_id TEXT NOT NULL,
+  author_name TEXT,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS cyn_profile_comments_profile ON cyn_profile_comments (profile_id);

@@ -9,7 +9,7 @@ import RoleFrame from './RoleFrame'
 import { RoleName } from './RoleName'
 import { CurrencyIcon } from './CurrencyIcon'
 import CardCanvas from './CardCanvas'
-import type { PlayerCardData } from '../lib/playerCard'
+import { CARD_STATS, type PlayerCardData } from '../lib/playerCard'
 import { useLanguage } from '../i18n/LanguageContext'
 import { WHATS_NEW_AFTER_UPDATE_KEY } from '../lib/useSiteUpdate'
 
@@ -119,25 +119,34 @@ const SAMPLE_CARD: PlayerCardData = {
   updatedMonth: '2026-11',
 }
 
-/** Your own card with the green and red changes of the monthly training, next to a booster pack. */
+/** Your own card next to a booster pack; the green and red changes of the monthly training are in the list of the values (not on the card). */
 function CardsVisual({ de }: { de: boolean }) {
   return (
-    <div className="flex w-full max-w-sm items-center justify-center gap-4 px-2">
-      <div className="w-[44%] shrink-0">
-        <CardCanvas card={SAMPLE_CARD} deltas scale={0.7} className="w-full rounded-xl drop-shadow-[0_8px_18px_rgba(0,0,0,0.55)]" />
+    <div className="flex w-full max-w-sm items-center justify-center gap-3 px-2">
+      <div className="w-[38%] shrink-0">
+        <CardCanvas card={SAMPLE_CARD} scale={0.7} className="w-full rounded-xl drop-shadow-[0_8px_18px_rgba(0,0,0,0.55)]" />
       </div>
       <div className="flex flex-1 flex-col items-center gap-2">
-        <div className="relative flex aspect-[3/4] w-full max-w-[120px] flex-col items-center justify-center rounded-xl border-2 border-gold/60 bg-gradient-to-br from-accent/60 via-base-800 to-gold/30 p-2 text-center shadow-xl">
-          <img src="/logo.png" alt="" className="h-9 w-9" />
-          <p className="mt-1 font-display text-sm font-bold tracking-widest text-gold-light">BOOSTER</p>
-          <p className="text-[8px] uppercase tracking-wide text-slate-300">{de ? '3 Karten' : '3 cards'}</p>
+        <div className="relative flex aspect-[4/3] w-full max-w-[150px] items-center justify-center gap-2 rounded-xl border-2 border-gold/60 bg-gradient-to-br from-accent/60 via-base-800 to-gold/30 px-2 py-1.5 text-left shadow-xl">
+          <img src="/logo.png" alt="" className="h-8 w-8" />
+          <div>
+            <p className="font-display text-sm font-bold tracking-widest text-gold-light">BOOSTER</p>
+            <p className="text-[8px] uppercase tracking-wide text-slate-300">{de ? '3 Karten' : '3 cards'}</p>
+          </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-1">
-          {(['rare', 'epic', 'ultra', 'legendary'] as const).map((r) => (
-            <span key={r} className="rounded-full border border-base-600 bg-base-900/80 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-slate-300">
-              {r}
-            </span>
-          ))}
+        <div className="w-full rounded-xl border border-base-700 bg-base-900/80 px-2 py-1.5">
+          <p className="mb-1 text-center text-[8px] font-semibold uppercase tracking-widest text-slate-500">{de ? 'So kommen die Werte zustande' : 'Where the values come from'}</p>
+          <div className="grid grid-cols-3 gap-x-2 gap-y-1">
+            {CARD_STATS.map((k) => {
+              const d = SAMPLE_CARD.delta?.[k] ?? 0
+              return (
+                <div key={k} className="flex items-baseline justify-between gap-1 text-[10px] leading-tight">
+                  <span className="font-display font-bold text-gold-light">{k}</span>
+                  <span className={`font-semibold ${d > 0 ? 'text-signal-green' : d < 0 ? 'text-signal-red' : 'text-slate-600'}`}>{d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '±0'}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>

@@ -77,19 +77,22 @@ export interface CardMeasures {
   /** lower is better */
   speedrunSeconds: number | null
   tiles3min: number | null
-  teamWinRate: number | null
+  /** the team win points over all games (1 per team win, 2 when another member played in it) */
+  teamScore: number | null
   troopsIn: number | null
   kills: number | null
   troopsOut: number | null
 }
 
-export function measuresOf(m: MemberStats, caps: number | null, social: number | null): CardMeasures {
+export function measuresOf(m: MemberStats, caps: number | null, social: number | null, coopByGame: Record<string, boolean> = {}): CardMeasures {
   const finished = m.cynGames.filter((g) => g.result !== 'incomplete')
   const won = (list: typeof finished) => list.filter((g) => g.result === 'victory').length
   const team = finished.filter((g) => g.mode === 'Team')
   const details = Object.values(m.detailByGame)
   const mean = (pick: (d: (typeof details)[number]) => number) => avg(details.map(pick).filter((v) => Number.isFinite(v)))
-  const elos = [m.elo, m.elo2v2, m.eloFfa].filter((v): v is number => typeof v === 'number')
+  // INT is the best ranked Elo of the two duel ladders (1v1 and 2v2)
+  const elos = [m.elo, m.elo2v2].filter((v): v is number => typeof v === 'number')
+  const teamScore = team.filter((g) => g.type !== 'Private' && g.result === 'victory').reduce((s, g) => s + (coopByGame[g.gameId] ? 2 : 1), 0)
   return {
     social,
     xp: m.xp,
@@ -99,7 +102,7 @@ export function measuresOf(m: MemberStats, caps: number | null, social: number |
     caps,
     speedrunSeconds: m.speedrunSeconds,
     tiles3min: m.tiles3minPercent,
-    teamWinRate: team.length >= 5 ? won(team) / team.length : null,
+    teamScore: team.length > 0 ? teamScore : null,
     troopsIn: mean((d) => d.troopsInPerMin),
     kills: mean((d) => d.kills),
     troopsOut: mean((d) => d.troopsOutPerMin),
@@ -113,10 +116,7 @@ const FORMULA: Record<CardStat, Pair[]> = {
     ['social', true],
     ['xp', true],
   ],
-  INT: [
-    ['winRate', true],
-    ['bestElo', true],
-  ],
+  INT: [['bestElo', true]],
   ECO: [
     ['goldPerMin', true],
     ['caps', true],
@@ -126,7 +126,7 @@ const FORMULA: Record<CardStat, Pair[]> = {
     ['tiles3min', true],
   ],
   DEF: [
-    ['teamWinRate', true],
+    ['teamScore', true],
     ['troopsIn', true],
   ],
   ATK: [
@@ -145,8 +145,8 @@ export function applySnapshot(card: PlayerCardData, snap: CardSnapshot): PlayerC
 }
 
 /** The cards of all members: each value is the member's place among the members that have data for it. */
-export function computeCards(members: MemberStats[], capsByMember: Map<string, number>, donorsKnown: boolean, socialByMember: Map<string, number> | null = null): Map<string, PlayerCardData> {
-  const all = members.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null, socialByMember ? (socialByMember.get(m.publicId) ?? 0) : null) }))
+export function computeCards(members: MemberStats[], capsByMember: Map<string, number>, donorsKnown: boolean, socialByMember: Map<string, number> | null = null, coopByGame: Record<string, boolean> = {}): Map<string, PlayerCardData> {
+  const all = members.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null, socialByMember ? (socialByMember.get(m.publicId) ?? 0) : null, coopByGame) }))
   const population = (key: keyof CardMeasures) => all.map((a) => a.x[key]).filter((v): v is number => typeof v === 'number')
   const pops = {} as Record<keyof CardMeasures, number[]>
   for (const key of Object.keys(all[0]?.x ?? {}) as (keyof CardMeasures)[]) pops[key] = population(key)

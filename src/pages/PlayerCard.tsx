@@ -13,10 +13,10 @@ import { useProfile } from '../lib/useProfile'
 
 const WHAT: Record<CardStat, { de: string; en: string; name: { de: string; en: string } }> = {
   COM: { name: { de: 'Kommunikation', en: 'Communication' }, de: 'Kommentare und Reaktionen auf der Seite und Quest-XP', en: 'comments and reactions on the site and quest XP' },
-  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Siegquote und bestes Ranked-Elo', en: 'win rate and best ranked Elo' },
+  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Bestes Ranked-Elo (1v1 oder 2v2)', en: 'best ranked Elo (1v1 or 2v2)' },
   ECO: { name: { de: 'Wirtschaft', en: 'Economy' }, de: 'Gold pro Minute und gespendete Caps', en: 'gold per minute and donated caps' },
   SPE: { name: { de: 'Tempo', en: 'Speed' }, de: 'Speedrun-Zeit und Gebietsanteil nach 3 Minuten', en: 'speedrun time and tile share after 3 minutes' },
-  DEF: { name: { de: 'Verteidigung', en: 'Defense' }, de: 'Siegquote in Team-Spielen und abgewehrte Angriffe pro Minute', en: 'team win rate and attacks received per minute' },
+  DEF: { name: { de: 'Verteidigung', en: 'Defense' }, de: 'Team-Win-Score und erhaltene Angriffe pro Minute', en: 'team win score and attacks received per minute' },
   ATK: { name: { de: 'Angriff', en: 'Attack' }, de: 'Kills pro Spiel und Truppen im Angriff pro Minute', en: 'kills per game and troops sent per minute' },
 }
 
@@ -57,7 +57,7 @@ export default function PlayerCard() {
       await loadCardFonts()
       const assets = await loadCardAssets(card.nationality, picture.src ? { src: picture.src, fit: picture.fit } : null)
       if (!alive || !canvas.current) return
-      drawPlayerCard(canvas.current, card, assets, { deltas: true })
+      drawPlayerCard(canvas.current, card, assets)
       setDrawn(true)
     })()
     return () => {

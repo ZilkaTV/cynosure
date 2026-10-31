@@ -418,6 +418,10 @@ html[data-scrolling] .animate-pulse {
     pack-pop 0.6s ease-out both,
     reveal-pulse 1.7s ease-in-out 0.6s infinite;
 }
+/* in the collection (no turning over) a legendary card just pulses */
+.reveal-legendary:not(.pack-pop) {
+  animation: reveal-pulse 1.7s ease-in-out infinite;
+}
 .reveal-legendary .reveal-card canvas {
   filter: drop-shadow(0 0 14px rgba(251, 113, 133, 0.6)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6));
   animation: reveal-glow 1.7s ease-in-out 0.6s infinite;
@@ -489,6 +493,7 @@ html[data-scrolling] .animate-pulse {
   .reveal-ring,
   .reveal-flash,
   .pack-pop.reveal-legendary,
+  .reveal-legendary:not(.pack-pop),
   .reveal-legendary .reveal-card canvas {
     animation: none;
   }
@@ -499,8 +504,16 @@ html[data-calm] .reveal-glint,
 html[data-calm] .reveal-ring,
 html[data-calm] .reveal-flash,
 html[data-calm] .reveal-legendary .reveal-card canvas,
+html[data-calm] .reveal-legendary:not(.pack-pop),
 html[data-calm] .pack-pop.reveal-legendary {
   animation: none !important;
+}
+/* and they pause while the page scrolls */
+html[data-scrolling] .reveal-shine,
+html[data-scrolling] .reveal-glint,
+html[data-scrolling] .reveal-legendary:not(.pack-pop),
+html[data-scrolling] .reveal-legendary .reveal-card canvas {
+  animation-play-state: paused !important;
 }
 
 /* The crest in the header: a purple glow behind it that slowly pulses */

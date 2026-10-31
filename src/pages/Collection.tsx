@@ -338,8 +338,16 @@ export default function Collection() {
               {shown.map((c: CollectedCard) => {
                 const card = cards.get(c.card_id)!
                 return (
-                  <div key={`${c.card_id}-${c.rarity}`} className="relative">
-                    <CardCanvas card={card} look={RARITY_LOOK[c.rarity]} label={rarityName(c.rarity, false).toUpperCase()} scale={0.55} avatar={avatars[c.card_id]} className="w-full rounded-xl drop-shadow-[0_6px_14px_rgba(0,0,0,0.5)]" />
+                  <div key={`${c.card_id}-${c.rarity}`} className={`relative ${c.rarity === 'ultra' ? 'reveal-ultra' : c.rarity === 'legendary' ? 'reveal-legendary' : ''}`}>
+                    <div className="reveal-card relative rounded-xl">
+                      <CardCanvas card={card} look={RARITY_LOOK[c.rarity]} label={rarityName(c.rarity, false).toUpperCase()} scale={0.55} avatar={avatars[c.card_id]} className="w-full rounded-xl drop-shadow-[0_6px_14px_rgba(0,0,0,0.5)]" />
+                      {(c.rarity === 'ultra' || c.rarity === 'legendary') && (
+                        <span className="reveal-fx" style={{ borderRadius: '0.75rem' }} aria-hidden>
+                          <span className="reveal-shine" />
+                          <span className="reveal-glint" />
+                        </span>
+                      )}
+                    </div>
                     {c.n > 1 && <span className="absolute right-1.5 top-1.5 rounded-full bg-base-950/85 px-2 py-0.5 text-xs font-bold text-white">×{c.n}</span>}
                   </div>
                 )

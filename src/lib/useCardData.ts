@@ -26,7 +26,7 @@ export function useCardData(): { cards: Map<string, PlayerCardData> | null; live
     }
   }, [profile])
   const reloadSnapshots = useCallback(async () => setSnapshots(await fetchSnapshots()), [])
-  const live = useMemo(() => (data ? computeCards(data.members, capsDonatedMap(donors), !!donors?.boards, social) : null), [data, donors, social])
+  const live = useMemo(() => (data ? computeCards(data.members, capsDonatedMap(donors), !!donors?.boards, social, data.coopByGame) : null), [data, donors, social])
   const cards = useMemo(() => {
     if (!live || !snapshots) return live
     const out = new Map<string, PlayerCardData>()

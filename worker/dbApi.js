@@ -53,6 +53,40 @@ const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 // The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
 const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
 const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
+// the answers a report offers (src/lib/reports.ts)
+const REPORT_REASONS = new Set(['image', 'insult', 'spam', 'impersonation', 'other'])
+/** How a picture is placed in its frame: "x,y,zoom" (x and y 0-100 percent, zoom 1-3) or empty. */
+function cleanFit(v) {
+  if (v == null || v === '') return null
+  const m = /^(\d{1,3}(?:\.\d{1,2})?),(\d{1,3}(?:\.\d{1,2})?),(\d(?:\.\d{1,2})?)$/.exec(String(v))
+  if (!m || Number(m[1]) > 100 || Number(m[2]) > 100 || Number(m[3]) < 1 || Number(m[3]) > 3) throw new DbError('P0001', 'invalid_fit: bad picture placement')
+  return `${m[1]},${m[2]},${m[3]}`
+}
+
+/** A YouTube channel: "@handle" or a channel id (UC...), or empty. */
+function cleanYoutube(v) {
+  if (v == null || String(v).trim() === '') return null
+  const t = String(v).trim()
+  if (/^@[A-Za-z0-9._-]{3,30}$/.test(t) || /^UC[A-Za-z0-9_-]{22}$/.test(t)) return t
+  throw new DbError('P0001', 'invalid_channel: bad YouTube channel')
+}
+/** A Twitch channel: the login name, or empty. */
+function cleanTwitch(v) {
+  if (v == null || String(v).trim() === '') return null
+  const t = String(v).trim()
+  if (/^[A-Za-z0-9_]{4,25}$/.test(t)) return t
+  throw new DbError('P0001', 'invalid_channel: bad Twitch channel')
+}
+
+/** The "about me" text of a profile: empty (null) or up to 300 characters without blocked language. */
+function cleanBio(v) {
+  if (v == null) return null
+  const text = String(v).trim()
+  if (text.length === 0) return null
+  if (text.length > 300) throw new DbError('P0001', 'invalid_length: about me is too long (max 300 characters)')
+  if (BLOCKED.test(normalizeChat(text))) throw new DbError('P0001', 'blocked_content: text contains blocked language')
+  return text
+}
 const checkEmoji = (emoji) => {
   if (!REACTIONS.has(emoji)) throw new DbError('P0001', 'invalid_emoji: unknown reaction')
 }
@@ -67,8 +101,8 @@ const RULES = {
     insert: async (row, c) => (c.user ? row : false),
     update: (c) => (c.user ? { sql: '(user_id IS NULL OR user_id = ?)', args: [c.user.id] } : false),
   },
-  cyn_speedruns: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
-  cyn_bumps: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
+  // Written only by the verification job (service access): see worker/speedrun.js.
+  cyn_speedruns: { read: PUBLIC },
   cyn_xp: { read: PUBLIC, insert: insertOwn('openfront_id'), update: own('openfront_id') },
   cyn_quest_claims: { read: PUBLIC, insert: insertOwn('openfront_id') },
   cyn_kudos: {
@@ -99,7 +133,109 @@ const RULES = {
   cyn_ranked_matches: { read: PUBLIC },
   cyn_saved_games: { read: own('openfront_id'), insert: insertOwn('openfront_id'), update: own('openfront_id'), delete: own('openfront_id') },
   cyn_chat_message_counts: { read: PUBLIC },
+  // Comments under a game's post-game report: members write as themselves (max 500 characters, no blocked language, a short
+  // flood limit); an author or an admin deletes. Reactions on a comment are one emoji per member and comment.
+  cyn_game_comments: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.author_openfront_id !== m.openfront_id) return false
+      const body = String(row.body ?? '').trim()
+      if (body.length === 0) throw new DbError('P0001', 'invalid_length: comment is empty')
+      if (body.length > 500) throw new DbError('P0001', 'invalid_length: comment is too long (max 500 characters)')
+      if (BLOCKED.test(normalizeChat(body))) throw new DbError('P0001', 'blocked_content: comment contains blocked language')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_game_comments WHERE author_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 30000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 3) throw new DbError('P0001', 'rate_limited: wait a bit before commenting again')
+      const parent = row.parent_id == null ? null : Number(row.parent_id)
+      if (parent != null) {
+        const p = await c.db.prepare('SELECT game_id FROM cyn_game_comments WHERE id = ?').bind(parent).first()
+        if (!p || p.game_id !== row.game_id) throw new DbError('P0001', 'invalid_parent: reply target not found')
+      }
+      // The name shown with a comment always is the member's own, never one the caller typed (no posting "as" somebody else).
+      return { game_id: String(row.game_id).slice(0, 40), parent_id: parent, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, body }
+    },
+    delete: async (c) => {
+      if (!c.user) return false
+      if (await c.isAdmin()) return true
+      const m = await c.myMember()
+      return m ? { sql: 'author_openfront_id = ?', args: [m.openfront_id] } : false
+    },
+  },
+  cyn_comment_reactions: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.openfront_id !== m.openfront_id) return false
+      checkEmoji(row.emoji)
+      const target = await c.db.prepare('SELECT 1 AS x FROM cyn_game_comments WHERE id = ?').bind(Number(row.comment_id)).first()
+      if (!target) throw new DbError('P0001', 'invalid_comment: comment not found')
+      return { comment_id: Number(row.comment_id), openfront_id: m.openfront_id, emoji: row.emoji }
+    },
+    delete: own('openfront_id'),
+  },
+  // Profile page: a like per member (not for yourself) and a comment wall, flat like the one on a Steam profile. The profile's owner and the
+  // admins may delete any comment on it, the author their own.
+  cyn_profile_likes: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.from_id !== m.openfront_id) return false
+      if (!ID_LIKE.test(String(row.profile_id ?? ''))) throw new DbError('P0001', 'invalid_id: bad profile id')
+      if (row.profile_id === m.openfront_id) throw new DbError('P0001', 'invalid_target: you cannot like your own profile')
+      if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(row.profile_id).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      return { profile_id: row.profile_id, from_id: m.openfront_id }
+    },
+    delete: own('from_id'),
+  },
+  cyn_profile_comments: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.author_openfront_id !== m.openfront_id) return false
+      if (!ID_LIKE.test(String(row.profile_id ?? ''))) throw new DbError('P0001', 'invalid_id: bad profile id')
+      const body = String(row.body ?? '').trim()
+      if (body.length === 0) throw new DbError('P0001', 'invalid_length: comment is empty')
+      if (body.length > 500) throw new DbError('P0001', 'invalid_length: comment is too long (max 500 characters)')
+      if (BLOCKED.test(normalizeChat(body))) throw new DbError('P0001', 'blocked_content: comment contains blocked language')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_profile_comments WHERE author_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 30000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 3) throw new DbError('P0001', 'rate_limited: wait a bit before commenting again')
+      if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(row.profile_id).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      return { profile_id: row.profile_id, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, body }
+    },
+    delete: async (c) => {
+      if (!c.user) return false
+      if (await c.isAdmin()) return true
+      const m = await c.myMember()
+      return m ? { sql: '(author_openfront_id = ? OR profile_id = ?)', args: [m.openfront_id, m.openfront_id] } : false
+    },
+  },
+  // Reports of a profile or of a comment on a wall: any member reports (a few per hour, once per target), only admins read and close them.
+  cyn_reports: {
+    read: ADMIN,
+    insert: async (row, c) => {
+      const m = c.user && (await c.myMember())
+      if (!m || row.reporter_openfront_id !== m.openfront_id) return false
+      if (!REPORT_REASONS.has(row.reason)) throw new DbError('P0001', 'invalid_reason: unknown reason')
+      const type = row.target_type
+      const target = String(row.target_id ?? '')
+      if (type !== 'profile' && type !== 'comment') throw new DbError('P0001', 'invalid_target: unknown target')
+      if (!ID_LIKE.test(target)) throw new DbError('P0001', 'invalid_target: bad id')
+      const note = row.note == null ? null : String(row.note).trim().slice(0, 200) || null
+      if (note && BLOCKED.test(normalizeChat(note))) throw new DbError('P0001', 'blocked_content: text contains blocked language')
+      if (type === 'profile') {
+        if (target === m.openfront_id) throw new DbError('P0001', 'invalid_target: you cannot report your own profile')
+        if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(target).first())) throw new DbError('P0001', 'invalid_target: profile not found')
+      } else if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_profile_comments WHERE id = ?').bind(Number(target)).first())) throw new DbError('P0001', 'invalid_target: comment not found')
+      const dup = await c.db.prepare("SELECT 1 AS x FROM cyn_reports WHERE reporter_openfront_id = ? AND target_type = ? AND target_id = ? AND status = 'open'").bind(m.openfront_id, type, target).first()
+      if (dup) throw new DbError('P0001', 'already_reported: you have already reported this')
+      const recent = await c.db.prepare('SELECT COUNT(*) AS n FROM cyn_reports WHERE reporter_openfront_id = ? AND created_at > ?').bind(m.openfront_id, new Date(Date.now() - 3_600_000).toISOString()).first()
+      if ((recent?.n ?? 0) >= 5) throw new DbError('P0001', 'rate_limited: too many reports, try again later')
+      return { reporter_openfront_id: m.openfront_id, target_type: type, target_id: target, reason: row.reason, note, status: 'open' }
+    },
+    update: ADMIN,
+  },
   cyn_inner_circle: { read: PUBLIC },
+  cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access
   cyn_game_nights: {
     read: SIGNED_IN,
     insert: async (row, c) => {
@@ -187,8 +323,11 @@ function sqlValue(v) {
   return v
 }
 
+// Profile extras (worker/d1/006-profiles.sql): only returned when asked for by name, so "*" keeps working on a database that does not have them yet.
+const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit', 'yt_channel', 'twitch_channel'])
+
 function colList(meta, wanted) {
-  if (!wanted || wanted === '*') return meta.cols
+  if (!wanted || wanted === '*') return meta.cols.filter((c) => !OPTIONAL_COLS.has(c))
   const cols = wanted.split(',').map((s) => s.trim()).filter(Boolean)
   for (const c of cols) if (!meta.cols.includes(c)) throw new DbError('42703', `column ${c} does not exist`)
   return cols
@@ -328,6 +467,13 @@ async function runWrite(c, q, meta, rules) {
         // Identity fields always come from the verified session, never from the request body.
         // (The Discord username too: admin and moderator names are matched against it, so it must be the signed-in account's own.)
         row = { ...row, user_id: c.user.id, discord_user_id: c.user.id, discord_username: c.user.username, claimed: 1 }
+        delete row.avatar_url
+        delete row.banner_url
+        if ('bio' in row) row.bio = cleanBio(row.bio)
+        delete row.avatar_fit
+        delete row.banner_fit
+        delete row.yt_channel
+        delete row.twitch_channel
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -401,6 +547,13 @@ async function runWrite(c, q, meta, rules) {
       delete patch.created_at
       delete patch.openfront_id
       delete patch.claimed
+      delete patch.avatar_url
+      delete patch.banner_url
+      if ('bio' in patch) patch.bio = cleanBio(patch.bio)
+      if ('avatar_fit' in patch) patch.avatar_fit = cleanFit(patch.avatar_fit)
+      if ('banner_fit' in patch) patch.banner_fit = cleanFit(patch.banner_fit)
+      if ('yt_channel' in patch) patch.yt_channel = cleanYoutube(patch.yt_channel)
+      if ('twitch_channel' in patch) patch.twitch_channel = cleanTwitch(patch.twitch_channel)
       patch.discord_user_id = c.user.id
     }
     if (meta.cols.includes('updated_at') && patch.updated_at === undefined) patch.updated_at = nowIso()
@@ -493,8 +646,10 @@ export async function handleDbApi(request, env, pathname) {
   if (!env.DB) return json(503, { data: null, error: { code: 'XX000', message: 'database not configured' } })
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
   // Browser calls only come from this site (SameSite=Lax already keeps the cookie off cross-site POSTs; this is the second lock).
+  // The dev copy of the site (SITE_ENV=dev, own address) accepts its own origin as well.
   const origin = request.headers.get('Origin')
-  if (origin && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
+  const own = env.SITE_ENV === 'dev' && origin === new URL(request.url).origin
+  if (origin && !own && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
   const len = Number(request.headers.get('Content-Length') ?? 0)
   if (len > MAX_BODY) return json(413, { error: 'too_large' })
   let body

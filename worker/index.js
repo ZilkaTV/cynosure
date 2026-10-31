@@ -25,12 +25,33 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob, handleFfaMonth } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
+import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
+import { handleClanDonors } from './clanDonors.js'
+import { handleBoosters } from './boosters.js'
+import { syncClanDonors } from './donorBot.js'
+import { handleProfileMedia } from './profileMedia.js'
+import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
 const GITHUB_REPO = 'ZilkaTV/cynosure'
 
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url)
+
+    // Dev copy of the site: password first, then a test sign-in; every page (not only /api) goes through this Worker there.
+    if (isDev(env)) {
+      const stop = await devGate(request, env)
+      if (stop) return stop
+      if (pathname === '/api/auth/dev-login') return handleDevLogin(request, env)
+      if (!pathname.startsWith('/api/')) {
+        const auto = devAutoLogin(request, env)
+        if (auto) return auto
+        const asset = await env.ASSETS.fetch(request)
+        const out = new Response(asset.body, asset)
+        out.headers.set('X-Robots-Tag', 'noindex, nofollow')
+        return out
+      }
+    }
 
     if (pathname.startsWith('/api/internal/users/')) return withSecurityHeaders(await handleUsersApi(request, env, pathname))
     if (pathname.startsWith('/api/internal/hot/')) return withSecurityHeaders(await handleHotApi(request, env, pathname))
@@ -46,6 +67,11 @@ export default {
     if (pathname === '/api/db' || pathname === '/api/db/rpc') return withSecurityHeaders(await handleDbApi(request, env, pathname))
     if (pathname === '/api/auth/discord/callback') return withSecurityHeaders(await handleDiscordAuthCallback(request, env))
     if (pathname === '/api/ffa-month') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleFfaMonth(request, env)))
+    if (pathname === '/api/speedrun/submit') return withSecurityHeaders(await handleSpeedrunSubmit(request, env, ctx))
+    if (pathname === '/api/speedrun/pending') return withSecurityHeaders(await handleSpeedrunPending(request, env))
+    if (pathname === '/api/profile-media') return withSecurityHeaders(await handleProfileMedia(request, env))
+    if (pathname === '/api/card-social' || pathname.startsWith('/api/boosters/') || pathname.startsWith('/api/cards/')) return withSecurityHeaders(await handleBoosters(request, env))
+    if (pathname === '/api/clan-donors' || pathname.startsWith('/api/clan-donors/')) return withSecurityHeaders(await handleClanDonors(request, env))
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))
@@ -80,6 +106,11 @@ export default {
   // repository_dispatch so one workflow being slow/failing never blocks
   // the others.
   async scheduled(event, env, ctx) {
+    // the CYN bot has its own cron (minute 5 and 35): nothing else runs on that tick
+    if (event.cron === '5,35 * * * *') {
+      ctx.waitUntil(syncClanDonors(env).catch((err) => console.error('donor bot failed:', err?.message ?? err)))
+      return
+    }
     // Ticks every 10 minutes and every job runs on every tick. That is affordable now that the big
     // data (member game lists, game details, roster, ledger) lives in Cloudflare D1 instead of
     // Supabase, whose free egress limit is what forced the slower cadence on 2026-10-04.
@@ -93,6 +124,8 @@ export default {
     if (minute % 30 === 10) ctx.waitUntil(dispatch(env, 'clan-score-ledger', 'clan-score-ledger.yml'))
     if (minute % 30 === 20) ctx.waitUntil(dispatch(env, 'collect-metrics', 'collect-metrics.yml'))
     ctx.waitUntil(dispatch(env, 'ranked-feed', 'ranked-feed.yml'))
+    // Speedrun submissions wait for the engine check; the submit call already starts it, this tick catches a missed start.
+    ctx.waitUntil(hasPendingSpeedruns(env).then((pending) => pending && startVerifyWorkflow(env)))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))
@@ -133,6 +166,7 @@ async function isWorkflowBusy(env, workflowFile) {
 }
 
 async function dispatch(env, eventType, workflowFile) {
+  if (isDev(env)) return // the dev site never starts the real workflows
   if (await isWorkflowBusy(env, workflowFile)) {
     console.log(`Skipping dispatch (${eventType}): ${workflowFile} already queued or running`)
     return

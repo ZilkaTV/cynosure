@@ -26,6 +26,8 @@ const ALLOWED_PATHS = [
   { re: new RegExp(`^public/player/${SEG}$`), params: [] },
   { re: new RegExp(`^public/game/${SEG}$`), params: ['turns'] },
   { re: /^public\/clans\/leaderboard$/, params: [] },
+  // the clan's public card: name, member count and the treasury (softBalance = caps, hardBalance = plutonium)
+  { re: /^clans\/CYN$/, params: [] },
 ]
 
 function buildTarget(path, search) {

@@ -349,6 +349,22 @@ async function main() {
         }
       }
 
+      // Server boosters keep access to the site without the 7-day rule (src/lib/access.ts): Discord marks a boosting member with
+      // premium_since. Mirrored like the inner circle, non-fatal. The table (worker/d1/boosters.sql) has to exist first.
+      if (supabaseAdmin) {
+        try {
+          if (memberData.premium_since) {
+            const { error: boosterError } = await supabaseAdmin.from('cyn_boosters').upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+            if (boosterError) throw new Error(`cyn_boosters upsert for ${m.openfront_id}: ${boosterError.message}`)
+          } else {
+            const { error: boosterError } = await supabaseAdmin.from('cyn_boosters').delete().eq('openfront_id', m.openfront_id)
+            if (boosterError) throw new Error(`cyn_boosters delete for ${m.openfront_id}: ${boosterError.message}`)
+          }
+        } catch (boosterErr) {
+          console.error(`cyn_boosters sync failed for ${m.openfront_id} (non-fatal):`, boosterErr)
+        }
+      }
+
       // Wins-tier roles are mutually exclusive (only the target tier is
       // kept); the 100-games role is independent - added/removed purely on
       // its own threshold, alongside whichever wins tier applies.

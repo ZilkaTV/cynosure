@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { RoleName, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
+import { useSharedRoster } from '../lib/access'
+import { cleanDisplayName } from '../lib/displayName'
 
 // The signed-in visitor's own account (GET /api/queue/me): named next to the in-game name when they played under another name.
 interface MyAccount {
@@ -140,29 +144,46 @@ function fmtDuration(s: number | null): string {
 
 type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }>; ffa: Record<string, { rank: number; elo: number }> }
 
-function PlayerChip({ p, mine, ladder, boards }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null }) {
+function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null; names?: Map<string, string> }) {
+  const wins = useWinsIndex()
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
   const boardEntry = p.r == null && p.id && ladder ? boards?.[ladder]?.[p.id] : undefined
   const ownBoard = (own && ladder ? own.boards[ladder] : undefined) ?? boardEntry
+  // A registered member who plays under another name in the queue: the public id tells who it is, so the member's own name is added.
+  const real = !own && p.id ? names?.get(p.id) : undefined
+  const showReal = real && cleanDisplayName(real).toLowerCase() !== cleanDisplayName(p.n).toLowerCase() ? real : null
+  // A registered member: the name opens their profile on this site (in the colours of their wins role); the id below goes to OpenFront like before.
+  const memberId = p.id && names?.has(p.id) ? p.id : null
+  const openfront = p.id ? `https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}` : null
+  const nameNode = memberId ? (
+    <Link to={`/member/${memberId}`} className="hover:text-accent-light">
+      <RoleName wins={wins.byId.get(memberId)}>{p.n}</RoleName>
+    </Link>
+  ) : openfront ? (
+    <a href={openfront} target="_blank" rel="noreferrer" className="hover:text-accent-light">
+      {p.n}
+    </a>
+  ) : (
+    p.n
+  )
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
-      {p.n}
+      {nameNode}
       {own && <span className="ml-1 text-gold-light">({own.name})</span>}
-      {p.id && <span className="block font-mono text-[10px] font-normal text-slate-500">({p.id})</span>}
+      {showReal && <span className="ml-1 text-gold-light">({cleanDisplayName(showReal)})</span>}
+      {openfront && (
+        <a href={openfront} target="_blank" rel="noreferrer" className="block font-mono text-[10px] font-normal text-slate-500 hover:text-accent-light">
+          ({p.id})
+        </a>
+      )}
     </span>
   )
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
-      {p.id ? (
-        <a href={`https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}`} target="_blank" rel="noreferrer" className="hover:text-accent-light">
-          {label}
-        </a>
-      ) : (
-        label
-      )}
+      {label}
       {p.r != null && (
         <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
           #{p.r}
@@ -195,9 +216,13 @@ export default function RankedQueue() {
   const [matches, setMatches] = useState<FeedMatch[] | null>(null)
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
+  const [allQueue, setAllQueue] = useState(false)
   const alert = useQueueAlertSettings()
   const [me, setMe] = useState<MyAccount | null>(null)
   const [boards, setBoards] = useState<Boards | null>(null)
+  // public OpenFront id -> the name the member is registered under (the member list is public on the site)
+  const roster = useSharedRoster()
+  const memberNames = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
   // Current top-100 boards (the site's roster document, cached for a minute at the edge): rank and Elo of players who
   // play under another name.
   useEffect(() => {
@@ -301,8 +326,8 @@ export default function RankedQueue() {
         <Card className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
           <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            {(['1v1', '2v2'] as const).map((l) => {
-              const on = l === '1v1' ? alert.on1v1 : alert.on2v2
+            {(['1v1', '2v2', 'ffa'] as const).map((l) => {
+              const on = alert.on(l)
               return (
                 <button
                   key={l}
@@ -312,10 +337,10 @@ export default function RankedQueue() {
                   onClick={() => alert.toggle(l, !on)}
                   className="flex items-center gap-2 text-sm text-slate-200"
                 >
-                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : 'bg-teal-500') : 'bg-base-700'}`}>
+                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : l === '2v2' ? 'bg-teal-500' : 'bg-amber-500') : 'bg-base-700'}`}>
                     <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
                   </span>
-                  <span className="font-semibold">{l}</span>
+                  <span className="font-semibold">{l === 'ffa' ? 'FFA' : l}</span>
                   <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
                 </button>
               )
@@ -328,33 +353,31 @@ export default function RankedQueue() {
           <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
             {t.queue.alertTest}
           </button>
-          {alert.permission === 'denied' && (alert.on1v1 || alert.on2v2) && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
+          {alert.permission === 'denied' && alert.ladders.length > 0 && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
           <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
         </Card>
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
-          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
-          <StatCard label={t.queue.active30} value={String(activity.m30)} accent="gold" />
-        </div>
-
-        <Card className="flex items-center gap-4 !py-4">
-          <div className="flex shrink-0 flex-col gap-1.5 rounded-xl bg-base-950 p-2" role="img" aria-label={t.queue.levels[level]}>
-            {(['low', 'medium', 'high'] as const).map((l) => (
-              <span
-                key={l}
-                className={`block h-5 w-5 rounded-full transition-all ${
+          <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>
+            <div className="flex shrink-0 flex-col gap-1 rounded-lg bg-base-950 p-1.5" role="img" aria-label={t.queue.levels[level]}>
+              {(['low', 'medium', 'high'] as const).map((l) => (
+                <span
+                  key={l}
+                  className={`block h-3.5 w-3.5 rounded-full transition-all ${
                   l === 'low' ? (level === l ? 'bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.7)]' : 'bg-red-950') : l === 'medium' ? (level === l ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]' : 'bg-amber-950') : level === l ? 'bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]' : 'bg-emerald-950'
                 }`}
-              />
-            ))}
+                />
+              ))}
+            </div>
+            <div className="hidden min-w-0 sm:block">
+              <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.queue.level}</p>
+              <p className="font-display text-2xl font-bold text-white">{t.queue.levels[level]}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t.queue.level}</div>
-            <div className="font-display text-xl font-bold text-white">{t.queue.levels[level]}</div>
-            <p className="mt-1 text-xs text-slate-400">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
-          </div>
-        </Card>
+          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
+          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
+        </div>
+        <p className="text-center text-xs text-slate-500">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
 
         <div>
           <h3 className="mb-3 font-display text-base font-bold text-white">{t.queue.recent}</h3>
@@ -362,7 +385,7 @@ export default function RankedQueue() {
           {!matches && !error && <Spinner />}
           {matches && shown.length === 0 && <p className="text-sm text-slate-400">{t.queue.empty}</p>}
           <div className="space-y-2">
-            {shown.slice(0, LIST_LIMIT).map((m) => {
+            {shown.slice(0, allQueue ? LIST_LIMIT : 10).map((m) => {
               const players = withMirroredElo(m)
               const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
               // Ranked FFA: everybody is a side of their own, the winner first.
@@ -410,7 +433,7 @@ export default function RankedQueue() {
                           <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
                             {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
                             {team.map((p, j) => (
-                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} />
+                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
                             ))}
                           </div>
                         </div>
@@ -424,6 +447,13 @@ export default function RankedQueue() {
           </div>
         </div>
 
+        {shown.length > 10 && (
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setAllQueue((v) => !v)} className="btn-ghost text-sm">
+              {allQueue ? t.common.showTopOnly(10) : t.common.showAll(Math.min(shown.length, LIST_LIMIT))}
+            </button>
+          </div>
+        )}
         <p className="text-center text-xs text-slate-500">{t.queue.eloNote}</p>
         <p className="text-center text-xs text-slate-500">{t.queue.privacyNote}</p>
         <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />

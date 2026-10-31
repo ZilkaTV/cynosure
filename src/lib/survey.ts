@@ -137,7 +137,7 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
         }
       }
       if (isJunkAnswer(name, q.id.startsWith('clans_'))) {
-        return { message: `"${name}" isn't a real nominee - please enter an actual player/clan name for "${q.text}".`, questionId: q.id, slots: [i] }
+        return { message: `"${name}" isn't a real nominee. Please enter an actual player/clan name for "${q.text}".`, questionId: q.id, slots: [i] }
       }
     }
     // Alias-aware: "Zixer" and "Zixer2" (or "Rex" and "Ultimus_rex") are the
@@ -152,7 +152,7 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
           message:
             earlier.toLowerCase() === name.toLowerCase()
               ? `You entered the same name twice for "${q.text}".`
-              : `"${earlier}" and "${name}" are the same nominee - please enter a different name for "${q.text}".`,
+              : `"${earlier}" and "${name}" are the same nominee. Please enter a different name for "${q.text}".`,
           questionId: q.id,
           slots: [earlierIndex, i],
         }
@@ -164,7 +164,7 @@ export function findAnswerProblem(answers: SurveyAnswers): AnswerProblem | null 
         for (let j = i + 1; j < slots.length; j++) {
           if (similarKeys(nomineeKey(slots[i]), nomineeKey(slots[j]))) {
             return {
-              message: `"${slots[i]}" and "${slots[j]}" look like the same nominee - please enter a different name for "${q.text}".`,
+              message: `"${slots[i]}" and "${slots[j]}" look like the same nominee. Please enter a different name for "${q.text}".`,
               questionId: q.id,
               slots: [i, j],
             }
@@ -250,7 +250,7 @@ export async function submitSurvey(params: {
   comment: string
 }): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: 'Survey backend is not configured.' }
-  if (isSurveyClosed()) return { ok: false, error: 'The survey is closed - the results have been revealed.' }
+  if (isSurveyClosed()) return { ok: false, error: 'The survey is closed. The results have been revealed.' }
   const validationError = validateAnswers(params.answers)
   if (validationError) return { ok: false, error: validationError }
 

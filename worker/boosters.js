@@ -1,0 +1,329 @@
+// Boosters and the card collection.
+//
+//   GET  /api/boosters/me                 the own state: boosters on hand, is today's free one available, opened today
+//   POST /api/boosters/open               opens one booster (the free one of the day first, then a booster on hand): 3 cards of members in random rarities
+//   GET  /api/boosters/collection?id=ID   the cards a member collected (members of the site see each other's collections)
+//   POST /api/boosters/grant              admins: puts boosters on hand for a member { openfront_id, count }
+//   POST /api/boosters/request            a member says they paid for boosters: { count }
+//   GET  /api/boosters/requests           admins: the open "I paid" requests
+//   POST /api/boosters/requests/handle    admins: credit (grant) or reject one: { id, action }
+//   GET  /api/boosters/summary            how many different cards each member has per rarity (the Card Collector badge), cached for 5 minutes
+//   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
+//   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
+//   POST /api/cards/update                the member updates the own card (once a month): { stats: { COM, INT, ECO, SPE, DEF, ATK } }
+//
+// The draw happens here, with the Worker's random numbers, so nobody can pick their cards. One free booster per day (Berlin time), a member's first
+// visit puts one starter booster on hand. More boosters only come from an admin for now (there is no payment in the site).
+import { readSession } from './session.js'
+
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' } })
+
+export const RARITIES = [
+  ['common', 55],
+  ['rare', 26],
+  ['epic', 12],
+  ['ultra', 5],
+  ['legendary', 2],
+]
+export const PACK_SIZE = 3
+const STARTER_BOOSTERS = 1
+const MAX_ON_HAND = 500
+const ID = /^[A-Za-z0-9_-]{4,40}$/
+
+/** A whole number 0..n-1 from the secure random source, without the bias of a plain modulo. */
+export function randomInt(n) {
+  const limit = Math.floor(0x1_0000_0000 / n) * n
+  const buf = new Uint32Array(1)
+  do crypto.getRandomValues(buf)
+  while (buf[0] >= limit)
+  return buf[0] % n
+}
+
+/** One rarity by its weights (the weights add up to 100). */
+export function drawRarity(rand = randomInt) {
+  let roll = rand(RARITIES.reduce((s, [, w]) => s + w, 0))
+  for (const [name, weight] of RARITIES) {
+    if (roll < weight) return name
+    roll -= weight
+  }
+  return RARITIES[0][0]
+}
+
+/** The cards of one booster: members from the pool (the same member can come twice), each in its own random rarity. */
+export function drawPack(pool, rand = randomInt) {
+  if (!pool.length) return []
+  return Array.from({ length: PACK_SIZE }, () => ({ card_id: pool[rand(pool.length)], rarity: drawRarity(rand) }))
+}
+
+/** The date in Berlin (YYYY-MM-DD): the free booster comes back at midnight there. */
+export function berlinDay(ms = Date.now()) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date(ms))
+}
+/** The moment (ms) the Berlin date changes next. */
+export function nextBerlinMidnight(ms = Date.now()) {
+  const today = berlinDay(ms)
+  let lo = ms
+  let hi = ms + 26 * 3_600_000
+  while (hi - lo > 1000) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (berlinDay(mid) === today) lo = mid
+    else hi = mid
+  }
+  return hi
+}
+
+export const CARD_STATS = ['COM', 'INT', 'ECO', 'SPE', 'DEF', 'ATK']
+const STAT_MIN = 46
+const STAT_MAX = 99
+// the values are worked out in the browser (the percentiles over the roster), so the server keeps them within reason: a value changes by at most this much per update
+const MAX_STEP = 30
+
+/** The month in Berlin (YYYY-MM). */
+export function berlinMonth(ms = Date.now()) {
+  return berlinDay(ms).slice(0, 7)
+}
+
+/** The six values from a request, or null when they do not look right. */
+export function cleanStats(input) {
+  if (!input || typeof input !== 'object') return null
+  const out = {}
+  for (const k of CARD_STATS) {
+    const v = input[k]
+    if (!Number.isInteger(v) || v < STAT_MIN || v > STAT_MAX) return null
+    out[k] = v
+  }
+  return out
+}
+
+function siteOriginAllowed(request, env) {
+  const origin = request.headers.get('Origin')
+  const own = env.SITE_ENV === 'dev' && origin === new URL(request.url).origin
+  return !origin || own || /^https:\/\/(www\.)?cynclan\.com$/.test(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+}
+
+async function stateOf(env, id) {
+  // the first visit of a member puts the starter booster on hand
+  await env.DB.prepare('INSERT OR IGNORE INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?)').bind(id, STARTER_BOOSTERS).run()
+  return env.DB.prepare('SELECT extra, last_free_day, last_open_at, opened_total FROM cyn_booster_state WHERE openfront_id = ?').bind(id).first()
+}
+
+const MAX_REQUEST = 10
+
+async function isAdmin(env, user) {
+  return !!(await env.DB.prepare('SELECT 1 AS x FROM cyn_event_admins WHERE user_id = ? LIMIT 1').bind(user.id).first())
+}
+
+function publicState(row, now = Date.now()) {
+  const today = berlinDay(now)
+  return {
+    extra: row.extra,
+    freeAvailable: row.last_free_day !== today,
+    nextFreeAt: row.last_free_day !== today ? null : new Date(nextBerlinMidnight(now)).toISOString(),
+    // the daily quest counts from midnight UTC, like all quests
+    openedToday: !!row.last_open_at && row.last_open_at.slice(0, 10) === new Date(now).toISOString().slice(0, 10),
+    openedTotal: row.opened_total,
+  }
+}
+
+async function collectionOf(env, id) {
+  const { results } = await env.DB.prepare('SELECT card_id, rarity, COUNT(*) AS n, MAX(pulled_at) AS last FROM cyn_card_pulls WHERE openfront_id = ? GROUP BY card_id, rarity ORDER BY last DESC LIMIT 3000').bind(id).all()
+  return results ?? []
+}
+
+export async function handleBoosters(request, env) {
+  if (!env.DB) return json(503, { error: 'not_configured' })
+  const { pathname, searchParams } = new URL(request.url)
+  const user = await readSession(request, env)
+  if (!user) return json(401, { error: 'not_signed_in' })
+  const me = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()
+  if (!me) return json(403, { error: 'members_only' })
+  const myId = me.openfront_id
+
+  if (pathname === '/api/card-social') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const counts = {}
+    for (const sql of [
+      'SELECT author_openfront_id AS id, COUNT(*) AS n FROM cyn_game_comments GROUP BY author_openfront_id',
+      'SELECT author_openfront_id AS id, COUNT(*) AS n FROM cyn_profile_comments GROUP BY author_openfront_id',
+      'SELECT from_openfront_id AS id, COUNT(*) AS n FROM cyn_kudos GROUP BY from_openfront_id',
+    ]) {
+      const { results } = await env.DB.prepare(sql).all()
+      for (const r of results ?? []) counts[r.id] = (counts[r.id] ?? 0) + Number(r.n)
+    }
+    return new Response(JSON.stringify({ counts }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } })
+  }
+
+  if (pathname === '/api/cards/snapshots') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const { results } = await env.DB.prepare('SELECT openfront_id, month, stats, prev_stats, updated_at FROM cyn_card_snapshots').all()
+    const snapshots = {}
+    for (const r of results ?? []) {
+      try {
+        snapshots[r.openfront_id] = { month: r.month, stats: JSON.parse(r.stats), prev: r.prev_stats ? JSON.parse(r.prev_stats) : null, at: r.updated_at }
+      } catch {
+        /* a row that cannot be read is left out */
+      }
+    }
+    return json(200, { month: berlinMonth(), snapshots })
+  }
+
+  if (pathname === '/api/cards/update') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const stats = cleanStats(body?.stats)
+    if (!stats) return json(400, { error: 'bad_stats' })
+    const month = berlinMonth()
+    const row = await env.DB.prepare('SELECT month, stats FROM cyn_card_snapshots WHERE openfront_id = ?').bind(myId).first()
+    if (row?.month === month) return json(409, { error: 'already_updated' })
+    let before = null
+    try {
+      before = row ? JSON.parse(row.stats) : null
+    } catch {
+      before = null
+    }
+    if (before && CARD_STATS.some((k) => Math.abs(stats[k] - before[k]) > MAX_STEP)) return json(400, { error: 'too_big' })
+    // one statement that only writes when the month has not been used yet, so two clicks at once update once
+    const out = await env.DB.prepare(
+      "INSERT INTO cyn_card_snapshots (openfront_id, month, stats, prev_stats, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(openfront_id) DO UPDATE SET month = excluded.month, stats = excluded.stats, prev_stats = cyn_card_snapshots.stats, updated_at = excluded.updated_at WHERE cyn_card_snapshots.month != excluded.month",
+    )
+      .bind(myId, month, JSON.stringify(stats), null, new Date().toISOString())
+      .run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'already_updated' })
+    return json(200, { ok: true, month, stats, prev: before })
+  }
+
+  if (pathname === '/api/boosters/me') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const open = await env.DB.prepare("SELECT count FROM cyn_booster_requests WHERE openfront_id = ? AND status = 'open' LIMIT 1").bind(myId).first()
+    return json(200, { ...publicState(await stateOf(env, myId)), pendingRequest: open?.count ?? null })
+  }
+
+  if (pathname === '/api/boosters/request') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const count = Number(body?.count)
+    if (!Number.isInteger(count) || count < 1 || count > MAX_REQUEST) return json(400, { error: 'bad_request' })
+    // one open request per member (an admin handles it, then a new one is possible); the check and the insert are one statement
+    const out = await env.DB.prepare("INSERT INTO cyn_booster_requests (openfront_id, count) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM cyn_booster_requests WHERE openfront_id = ? AND status = 'open')").bind(myId, count, myId).run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'already_open' })
+    return json(200, { ok: true })
+  }
+
+  if (pathname === '/api/boosters/requests') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
+    const { results } = await env.DB.prepare("SELECT r.id, r.openfront_id, m.in_game_name AS name, r.count, r.created_at FROM cyn_booster_requests r LEFT JOIN cyn_members m ON m.openfront_id = r.openfront_id WHERE r.status = 'open' ORDER BY r.created_at LIMIT 100").all()
+    return json(200, { requests: results ?? [] })
+  }
+
+  if (pathname === '/api/boosters/requests/handle') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const id = Number(body?.id)
+    const action = body?.action
+    if (!Number.isInteger(id) || id < 1 || (action !== 'grant' && action !== 'reject')) return json(400, { error: 'bad_request' })
+    const row = await env.DB.prepare("SELECT openfront_id, count FROM cyn_booster_requests WHERE id = ? AND status = 'open'").bind(id).first()
+    if (!row) return json(404, { error: 'not_open' })
+    // the request is closed first and only one click can do that, so it is never credited twice
+    const closed = await env.DB.prepare("UPDATE cyn_booster_requests SET status = ?, handled_by = ?, handled_at = ? WHERE id = ? AND status = 'open'").bind(action === 'grant' ? 'done' : 'rejected', user.id, new Date().toISOString(), id).run()
+    if (closed.meta?.changes !== 1) return json(409, { error: 'already_handled' })
+    if (action === 'grant') {
+      await env.DB.prepare('INSERT INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?) ON CONFLICT(openfront_id) DO UPDATE SET extra = MIN(?, extra + ?)').bind(row.openfront_id, Math.min(row.count, MAX_ON_HAND), MAX_ON_HAND, row.count).run()
+    }
+    return json(200, { ok: true })
+  }
+
+  if (pathname === '/api/boosters/summary') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const compute = async () => {
+      const { results } = await env.DB.prepare('SELECT openfront_id, rarity, COUNT(DISTINCT card_id) AS n FROM cyn_card_pulls GROUP BY openfront_id, rarity').all()
+      const summary = {}
+      for (const r of results ?? []) (summary[r.openfront_id] ??= {})[r.rarity] = Number(r.n)
+      return { summary }
+    }
+    // the table grows with every booster: one answer for everybody for five minutes (the Cache API only works on a real domain, elsewhere it is computed)
+    try {
+      const cache = caches.default
+      const key = new Request(new URL('/api/boosters/summary', request.url).href)
+      const hit = await cache.match(key)
+      if (hit) return hit
+      const res = new Response(JSON.stringify(await compute()), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } })
+      await cache.put(key, res.clone())
+      return res
+    } catch {
+      return json(200, await compute())
+    }
+  }
+
+  if (pathname === '/api/boosters/collection') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const id = searchParams.get('id') ?? myId
+    if (!ID.test(id)) return json(400, { error: 'bad_id' })
+    const state = await env.DB.prepare('SELECT opened_total FROM cyn_booster_state WHERE openfront_id = ?').bind(id).first()
+    return json(200, { id, openedTotal: state?.opened_total ?? 0, cards: await collectionOf(env, id) })
+  }
+
+  if (pathname === '/api/boosters/open') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    await stateOf(env, myId)
+    const now = Date.now()
+    const today = berlinDay(now)
+    const stamp = new Date(now).toISOString()
+    // the free booster of the day first; each step is one conditional update, so two clicks at once cannot take it twice
+    let source = null
+    const free = await env.DB.prepare('UPDATE cyn_booster_state SET last_free_day = ?, last_open_at = ?, opened_total = opened_total + 1 WHERE openfront_id = ? AND (last_free_day IS NULL OR last_free_day != ?)').bind(today, stamp, myId, today).run()
+    if (free.meta?.changes === 1) source = 'free'
+    else {
+      const extra = await env.DB.prepare('UPDATE cyn_booster_state SET extra = extra - 1, last_open_at = ?, opened_total = opened_total + 1 WHERE openfront_id = ? AND extra > 0').bind(stamp, myId).run()
+      if (extra.meta?.changes === 1) source = 'extra'
+    }
+    if (!source) return json(409, { error: 'no_booster' })
+    const { results } = await env.DB.prepare('SELECT openfront_id FROM cyn_members').all()
+    const pool = (results ?? []).map((r) => r.openfront_id)
+    const cards = drawPack(pool)
+    const boosterId = crypto.randomUUID()
+    await env.DB.batch(cards.map((c) => env.DB.prepare('INSERT INTO cyn_card_pulls (openfront_id, booster_id, card_id, rarity, source, pulled_at) VALUES (?, ?, ?, ?, ?, ?)').bind(myId, boosterId, c.card_id, c.rarity, source, stamp)))
+    return json(200, { boosterId, source, cards, state: publicState(await stateOf(env, myId), now) })
+  }
+
+  if (pathname === '/api/boosters/grant') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const target = typeof body?.openfront_id === 'string' ? body.openfront_id : ''
+    const count = Number(body?.count)
+    if (!ID.test(target) || !Number.isInteger(count) || count < 1 || count > 50) return json(400, { error: 'bad_request' })
+    if (!(await env.DB.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(target).first())) return json(404, { error: 'unknown_member' })
+    await env.DB.prepare('INSERT INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?) ON CONFLICT(openfront_id) DO UPDATE SET extra = MIN(?, extra + ?)').bind(target, Math.min(count, MAX_ON_HAND), MAX_ON_HAND, count).run()
+    const row = await env.DB.prepare('SELECT extra FROM cyn_booster_state WHERE openfront_id = ?').bind(target).first()
+    return json(200, { ok: true, extra: row?.extra ?? 0 })
+  }
+
+  return json(404, { error: 'not_found' })
+}

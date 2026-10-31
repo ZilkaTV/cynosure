@@ -10,6 +10,7 @@ import { currentMonthKey, ffaMonthly, teamMonthly, type MemberStats } from './st
 import { levelFromXp, titleForLevel } from './levels'
 import { fmtTime } from './speedruns'
 import type { TranslationShape } from '../i18n/translations'
+import { RARITIES, RARITY_INFO, type Rarity } from './boosters'
 
 /** "2786767" -> "2.7M", "15400" -> "15.4k" - matches the abbreviation used elsewhere for gold figures. */
 function fmtCompact(n: number): string {
@@ -48,6 +49,7 @@ export type IconKey =
   | 'chatBubble'
   | 'heart'
   | 'handshake'
+  | 'cards'
 
 export interface Badge {
   id: string
@@ -97,6 +99,25 @@ function winsTierFromWins(allWins: number): { tier: WinsTier; name: string } | n
     if (allWins >= entry.threshold) return entry
   }
   return null
+}
+
+// Two shades of one colour per wins role (light and dark): the name slides between them like a Discord gradient role.
+const WINS_ROLE_GRADIENTS: Record<WinsTier, [string, string]> = {
+  winsBronze: ['#e8a468', '#7a4515'],
+  winsSilver: ['#f1f5f9', '#7b8794'],
+  winsGold: ['#ffe08a', '#b07d12'],
+  winsDiamond: ['#b6f4ff', '#0891b2'],
+  winsMaster: ['#d8c8ff', '#6d28d9'],
+  winsChampion: ['#ffc2cb', '#be123c'],
+  winsChallenger: ['#ffc690', '#c2410c'],
+  winsImmortal: ['#f6c4ff', '#a21caf'],
+  winsGodTier: ['#ffffff', '#f59e0b'],
+}
+
+/** The two gradient colours of the Discord wins role (Bronze from 50 wins, Silver 100, Gold Legionnaire 250, ...) a member has earned; null below the first rank. */
+export function winsRoleGradient(allWins: number): [string, string] | null {
+  const t = winsTierFromWins(allWins)
+  return t ? WINS_ROLE_GRADIENTS[t.tier] : null
 }
 
 /** The next rank's threshold above the current all-time wins, if any rank remains to be earned. */
@@ -180,7 +201,6 @@ function computeLeaders(all: MemberStats[], mk: string) {
   const team = (x: MemberStats) => teamMonthly(x, mk, {})
   return {
     mostWins: leader(all, (x) => x.allWins),
-    mostTwoVTwoWins: leader(all, (x) => x.twoVTwoWins),
     predator: leader(all, (x) => ffa(x).avgKills ?? 0),
     pro: leader(all, (x) => ffa(x).winstreak),
     grinder: leader(all, (x) => ffa(x).points),
@@ -200,10 +220,43 @@ function getLeaders(all: MemberStats[]): Leaders {
   return leaders
 }
 
-export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape): Badge[] {
+/** Facts that do not come from the roster: how many caps each member donated (from the stored donor list), and the language for the badges that have no translation table entry. */
+export interface BadgeExtras {
+  capsDonated?: ReadonlyMap<string, number>
+  /** how many different cards each member has per rarity (from the booster collection) */
+  cardSets?: ReadonlyMap<string, Partial<Record<Rarity, number>>> | null
+  de?: boolean
+}
+
+/** The Card Collector badge upgrades with every rarity: all cards once in Common = bronze, then Rare = silver, Epic = gold, Ultra = diamond, Legendary = the top colour. */
+const CARD_BADGE_TIER: (BadgeTier | WinsTier)[] = ['bronze', 'silver', 'gold', 'diamond', 'winsChampion']
+
+/** How far a collector is: `done` rarities are complete (every card once), `next` is the one they work on (null when all are done), `have` how many they have of it. */
+export function cardCollectorProgress(sets: Partial<Record<Rarity, number>> | undefined, total: number): { done: number; next: Rarity | null; have: number } {
+  let done = 0
+  while (done < RARITIES.length && total > 0 && (sets?.[RARITIES[done]] ?? 0) >= total) done++
+  const next = done < RARITIES.length ? RARITIES[done] : null
+  return { done, next, have: next ? Math.min(sets?.[next] ?? 0, total) : total }
+}
+export const DONOR_BADGE_CAPS = 10_000
+
+function cardCollectorBadge(m: MemberStats, all: MemberStats[], extras?: BadgeExtras): Badge {
+  const de = !!extras?.de
+  const total = all.length
+  const { done, next, have } = cardCollectorProgress(extras?.cardSets?.get(m.publicId), total)
+  const name = (r: Rarity) => RARITY_INFO[r][de ? 'de' : 'en']
+  const desc = !next
+    ? de ? 'Jede Karte in jeder Seltenheit gesammelt.' : 'Every card collected in every rarity.'
+    : done === 0
+      ? de ? `Sammle jede Karte einmal in ${name(next)}: ${have}/${total}` : `Collect every card once in ${name(next)}: ${have}/${total}`
+      : de ? `Jede Karte in ${name(RARITIES[done - 1])} gesammelt. Weiter: ${name(next)} ${have}/${total}` : `Every card collected in ${name(RARITIES[done - 1])}. Next: ${name(next)} ${have}/${total}`
+  return { id: 'cardCollector', name: de ? 'Kartensammler' : 'Card Collector', kind: 'icon', icon: 'cards', tier: done > 0 ? CARD_BADGE_TIER[done - 1] : undefined, earned: done > 0, group: 'milestone', desc }
+}
+
+export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape, extras?: BadgeExtras): Badge[] {
   const b = t.badges
 
-  const { mostWins, mostTwoVTwoWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
+  const { mostWins, predator, pro, grinder, marine, destroyer, teamGrinder, fastest } = getLeaders(all)
 
   const starTier = tierFromRank(m.rank1v1)
   const star2v2Tier = tierFromRank(m.rank2v2)
@@ -234,15 +287,6 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: mostWins ? b.mostWins.descWithLeader(mostWins.name, mostWins.v) : b.mostWins.descNoLeader,
     },
     {
-      id: 'mostTwoVTwoWins',
-      name: b.mostTwoVTwoWins.name,
-      kind: 'icon',
-      icon: 'handshake',
-      earned: mostTwoVTwoWins?.id === m.publicId,
-      group: 'rank',
-      desc: mostTwoVTwoWins ? b.mostTwoVTwoWins.descWithLeader(mostTwoVTwoWins.name, mostTwoVTwoWins.v) : b.mostTwoVTwoWins.descNoLeader,
-    },
-    {
       id: 'fastest',
       name: b.fastest.name,
       kind: 'icon',
@@ -263,9 +307,17 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: winsTier ? b.wins.earnedDesc(m.allWins) : b.wins.notEarnedDesc(nextWinsThreshold(m.allWins) ?? 50),
     },
     { id: 'loyal', name: b.loyal.name, kind: 'icon', icon: 'flame', earned: streak >= LOYAL_THRESHOLD, group: 'milestone', desc: b.loyal.desc(LOYAL_THRESHOLD, streak) },
-    { id: 'pusher', name: b.pusher.name, kind: 'icon', icon: 'bell', earned: m.bumpCount >= 100, group: 'milestone', desc: b.pusher.desc },
-    { id: 'chatter', name: b.chatter.name, kind: 'icon', icon: 'chatBubble', earned: m.chatMessageCount >= 100, group: 'milestone', desc: b.chatter.desc },
     { id: 'supporter', name: b.supporter.name, kind: 'icon', icon: 'heart', earned: m.isSupporter, group: 'milestone', desc: b.supporter.desc },
+    {
+      id: 'donor',
+      name: extras?.de ? 'Clan Spender' : 'Clan Donor',
+      kind: 'icon',
+      icon: 'handshake',
+      earned: (extras?.capsDonated?.get(m.publicId) ?? 0) >= DONOR_BADGE_CAPS,
+      group: 'milestone',
+      desc: extras?.de ? `Spende mindestens ${DONOR_BADGE_CAPS.toLocaleString('de-DE')} Caps an den Clan` : `Donate at least ${DONOR_BADGE_CAPS.toLocaleString('en-US')} caps to the clan`,
+    },
+    cardCollectorBadge(m, all, extras),
     // ── monthly (losable) ──
     {
       id: 'predator',

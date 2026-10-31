@@ -38,46 +38,41 @@ describe('parseGameId', () => {
 })
 
 describe('verifySpeedrun', () => {
-  it('accepts a valid solo/Australia/no-nations win by the submitting name', () => {
-    const result = verifySpeedrun(makeDetail(), 'Zilka')
+  it('accepts a valid solo/Australia/no-nations win under the CYN tag, whatever name was used', () => {
+    const result = verifySpeedrun(makeDetail())
     expect(result.ok).toBe(true)
     expect(result.seconds).toBe(189)
     expect(result.clientID).toBe('client-1')
   })
 
-  it('is case/whitespace-insensitive when matching the submitter name', () => {
-    const result = verifySpeedrun(makeDetail(), '  zilka  ')
-    expect(result.ok).toBe(true)
+  it('does not care which name the player used: the public id is checked on the server, only the tag counts here', () => {
+    const detail = makeDetail({ players: [{ clientID: 'client-1', username: 'A completely different name', clanTag: 'CYN' }] })
+    expect(verifySpeedrun(detail).ok).toBe(true)
   })
 
   it('rejects a map other than Australia', () => {
-    const result = verifySpeedrun(makeDetail({ map: 'Asia' }), 'Zilka')
+    const result = verifySpeedrun(makeDetail({ map: 'Asia' }))
     expect(result.ok).toBe(false)
   })
 
   it('rejects anything other than a Singleplayer game', () => {
-    const result = verifySpeedrun(makeDetail({ gameType: 'Public' }), 'Zilka')
+    const result = verifySpeedrun(makeDetail({ gameType: 'Public' }))
     expect(result.ok).toBe(false)
   })
 
   it('rejects a game with Nations enabled', () => {
-    const result = verifySpeedrun(makeDetail({ nations: 'enabled' }), 'Zilka')
+    const result = verifySpeedrun(makeDetail({ nations: 'enabled' }))
     expect(result.ok).toBe(false)
   })
 
   it('rejects a game with no recorded winner', () => {
-    const result = verifySpeedrun(makeDetail({ winnerClientIds: [] }), 'Zilka')
-    expect(result.ok).toBe(false)
-  })
-
-  it("rejects submitting someone else's win", () => {
-    const result = verifySpeedrun(makeDetail(), 'SomeoneElse')
+    const result = verifySpeedrun(makeDetail({ winnerClientIds: [] }))
     expect(result.ok).toBe(false)
   })
 
   it('rejects a win not played under the CYN tag', () => {
     const detail = makeDetail({ players: [{ clientID: 'client-1', username: 'Zilka', clanTag: null }] })
-    const result = verifySpeedrun(detail, 'Zilka')
+    const result = verifySpeedrun(detail)
     expect(result.ok).toBe(false)
   })
 })

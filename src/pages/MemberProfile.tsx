@@ -1,29 +1,28 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
-import GameBreakdown from '../components/GameBreakdown'
-import OpenFrontStats from '../components/OpenFrontStats'
-import TrendChart from '../components/TrendChart'
+import { CareerWindow, LifetimeWindow, MonthWindow, TrendsWindow } from '../components/ProfileWindows'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
+import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winScore'
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
-import { BumpCard } from '../components/BumpButton'
-import { Flag } from '../components/Emoji'
-import { splitAccountUsername } from '../lib/openfront'
-import { cleanDisplayName } from '../lib/displayName'
-import { Card, EloDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { useCardSets } from '../lib/boosters'
+import ProfileHeader from '../components/ProfileHeader'
+import ProfileWall from '../components/ProfileWall'
+import { useProfileExtras } from '../lib/profileExtras'
+import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
+import { GameDate, SectionHeading, Spinner } from '../components/ui'
+import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
+import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
 import {
   currentMonthKey,
   ffaBucket,
-  isFfa,
   isTeam,
-  is1v1,
-  is2v2,
   isIncompleteRanked,
   monthLabel,
   oneVoneBucket,
@@ -32,36 +31,70 @@ import {
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
-import { unsaveGame, useSavedGames } from '../lib/savedGames'
+import { unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import { useIsAdmin } from '../lib/useSession'
 import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
-import { isChatModerator, addChatModerator, removeChatModerator, isSupporter, addSupporter, removeSupporter } from '../lib/chat'
+import { isSupporter, addSupporter, removeSupporter } from '../lib/chat'
+
+/** "Remove" that asks "Sure?" first: the second click within a few seconds removes the saved game. */
+function RemoveSaved({ label, sure, onConfirm }: { label: string; sure: string; onConfirm: () => void }) {
+  const { armed, arm, disarm } = useArmed()
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!armed) return arm()
+        disarm()
+        onConfirm()
+      }}
+      className={armed ? 'rounded-md bg-signal-red/15 px-2 py-0.5 text-xs font-semibold text-signal-red' : 'text-xs text-slate-500 hover:text-signal-red'}
+    >
+      {armed ? sure : label}
+    </button>
+  )
+}
 
 export default function MemberProfile() {
   const { id } = useParams()
   const { profile } = useProfile()
-  const { t } = useLanguage()
-  const { data, loading, refresh } = useRoster(!!profile)
+  const { t, language } = useLanguage()
+  const [showLocked, setShowLocked] = useState(false)
+  const [allGames, setAllGames] = useState(false)
+  const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const savedGames = useSavedGames(profile?.openfront_id)
-  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
+  const { extras, reload: reloadExtras } = useProfileExtras(id)
+  const donors = useClanDonors()
+  const cardSets = useCardSets(!!profile)
+  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered, and again on every click while already on the profile
+  // (the link then only changes the hash, so the location is part of the dependencies).
+  const location = useLocation()
   useEffect(() => {
-    if (window.location.hash !== '#saved') return
+    if (location.hash !== '#saved') return
     const timer = setTimeout(() => document.getElementById('saved')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400)
     return () => clearTimeout(timer)
-  }, [id, data])
+  }, [id, data, location.hash, location.key])
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
-  const [viewedIsModerator, setViewedIsModerator] = useState(false)
-  const [moderatorMsg, setModeratorMsg] = useState<string | null>(null)
   const [viewedIsSupporter, setViewedIsSupporter] = useState(false)
   const [supporterMsg, setSupporterMsg] = useState<string | null>(null)
   const [trend, setTrend] = useState<SnapshotPoint[]>([])
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
-
   const m = data?.members.find((x) => x.publicId === id)
   const isOwnProfile = profile?.openfront_id === m?.publicId
+  // Clan Win Score of this member's team games of the month (the "this month" window shows it instead of points).
+  const [teamLedger, setTeamLedger] = useState<Map<string, ClanScoreRow>>(new Map())
+  const teamIds = m ? scoredGameIdsOf(m, currentMonthKey(), isTeam) : []
+  useEffect(() => {
+    if (teamIds.length === 0) {
+      setTeamLedger(new Map())
+      return
+    }
+    fetchClanScoreLedger(teamIds).then(setTeamLedger)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds.join(',')])
+
   const recentGameIds = (m?.cynGames ?? [])
     .filter((g) => g.type !== 'Private' && !isIncompleteRanked(g))
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
@@ -73,9 +106,6 @@ export default function MemberProfile() {
     let alive = true
     isEventAdmin(m.discord).then((result) => {
       if (alive) setViewedIsAdmin(result)
-    })
-    isChatModerator(m.discord).then((result) => {
-      if (alive) setViewedIsModerator(result)
     })
     return () => {
       alive = false
@@ -120,19 +150,20 @@ export default function MemberProfile() {
     if (r.ok) setViewedIsAdmin(!viewedIsAdmin)
   }
 
-  async function onToggleModerator() {
-    if (!m?.discord) return
-    const r = viewedIsModerator ? await removeChatModerator(m.discord) : await addChatModerator(m.discord)
-    setModeratorMsg(r.message)
-    if (r.ok) setViewedIsModerator(!viewedIsModerator)
-  }
-
   async function onToggleSupporter() {
     if (!m?.publicId) return
     const r = viewedIsSupporter ? await removeSupporter(m.publicId) : await addSupporter(m.publicId)
     setSupporterMsg(r.message)
     if (r.ok) setViewedIsSupporter(!viewedIsSupporter)
   }
+
+  // hooks of the last-games table (the games shown there), before any early return
+  const shownGames = [...(m?.cynGames ?? [])]
+    .filter((g) => g.type !== 'Private')
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    .slice(0, 20)
+  const gameActions = useGameActions(shownGames.map((g) => g.gameId))
+  const eloByGame = useRankedElo(shownGames)
 
   if (!profile) return <RegistrationGate />
   if (loading) return <Spinner label={t.memberProfile.loadingMember} />
@@ -152,59 +183,32 @@ export default function MemberProfile() {
   const team = teamBucket(m.cynGames, mk, coop)
   const one = oneVoneBucket(m.cynGames, mk)
   const twoVTwo = twoVTwoBucket(m.cynGames, mk)
+  const teamWinScore = memberWinScore(m, mk, isTeam, teamLedger, cynPlayersByGame(data?.members ?? [], mk, isTeam))
 
   const recent = [...m.cynGames]
     .filter((g) => g.type !== 'Private')
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 20)
 
-  const modeLabel = (g: (typeof recent)[number]) => (is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode)
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60)
     return `${m}m ${String(s % 60).padStart(2, '0')}s`
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-10">
+    <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[280px_minmax(0,1fr)_280px] 2xl:gap-8">
+      <aside className="order-1 space-y-4 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">
+        <CareerWindow m={m} />
+        <MonthWindow m={m} heading={`${t.memberProfile.thisMonthTitle} · ${monthLabel(mk)}`} ffa={ffa} team={team} teamWinScore={teamWinScore} one={one} twoVTwo={twoVTwo} />
+      </aside>
+      <aside className="order-2 space-y-4 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">
+        <LifetimeWindow publicId={m.publicId} />
+        <TrendsWindow trend={trend} />
+      </aside>
+    <div className="order-3 mx-auto w-full min-w-0 max-w-4xl space-y-10 md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <Link to="/" className="inline-block text-sm text-slate-400 hover:text-accent-light">{t.memberProfile.backToRoster}</Link>
 
-      <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
-        <h1 className="mt-1 inline-flex items-center gap-2 font-display text-3xl font-bold text-white">
-          {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
-          {cleanDisplayName(m.name)}
-          {isOwnProfile && viewerIsAdmin && (
-            <span className="ml-2 align-middle rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-gold-light">
-              {t.accountMenu.adminBadge}
-            </span>
-          )}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {m.timezone && <span>{m.timezone}</span>}
-          {m.discord && <span> · {t.memberProfile.discordPrefix} {m.discord}</span>}
-          {m.accountUsername && (
-            <span>
-              {' '}
-              · {t.memberProfile.accountUsernamePrefix}{' '}
-              {(() => {
-                const { base, discriminator } = splitAccountUsername(m.accountUsername)
-                return (
-                  <>
-                    {base}
-                    {discriminator && <span className="text-slate-600">#{discriminator}</span>}
-                  </>
-                )
-              })()}
-            </span>
-          )}
-        </p>
-        {isOwnProfile ? (
-          <div className="mx-auto mt-4 max-w-xs">
-            <BumpCard openfrontId={m.publicId} bumpCount={m.bumpCount} lastBumpAt={m.lastBumpAt} onDone={refresh} />
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-slate-500">{t.memberProfile.bumpsCount(m.bumpCount)}</p>
-        )}
+      <ProfileHeader m={m} isOwn={isOwnProfile} viewerIsAdmin={viewerIsAdmin} extras={extras} reloadExtras={() => void reloadExtras()}>
         {!isOwnProfile && viewerIsAdmin && m.discord && (
           <div className="mt-3 flex flex-col items-center gap-1.5">
             <div className="flex flex-wrap justify-center gap-2">
@@ -217,14 +221,6 @@ export default function MemberProfile() {
                 {viewedIsAdmin ? t.memberProfile.demoteFromAdmin : t.memberProfile.promoteToAdmin}
               </button>
               <button
-                onClick={onToggleModerator}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  viewedIsModerator ? 'bg-signal-red/15 text-signal-red hover:bg-signal-red/25' : 'bg-accent/15 text-accent-light hover:bg-accent/25'
-                }`}
-              >
-                {viewedIsModerator ? t.memberProfile.demoteFromModerator : t.memberProfile.promoteToModerator}
-              </button>
-              <button
                 onClick={onToggleSupporter}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
                   viewedIsSupporter ? 'bg-signal-red/15 text-signal-red hover:bg-signal-red/25' : 'bg-gold/15 text-gold-light hover:bg-gold/25'
@@ -234,102 +230,23 @@ export default function MemberProfile() {
               </button>
             </div>
             {adminMsg && <p className="text-xs text-slate-500">{adminMsg}</p>}
-            {moderatorMsg && <p className="text-xs text-slate-500">{moderatorMsg}</p>}
             {supporterMsg && <p className="text-xs text-slate-500">{supporterMsg}</p>}
           </div>
         )}
-      </div>
+      </ProfileHeader>
 
       <section>
-        <SectionHeading center eyebrow={t.memberProfile.lifetimeEyebrow} title={t.memberProfile.careerTitle(CLAN_TAG)} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-          <StatCard label={t.memberProfile.stat1v1Elo} value={m.elo ?? '-'} accent="gold" sub={m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined} />
-          <StatCard label={t.memberProfile.stat2v2Elo} value={m.elo2v2 ?? '-'} accent="gold" sub={m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined} />
-          <StatCard label={t.memberProfile.statFfaWins} value={m.ffaWins} accent="purple" />
-          <StatCard label={t.memberProfile.statTeamWins} value={m.teamWins} accent="purple" />
-          <StatCard label={t.memberProfile.stat1v1Wins} value={m.rankedWins} accent="purple" />
-          <StatCard label={t.memberProfile.stat2v2Wins} value={m.twoVTwoWins} accent="purple" />
-          <StatCard label={t.memberProfile.statAllWins} value={m.allWins} accent="gold" />
-          <StatCard label={t.memberProfile.statGames30d} value={m.gamesLast30d} accent="plain" />
-          <StatCard label={t.memberProfile.statGamesTotal} value={m.clanGamesTotal} accent="plain" />
+        <div className="mb-6 text-center">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.achievementsEyebrow}</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <h2 className="font-display text-2xl font-bold text-white md:text-3xl">{t.memberProfile.badgesTitle}</h2>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-xs text-slate-300">
+              <input type="checkbox" checked={showLocked} onChange={(e) => setShowLocked(e.target.checked)} className="accent-[#8b5cf6]" />
+              {language === 'de' ? 'Alle anzeigen' : 'Show all'}
+            </label>
+          </div>
         </div>
-        <div className="mt-4">
-          <GameBreakdown games={m.cynGames} />
-        </div>
-        {m.elo == null && (
-          <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.noEloNote}</p>
-        )}
-        {!m.claimed && <p className="mt-2 text-center text-xs text-slate-400">{t.memberProfile.unregisteredNote}</p>}
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={t.memberProfile.ofStatsEyebrow} title={t.memberProfile.ofStatsTitle} />
-        <OpenFrontStats publicId={m.publicId} />
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={t.memberProfile.achievementsEyebrow} title={t.memberProfile.badgesTitle} />
-        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t)} />
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={monthLabel(mk)} title={t.memberProfile.thisMonthTitle} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.monthly.titleFfa}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-accent-light">{t.common.pts(ffa.points)}</p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(ffa.wins, ffa.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.monthly.titleTeam}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-accent-light">{t.common.pts(team.points)}</p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(team.wins, team.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.home.col1v1}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-gold-light">
-              <EloDelta delta={m.eloMonthDelta} />
-            </p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(one.wins, one.losses)}</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{t.home.col2v2}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-gold-light">
-              <EloDelta delta={m.eloMonthDelta2v2} />
-            </p>
-            <p className="text-xs text-slate-500">{t.common.winsLosses(twoVTwo.wins, twoVTwo.losses)}</p>
-          </Card>
-        </div>
-      </section>
-
-      <section>
-        <SectionHeading center eyebrow={t.memberProfile.trendsEyebrow} title={t.memberProfile.trendsTitle} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendEloLabel}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.elo }))}
-              color="#eab308"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendWinsLabel}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.allWins }))}
-              color="#8b5cf6"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-          <Card>
-            <p className="text-center text-xs uppercase tracking-wide text-slate-400">{t.memberProfile.trendElo2v2Label}</p>
-            <TrendChart
-              points={trend.map((p) => ({ date: p.date, value: p.elo2v2 }))}
-              color="#38bdf8"
-              emptyLabel={t.memberProfile.trendEmpty}
-            />
-          </Card>
-        </div>
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), cardSets, de: language === 'de' })} showLocked={showLocked} />
       </section>
 
       <section>
@@ -351,9 +268,7 @@ export default function MemberProfile() {
                   </button>
                   <span className="min-w-0 flex-1 truncate text-slate-300">{g.title ?? ''}</span>
                   <span className="text-xs text-slate-500">{new Date(g.saved_at).toLocaleDateString()}</span>
-                  <button type="button" onClick={() => void unsaveGame(profile.openfront_id, g.game_id)} className="text-xs text-slate-500 hover:text-signal-red">
-                    {t.memberProfile.savedRemove}
-                  </button>
+                  <RemoveSaved label={t.memberProfile.savedRemove} sure={language === 'de' ? 'Sicher?' : 'Sure?'} onConfirm={() => void unsaveGame(profile.openfront_id, g.game_id)} />
                 </div>
               ))
             )}
@@ -365,55 +280,81 @@ export default function MemberProfile() {
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={profile?.openfront_id === m.publicId ? t.memberProfile.yourLastGames : t.memberProfile.latestCynGames(CLAN_TAG)} />
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-0 text-sm sm:min-w-[620px]">
               <thead>
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                  <th className="px-4 py-3 text-right font-semibold">Win Score</th>
-                  <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                  <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                  <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                  <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
-                  <th className="px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
+                  <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.gameId}</th>
                   <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
                 </tr>
               </thead>
-              <tbody>
-                {recent.map((g) => {
+              <>
+                {(allGames ? recent : recent.slice(0, 10)).map((g) => {
                   const clanScore = clanScores.get(g.gameId)
                   const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                  const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, [m.publicId]) : null
                   return (
-                    <tr
-                      key={g.gameId}
-                      onClick={() => setOpenGame(g.gameId)}
-                      className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
-                      title={t.home.clickForReportTitle}
-                    >
-                      <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                      <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
-                      <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                        {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
-                      <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
+                    <tbody key={g.gameId} className="hover:bg-base-800/50">
+                    <tr onClick={() => setOpenGame(g.gameId)} className="cursor-pointer" title={t.home.clickForReportTitle}>
+                      <td className="px-4 py-2.5 text-slate-400"><GameDate start={g.start} /></td>
+                      <td className={`px-4 py-2.5 sm:whitespace-nowrap ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                      {isRankedGame(g) ? (
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {elo ? (
+                            <>
+                              {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                              {fmtEloChange(elo)}
+                            </>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      ) : (
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        </td>
+                      )}
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-slate-400">{g.map}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                      <td className="hidden sm:table-cell px-4 py-2.5 font-mono text-xs text-slate-500">{g.gameId}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                         {g.result}
                       </td>
                     </tr>
+                    <tr onClick={() => setOpenGame(g.gameId)} className="cursor-pointer border-b border-base-700/50">
+                      <td colSpan={9} className="px-3 pb-2">
+                        <GameActionsBar gameId={g.gameId} memberIds={[m.publicId]} title={`${gameModeLabel(g)} · ${g.map}`} actions={gameActions} onOpenComments={(id) => setOpenGame(id)} />
+                      </td>
+                    </tr>
+                    </tbody>
                   )
                 })}
-              </tbody>
+              </>
             </table>
           </div>
         </div>
+        {recent.length > 10 && (
+          <div className="mt-3 flex justify-center">
+            <button type="button" onClick={() => setAllGames((v) => !v)} className="btn-ghost text-sm">
+              {allGames ? t.common.showTopOnly(10) : t.common.showAll(recent.length)}
+            </button>
+          </div>
+        )}
         <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.clickForReport}</p>
       </section>
 
+      <ProfileWall profileId={m.publicId} />
+
       <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
+    </div>
     </div>
   )
 }

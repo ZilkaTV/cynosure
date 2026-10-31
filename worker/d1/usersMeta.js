@@ -18,7 +18,14 @@ export const USERS_META = {
       "updated_at",
       "user_id",
       "discord_user_id",
-      "claimed"
+      "claimed",
+      "avatar_url",
+      "banner_url",
+      "bio",
+      "avatar_fit",
+      "banner_fit",
+      "yt_channel",
+      "twitch_channel"
     ]
   },
   "cyn_speedruns": {
@@ -202,7 +209,8 @@ export const USERS_META = {
       "all_wins",
       "xp",
       "created_at",
-      "elo_2v2"
+      "elo_2v2",
+      "elo_ffa"
     ]
   },
   "cyn_chat_moderators": {
@@ -418,6 +426,95 @@ export const USERS_META = {
       "map",
       "top_count",
       "players"
+    ]
+  },
+  "cyn_boosters": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "openfront_id"
+    ],
+    "cols": [
+      "openfront_id",
+      "boosts"
+    ]
+  },
+  "cyn_game_comments": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "game_id",
+      "parent_id",
+      "author_openfront_id",
+      "author_name",
+      "body",
+      "created_at"
+    ]
+  },
+  "cyn_comment_reactions": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "comment_id",
+      "openfront_id",
+      "emoji"
+    ],
+    "cols": [
+      "comment_id",
+      "openfront_id",
+      "emoji",
+      "created_at"
+    ]
+  },
+  "cyn_profile_likes": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "profile_id",
+      "from_id"
+    ],
+    "cols": [
+      "profile_id",
+      "from_id",
+      "created_at"
+    ]
+  },
+  "cyn_profile_comments": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "profile_id",
+      "author_openfront_id",
+      "author_name",
+      "body",
+      "created_at"
+    ]
+  },
+  "cyn_reports": {
+    "json": [],
+    "bool": [],
+    "pk": [
+      "id"
+    ],
+    "cols": [
+      "id",
+      "reporter_openfront_id",
+      "target_type",
+      "target_id",
+      "reason",
+      "note",
+      "status",
+      "created_at",
+      "handled_by",
+      "handled_at"
     ]
   }
 }

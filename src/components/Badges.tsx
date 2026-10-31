@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ComponentType, SVGProps } from 'react'
 import type { Badge, BadgeTier, IconKey, WinsTier } from '../lib/badges'
 import {
@@ -22,6 +23,7 @@ import {
   ShieldIcon,
 } from './BadgeIcons'
 import { useLanguage } from '../i18n/LanguageContext'
+import { CardsIcon } from './CardBadgeIcon'
 
 const TIER_RING: Record<BadgeTier | WinsTier, string> = {
   bronze: 'ring-2 ring-[#cd7f32]/70',
@@ -77,6 +79,7 @@ const ICON_COMPONENT: Record<IconKey, ComponentType<SVGProps<SVGSVGElement>>> = 
   chatBubble: ChatBubbleIcon,
   heart: HeartIcon,
   handshake: HandshakeIcon,
+  cards: CardsIcon,
 }
 
 /** Renders a badge's visual: the level number for the level badge, an icon otherwise. */
@@ -104,14 +107,28 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
   const earned = badges.filter((b) => b.earned)
   const [openId, setOpenId] = useState<string | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
+  // The description is drawn on the page itself (not inside the table): in a table with its own scroll area it made the table taller and put a scrollbar on it.
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  const show = (id: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    setAt({ x: Math.min(Math.max(r.left + r.width / 2, 104), window.innerWidth - 104), y: r.bottom })
+    setOpenId(id)
+  }
 
   useEffect(() => {
     if (!openId) return
     function onClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpenId(null)
     }
+    const close = () => setOpenId(null)
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
   }, [openId])
 
   if (earned.length === 0) return <span className="text-slate-700">-</span>
@@ -121,19 +138,22 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
         <span key={b.id} className="relative">
           <button
             type="button"
-            onClick={() => setOpenId((id) => (id === b.id ? null : b.id))}
-            onMouseEnter={() => setOpenId(b.id)}
+            onClick={(e) => (openId === b.id ? setOpenId(null) : show(b.id, e.currentTarget))}
+            onMouseEnter={(e) => show(b.id, e.currentTarget)}
             onMouseLeave={() => setOpenId((id) => (id === b.id ? null : id))}
             className={`inline-flex h-7 w-7 items-center justify-center rounded-full bg-base-800/80 text-gold-light ${b.tier ? TIER_RING[b.tier] : ''}`}
           >
             <BadgeVisual badge={b} className="h-4 w-4 text-[11px]" />
           </button>
-          {openId === b.id && (
-            <div className="absolute left-1/2 top-full z-50 mt-1.5 w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">
-              <p className="text-xs font-semibold text-white">{b.name}</p>
-              <p className="mt-0.5 text-[11px] text-slate-400">{b.desc}</p>
-            </div>
-          )}
+          {openId === b.id &&
+            at &&
+            createPortal(
+              <div style={{ position: 'fixed', left: at.x, top: at.y + 6 }} className="pointer-events-none z-[120] w-48 -translate-x-1/2 rounded-lg border border-base-600 bg-base-850 p-2.5 text-left shadow-xl">
+                <p className="text-xs font-semibold text-white">{b.name}</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">{b.desc}</p>
+              </div>,
+              document.body,
+            )}
         </span>
       ))}
     </span>
@@ -141,7 +161,7 @@ export function BadgeStrip({ badges }: { badges: Badge[] }) {
 }
 
 /** Full badge board (for the profile): earned in colour, others greyed. */
-export function BadgeBoard({ badges }: { badges: Badge[] }) {
+export function BadgeBoard({ badges, showLocked = true }: { badges: Badge[]; showLocked?: boolean }) {
   const { t } = useLanguage()
   const groups: { key: Badge['group']; label: string }[] = [
     { key: 'rank', label: t.badges.groupRank },
@@ -151,7 +171,8 @@ export function BadgeBoard({ badges }: { badges: Badge[] }) {
   return (
     <div className="space-y-5">
       {groups.map((g) => {
-        const items = badges.filter((b) => b.group === g.key)
+        const items = badges.filter((b) => b.group === g.key && (showLocked || b.earned))
+        if (items.length === 0) return null
         return (
           <div key={g.key}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{g.label}</p>

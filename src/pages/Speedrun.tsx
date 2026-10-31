@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import { tilesClass } from '../lib/gameRows'
 import { Card, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
 import { Emoji, EMOJI, RankMedal } from '../components/Emoji'
-import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, type SubmitResult } from '../lib/speedruns'
+import { fmtTime, fmtPercent, submitSpeedrun, replayToolUrl, fetchRecentSoloGames, fetchPendingSpeedruns, type PendingSpeedrun, type SubmitResult } from '../lib/speedruns'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const WATCH_POLL_MS = 20_000
@@ -18,6 +19,7 @@ export default function Speedrun() {
   const { t } = useLanguage()
   const { data, loading, refresh } = useRoster(!!profile)
   const [link, setLink] = useState('')
+  const [allRuns, setAllRuns] = useState(false)
   const [busy, setBusy] = useState(false)
   // 0..1 while a submission replays the game (the replay takes 20-30 s), null otherwise.
   const [progress, setProgress] = useState<number | null>(null)
@@ -26,7 +28,30 @@ export default function Speedrun() {
   const [watchSince, setWatchSince] = useState<number | null>(null)
   const [timedOut, setTimedOut] = useState(false)
   const handled = useRef(new Set<string>())
+  // The member's submissions the server accepted: waiting for the engine check in the cloud, or the outcome of the last ones.
+  const [mine, setMine] = useState<PendingSpeedrun[]>([])
   const profileId = profile?.openfront_id
+  useEffect(() => {
+    if (!profileId) return
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = async () => {
+      const items = (await fetchPendingSpeedruns()).filter((i) => i.openfront_id === profileId)
+      if (!alive) return
+      setMine((prev) => {
+        // A run that just finished changes the board: reload it once.
+        if (prev.some((p) => p.status === 'pending') && items.some((i) => i.status === 'done')) refresh()
+        return items
+      })
+      timer = setTimeout(load, items.some((i) => i.status === 'pending') ? 15_000 : 60_000)
+    }
+    void load()
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId, result])
   const profileName = profile?.in_game_name
 
   useEffect(() => {
@@ -98,21 +123,22 @@ export default function Speedrun() {
     <StatsShell>
       <section className="space-y-4">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.title} />
-        <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
-          <p className="flex items-center justify-center gap-2 font-display text-lg font-bold uppercase tracking-wide text-gold-light">
-            <Emoji char={EMOJI.flag} className="h-5 w-5" /> {t.speedrun.ruleBadge}
-          </p>
-          <p className="mt-1 text-sm text-slate-300">
-            {t.speedrun.introPrefix} <span className="font-semibold text-white">Australia</span> {t.speedrun.introMid}{' '}
-            <span className="font-semibold text-white">{t.speedrun.introNationsDisabled}</span> {t.speedrun.introSuffix}
-          </p>
-        </div>
       </section>
 
-      <section className="space-y-4">
+      <div className="mx-auto grid w-full max-w-4xl items-stretch gap-6 md:grid-cols-2">
+      <section className="flex flex-col space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowChallenge} title={t.speedrun.startTitle} />
-        <Card className="space-y-3 text-center">
-          <div className="flex flex-wrap justify-center gap-3">
+        <Card className="flex-1 space-y-3 !p-4 text-center">
+          <div className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-2.5">
+            <p className="flex items-center justify-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-gold-light">
+              <Emoji char={EMOJI.flag} className="h-4 w-4" /> {t.speedrun.ruleBadge}
+            </p>
+            <p className="mt-1 text-xs text-slate-300">
+              {t.speedrun.introPrefix} <span className="font-semibold text-white">Australia</span> {t.speedrun.introMid}{' '}
+              <span className="font-semibold text-white">{t.speedrun.introNationsDisabled}</span> {t.speedrun.introSuffix}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
             <a href={OPENFRONT_SOLO_URL} target="_blank" rel="noreferrer" onClick={startWatching} className="btn-accent">
               {t.speedrun.startBrowser}
             </a>
@@ -140,10 +166,10 @@ export default function Speedrun() {
         </Card>
       </section>
 
-      <section className="space-y-4">
+      <section className="flex flex-col space-y-3">
         <SectionHeading center eyebrow={t.speedrun.eyebrowSubmit} title={t.speedrun.postYourRun} />
-        <Card>
-          <form className="flex flex-col gap-3 sm:flex-row" onSubmit={onSubmit}>
+        <Card className="flex-1 !p-4">
+          <form className="flex flex-col gap-2" onSubmit={onSubmit}>
             <input
               value={link}
               onChange={(e) => setLink(e.target.value)}
@@ -176,16 +202,20 @@ export default function Speedrun() {
               )}
             </div>
           )}
+          {mine.length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm">
+              {mine.map((m) => (
+                <li key={m.game_id} className={m.status === 'pending' ? 'text-gold-light' : m.status === 'refused' ? 'text-signal-red' : 'text-signal-green'}>
+                  <span className="font-mono text-xs text-slate-400">{m.game_id}</span>{' '}
+                  {m.status === 'pending' ? 'Waiting for the engine check (a few minutes)…' : m.status === 'refused' ? `✗ ${m.message ?? 'Refused.'}` : `✓ ${m.message ?? 'Verified.'}`}
+                </li>
+              ))}
+            </ul>
+          )}
           <p className="mt-3 text-xs text-slate-500">{t.speedrun.submitNote}</p>
         </Card>
       </section>
-
-      <section>
-        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{t.speedrun.fairnessLabel}</p>
-          <p className="text-xs text-slate-400">{t.speedrun.fairnessText}</p>
-        </div>
-      </section>
+      </div>
 
       <TagNotice />
 
@@ -215,7 +245,7 @@ export default function Speedrun() {
                   </tr>
                 </thead>
                 <tbody>
-                  {board.map((m, i) => (
+                  {(allRuns ? board : board.slice(0, 10)).map((m, i) => (
                     <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                       <td className="px-4 py-3 font-display font-bold">
                         <RankMedal rank={i + 1} />
@@ -224,7 +254,7 @@ export default function Speedrun() {
                         <MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} />
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-400">{m.speedrunAttempts}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">
+                      <td className={`px-4 py-3 text-right tabular-nums ${m.tiles3minPercent != null ? tilesClass(m.tiles3minPercent) : 'text-slate-300'}`}>
                         {m.tiles3minPercent != null ? fmtPercent(m.tiles3minPercent) : <span className="text-slate-600">-</span>}
                       </td>
                       <td className="px-4 py-3 text-right font-display text-lg font-bold text-gold-light tabular-nums">
@@ -262,6 +292,20 @@ export default function Speedrun() {
             </div>
           </div>
         )}
+        {board.length > 10 && (
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setAllRuns((v) => !v)} className="btn-ghost text-sm">
+              {allRuns ? t.common.showTopOnly(10) : t.common.showAll(board.length)}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="rounded-xl border border-base-600 bg-base-850/60 px-5 py-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{t.speedrun.fairnessLabel}</p>
+          <p className="text-xs text-slate-400">{t.speedrun.fairnessText}</p>
+        </div>
       </section>
     </StatsShell>
   )

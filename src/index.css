@@ -29,16 +29,32 @@
   .btn-ghost {
     @apply inline-flex items-center justify-center rounded-lg border border-base-600 bg-base-800/60 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white;
   }
+  .top-btn {
+    @apply relative inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-base-600 bg-base-800/60 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white sm:h-[4.5rem] sm:w-auto sm:px-5;
+  }
+  .top-btn-sm {
+    @apply relative inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-base-600 bg-base-800/60 px-4 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white;
+  }
+  .top-btn-inner {
+    @apply border-gold/60 text-gold-light shadow-[0_0_14px_rgba(216,185,106,0.35)] hover:border-gold hover:text-gold-light;
+  }
+  /* the menu buttons always carry the purple outline; the one under the mouse gets lighter than the others */
   .nav-link {
-    @apply rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white;
+    @apply rounded-lg border border-accent/40 bg-base-800/40 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-accent/80 hover:bg-accent/25 hover:text-white;
   }
   .nav-link-active {
-    @apply bg-accent/10 text-accent-light;
+    @apply border-accent/70 bg-accent/15 text-accent-light;
   }
 }
 
 /* Phones: wide tables scroll sideways, rank and name stay in view. */
 @media (max-width: 639px) {
+  /* tighter cells so more columns fit next to the name before the table scrolls */
+  main table th,
+  main table td {
+    padding-left: 0.375rem !important;
+    padding-right: 0.375rem !important;
+  }
   .sticky-cols th:nth-child(1),
   .sticky-cols td:nth-child(1) {
     position: sticky;
@@ -61,5 +77,462 @@
     white-space: nowrap;
     background-color: #0c0a17;
     box-shadow: 1px 0 0 #221d43;
+  }
+}
+
+/* 100 % win rate: gold text with a light sweep */
+.text-shine {
+  font-weight: 700;
+  background: linear-gradient(90deg, #d4a93c 0%, #fff3b8 45%, #d4a93c 90%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shine 2.6s linear infinite;
+}
+@keyframes text-shine {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* From 500 wins: lightning crackles around the name, like a Super Saiyan 2 - jagged arcs in the colour of the role (--c1) with a white core.
+   The drawing is in RoleName.tsx; every bolt flashes on its own rhythm so there is always something sparking. */
+.role-bolts {
+  position: relative;
+  display: inline-block;
+}
+.role-bolts .bolts {
+  position: absolute;
+  left: -0.7em;
+  right: -0.7em;
+  top: -0.85em;
+  bottom: -0.85em;
+  overflow: visible;
+  pointer-events: none;
+}
+.role-bolts .bolt {
+  opacity: 0;
+  animation: bolt-crackle 1.9s steps(1, end) infinite;
+}
+.role-bolts .bolt path {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.role-bolts .bolt .glow {
+  stroke: var(--c1);
+  stroke-width: 2.2px;
+  opacity: 0.42;
+  filter: drop-shadow(0 0 2px var(--c1));
+}
+.role-bolts .bolt .core {
+  stroke: #fff;
+  stroke-width: 0.8px;
+  opacity: 0.85;
+}
+.role-bolts .bolt-1 { animation-duration: 3.1s; animation-delay: calc(0s + var(--bd, 0s)); }
+.role-bolts .bolt-2 { animation-duration: 3.7s; animation-delay: calc(0.6s + var(--bd, 0s)); }
+.role-bolts .bolt-3 { animation-duration: 3.4s; animation-delay: calc(1.5s + var(--bd, 0s)); }
+.role-bolts .bolt-4 { animation-duration: 4.1s; animation-delay: calc(2.1s + var(--bd, 0s)); }
+.role-bolts .bolt-5 { animation-duration: 3.6s; animation-delay: calc(0.9s + var(--bd, 0s)); }
+.role-bolts .bolt-6 { animation-duration: 4.4s; animation-delay: calc(2.8s + var(--bd, 0s)); }
+.role-bolts .bolt-7 { animation-duration: 3.3s; animation-delay: calc(1.2s + var(--bd, 0s)); }
+.role-bolts .bolt-8 { animation-duration: 4.8s; animation-delay: calc(3.3s + var(--bd, 0s)); }
+@keyframes bolt-crackle {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  6% { opacity: 0.1; }
+  8% { opacity: 0.9; }
+  11% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-bolts .bolt {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* in the What's New profile picture the name carries no bolts of its own (they are drawn by the frames) */
+.name-bolts-off .role-name > .bolts {
+  display: none;
+}
+
+/* in the What's New picture the diamond name stays readable: the arc that runs along the letters is left out */
+.bolts-clean .bolt-1 {
+  display: none;
+}
+
+/* A name in the colours of a wins role: two colours slide through the letters, with a soft glow that pulses */
+.role-name {
+  background-image: linear-gradient(90deg, var(--c1), var(--c2), var(--c1));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: role-slide 3.2s linear infinite;
+}
+/* the pulsing glow is a filter that is redrawn every frame: only the two big names have it (the account button and the profile) */
+header .role-name,
+h1 .role-name {
+  animation:
+    role-slide 3.2s linear infinite,
+    role-glow 2.6s ease-in-out infinite;
+}
+/* Silver and gold: two small light bolts flash at the sides of the name now and then (the diamond lightning below is the big version) */
+.role-name.role-sparks {
+  position: relative;
+}
+.role-sparks::before,
+.role-sparks::after {
+  content: '';
+  position: absolute;
+  width: 0.5em;
+  height: 0.95em;
+  pointer-events: none;
+  background: var(--c1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 3px var(--c1));
+  opacity: 0;
+}
+.role-sparks::before {
+  left: -0.45em;
+  top: -0.4em;
+  transform: rotate(-14deg);
+  animation: spark-flash 3.8s linear infinite;
+}
+.role-sparks::after {
+  right: -0.45em;
+  bottom: -0.35em;
+  transform: rotate(166deg);
+  animation: spark-flash 4.6s linear 1.4s infinite;
+}
+@keyframes spark-flash {
+  0%,
+  84%,
+  100% {
+    opacity: 0;
+  }
+  86% {
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.15;
+  }
+  90% {
+    opacity: 1;
+  }
+  94% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-sparks::before,
+  .role-sparks::after {
+    animation: none;
+  }
+}
+
+/* something is waiting: the Booster button and the Quests entry glow in gold */
+.glow-ready {
+  position: relative;
+  border-color: rgba(216, 185, 106, 0.85) !important;
+  color: #f3dc9a !important;
+  box-shadow: 0 0 6px rgba(216, 185, 106, 0.3);
+}
+.glow-ready::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 14px rgba(216, 185, 106, 0.75),
+    0 0 26px rgba(216, 185, 106, 0.3);
+  opacity: 0;
+  animation: glow-ready 1.9s ease-in-out infinite;
+}
+@keyframes glow-ready {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-ready::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* Fewer bolts where the lightning is small: a name and the icon in the header carry five of the eight (a bolt that is not shown costs nothing); profiles keep all */
+.role-name.role-bolts .bolt-6,
+.role-name.role-bolts .bolt-7,
+.role-name.role-bolts .bolt-8,
+header .role-frame.role-bolts .bolt-5,
+header .role-frame.role-bolts .bolt-6,
+header .role-frame.role-bolts .bolt-7,
+header .role-frame.role-bolts .bolt-8 {
+  display: none;
+}
+h1 .role-name.role-bolts .bolt-6,
+h1 .role-name.role-bolts .bolt-7,
+h1 .role-name.role-bolts .bolt-8 {
+  display: revert;
+}
+
+/* Calm mode: the decorative animations stand still. It is on while this window does not have the focus (somebody watching a stream next to it
+   does not want the page to use the graphics card) and when the member switched it on in the settings (see useCalmMode in Layout.tsx). */
+html[data-calm] .role-name,
+html[data-calm] .role-frame-shine,
+html[data-calm] .role-frame-bolt,
+html[data-calm] .role-frame-shine::before,
+html[data-calm] .role-frame-shine::after,
+html[data-calm] .role-bolts .bolt,
+html[data-calm] .role-sparks::before,
+html[data-calm] .role-sparks::after,
+html[data-calm] .glow-ready::after,
+html[data-calm] .crest-glow::before,
+html[data-calm] .text-warn,
+html[data-calm] .animate-pulse {
+  animation: none !important;
+}
+html[data-calm] .glow-ready::after {
+  opacity: 0.6;
+}
+
+/* a card turned over in the booster window */
+@keyframes pack-pop {
+  0% {
+    transform: scale(0.55) rotateY(90deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) rotateY(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.pack-pop {
+  animation: pack-pop 0.6s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pack-pop {
+    animation: none;
+  }
+}
+
+/* The crest in the header: a purple glow behind it that slowly pulses */
+.crest-glow {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.crest-glow::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(139, 92, 246, 0.22) 42%, transparent 70%);
+  animation: crest-pulse 4.5s ease-in-out infinite;
+}
+.crest-glow > * {
+  position: relative;
+}
+@keyframes crest-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crest-glow::before {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+/* The frame of a wins role around the banner and the icon (RoleFrame.tsx): bronze a brown edge, silver / gold a shimmering one in the role's colour,
+   diamond and above a glowing bluish one (the lightning is drawn by RoleName's Bolts) */
+.role-frame {
+  position: relative;
+  padding: var(--fw, 3px);
+  border-radius: var(--fr, 1rem);
+}
+.role-frame-inner {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--fr, 1rem) - var(--fw, 3px));
+}
+.role-frame-bronze {
+  background: linear-gradient(135deg, var(--c1), var(--c2) 55%, var(--c1));
+  box-shadow: 0 0 6px rgba(122, 69, 21, 0.45);
+}
+.role-frame-shine,
+.role-frame-bolt {
+  background-image: linear-gradient(110deg, var(--c2) 0%, var(--c1) 28%, #ffffff 50%, var(--c1) 72%, var(--c2) 100%);
+  background-size: 300% 100%;
+  animation: frame-shimmer 7s linear infinite;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c1) 55%, transparent);
+}
+.role-frame-bolt {
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--c1) 70%, transparent),
+    0 0 26px color-mix(in srgb, var(--c2) 45%, transparent);
+}
+@keyframes frame-shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-frame-shine,
+  .role-frame-bolt {
+    animation: none;
+  }
+}
+/* silver and gold: a bright sheen sweeps over the picture now and then and a small bolt flashes at a corner of the frame */
+.role-frame-shine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.6) 50%, transparent 62%);
+  background-size: 300% 100%;
+  background-position: 150% 0;
+  animation: frame-sheen 8s ease-in-out infinite;
+}
+@keyframes frame-sheen {
+  0% {
+    background-position: 150% 0;
+  }
+  60%,
+  100% {
+    background-position: -50% 0;
+  }
+}
+.role-frame-shine::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  right: -7px;
+  top: -9px;
+  width: 14px;
+  height: 24px;
+  pointer-events: none;
+  background: var(--c1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px var(--c1));
+  transform: rotate(18deg);
+  opacity: 0;
+  animation: spark-flash 4.2s linear 0.8s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-frame-shine::before,
+  .role-frame-shine::after {
+    animation: none;
+  }
+}
+/* lightning around a frame: the bolts reach a little beyond its edge */
+.role-frame.role-bolts {
+  display: block;
+}
+.role-frame.role-bolts > .bolts {
+  left: -10px;
+  right: -10px;
+  top: -10px;
+  bottom: -10px;
+  width: auto;
+  height: auto;
+}
+
+/* Silver and gold: a bright glint sweeps over the letters, on top of the sliding colours */
+.role-name.role-glint {
+  background-image: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%), linear-gradient(90deg, var(--c1), var(--c2), var(--c1));
+  background-size: 260% 100%, 200% 100%;
+  background-position: 160% 0, 0 0;
+  animation: role-glint 3.4s linear infinite;
+}
+header .role-name.role-glint,
+h1 .role-name.role-glint {
+  animation:
+    role-glint 3.4s linear infinite,
+    role-glow 2.6s ease-in-out infinite;
+}
+@keyframes role-glint {
+  to {
+    background-position: -100% 0, -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-name.role-glint {
+    animation: none;
+    background-position: 160% 0, 0 0;
+  }
+}
+@keyframes role-slide {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes role-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 5px var(--c1));
+  }
+}
+
+/* 0 % win rate: a warning - red that slides between light and dark and pulses */
+.text-warn {
+  font-weight: 700;
+  background: linear-gradient(90deg, #fca5a5 0%, #b91c1c 50%, #fca5a5 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    text-shine 1.8s linear infinite,
+    warn-pulse 1.2s ease-in-out infinite;
+}
+@keyframes warn-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* a slide of the what's-new window slides in */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

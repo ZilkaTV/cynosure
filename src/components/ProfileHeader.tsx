@@ -1,0 +1,480 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { CLAN_TAG } from '../config'
+import { useLanguage } from '../i18n/LanguageContext'
+import { useProfile } from '../lib/useProfile'
+import { useSharedRoster } from '../lib/access'
+import { titleForLevel, xpProgress } from '../lib/levels'
+import { cleanDisplayName, initialOf } from '../lib/displayName'
+import { splitAccountUsername } from '../lib/openfront'
+import type { MemberStats } from '../lib/stats'
+import {
+  DEFAULT_FIT,
+  MAX_BIO,
+  MAX_ZOOM,
+  fetchProfileLikes,
+  parseFit,
+  profileImageSrc,
+  removeProfileMedia,
+  saveBio,
+  saveFits,
+  setProfileLike,
+  twitchUrl,
+  youtubeUrl,
+  uploadProfileImage,
+  type Fit,
+  type ProfileExtras,
+} from '../lib/profileExtras'
+import FitImage from './FitImage'
+import ReportDialog from './ReportDialog'
+import { toggleFavoriteProfile, useSearchLists } from '../lib/searchLists'
+import RoleFrame from './RoleFrame'
+import { Flag } from './Emoji'
+import { RoleName } from './RoleName'
+
+const HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
+
+function Heart({ filled, className = 'h-5 w-5' }: { filled: boolean; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+      <path d={HEART} />
+    </svg>
+  )
+}
+
+/** YouTube and Twitch of the member, as small icons that open the channel. */
+function ChannelLinks({ yt, twitch }: { yt: string | null | undefined; twitch: string | null | undefined }) {
+  if (!yt && !twitch) return null
+  const cls = 'inline-flex h-7 w-7 items-center justify-center rounded-md border border-base-600 bg-base-800/70 transition-colors'
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {yt && (
+        <a href={youtubeUrl(yt)} target="_blank" rel="noopener noreferrer" title={`YouTube ${yt}`} aria-label={`YouTube ${yt}`} className={`${cls} text-[#ff0000] hover:border-[#ff0000]/70`}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z" />
+          </svg>
+        </a>
+      )}
+      {twitch && (
+        <a href={twitchUrl(twitch)} target="_blank" rel="noopener noreferrer" title={`Twitch ${twitch}`} aria-label={`Twitch ${twitch}`} className={`${cls} text-[#9146ff] hover:border-[#9146ff]/70`}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path d="M4.3 3 3 6.5v13.1h4.5V22h2.6l2.4-2.4h3.7L21 14.5V3H4.3zm14.9 10.3-2.9 2.9h-4.6l-2.4 2.4v-2.4H6.8V4.7h12.4v8.6zM16.3 7.6h-1.7v4.7h1.7V7.6zm-4.6 0H10v4.7h1.7V7.6z" />
+          </svg>
+        </a>
+      )}
+    </span>
+  )
+}
+
+/** The star of a profile: puts it in (or takes it out of) the favourites of the profile search in the header. */
+function FavoriteButton({ profileId, de }: { profileId: string; de: boolean }) {
+  const { favs } = useSearchLists()
+  const fav = favs.includes(profileId)
+  const label = fav ? (de ? 'Aus den Favoriten nehmen' : 'Remove from favorites') : de ? 'Zu den Favoriten (Profilsuche)' : 'Add to favorites (profile search)'
+  return (
+    <button
+      type="button"
+      onClick={() => toggleFavoriteProfile(profileId)}
+      aria-pressed={fav}
+      title={label}
+      aria-label={label}
+      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${fav ? 'border-gold/60 bg-gold/10 text-gold-light' : 'border-base-600 bg-base-800/70 text-slate-200 hover:border-gold/60 hover:text-gold-light'}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+        <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+      </svg>
+    </button>
+  )
+}
+
+/** The like button of a profile: one like per member, not for your own profile; the number shows how many, the tooltip who. */
+function LikeButton({ profileId, isOwn, names }: { profileId: string; isOwn: boolean; names: Map<string, string> }) {
+  const { profile } = useProfile()
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const [likes, setLikes] = useState<string[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    setLikes(null)
+    void fetchProfileLikes(profileId).then((l) => alive && setLikes(l))
+    return () => {
+      alive = false
+    }
+  }, [profileId])
+  const me = profile?.openfront_id
+  const liked = !!me && !!likes?.includes(me)
+  async function toggle() {
+    if (!me || isOwn || busy || !likes) return
+    setBusy(true)
+    setError(null)
+    const next = liked ? likes.filter((x) => x !== me) : [...likes, me]
+    setLikes(next) // shown at once, put back if it fails
+    const problem = await setProfileLike(profileId, me, !liked)
+    if (problem) {
+      setLikes(likes)
+      setError(problem)
+    }
+    setBusy(false)
+  }
+  const who = (likes ?? []).slice(0, 12).map((id) => cleanDisplayName(names.get(id) ?? id))
+  const title = isOwn ? (de ? 'Das ist dein Profil' : 'This is your profile') : liked ? (de ? 'Gefällt mir zurücknehmen' : 'Remove your like') : de ? 'Profil gefällt mir' : 'Like this profile'
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={isOwn || busy || likes === null}
+        title={who.length ? `${title}\n${who.join(', ')}${(likes?.length ?? 0) > 12 ? ' …' : ''}` : title}
+        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+          liked ? 'border-rose-400/60 bg-rose-500/15 text-rose-300' : 'border-base-600 bg-base-800/70 text-slate-200 hover:border-rose-400/60 hover:text-rose-300'
+        } ${isOwn ? 'cursor-default opacity-80 hover:border-base-600 hover:text-slate-200' : ''}`}
+      >
+        <Heart filled={liked} />
+        <span className="tabular-nums">{likes === null ? '…' : likes.length}</span>
+      </button>
+      {error && <span className="max-w-[16rem] text-right text-[11px] text-signal-red">{error}</span>}
+    </div>
+  )
+}
+
+/** A slider for the zoom of a picture, with a reset. */
+function ZoomRow({ label, value, onChange, onReset, de }: { label: string; value: number; onChange: (zoom: number) => void; onReset: () => void; de: boolean }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-slate-400">
+      <span className="w-12 shrink-0">{label}</span>
+      <input type="range" min={1} max={MAX_ZOOM} step={0.05} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-1.5 flex-1 cursor-pointer accent-[#8b5cf6]" aria-label={label} />
+      <span className="w-10 shrink-0 text-right tabular-nums">{value.toFixed(2)}×</span>
+      <button type="button" onClick={onReset} className="shrink-0 rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-base-800 hover:text-white" title={de ? 'Zurücksetzen' : 'Reset'}>
+        ↺
+      </button>
+    </div>
+  )
+}
+
+/** The panel where the owner sets icon, banner and the about-me text. */
+function ProfileEditor({ m, extras, fits, onFits, onChanged, onClose }: { m: MemberStats; extras: ProfileExtras | null; fits: { avatar: Fit; banner: Fit }; onFits: (f: { avatar: Fit; banner: Fit }) => void; onChanged: () => void; onClose: () => void }) {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const [bio, setBio] = useState(extras?.bio ?? '')
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const avatarInput = useRef<HTMLInputElement>(null)
+  const bannerInput = useRef<HTMLInputElement>(null)
+  const avatar = profileImageSrc(extras?.avatar_url)
+  const banner = profileImageSrc(extras?.banner_url)
+
+  async function pick(kind: 'avatar' | 'banner', file: File | undefined) {
+    if (!file) return
+    setBusy(kind)
+    setMessage(null)
+    const r = await uploadProfileImage(kind, file)
+    setBusy(null)
+    setMessage(r.ok ? (de ? 'Bild gespeichert.' : 'Picture saved.') : r.message)
+    if (r.ok) onChanged()
+    if (kind === 'avatar' && avatarInput.current) avatarInput.current.value = ''
+    if (kind === 'banner' && bannerInput.current) bannerInput.current.value = ''
+  }
+  async function remove(kind: 'avatar' | 'banner') {
+    setBusy(kind)
+    const ok = await removeProfileMedia(kind)
+    setBusy(null)
+    setMessage(ok ? (de ? 'Entfernt.' : 'Removed.') : de ? 'Entfernen fehlgeschlagen.' : 'Removing failed.')
+    if (ok) onChanged()
+  }
+  const savedAvatar = parseFit(extras?.avatar_fit) ?? DEFAULT_FIT
+  const savedBanner = parseFit(extras?.banner_fit) ?? DEFAULT_FIT
+  const moved = (a: Fit, b: Fit) => a.x !== b.x || a.y !== b.y || a.zoom !== b.zoom
+  const fitChanged = moved(fits.avatar, savedAvatar) || moved(fits.banner, savedBanner)
+  async function saveFit() {
+    setBusy('fit')
+    setMessage(null)
+    const problem = await saveFits(m.publicId, {
+      ...(avatar && moved(fits.avatar, savedAvatar) ? { avatar: fits.avatar } : {}),
+      ...(banner && moved(fits.banner, savedBanner) ? { banner: fits.banner } : {}),
+    })
+    setBusy(null)
+    setMessage(problem ?? (de ? 'Ausschnitt gespeichert.' : 'Placement saved.'))
+    if (!problem) onChanged()
+  }
+  async function saveText() {
+    setBusy('bio')
+    setMessage(null)
+    const problem = await saveBio(m.publicId, bio)
+    setBusy(null)
+    setMessage(problem ?? (de ? 'Text gespeichert.' : 'Text saved.'))
+    if (!problem) onChanged()
+  }
+  const btn = 'rounded-lg border border-base-600 bg-base-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-accent hover:text-white disabled:opacity-50'
+  return (
+    <div className="panel space-y-4 p-4 text-sm text-slate-300">
+      <div className="flex items-center justify-between">
+        <p className="font-display text-sm font-bold uppercase tracking-wide text-gold">{de ? 'Profil bearbeiten' : 'Edit profile'}</p>
+        <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={de ? 'Schließen' : 'Close'}>
+          ✕
+        </button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Icon (max. 2 MB, auch GIF)' : 'Icon (max 2 MB, GIFs too)'}</p>
+          <div className="flex items-center gap-3">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-base-600 bg-base-800">{avatar && <FitImage src={avatar} fit={fits.avatar} />}</div>
+            <div className="flex flex-wrap gap-2">
+              <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => void pick('avatar', e.target.files?.[0])} />
+              <button type="button" className={btn} disabled={busy !== null} onClick={() => avatarInput.current?.click()}>
+                {busy === 'avatar' ? '…' : de ? 'Bild wählen' : 'Choose picture'}
+              </button>
+              {avatar && (
+                <button type="button" className={btn} disabled={busy !== null} onClick={() => void remove('avatar')}>
+                  {de ? 'Entfernen' : 'Remove'}
+                </button>
+              )}
+            </div>
+          </div>
+          {avatar && <ZoomRow label={de ? 'Größe' : 'Size'} value={fits.avatar.zoom} onChange={(zoom) => onFits({ ...fits, avatar: { ...fits.avatar, zoom } })} onReset={() => onFits({ ...fits, avatar: DEFAULT_FIT })} de={de} />}
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Banner (max. 5 MB, auch GIF)' : 'Banner (max 5 MB, GIFs too)'}</p>
+          <div className="flex items-center gap-3">
+            <div className="h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">{banner && <FitImage src={banner} fit={fits.banner} />}</div>
+            <div className="flex flex-wrap gap-2">
+              <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={(e) => void pick('banner', e.target.files?.[0])} />
+              <button type="button" className={btn} disabled={busy !== null} onClick={() => bannerInput.current?.click()}>
+                {busy === 'banner' ? '…' : de ? 'Bild wählen' : 'Choose picture'}
+              </button>
+              {banner && (
+                <button type="button" className={btn} disabled={busy !== null} onClick={() => void remove('banner')}>
+                  {de ? 'Entfernen' : 'Remove'}
+                </button>
+              )}
+            </div>
+          </div>
+          {banner && <ZoomRow label={de ? 'Größe' : 'Size'} value={fits.banner.zoom} onChange={(zoom) => onFits({ ...fits, banner: { ...fits.banner, zoom } })} onReset={() => onFits({ ...fits, banner: DEFAULT_FIT })} de={de} />}
+        </div>
+      </div>
+      {(avatar || banner) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-700 bg-base-850/50 px-3 py-2">
+          <span className="text-xs text-slate-400">{de ? 'Tipp: Ziehe Icon und Banner oben direkt mit der Maus (oder dem Finger), um den Ausschnitt zu verschieben. Mit „Größe“ zoomst du hinein.' : 'Tip: drag the icon and the banner above with the mouse (or a finger) to move the picture. Use “Size” to zoom in.'}</span>
+          <button type="button" className="btn-accent !px-4 !py-1.5 text-xs disabled:opacity-50" disabled={busy !== null || !fitChanged} onClick={() => void saveFit()}>
+            {busy === 'fit' ? '…' : de ? 'Ausschnitt speichern' : 'Save placement'}
+          </button>
+        </div>
+      )}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Über mich' : 'About me'}</p>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO))}
+          rows={3}
+          placeholder={de ? 'Ein paar Worte über dich …' : 'A few words about you …'}
+          className="w-full rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-slate-500">
+            {bio.length}/{MAX_BIO}
+          </span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-accent !px-5 !py-1.5 text-sm disabled:opacity-50" disabled={busy !== null} onClick={() => void saveText()}>
+              {busy === 'bio' ? '…' : de ? 'Text speichern' : 'Save text'}
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-1.5 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+              {de ? 'Fertig' : 'Done'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">
+        {de ? 'Bilder sind für alle Mitglieder sichtbar. Keine anstößigen oder fremden urheberrechtlich geschützten Bilder; Admins können Bilder entfernen.' : 'Pictures are visible to all members. No offensive pictures or pictures you have no right to use; admins can remove pictures.'}
+      </p>
+      {message && <p className="text-xs text-gold-light">{message}</p>}
+    </div>
+  )
+}
+
+/**
+ * The top of a profile, built like a Steam profile: a banner, the icon on its edge, name with level, the like button, the "about me" text.
+ * Owners edit icon, banner and text here; admins can take a picture or a text away from somebody else's profile (children = other admin tools).
+ */
+export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadExtras, children }: { m: MemberStats; isOwn: boolean; viewerIsAdmin: boolean; extras: ProfileExtras | null; reloadExtras: () => void; children?: ReactNode }) {
+  const { t, language } = useLanguage()
+  const de = language === 'de'
+  const roster = useSharedRoster()
+  const [editing, setEditing] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const { profile: viewer } = useProfile()
+  const me = viewer?.openfront_id
+  const [modMessage, setModMessage] = useState<string | null>(null)
+  // placement while the owner edits (dragging and zoom show at once, saved with the button)
+  const [draft, setDraft] = useState<{ avatar: Fit; banner: Fit } | null>(null)
+  const names = useMemo(() => new Map((roster?.members ?? []).map((x) => [x.publicId, x.name] as const)), [roster])
+  const banner = profileImageSrc(extras?.banner_url)
+  const avatar = profileImageSrc(extras?.avatar_url)
+  const level = xpProgress(m.xp ?? 0).level
+  const savedFits = { avatar: parseFit(extras?.avatar_fit) ?? DEFAULT_FIT, banner: parseFit(extras?.banner_fit) ?? DEFAULT_FIT }
+  const editingNow = isOwn && editing
+  const fits = editingNow && draft ? draft : savedFits
+  const name = cleanDisplayName(m.name)
+
+  async function moderate(kind: 'avatar' | 'banner' | 'bio') {
+    const ok = await removeProfileMedia(kind, m.publicId)
+    setModMessage(ok ? (de ? 'Entfernt.' : 'Removed.') : de ? 'Entfernen fehlgeschlagen.' : 'Removing failed.')
+    if (ok) reloadExtras()
+  }
+
+  return (
+    <div className="space-y-4">
+      <RoleFrame wins={m.allWins} radius="1rem" width={3} variant="banner" plain="border border-base-700 bg-base-900/70">
+      <div className="bg-base-900/70">
+        <div className="relative h-36 sm:h-56">
+          {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-base-900/90 to-transparent" />
+        </div>
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-4 pb-4 sm:px-6">
+          <RoleFrame wins={m.allWins} radius="1rem" width={4} className="relative z-10 -mt-14 h-24 w-24 shrink-0 sm:-mt-16 sm:h-32 sm:w-32" plain="border-4 border-base-900 bg-base-800 shadow-xl">
+            {avatar ? (
+              <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{initialOf(m.name)}</div>
+            )}
+          </RoleFrame>
+          <div className="min-w-0 flex-1 basis-60 pt-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
+            <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
+              {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
+              <RoleName wins={m.allWins}>{name}</RoleName>
+              <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
+              <Link
+                to={`/card/${m.publicId}`}
+                title={de ? 'Dieses Mitglied hat eine eigene Spielerkarte' : 'This member has an own player card'}
+                className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light transition-colors hover:bg-gold/20"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+                </svg>
+                {de ? 'Eigene Karte' : 'Own card'}
+              </Link>
+              {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
+            </h1>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-xs font-semibold text-gold-light" title={titleForLevel(level)}>
+                {t.questCard.lvlPrefix} {level} · {titleForLevel(level)}
+              </span>
+              {m.timezone && <span>{m.timezone}</span>}
+              {m.discord && (
+                <span>
+                  {t.memberProfile.discordPrefix} {m.discord}
+                </span>
+              )}
+              {m.accountUsername && (
+                <span>
+                  {t.memberProfile.accountUsernamePrefix}{' '}
+                  {(() => {
+                    const { base, discriminator } = splitAccountUsername(m.accountUsername)
+                    return (
+                      <>
+                        {base}
+                        {discriminator && <span className="text-slate-600">#{discriminator}</span>}
+                      </>
+                    )
+                  })()}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex w-full flex-col items-start gap-2 pt-1">
+            <div className="flex flex-wrap items-start justify-start gap-2">
+              <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
+              {!isOwn && <FavoriteButton profileId={m.publicId} de={de} />}
+              <Link
+                to={`/card/${m.publicId}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-gold/60 hover:text-gold-light"
+                title={de ? 'Spielerkarte ansehen' : 'View the player card'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                  <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+                  <path d="M9 13h6M9 17h6M12 7v3" />
+                </svg>
+                {de ? 'Karte' : 'Card'}
+              </Link>
+              <Link
+                to={`/collection/${m.publicId}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-gold/60 hover:text-gold-light"
+                title={de ? 'Sammlung ansehen' : 'View the collection'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                  <rect x="3" y="6" width="12" height="15" rx="2" />
+                  <path d="M7 3h11a2 2 0 0 1 2 2v12" />
+                </svg>
+                {de ? 'Sammlung' : 'Collection'}
+              </Link>
+              <button
+                type="button"
+                onClick={() => document.getElementById('pinnwand')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white"
+                title={de ? 'Zu den Kommentaren' : 'Go to the comments'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12c0 4.4-4 8-9 8-1.2 0-2.4-.2-3.4-.6L3 21l1.7-4.3C3.6 15.3 3 13.7 3 12c0-4.4 4-8 9-8s9 3.6 9 8z" />
+                </svg>
+                {de ? 'Kommentare' : 'Comments'}
+              </button>
+              {!isOwn && me && (
+                <button
+                  type="button"
+                  onClick={() => setReporting(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-signal-red/60 hover:text-signal-red"
+                  title={de ? 'Dieses Profil melden' : 'Report this profile'}
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                    <path d="M5 21V4m0 0h11l-2 4 2 4H5" />
+                  </svg>
+                  {de ? 'Melden' : 'Report'}
+                </button>
+              )}
+            </div>
+            {isOwn && !editing && (
+              <button type="button" onClick={() => { setDraft(null); setEditing(true) }} className="rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+                {de ? 'Profil bearbeiten' : 'Edit profile'}
+              </button>
+            )}
+          </div>
+        </div>
+        {extras?.bio && (
+          <div className="border-t border-base-700 px-4 py-4 sm:px-6">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Über mich' : 'About me'}</p>
+            <p className="mt-1.5 whitespace-pre-line break-words text-sm leading-relaxed text-slate-200">{extras.bio}</p>
+          </div>
+        )}
+      </div>
+      </RoleFrame>
+
+      {reporting && me && <ReportDialog myId={me} target="profile" targetId={m.publicId} subject={name} onClose={() => setReporting(false)} />}
+
+      {isOwn && editing && <ProfileEditor m={m} extras={extras} fits={fits} onFits={setDraft} onChanged={() => { setDraft(null); reloadExtras() }} onClose={() => { setDraft(null); setEditing(false) }} />}
+
+      {!isOwn && viewerIsAdmin && (avatar || banner || extras?.bio) && (
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+          <span className="text-slate-500">{de ? 'Admin:' : 'Admin:'}</span>
+          {avatar && (
+            <button type="button" onClick={() => void moderate('avatar')} className="rounded-lg bg-signal-red/15 px-3 py-1.5 font-semibold text-signal-red hover:bg-signal-red/25">
+              {de ? 'Icon entfernen' : 'Remove icon'}
+            </button>
+          )}
+          {banner && (
+            <button type="button" onClick={() => void moderate('banner')} className="rounded-lg bg-signal-red/15 px-3 py-1.5 font-semibold text-signal-red hover:bg-signal-red/25">
+              {de ? 'Banner entfernen' : 'Remove banner'}
+            </button>
+          )}
+          {extras?.bio && (
+            <button type="button" onClick={() => void moderate('bio')} className="rounded-lg bg-signal-red/15 px-3 py-1.5 font-semibold text-signal-red hover:bg-signal-red/25">
+              {de ? 'Text entfernen' : 'Remove text'}
+            </button>
+          )}
+          {modMessage && <span className="text-slate-500">{modMessage}</span>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}

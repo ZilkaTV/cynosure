@@ -1,17 +1,32 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import CynLogo from './CynLogo'
-import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
+import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
+import NotificationBell from './NotificationBell'
+import { boostersReady, useBoosterState } from '../lib/boosters'
+import { useQuestsReady } from '../lib/notifications'
+import RoleFrame from './RoleFrame'
+import { RoleName, useWinsIndex } from './RoleName'
+import FitImage from './FitImage'
+import { parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
+import { initialOf } from '../lib/displayName'
+import { CHANGELOG } from '../data/changelog'
+import { EVENTS } from '../data/events'
+import ProfileSearch from './ProfileSearch'
+import { useMemberRoles, type SiteRole } from '../lib/roles'
 import { useQueueAlert } from '../lib/queueNotify'
 import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
 import { useLanguage } from '../i18n/LanguageContext'
+import { useAccess, useSharedRoster, type Access } from '../lib/access'
+import { titleForLevel, xpProgress } from '../lib/levels'
+import { AccessExpired } from './AccessExpired'
 import type { TranslationShape } from '../i18n/translations'
 
 /**
@@ -98,8 +113,16 @@ function navItems(t: TranslationShape) {
       children: [
         { to: '/monthly/ffa', label: t.nav.monthlyFfa },
         { to: '/monthly/team', label: t.nav.monthlyTeam },
-        { to: '/monthly/1v1', label: t.nav.monthly1v1 },
-        { to: '/monthly/2v2', label: t.nav.monthly2v2 },
+      ],
+    },
+    {
+      to: '/ranked',
+      label: 'Ranked',
+      shortLabel: 'Ranked',
+      children: [
+        { to: '/ranked/1v1', label: '1v1' },
+        { to: '/ranked/2v2', label: '2v2' },
+        { to: '/ranked/ffa', label: 'FFA' },
       ],
     },
     { to: '/speedrun', label: t.nav.speedrun, shortLabel: t.nav.shortSpeedrun },
@@ -107,8 +130,6 @@ function navItems(t: TranslationShape) {
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
-    { to: '/planner', label: t.nav.planner, shortLabel: t.nav.shortPlanner },
-    { to: '/trends', label: t.nav.trends, shortLabel: t.nav.shortTrends },
   ]
 }
 
@@ -138,6 +159,58 @@ const CalendarIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+const menuIcon = 'h-4 w-4 shrink-0'
+const MenuIcon = ({ children }: { children: ReactNode }) => (
+  <svg className={menuIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+)
+const UserIcon = () => (
+  <MenuIcon>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+  </MenuIcon>
+)
+const BookmarkIcon = () => (
+  <MenuIcon>
+    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+  </MenuIcon>
+)
+const CardIcon = () => (
+  <MenuIcon>
+    <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+    <path d="M9 13h6M9 17h6M12 7v3" />
+  </MenuIcon>
+)
+const CollectionIcon = () => (
+  <MenuIcon>
+    <rect x="3" y="6" width="12" height="15" rx="2" />
+    <path d="M7 3h11a2 2 0 0 1 2 2v12" />
+  </MenuIcon>
+)
+const SettingsIcon = () => (
+  <MenuIcon>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+  </MenuIcon>
+)
+const FlagIcon = () => (
+  <MenuIcon>
+    <path d="M5 21V4M5 4h12l-2 4 2 4H5" />
+  </MenuIcon>
+)
+const ArchiveIcon = () => (
+  <MenuIcon>
+    <rect x="3" y="4" width="18" height="4" rx="1" />
+    <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
+  </MenuIcon>
+)
+const SignOutIcon = () => (
+  <MenuIcon>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+  </MenuIcon>
+)
+
 const RefreshIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 12a9 9 0 1 1-3-6.7" />
@@ -145,19 +218,35 @@ const RefreshIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
-const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-)
+/** The small line under the member's name: days of access left, "permanent" or "expired" (null while unknown). */
+function accessLabel(a: Access, language: string): { text: string; cls: string } | null {
+  const de = language === 'de'
+  if (a.status === 'permanent') return { text: de ? '∞ dauerhaft' : '∞ permanent', cls: 'text-gold-light' }
+  if (a.status === 'expired') return { text: de ? 'abgelaufen' : 'expired', cls: 'text-signal-red' }
+  if (a.status !== 'ok' || a.daysLeft == null) return null
+  const d = a.daysLeft
+  const text = de ? (d === 1 ? '1 Tag' : `${d} Tage`) : d === 1 ? '1 day' : `${d} days`
+  return { text, cls: d <= 1 ? 'text-warn' : d <= 2 ? 'text-signal-red' : d <= 4 ? 'text-amber-400' : 'text-slate-400' }
+}
 
-function AccountMenu() {
+function AccountMenu({ isInner }: { isInner: boolean }) {
   const { profile, refresh } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const isAdmin = useIsAdmin()
+  const access = useAccess()
+  const label = accessLabel(access, language)
+  // Level and XP bar above the name (from the quest XP of the signed-in member).
+  const roster = useSharedRoster()
+  const xp = roster?.members.find((m) => m.publicId === profile?.openfront_id)?.xp
+  const lvl = xp == null ? null : xpProgress(xp)
+  const roles = useMemberRoles(profile?.openfront_id, profile?.in_game_name, isInner)
+  const roleLabel = (r: SiteRole) =>
+    r === 'inner' ? 'Inner Circle' : r === 'captain' ? t.events.captain : r === 'leader' ? t.clanPage.roleLeader : r === 'officer' ? t.clanPage.roleOfficer : t.clanPage.roleMember
+  const rolesText = roles.map(roleLabel).join(' · ')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { extras } = useProfileExtras(profile?.openfront_id)
+  const myWins = useWinsIndex().byId.get(profile?.openfront_id ?? '')
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -180,32 +269,87 @@ function AccountMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm"
+        className="top-btn !w-auto justify-start !px-3"
         aria-label={t.accountMenu.ariaLabel}
       >
-        <GearIcon />
-        <span className="hidden max-w-[8rem] truncate sm:inline">{profile.in_game_name}</span>
+        {/* the member's own icon (or the first letter of the name; a clan tag in front is ignored) instead of the gear */}
+        <RoleFrame wins={myWins} radius="0.6rem" width={2} className="h-9 w-9 shrink-0" plain="border border-base-600 bg-base-800">
+          {profileImageSrc(extras?.avatar_url) ? (
+            <FitImage src={profileImageSrc(extras?.avatar_url)!} fit={parseFit(extras?.avatar_fit)} />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-lg font-bold text-white">{initialOf(profile.in_game_name)}</span>
+          )}
+        </RoleFrame>
+        <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
+          {lvl && (
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-gold-light">
+              {t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}
+              {lvl.next != null && (
+                <span className="h-2.5 w-24 overflow-hidden rounded-full border border-white/80 bg-base-700">
+                  <span className="block h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.min(100, (lvl.into / lvl.span) * 100)}%` }} />
+                </span>
+              )}
+            </span>
+          )}
+          <span className="max-w-[8rem] truncate">
+            <RoleName wins={myWins}>{profile.in_game_name}</RoleName>
+          </span>
+          <span className="max-w-[10rem] truncate text-[10px] font-medium text-slate-400">{rolesText}</span>
+          {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
+        </span>
+        {lvl && <span className="text-[11px] font-semibold text-gold-light sm:hidden">{t.questCard.lvlPrefix} {lvl.level}</span>}
         {isAdmin && <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
+        <svg viewBox="0 0 20 20" fill="currentColor" className={`ml-auto h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
-          <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+        <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
+          <div className="border-b border-base-700 px-4 py-2.5 sm:hidden">
+            <p className="truncate text-sm font-semibold text-white">{profile.in_game_name}</p>
+            {lvl && <p className="text-[11px] font-semibold text-gold-light">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</p>}
+            {rolesText && <p className="text-[11px] text-slate-400">{rolesText}</p>}
+            {label && <p className={`text-[11px] font-semibold ${label.cls}`}>{label.text}</p>}
+          </div>
+          <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <UserIcon />
             {t.accountMenu.myProfile}
           </Link>
-          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-            ★ {t.accountMenu.savedGames}
+          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <BookmarkIcon />
+            {t.accountMenu.savedGames}
           </Link>
-          <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+          <Link to="/card" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <CardIcon />
+            {language === 'de' ? 'Meine Karte' : 'My card'}
+          </Link>
+          <Link to="/collection" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <CollectionIcon />
+            {language === 'de' ? 'Sammlung & Booster' : 'Collection & boosters'}
+          </Link>
+          {isInner && (
+            <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">
+              <CalendarIcon />
+              <span className="flex flex-col leading-tight">
+                {t.home.gameNightsTitle}
+                <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'}</span>
+              </span>
+            </Link>
+          )}
+          <Link to="/register" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <SettingsIcon />
             {t.accountMenu.settings}
           </Link>
           {isAdmin && (
-            <Link to="/survey" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {t.nav.survey}
+            <Link to="/reports" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              <FlagIcon />
+              {language === 'de' ? 'Meldungen' : 'Reports'}
             </Link>
           )}
           {isAdmin && (
-            <Link to="/survey/results" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-              {t.nav.surveyResults}
+            <Link to="/archive" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              <ArchiveIcon />
+              {language === 'de' ? 'Archiviert' : 'Archived'}
             </Link>
           )}
           <button
@@ -215,8 +359,9 @@ function AccountMenu() {
               if (supabase) await supabase.auth.signOut()
               refresh()
             }}
-            className="block w-full px-4 py-2.5 text-left text-sm text-signal-red hover:bg-base-800"
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-signal-red hover:bg-base-800"
           >
+            <SignOutIcon />
             {t.accountMenu.signOut}
           </button>
         </div>
@@ -225,13 +370,81 @@ function AccountMenu() {
   )
 }
 
+/**
+ * Calm mode: the page sets html[data-calm] while its window has no focus (a stream next to it should get the graphics card) or when the member
+ * turned it on in the settings (localStorage "cyn:calm"); the stylesheet then stops the decorative animations.
+ */
+const CALM_KEY = 'cyn:calm'
+const CALM_CHANGED = 'cyn:calm-changed'
+function useCalmMode() {
+  useEffect(() => {
+    const root = document.documentElement
+    const forced = () => {
+      try {
+        return localStorage.getItem(CALM_KEY) === '1'
+      } catch {
+        return false
+      }
+    }
+    const apply = () => {
+      if (forced() || !document.hasFocus() || document.visibilityState === 'hidden') root.dataset.calm = '1'
+      else delete root.dataset.calm
+    }
+    apply()
+    window.addEventListener('focus', apply)
+    window.addEventListener('blur', apply)
+    document.addEventListener('visibilitychange', apply)
+    window.addEventListener(CALM_CHANGED, apply)
+    window.addEventListener('storage', apply)
+    return () => {
+      window.removeEventListener('focus', apply)
+      window.removeEventListener('blur', apply)
+      document.removeEventListener('visibilitychange', apply)
+      window.removeEventListener(CALM_CHANGED, apply)
+      window.removeEventListener('storage', apply)
+      delete root.dataset.calm
+    }
+  }, [])
+}
+
+/** The Booster button: glows in gold while a booster can be opened (the free one of the day or one on hand). */
+function BoosterButton() {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const state = useBoosterState()
+  const ready = boostersReady(state)
+  const title = ready > 0 ? (de ? `${ready} Booster bereit: öffnen` : `${ready} booster(s) ready: open`) : de ? 'Sammlung und Booster' : 'Collection and boosters'
+  return (
+    <Link
+      to="/collection"
+      title={title}
+      aria-label={title}
+      className={`relative inline-flex h-10 items-center gap-2 rounded-lg border border-base-600 bg-base-800/60 px-3 text-sm font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white ${ready > 0 ? 'glow-ready' : ''}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+        <rect x="5" y="3" width="14" height="18" rx="2" />
+        <path d="M9 8h6M9 12h6M12 16h.01" />
+      </svg>
+      <span className="hidden sm:inline">Booster</span>
+      {ready > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[11px] font-bold text-base-950 ring-2 ring-base-900">{ready}</span>}
+    </Link>
+  )
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
-  const { t } = useLanguage()
+  // The dev copy of the site (dev.cynclan.com / cynosure-dev.*.workers.dev) shows an orange bar and a test sign-in.
+  const isDevSite = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
+  const { t, language } = useLanguage()
   const { profile } = useProfile()
+  const access = useAccess()
   useGameNightReminder()
   const siteUpdate = useSiteUpdate()
   const queueUnseen = useQueueAlert()
   const isInnerCircle = useIsInnerCircle()
+  const liveEvent = EVENTS.some((e) => e.status === 'live')
+  const questsReady = useQuestsReady()
+  useCalmMode()
+  const innerOnly = language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
 
@@ -273,59 +486,103 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      {isDevSite && (
+        <div className="sticky top-0 z-[100] bg-amber-500 px-3 py-1.5 text-center text-xs font-bold text-black">DEV website</div>
+      )}
+      <WhatsNew />
       <header className="relative border-b border-base-700 bg-base-950/60">
         {/* top-right account menu + language switcher - floated so the crest stays centred */}
-        <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-2 sm:justify-end sm:px-4">
-          <Link
-            to="/"
-            className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:absolute sm:left-4 sm:top-3 sm:z-10 sm:text-2xl lg:text-3xl"
-          >
-            CynClan.com
-          </Link>
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 pt-1.5 sm:min-h-[5.75rem] sm:items-start sm:justify-end sm:px-3 2xl:min-h-[9rem]">
+          <div className="flex shrink-0 flex-col items-start gap-1.5 sm:absolute sm:left-3 sm:top-1.5 sm:z-10">
+            <div className="flex items-center gap-4">
+              <Link to="/" className="shrink-0 font-display text-base font-bold tracking-wide text-slate-200 transition-colors hover:text-white sm:text-2xl lg:text-3xl">
+                CynClan.com
+              </Link>
+              <ProfileSearch className="hidden w-60 xl:block" />
+            </div>
+            <div className="hidden items-center gap-1.5 sm:flex">
+              <button
+                type="button"
+                onClick={siteUpdate.apply}
+                disabled={!siteUpdate.available}
+                title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+                aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
+                className={`top-btn-sm ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
+              >
+                <RefreshIcon className="h-4 w-4" />
+                {t.ui.siteUpdate}
+                {siteUpdate.available && (
+                  <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
+                )}
+              </button>
+              {CHANGELOG.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT))}
+                  title={language === 'de' ? 'Zeigt die Neuerungen noch einmal' : 'Shows the news again'}
+                  className="top-btn-sm"
+                >
+                  {language === 'de' ? 'Was ist neu?' : "What's new?"}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="relative flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {isInnerCircle && (
+              <Link to="/metrics" className="top-btn top-btn-inner" aria-label={t.metrics.navLabel}>
+                <ChartIcon />
+                <span className="hidden flex-col items-center leading-tight sm:flex">
+                  {t.metrics.navLabel}
+                  <span className="text-[9px] font-normal uppercase tracking-wide text-gold/80">{innerOnly}</span>
+                </span>
+              </Link>
+            )}
+            <AccountMenu isInner={isInnerCircle} />
+          </div>
+          {profile && (
+            <div className="flex items-center gap-2 sm:absolute sm:right-0 sm:top-full sm:z-20 sm:mt-1.5">
+              <BoosterButton />
+              <NotificationBell />
+            </div>
+          )}
+          </div>
+        </div>
+
+        {/* below the wide layout the profile search gets its own row */}
+        <div className="flex items-center gap-1.5 px-3 pb-1 pt-1.5 sm:px-4 xl:hidden">
+          <ProfileSearch className="w-full min-w-0 flex-1 sm:max-w-xs sm:flex-none" />
+          <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
             <button
               type="button"
               onClick={siteUpdate.apply}
               disabled={!siteUpdate.available}
-              title={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
               aria-label={siteUpdate.available ? t.ui.siteUpdateAvailable : t.ui.siteUpToDate}
-              className={`btn-ghost relative inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm ${
-                siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'
-              }`}
+              className={`top-btn-sm !w-10 !px-0 ${siteUpdate.available ? '' : 'cursor-not-allowed opacity-40'}`}
             >
-              <RefreshIcon />
-              <span className="hidden sm:inline">{t.ui.siteUpdate}</span>
-              {siteUpdate.available && (
-                <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />
-              )}
+              <RefreshIcon className="h-4 w-4" />
+              {siteUpdate.available && <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-red-500 ring-2 ring-base-900" aria-hidden />}
             </button>
-            <LanguageSwitcher />
-            {isInnerCircle && (
-              <Link to="/game-nights" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.home.gameNightsTitle}>
-                <CalendarIcon />
-                <span className="hidden sm:inline">{t.home.gameNightsTitle}</span>
-              </Link>
+            {CHANGELOG.length > 0 && (
+              <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_WHATS_NEW_EVENT))} aria-label={language === 'de' ? 'Was ist neu?' : "What's new?"} className="top-btn-sm !w-10 !px-0 text-base">
+                ?
+              </button>
             )}
-            {isInnerCircle && (
-              <Link to="/metrics" className="btn-ghost inline-flex items-center gap-2 !px-2.5 !py-2 sm:!px-3 text-sm" aria-label={t.metrics.navLabel}>
-                <ChartIcon />
-                <span className="hidden sm:inline">{t.metrics.navLabel}</span>
-              </Link>
-            )}
-            <AccountMenu />
           </div>
         </div>
 
         {/* centred crest - always links home */}
-        <Link to="/" className="mt-1 flex flex-row items-center justify-center gap-2.5 px-4 pb-2 sm:-mt-6 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
-          <CynLogo className="h-11 w-11 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
-          <span className="text-center font-display text-lg font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
+        <Link to="/" className="mt-0.5 flex flex-row items-center justify-center gap-2 px-4 pb-0.5 sm:mt-0 sm:flex-col sm:gap-1 sm:pb-1 2xl:absolute 2xl:left-1/2 2xl:top-2 2xl:z-10 2xl:w-max 2xl:-translate-x-1/2 2xl:p-0" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
+          <span className="crest-glow">
+            <CynLogo className="h-10 w-10 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-20 sm:w-20 sm:drop-shadow-[0_0_16px_rgba(139,92,246,0.5)] 2xl:h-24 2xl:w-24" />
+          </span>
+          <span className="text-center font-display text-base font-bold tracking-[0.08em] text-white sm:text-2xl sm:tracking-[0.25em]">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>
         </Link>
 
         {/* sub navigation - centred */}
-        <nav ref={navRef} className="mx-auto flex max-w-7xl items-center justify-start gap-0.5 overflow-x-auto px-2 pb-3 pt-1 sm:justify-center sm:gap-1 sm:px-6">
+        <nav ref={navRef} className="mx-auto flex max-w-7xl items-center justify-start gap-0.5 overflow-x-auto px-2 pb-2 pt-1 sm:justify-center sm:gap-1 sm:px-6 sm:pb-1.5">
           {navItems(t).map((n) =>
             n.children ? (
               <NavDropdown key={n.to} label={n.label} shortLabel={n.shortLabel} items={n.children} />
@@ -335,11 +592,19 @@ export default function Layout({ children }: { children: ReactNode }) {
                 to={n.to}
                 end={n.end}
                 className={({ isActive }) =>
-                  `nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''}`
+                  `nav-link whitespace-nowrap !px-2.5 !py-2.5 !text-xs sm:!px-3 sm:!py-2 sm:!text-sm ${isActive ? 'nav-link-active' : ''} ${n.to === '/quests' && questsReady > 0 ? 'glow-ready' : ''}`
                 }
               >
                 <span className="sm:hidden">{n.shortLabel}</span>
                 <span className="hidden sm:inline">{n.label}</span>
+                {n.to === '/events' && liveEvent && (
+                  <span className="ml-1.5 inline-block animate-pulse rounded-full bg-signal-green/20 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-signal-green">
+                    {language === 'de' ? 'Aktiv' : 'Active'}
+                  </span>
+                )}
+                {n.to === '/quests' && questsReady > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 align-middle text-[10px] font-bold text-base-950">{questsReady}</span>
+                )}
                 {n.to === '/queue' && queueUnseen > 0 && (
                   <span className="ml-1.5 inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 align-middle" aria-label={String(queueUnseen)} />
                 )}
@@ -349,10 +614,10 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="w-full px-4 py-8 sm:px-8">
+      <main className="w-full px-3 py-5 sm:px-8 sm:py-8">
         {/* Pages title themselves with <h2> (SectionHeading) and the layout had no <h1> at all - screen readers and crawlers got a page with no top-level heading. */}
         <h1 className="sr-only">{CLAN_NAME}</h1>
-        {children}
+        {access.status === 'expired' && !['/register', '/donate'].some((p) => pathname.startsWith(p)) ? <AccessExpired access={access} /> : children}
       </main>
 
       <footer className="mt-16 border-t border-base-700 pb-24 pt-8 text-center text-sm text-slate-500 sm:pb-8">
@@ -360,11 +625,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           [{CLAN_TAG}] {CLAN_NAME} · {t.footer.clanDescriptor} ·{' '}
           <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" className="text-accent-light hover:text-accent">
             {t.footer.discord}
-          </a>{' '}
-          ·{' '}
-          <Link to="/clan" className="text-accent-light hover:text-accent">
-            {t.footer.allMembers}
-          </Link>
+          </a>
         </p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.statsNotice(CLAN_TAG)}</p>
         <p className="mt-1 text-xs text-slate-600">

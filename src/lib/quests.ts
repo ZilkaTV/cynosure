@@ -1,5 +1,5 @@
 // ── Daily quests ─────────────────────────────────────────────────────────────
-// Daily quests, reset at midnight UTC. A member clicks "Claim" and the site
+// Daily quests, reset at midnight UTC (the donation quests also come weekly - from Monday 00:00 UTC - and monthly). A member clicks "Claim" and the site
 // checks the requirement against already-loaded OpenFront/roster data (no
 // separate "server" - the browser has the same data a server would use), then
 // awards XP. A quest can only be claimed once per member per day - enforced
@@ -7,6 +7,7 @@
 
 import { supabase } from './supabase'
 import { isRankedFfa, isTeam, is1v1, is2v2, type MemberStats } from './stats'
+import { startOfWeek, type DonationTotals } from './clanDonors'
 
 const MIN_LOBBY_SIZE = 10
 
@@ -14,9 +15,20 @@ export function todayKey(): string {
   return new Date().toISOString().slice(0, 10) // YYYY-MM-DD, UTC
 }
 
-/** Timestamp (ms) of the next daily quest reset (midnight UTC). */
-export function nextResetAt(): number {
+export type QuestPeriod = 'day' | 'week' | 'month'
+
+/** The key a claim is stored under: the date (day), the Monday of the week ("W2026-10-26") or the month ("2026-11"). One claim per key. */
+export function periodKey(period: QuestPeriod, now = new Date()): string {
+  if (period === 'day') return now.toISOString().slice(0, 10)
+  if (period === 'week') return 'W' + new Date(startOfWeek(now)).toISOString().slice(0, 10)
+  return now.toISOString().slice(0, 7)
+}
+
+/** Timestamp (ms) of the next reset of a period (midnight UTC, Monday 00:00 UTC, the 1st 00:00 UTC). */
+export function nextResetAt(period: QuestPeriod = 'day'): number {
   const d = new Date()
+  if (period === 'week') return startOfWeek(d) + 7 * 86_400_000
+  if (period === 'month') return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0)
 }
 
@@ -27,12 +39,20 @@ function isToday(iso: string | null): boolean {
 /** Extra facts a quest can need beyond the roster data (loaded by the Quests page). */
 export interface QuestContext {
   reactedToday: boolean
+  /** opened a card booster today (UTC); missing = not known */
+  openedBooster?: boolean
+  /** What the member donated to the clan (from the stored donor list; see src/lib/clanDonors.ts). */
+  donated: DonationTotals
 }
 
 export interface QuestDef {
   id: string
   name: string
   description: string
+  /** German texts for quests that are not in the translation tables. */
+  de?: { name: string; description: string }
+  /** How often the quest comes back; the daily ones when missing. */
+  period?: QuestPeriod
   xp: number
   check: (m: MemberStats, coopByGame: Record<string, boolean>, ctx: QuestContext) => boolean
 }
@@ -59,13 +79,6 @@ export const QUESTS: QuestDef[] = [
           g.start.slice(0, 10) === todayKey() &&
           coopByGame[g.gameId],
       ),
-  },
-  {
-    id: 'bump',
-    name: 'Spread the Word',
-    description: 'Bump the clan post once',
-    xp: 10,
-    check: (m) => isToday(m.lastBumpAt),
   },
   {
     id: 'ranked_win',
@@ -95,7 +108,44 @@ export const QUESTS: QuestDef[] = [
     xp: 15,
     check: (m) => isToday(m.lastSpeedrunAt),
   },
+  {
+    id: 'open_booster',
+    name: 'Booster Time',
+    description: 'Open a card booster',
+    de: { name: 'Booster-Zeit', description: 'Öffne einen Karten-Booster' },
+    xp: 10,
+    check: (_m, _coop, ctx) => !!ctx.openedBooster,
+  },
+  // Donation quests: checked against the single donations of the stored donor list (imported by an admin, so they can lag a little).
+  {
+    id: 'donate_caps_day',
+    name: 'Open Hand',
+    description: 'Donate 100 caps to the clan today',
+    de: { name: 'Offene Hand', description: 'Spende heute 100 Caps an den Clan' },
+    xp: 15,
+    check: (_m, _coop, ctx) => ctx.donated.capsDay >= 100,
+  },
+  {
+    id: 'donate_caps_week',
+    name: 'Treasure Keeper',
+    description: 'Donate 10,000 caps to the clan this week',
+    de: { name: 'Schatzmeister', description: 'Spende diese Woche 10.000 Caps an den Clan' },
+    period: 'week',
+    xp: 60,
+    check: (_m, _coop, ctx) => ctx.donated.capsWeek >= 10_000,
+  },
+  {
+    id: 'donate_plutonium_month',
+    name: 'Atomic Patron',
+    description: 'Donate 100 plutonium to the clan this month',
+    de: { name: 'Atom-Mäzen', description: 'Spende diesen Monat 100 Plutonium an den Clan' },
+    period: 'month',
+    xp: 100,
+    check: (_m, _coop, ctx) => ctx.donated.plutoniumMonth >= 100,
+  },
 ]
+
+export const questPeriod = (q: QuestDef): QuestPeriod => q.period ?? 'day'
 
 export async function fetchXp(): Promise<Record<string, number>> {
   if (!supabase) return {}
@@ -106,15 +156,14 @@ export async function fetchXp(): Promise<Record<string, number>> {
   return map
 }
 
+/** The quests this member has already claimed in their current period (today / this week / this month). */
 export async function fetchClaimsToday(openfrontId: string): Promise<Set<string>> {
   if (!supabase) return new Set()
-  const { data, error } = await supabase
-    .from('cyn_quest_claims')
-    .select('quest_id')
-    .eq('openfront_id', openfrontId)
-    .eq('claim_date', todayKey())
+  const keys = (['day', 'week', 'month'] as const).map((p) => periodKey(p))
+  const { data, error } = await supabase.from('cyn_quest_claims').select('quest_id, claim_date').eq('openfront_id', openfrontId).in('claim_date', keys)
   if (error) return new Set()
-  return new Set((data as { quest_id: string }[]).map((r) => r.quest_id))
+  const current = new Map(QUESTS.map((q) => [q.id, periodKey(questPeriod(q))]))
+  return new Set((data as { quest_id: string; claim_date: string }[]).filter((r) => current.get(r.quest_id) === r.claim_date).map((r) => r.quest_id))
 }
 
 export interface ClaimResult {
@@ -132,7 +181,7 @@ export async function claimQuest(
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
 
   if (!quest.check(member, coopByGame, ctx)) {
-    return { ok: false, message: "Not completed yet today - come back once you've done it." }
+    return { ok: false, message: "Not completed yet. Come back once you've done it." }
   }
 
   // Proactively nudges the client to refresh an expired-but-still-
@@ -148,18 +197,18 @@ export async function claimQuest(
   const { error: claimError } = await supabase.from('cyn_quest_claims').insert({
     openfront_id: openfrontId,
     quest_id: quest.id,
-    claim_date: todayKey(),
+    claim_date: periodKey(questPeriod(quest)),
   })
   if (claimError) {
     // Unique violation = already claimed today (e.g. a second tab beat us to it).
-    if (claimError.code === '23505') return { ok: false, message: 'Already claimed today.' }
+    if (claimError.code === '23505') return { ok: false, message: 'Already claimed.' }
     // RLS rejection (42501) means Supabase doesn't consider this session
     // authenticated - the getSession() call above already tried to quietly
     // fix that; if it still fails, the refresh token itself is gone too and
     // only a real re-login clears it. Reported plainly instead of the raw
     // Postgres message, which gives no hint that signing back in helps.
     if (claimError.code === '42501' || claimError.message.includes('row-level security')) {
-      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+      return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
     }
     return { ok: false, message: `Couldn't claim: ${claimError.message}` }
   }

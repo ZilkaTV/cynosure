@@ -31,7 +31,8 @@ export async function handleUpload(request, env) {
   if (!env.SCREENSHOTS) return json(503, { error: 'storage_unavailable' })
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
   const origin = request.headers.get('Origin')
-  if (origin && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
+  const own = env.SITE_ENV === 'dev' && origin === new URL(request.url).origin
+  if (origin && !own && !/^https:\/\/(www\.)?cynclan\.com$/.test(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return json(403, { error: 'bad_origin' })
   const user = await readSession(request, env)
   if (!user) return json(401, { error: 'sign_in_required' })
   const member = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE user_id = ? LIMIT 1').bind(user.id).first()

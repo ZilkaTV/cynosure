@@ -379,6 +379,8 @@ async function fetchGameDetail(gameId) {
     numTurns: info.num_turns ?? 0,
     winnerClientIds: parseWinnerClientIds(info.winner),
     numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, players.length || null),
+    rankedType: info.config?.rankedType ?? null,
+    mapSize: info.config?.gameMapSize ?? null,
     start: info.start ?? 0,
     players,
   }
@@ -441,6 +443,12 @@ async function main() {
       for (const [id, e] of Object.entries(fromWorker.ranked_2v2 ?? {})) rankedMap2v2.set(id, e)
     }
   }
+  // Ranked FFA ladder for the FFA Elo trend: the Worker scans it every 10 minutes (worker/ranked.js); older blob or none = last cached.
+  let snapshotRankedFfa = existingRosterCache?.ranked_ffa ?? {}
+  if (hotEnabled()) {
+    const fromWorker = await hotGetBlob('ranked').catch(() => null)
+    if (fromWorker?.ranked_ffa && Date.now() - Date.parse(fromWorker.scanned_at) < 2 * 60 * 60 * 1000) snapshotRankedFfa = fromWorker.ranked_ffa
+  }
   const nextRankedScannedAt = dueForRankedScan && rankedMap.size > 0 ? new Date().toISOString() : (existingRosterCache?.ranked_scanned_at ?? null)
   const ffaLeaderboard = await fetchFfaLeaderboard()
   const { entry: clanLeaderboardEntry, top: clanLeaderboardTop } = await fetchClanLeaderboard()
@@ -491,7 +499,7 @@ async function main() {
   // no write (it used to be one upsert per member per run, ~16k requests a day in Supabase's logs).
   const { data: todaysSnapshots } = await supabase
     .from('cyn_member_snapshots')
-    .select('openfront_id, elo, elo_2v2, all_wins, xp')
+    .select('openfront_id, elo, elo_2v2, elo_ffa, all_wins, xp')
     .eq('snapshot_date', snapshotDate)
   const snapshotByMember = new Map((todaysSnapshots ?? []).map((r) => [r.openfront_id, r]))
 
@@ -657,6 +665,7 @@ async function main() {
       snapshot_date: snapshotDate,
       elo: snapshotRanked1v1.get(r.openfront_id)?.elo ?? null,
       elo_2v2: snapshotRanked2v2.get(r.openfront_id)?.elo ?? null,
+      elo_ffa: snapshotRankedFfa[r.openfront_id]?.elo ?? null,
       all_wins: allWins,
       xp: xpByMember.get(r.openfront_id) ?? 0,
     }
@@ -665,6 +674,7 @@ async function main() {
       prevSnapshot != null &&
       prevSnapshot.elo === snapshotRow.elo &&
       prevSnapshot.elo_2v2 === snapshotRow.elo_2v2 &&
+      prevSnapshot.elo_ffa === snapshotRow.elo_ffa &&
       prevSnapshot.all_wins === snapshotRow.all_wins &&
       prevSnapshot.xp === snapshotRow.xp
     if (!snapshotUnchanged) {

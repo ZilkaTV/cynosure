@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, SectionHeading, StatCard, Spinner, MemberNameLink } from '../components/ui'
+import DonorBotCard from '../components/DonorBotCard'
 import TrendChart from '../components/TrendChart'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
@@ -98,10 +99,76 @@ export default function Metrics() {
   const joinConversionPercent =
     metrics.discordJoinsToday > 0 ? Math.round((metrics.clanRegistrationsToday / metrics.discordJoinsToday) * 100) : null
 
+  // "Site visits today (members)" -> "members": the label of one side of the combined visits card.
+  const paren = (label: string) => /(([^)]*))/.exec(label)?.[1] ?? label
+
+  const visitorsWindow = (
+    <div className="panel overflow-hidden">
+      <div className="border-b border-base-700 px-4 py-3">
+        <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{t.metrics.visitorsTitle}</span>
+        <p className="mt-0.5 text-xs text-slate-500">{t.metrics.visitorsSub}</p>
+      </div>
+      {([['today', t.metrics.visitorsToday], ['yesterday', t.metrics.visitorsYesterday]] as const).map(([key, label]) => (
+        <details key={key} open={key === 'today'} className="group border-b border-base-700 last:border-0">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-semibold text-white hover:bg-base-800/60">
+            <span>
+              {label} <span className="font-normal text-slate-500">({visitors ? visitors[key].length : '-'})</span>
+            </span>
+            <span aria-hidden="true" className="text-xs text-slate-500 transition-transform group-open:rotate-180">▼</span>
+          </summary>
+          <div className="max-h-80 overflow-y-auto px-4 pb-3">
+            {!visitors ? (
+              <Spinner label={t.metrics.loading} />
+            ) : visitors[key].length === 0 ? (
+              <p className="py-3 text-center text-sm text-slate-500">{t.metrics.visitorsEmpty}</p>
+            ) : (
+              <ul className="divide-y divide-base-700">
+                {visitors[key].map((m) => (
+                  <li key={m.id} className="flex items-center justify-between py-1.5 text-sm">
+                    <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
+                    <span className="tabular-nums text-slate-400">{m.last ? new Date(m.last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
+      ))}
+    </div>
+  )
+
+  const quietWindow = (
+    <div className="panel overflow-hidden">
+      <div className="border-b border-base-700 px-4 py-3">
+        <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{t.metrics.quietMembersTitle}</span>
+        <p className="mt-0.5 text-xs text-slate-500">{t.metrics.quietMembersSub}</p>
+      </div>
+      <div className="max-h-[32rem] overflow-y-auto px-4 py-2">
+        {!roster ? (
+          <Spinner label={t.metrics.loading} />
+        ) : quietMembers.length === 0 ? (
+          <p className="py-4 text-center text-sm text-slate-500">{t.metrics.quietMembersEmpty}</p>
+        ) : (
+          <ul className="divide-y divide-base-700">
+            {quietMembers.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
+                <span className="whitespace-nowrap text-slate-400">{m.daysSince === null ? t.metrics.quietMembersNever : t.metrics.quietMembersDaysAgo(m.daysSince)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto grid max-w-[110rem] gap-6 md:grid-cols-2 2xl:grid-cols-[300px_minmax(0,1fr)_300px] 2xl:gap-8">
+      <aside className="order-2 2xl:order-none 2xl:col-start-1 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">{visitorsWindow}</aside>
+      <aside className="order-3 2xl:order-none 2xl:col-start-3 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:max-h-[calc(100vh-3rem)] 2xl:overflow-y-auto 2xl:[scrollbar-width:thin] 2xl:self-start">{quietWindow}</aside>
+    <div className="order-1 mx-auto w-full min-w-0 max-w-5xl md:col-span-2 2xl:order-none 2xl:col-span-1 2xl:col-start-2 2xl:row-start-1">
       <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.title} center />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label={t.metrics.memberCount} value={metrics.memberCount ?? '-'} />
         <StatCard label={t.metrics.presenceCount} value={metrics.presenceCount ?? '-'} />
         <StatCard label={t.metrics.vcActiveToday} value={metrics.vcActiveToday} />
@@ -113,10 +180,17 @@ export default function Metrics() {
           value={joinConversionPercent === null ? '-' : `${joinConversionPercent}%`}
           sub={t.metrics.joinConversionSub(metrics.clanRegistrationsToday, metrics.discordJoinsToday)}
         />
-        <StatCard label={t.metrics.siteVisitsMembers} value={metrics.siteVisitsMembers} />
-        <StatCard label={t.metrics.siteVisitsAnon} value={metrics.siteVisitsAnon} />
+        <StatCard
+          label={t.metrics.siteVisitsMembers.replace(/s*(.*)$/, '')}
+          value={metrics.siteVisitsMembers + metrics.siteVisitsAnon}
+          sub={`${paren(t.metrics.siteVisitsMembers)}: ${metrics.siteVisitsMembers} · ${paren(t.metrics.siteVisitsAnon)}: ${metrics.siteVisitsAnon}`}
+        />
       </div>
       <p className="mt-6 text-center text-xs text-slate-500">{t.metrics.approximationNotice}</p>
+
+      <div className="mt-8">
+        <DonorBotCard />
+      </div>
 
       <div className="mt-10">
         <SectionHeading
@@ -173,56 +247,7 @@ export default function Metrics() {
           </div>
         )}
       </div>
-
-      <div className="mt-10">
-        <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.visitorsTitle} />
-        <p className="mb-3 text-center text-xs text-slate-500">{t.metrics.visitorsSub}</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          {([['today', t.metrics.visitorsToday], ['yesterday', t.metrics.visitorsYesterday]] as const).map(([key, label]) => (
-            <Card key={key}>
-              <p className="mb-2 text-sm font-semibold text-white">
-                {label} <span className="font-normal text-slate-500">({visitors ? visitors[key].length : '-'})</span>
-              </p>
-              {!visitors ? (
-                <Spinner label={t.metrics.loading} />
-              ) : visitors[key].length === 0 ? (
-                <p className="py-3 text-center text-sm text-slate-500">{t.metrics.visitorsEmpty}</p>
-              ) : (
-                <ul className="divide-y divide-base-700">
-                  {visitors[key].map((m) => (
-                    <li key={m.id} className="flex items-center justify-between py-1.5 text-sm">
-                      <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
-                      <span className="tabular-nums text-slate-400">{m.last ? new Date(m.last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <SectionHeading eyebrow={t.metrics.eyebrow} title={t.metrics.quietMembersTitle} />
-        <p className="mb-3 text-center text-xs text-slate-500">{t.metrics.quietMembersSub}</p>
-        <Card>
-          {!roster ? (
-            <Spinner label={t.metrics.loading} />
-          ) : quietMembers.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-500">{t.metrics.quietMembersEmpty}</p>
-          ) : (
-            <ul className="divide-y divide-base-700">
-              {quietMembers.map((m) => (
-                <li key={m.id} className="flex items-center justify-between py-2 text-sm">
-                  <MemberNameLink publicId={m.id} name={m.name} className="text-white hover:text-accent-light" />
-                  <span className="text-slate-400">{m.daysSince === null ? t.metrics.quietMembersNever : t.metrics.quietMembersDaysAgo(m.daysSince)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
+    </div>
     </div>
   )
 }

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase as db } from './supabase'
 import { useLanguage } from '../i18n/LanguageContext'
+import { setItemRoomy } from './storage'
 
 // "Live Ranked Queue" alert: while enabled, a finished top-100 game of the chosen ladder(s) puts a red dot on the menu
 // entry, makes the tab title blink (like the game-night reminder) and plays a short sound. Opening the page clears it.
 // The choice lives in this browser only (localStorage).
 
-export type QueueAlertMode = 'off' | '1v1' | '2v2' | 'both'
+export type QueueLadder = '1v1' | '2v2' | 'ffa'
+const LADDERS: QueueLadder[] = ['1v1', '2v2', 'ffa']
 const MODE_KEY = 'cyn:queueAlert'
 const SOUND_KEY = 'cyn:queueAlertSound'
 const SEEN_KEY = 'cyn:queueSeen'
@@ -23,17 +25,16 @@ function read(key: string): string | null {
   }
 }
 function write(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    /* private mode / storage full - the setting then just lasts until reload */
-  }
+  setItemRoomy(key, value) // a full storage drops the browser caches to make room (src/lib/storage.ts)
   window.dispatchEvent(new Event(CHANGED))
 }
 
-export function getAlertMode(): QueueAlertMode {
+/** The ladders that alert, stored as a comma list ("1v1,ffa"); older settings said "both" for 1v1 and 2v2. */
+export function getAlertLadders(): QueueLadder[] {
   const v = read(MODE_KEY)
-  return v === '1v1' || v === '2v2' || v === 'both' ? v : 'off'
+  if (!v) return []
+  if (v === 'both') return ['1v1', '2v2']
+  return v.split(',').filter((x): x is QueueLadder => (LADDERS as string[]).includes(x))
 }
 export const getAlertSound = () => read(SOUND_KEY) !== '0'
 export const markQueueSeen = () => write(SEEN_KEY, new Date().toISOString())
@@ -112,11 +113,11 @@ export function playPing() {
 
 /** Settings for the page's control. */
 export function useQueueAlertSettings() {
-  const [mode, setModeState] = useState<QueueAlertMode>(getAlertMode)
+  const [ladders, setLadders] = useState<QueueLadder[]>(getAlertLadders)
   const [sound, setSoundState] = useState(getAlertSound)
   useEffect(() => {
     const sync = () => {
-      setModeState(getAlertMode())
+      setLadders(getAlertLadders())
       setSoundState(getAlertSound())
     }
     window.addEventListener(CHANGED, sync)
@@ -127,31 +128,22 @@ export function useQueueAlertSettings() {
     }
   }, [])
   const [permission, setPermission] = useState<DesktopPermission>(desktopPermission)
-  const setMode = useCallback((m: QueueAlertMode) => {
-    if (m !== 'off') {
-      primeSound()
-      if (getAlertMode() === 'off') markQueueSeen() // start counting from now
-    }
-    write(MODE_KEY, m)
-  }, [])
   /** One switch per ladder: on asks the browser for permission to show notifications. */
-  const toggle = useCallback(
-    (ladder: '1v1' | '2v2', on: boolean) => {
-      const cur = getAlertMode()
-      const has1 = cur === '1v1' || cur === 'both'
-      const has2 = cur === '2v2' || cur === 'both'
-      const n1 = ladder === '1v1' ? on : has1
-      const n2 = ladder === '2v2' ? on : has2
-      setMode(n1 && n2 ? 'both' : n1 ? '1v1' : n2 ? '2v2' : 'off')
-      if (on) void askDesktopPermission().then(setPermission)
-    },
-    [setMode],
-  )
+  const toggle = useCallback((ladder: QueueLadder, on: boolean) => {
+    const cur = getAlertLadders()
+    const next = LADDERS.filter((l) => (l === ladder ? on : cur.includes(l)))
+    if (next.length > 0) {
+      primeSound()
+      if (cur.length === 0) markQueueSeen() // start counting from now
+    }
+    write(MODE_KEY, next.join(','))
+    if (on) void askDesktopPermission().then(setPermission)
+  }, [])
   const setSound = useCallback((on: boolean) => {
     if (on) primeSound()
     write(SOUND_KEY, on ? '1' : '0')
   }, [])
-  return { mode, sound, setMode, setSound, toggle, permission, on1v1: mode === '1v1' || mode === 'both', on2v2: mode === '2v2' || mode === 'both' }
+  return { ladders, sound, setSound, toggle, permission, on: (l: QueueLadder) => ladders.includes(l) }
 }
 
 /**
@@ -161,7 +153,9 @@ export function useQueueAlertSettings() {
 export function useQueueAlert(): number {
   const { t } = useLanguage()
   const location = useLocation()
-  const { mode, sound } = useQueueAlertSettings()
+  const { ladders, sound } = useQueueAlertSettings()
+  const off = ladders.length === 0
+  const ladderKey = ladders.join(',')
   const [unseen, setUnseen] = useState(0)
   const lastCount = useRef(0)
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible' && document.hasFocus())
@@ -199,7 +193,7 @@ export function useQueueAlert(): number {
   // After a reload the saved setting is back but the audio context is not: the first interaction with the site
   // (click, key, touch) unlocks it, so the sound also plays while another tab or site is in front.
   useEffect(() => {
-    if (mode === 'off' || !sound) return
+    if (off || !sound) return
     const unlock = () => primeSound()
     const events = ['pointerdown', 'keydown', 'touchstart'] as const
     for (const e of events) window.addEventListener(e, unlock, { passive: true })
@@ -209,10 +203,10 @@ export function useQueueAlert(): number {
       for (const e of events) window.removeEventListener(e, unlock)
       document.removeEventListener('visibilitychange', resume)
     }
-  }, [mode, sound])
+  }, [off, sound])
 
   useEffect(() => {
-    if (mode === 'off') {
+    if (off) {
       setUnseen(0)
       lastCount.current = 0
       return
@@ -223,7 +217,7 @@ export function useQueueAlert(): number {
       const seen = read(SEEN_KEY) ?? new Date().toISOString()
       // Cancelled games (21 s, no winner) are not played games and do not alert.
       let q = db.from('cyn_ranked_matches').select('game_id', { count: 'exact', head: true }).gt('ended_at', seen).gt('duration_s', 45)
-      if (mode !== 'both') q = q.eq('ladder', mode)
+      if (ladders.length < LADDERS.length) q = q.in('ladder', ladders)
       const { count } = await q
       if (!alive || count == null) return
       setUnseen(count)
@@ -241,10 +235,11 @@ export function useQueueAlert(): number {
       clearInterval(timer)
       window.removeEventListener(CHANGED, poll)
     }
-  }, [mode, sound, onPage, t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ladderKey, sound, onPage, t])
 
   // Blinking tab title while something is unseen.
-  const shown = mode === 'off' && !testing ? 0 : testing ? Math.max(unseen, 1) : unseen
+  const shown = off && !testing ? 0 : testing ? Math.max(unseen, 1) : unseen
   useEffect(() => {
     if (shown === 0) return
     const base = document.title

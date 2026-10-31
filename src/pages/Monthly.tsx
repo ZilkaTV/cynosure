@@ -3,10 +3,12 @@ import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
+import { DecayForecastWindow, PointsPlannerWindow } from '../components/PlannerWindows'
 import GameDetailModal from '../components/GameDetailModal'
 import { ReactionCell } from '../components/ReactionCell'
 import { useReactions } from '../lib/useReactions'
-import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner } from '../components/ui'
+import { winRateClass } from '../lib/gameRows'
+import { Card, EloDelta, LastUpdated, MemberNameLink, SectionHeading, Spinner, StatCard } from '../components/ui'
 import { Emoji, EMOJI } from '../components/Emoji'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
@@ -14,6 +16,7 @@ import type { PlayerGame } from '../lib/openfront'
 import {
   availableMonths,
   currentMonthKey,
+  ffaMonthly,
   isFfa,
   isTeam,
   is1v1,
@@ -28,7 +31,8 @@ import {
   type MemberStats,
 } from '../lib/stats'
 import { fetchMonthlyEloForAllMembers, type MonthlyEloPoint } from '../lib/trends'
-import { fetchClanScoreLedger, type ClanScoreRow } from '../lib/clanScore'
+import { cynPlayersByGame as cynPlayersByGameOf, memberWinScore } from '../lib/winScore'
+import { fetchClanLeaderboardEntry, fetchClanScoreLedger, type ClanLeaderboardEntry, type ClanScoreRow } from '../lib/clanScore'
 
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -55,7 +59,8 @@ function latestModeGames(members: MemberStats[], month: string, isMode: (g: Play
     .slice(0, LATEST_GAMES_COUNT)
 }
 
-type Variant = 'ffa' | 'team' | '1v1' | '2v2'
+// 'ffa' and 'team' are the monthly game tables; '1v1', '2v2' and 'rffa' are the ranked (Elo) boards.
+type Variant = 'ffa' | 'team' | '1v1' | '2v2' | 'rffa'
 
 function fmtGold(n: number | null): string {
   if (n == null) return '-'
@@ -66,6 +71,16 @@ function fmtGold(n: number | null): string {
 
 function rulesFor(variant: Variant, t: TranslationShape): React.ReactNode | null {
   if (variant === 'ffa') {
+    return (
+      <>
+        <li>
+          <span className="font-semibold text-white">Points:</span> a single win counts 1 point; a streak of 2 or more wins in a row counts double its length (3 wins in a row = 6 points). A loss ends the streak.
+        </li>
+        <li>Public FFA games with the [CYN] tag only; the Elo of the ranked FFA games is on the Ranked page.</li>
+      </>
+    )
+  }
+  if (variant === 'rffa') {
     return (
       <>
         <li>
@@ -180,7 +195,7 @@ function LatestGamesSection({
       <SectionHeading center eyebrow={eyebrow} title={title} />
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[660px] text-sm">
+          <table className="w-full min-w-[660px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+4)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+4)]:hidden">
             <thead>
               <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
@@ -228,7 +243,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // Stored standing of the chosen month in OpenFront's FFA ranking (rank, Elo, peak, first Elo of the month).
   const [ffaMonth, setFfaMonth] = useState<Record<string, { rank: number | null; elo: number; peak: number; first: number }> | null>(null)
   useEffect(() => {
-    if (variant !== 'ffa') return
+    if (variant !== 'rffa') return
     let alive = true
     setFfaMonth(null)
     fetch(`/api/ffa-month?month=${month}`)
@@ -240,6 +255,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
     }
   }, [variant, month])
   const [sortKey, setSortKey] = useState<string | null>(null)
+  const [allRows, setAllRows] = useState(false)
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
   const [openGame, setOpenGame] = useState<string | null>(null)
   // Elo for the SELECTED month specifically (see fetchMonthlyEloForAllMembers's
@@ -251,6 +267,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
   useEffect(() => {
     setSortKey(null)
     setSortDir(-1)
+    setAllRows(false)
   }, [variant])
 
   useEffect(() => {
@@ -310,6 +327,20 @@ export default function Monthly({ variant }: { variant: Variant }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoredGameIds.join(',')])
 
+  // OpenFront's own "CLANS" leaderboard entry (rolling 90-day window, 30-day half-life decay, refreshed by refresh-details.mjs) - the
+  // one set of numbers meant to match the in-game clan leaderboard exactly. Shown on the Team page.
+  const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  useEffect(() => {
+    if (variant === 'team') fetchClanLeaderboardEntry().then(setClanLeaderboard)
+  }, [variant])
+
+  // How many [CYN] members played each scored game this month: the game's Win Score is shared between them.
+  const cynPlayersByGame = useMemo(
+    () => (isScoredMode ? cynPlayersByGameOf(data?.members ?? [], month, isScoredMode) : new Map<string, number>()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [variant, month, data],
+  )
+
   if (!profile) return <RegistrationGate />
 
   const coop = data?.coopByGame ?? {}
@@ -336,28 +367,49 @@ export default function Monthly({ variant }: { variant: Variant }) {
   // negative real score still outranks it. A game missing from the ledger
   // (not clan-score-eligible, or the cron hasn't reached it yet) simply
   // contributes 0 to the sum either way.
-  const winScoreFor = (m: MemberStats): number | null => {
-    if (!isScoredMode) return null
+  // The game's score is shared: with two [CYN] players in it each gets half, so the members' sums add up to what the clan made.
+  const winScoreFor = (m: MemberStats): number | null => (isScoredMode ? memberWinScore(m, month, isScoredMode, scoredLedger, cynPlayersByGame) : null)
+
+  // What the clan made in total this month: every scored game counted once.
+  const clanWinScoreTotal = (() => {
     let total = 0
-    let played = false
-    for (const g of m.cynGames) {
-      if (!isScoredMode(g) || g.type === 'Private' || monthKeyOf(g.start) !== month) continue
-      if (g.result !== 'victory' && g.result !== 'defeat') continue
-      played = true
-      const row = scoredLedger.get(g.gameId)
-      if (row) total += row.won ? row.score : -row.score
-    }
-    return played ? Math.round(total * 100) / 100 : null
-  }
+    for (const [id, row] of scoredLedger) if (cynPlayersByGame.has(id)) total += row.won ? row.score : -row.score
+    return Math.round(total * 100) / 100
+  })()
 
   const title =
-    variant === 'ffa' ? t.monthly.titleFfa : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? t.monthly.title1v1 : t.monthly.title2v2
+    variant === 'ffa'
+      ? t.monthly.titleFfa
+      : variant === 'rffa'
+        ? 'FFA Ranked'
+        : variant === 'team'
+          ? t.monthly.titleTeam
+          : variant === '1v1'
+            ? t.monthly.title1v1
+            : t.monthly.title2v2
+  const isRanked = variant === '1v1' || variant === '2v2' || variant === 'rffa'
   const rules = rulesFor(variant, t)
 
+  // The tables show their first 10 rows; the button after the table opens the rest (the table that is shown reports its size).
+  let tableRows = 0
+  const top = <T,>(list: T[]): T[] => {
+    tableRows = list.length
+    return allRows ? list : list.slice(0, 10)
+  }
+
   return (
-    <StatsShell>
+    <StatsShell
+      leftExtra={
+        variant === 'team' ? (
+          <>
+            <PointsPlannerWindow />
+            <DecayForecastWindow />
+          </>
+        ) : undefined
+      }
+    >
       <section className="space-y-4">
-        <SectionHeading center eyebrow={`${t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
+        <SectionHeading center eyebrow={`${isRanked ? 'Ranked' : t.monthly.eyebrowPrefix} · ${monthLabel(month)}`} title={title} />
 
         <div className="flex items-center justify-center gap-2 text-sm">
           <label className="text-slate-400">{t.monthly.monthLabel}</label>
@@ -390,7 +442,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
         {loading && <Spinner label={t.common.loadingLiveData} />}
         {error && !data && <Card className="text-center text-sm text-signal-red">{t.monthly.loadError(error)}</Card>}
 
-        {data && variant === 'ffa' && (() => {
+        {data && variant === 'rffa' && (() => {
           // Ranking-based for every month: rank and Elo come from the FFA board standing stored for that month.
           const standing = ffaMonth ?? {}
           const rows = members
@@ -411,13 +463,9 @@ export default function Monthly({ variant }: { variant: Variant }) {
           if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
           return (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <TitleCard emoji={EMOJI.pickaxe} title={t.monthly.titleGrinder} metric={t.monthly.metricMostPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.elo ?? 0 })))} />
-                <TitleCard emoji={EMOJI.bolt} title={t.monthly.titleClimber} metric={t.monthly.metricEloGain} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.delta ?? 0 })))} />
-              </div>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[520px] text-sm">
+                  <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(4)]:hidden max-sm:[&_td:nth-child(4)]:hidden">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -429,7 +477,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, rank, elo, peak, delta, rk }, i) => (
+                      {top(rows).map(({ m, rank, elo, peak, delta, rk }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
@@ -443,6 +491,63 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   </table>
                 </div>
               </div>
+            </>
+          )
+        })()}
+
+        {data && variant === 'ffa' && (() => {
+          const rows = members
+            .map((m) => ({ m, r: ffaMonthly(m, month) }))
+            .filter((x) => x.r.wins + x.r.losses > 0)
+            .sort((a, b) => {
+              if (sortKey === 'wins') return compareNullable(a.r.wins, b.r.wins, sortDir)
+              if (sortKey === 'losses') return compareNullable(a.r.losses, b.r.losses, sortDir)
+              if (sortKey === 'winRatePct') return compareNullable(a.r.winRatePct, b.r.winRatePct, sortDir)
+              if (sortKey === 'winstreak') return compareNullable(a.r.winstreak, b.r.winstreak, sortDir)
+              if (sortKey === 'avgKills') return compareNullable(a.r.avgKills, b.r.avgKills, sortDir)
+              if (sortKey === 'points') return compareNullable(a.r.points, b.r.points, sortDir)
+              return b.r.points - a.r.points || b.r.wins - a.r.wins
+            })
+          if (rows.length === 0) return <Card className="text-center text-sm text-slate-400">{t.monthly.ffaNoRanking}</Card>
+          return (
+            <>
+            <div className="grid grid-cols-3 gap-3">
+              <TitleCard emoji={EMOJI.pickaxe} title="Grinder" metric={t.monthly.colPoints} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.points })))} />
+              <TitleCard emoji={EMOJI.bow} title={t.monthly.titlePredator} metric={t.monthly.metricAvgKills} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.avgKills ?? 0 })))} />
+              <TitleCard emoji={EMOJI.bolt} title={t.monthly.titlePro} metric={t.monthly.metricWinStreak} leader={leaderOf(rows.map((x) => ({ m: x.m, v: x.r.winstreak })))} />
+            </div>
+            <div className="panel overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+5):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+5):nth-child(-n+6)]:hidden">
+                  <thead>
+                    <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
+                      <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <SortTh label="Points" sortKey="points" active={sortKey === 'points'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label="Streak" sortKey="winstreak" active={sortKey === 'winstreak'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colAvgKills} sortKey="avgKills" active={sortKey === 'avgKills'} dir={sortDir} onClick={onSortClick} />
+                      <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {top(rows).map(({ m, r }, i) => (
+                      <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
+                        <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
+                        <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                        <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{r.points}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winstreak || '-'}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.avgKills ?? <span className="text-slate-600">-</span>}</td>
+                        <td className={`px-3 py-3 text-right tabular-nums ${winRateClass(r.winRatePct)}`}>{r.winRatePct}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
             </>
           )
         })()}
@@ -473,31 +578,47 @@ export default function Monthly({ variant }: { variant: Variant }) {
                   fmt={(n) => n.toFixed(2)}
                 />
               </div>
+              {clanLeaderboard && (
+                <div className="space-y-3">
+                  <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <StatCard label="Games" value={clanLeaderboard.games} accent="plain" />
+                    <StatCard label="Win Score" value={clanLeaderboard.weightedWins.toFixed(1)} accent="gold" />
+                    <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
+                    <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
+                  </div>
+                </div>
+              )}
+              <Card className="text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gold">CYN Win Score · {monthLabel(month)}</p>
+                <p className={`mt-1 font-display text-3xl font-bold ${clanWinScoreTotal < 0 ? 'text-signal-red' : 'text-accent-light'}`}>{clanWinScoreTotal.toFixed(2)}</p>
+                <p className="mt-1 text-xs text-slate-500">A game's Win Score is split between the [CYN] players in it (two players: half each), so the members add up to the clan's total.</p>
+              </Card>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[640px] text-sm">
+                  <table className="sticky-cols w-full min-w-[640px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+6)]:hidden">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
                         <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
-                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colKills} sortKey="kills" active={sortKey === 'kills'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colGoldMin} sortKey="avgGold" active={sortKey === 'avgGold'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Win Score" sortKey="winScore" active={sortKey === 'winScore'} dir={sortDir} onClick={onSortClick} />
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ m, r, winScore }, i) => (
+                      {top(rows).map(({ m, r, winScore }, i) => (
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                           <td className="px-3 py-3 text-right tabular-nums text-signal-green">{r.wins}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{r.losses}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.winRatePct}%</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-300">{r.kills ?? '-'}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-gold-light">{fmtGold(r.avgGold)}</td>
+                          <td className={`px-3 py-3 text-right tabular-nums ${winRateClass(r.winRatePct)}`}>{r.winRatePct}%</td>
                           <td className={`px-3 py-3 text-right font-display text-lg font-bold ${winScore != null && winScore < 0 ? 'text-signal-red' : 'text-accent-light'}`}>
                             {winScore == null ? '-' : winScore.toFixed(2)}
                           </td>
@@ -531,7 +652,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -544,13 +665,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {top(rows).map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
@@ -582,7 +703,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
@@ -595,13 +716,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ m, b, wr, elo, eloDelta }, i) => (
+                    {top(rows).map(({ m, b, wr, elo, eloDelta }, i) => (
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{wr}%</td>
+                        <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>
                         <td className="px-4 py-3 text-right tabular-nums text-gold-light">{elo ?? <span className="text-slate-600">-</span>}</td>
                         <td className="px-4 py-3 text-right font-display font-bold"><EloDelta delta={eloDelta} /></td>
                       </tr>
@@ -615,6 +736,13 @@ export default function Monthly({ variant }: { variant: Variant }) {
 
         {data && (
           <>
+            {tableRows > 10 && (
+              <div className="flex justify-center">
+                <button type="button" onClick={() => setAllRows((v) => !v)} className="btn-ghost text-sm">
+                  {allRows ? t.common.showTopOnly(10) : t.common.showAll(tableRows)}
+                </button>
+              </div>
+            )}
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
             {variant === 'team' && (
               <p className="text-center text-xs text-slate-500">{t.monthly.killsNote(true)}</p>
@@ -627,12 +755,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
         <LatestGamesSection
           eyebrow={t.monthly.eyebrowPrefix}
           title={t.monthly.latestModeGamesTitle(
-            variant === 'ffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? '1v1' : '2v2',
+            variant === 'ffa' || variant === 'rffa' ? 'FFA' : variant === 'team' ? t.monthly.titleTeam : variant === '1v1' ? '1v1' : '2v2',
           )}
           games={latestModeGames(
             members,
             month,
-            variant === 'ffa' ? isFfa : variant === 'team' ? isTeam : variant === '1v1' ? is1v1 : is2v2,
+            variant === 'ffa' || variant === 'rffa' ? isFfa : variant === 'team' ? isTeam : variant === '1v1' ? is1v1 : is2v2,
           )}
           onOpenGame={setOpenGame}
           t={t}

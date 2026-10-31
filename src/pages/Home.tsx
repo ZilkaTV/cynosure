@@ -1,40 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CLAN_TAG, CLAN_NAME } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import type { Deltas } from '../lib/useRoster'
-import { computeBadges } from '../lib/badges'
+import { computeBadges, type BadgeExtras } from '../lib/badges'
+import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
+import { useCardSets } from '../lib/boosters'
+import { RosterNames, useWinsIndex } from '../components/RoleName'
 import { fmtTime } from '../lib/speedruns'
-import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
+import { isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { StatsTable, type Column } from '../components/StatsTable'
 import { BadgeStrip } from '../components/Badges'
-import { BumpCard } from '../components/BumpButton'
-import { QuestCard } from '../components/QuestCard'
 import GameDetailModal from '../components/GameDetailModal'
-import { cleanDisplayName } from '../lib/displayName'
-import { Card, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, StatCard, Spinner } from '../components/ui'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
+import { Card, GameDate, LastUpdated, MemberNameLink, RefreshDelta, SectionHeading, Spinner } from '../components/ui'
 import {
-  fetchClanLeaderboardEntry,
   fetchClanScoreLedger,
   fmtScoreDelta,
   fmtRatioChange,
-  isClanScoreEligible,
-  type ClanLeaderboardEntry,
   type ClanScoreRow,
 } from '../lib/clanScore'
-import { computeClanStreak } from '../lib/streak'
-import { fetchMostImproved, type MostImproved } from '../lib/trends'
-import { ReactionCell } from '../components/ReactionCell'
-import { useReactions } from '../lib/useReactions'
+import { GameActionsBar, useGameActions, useOpenReport } from '../components/GameActionsBar'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import type { MemberStats } from '../lib/stats'
-import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, type PlayerGame, type GameDetail } from '../lib/openfront'
 
 // Column order is deliberate: All Wins always stays last, no matter what other
 // columns get added later.
-function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): Column[] {
+function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape, extras: BadgeExtras): Column[] {
   return [
     {
       key: 'name',
@@ -44,6 +40,7 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
     },
     {
       key: 'region',
+      hideOnPhone: true,
       label: t.home.colRegion,
       render: (m) => m.timezone ?? <span className="text-slate-600">-</span>,
       sortValue: (m) => m.timezone ?? '',
@@ -53,8 +50,8 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       minWidth: 168,
       label: t.home.colBadges,
       align: 'center',
-      render: (m) => <BadgeStrip badges={computeBadges(m, all, t)} />,
-      sortValue: (m) => computeBadges(m, all, t).filter((b) => b.earned).length,
+      render: (m) => <BadgeStrip badges={computeBadges(m, all, t, extras)} />,
+      sortValue: (m) => computeBadges(m, all, t, extras).filter((b) => b.earned).length,
     },
     {
       key: 'ffa',
@@ -93,22 +90,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.rankedWins,
     },
     {
-      key: 'elo',
-      label: t.home.colElo,
-      align: 'right',
-      render: (m) =>
-        m.elo == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.elo}
-            <RefreshDelta value={deltas[m.publicId]?.elo} />
-            {m.peakElo != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.elo ?? -1,
-    },
-    {
       key: 'twovtwo',
       label: t.home.col2v2,
       align: 'right',
@@ -121,37 +102,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
       sortValue: (m) => m.twoVTwoWins,
     },
     {
-      key: 'elo2v2',
-      label: t.home.col2v2Elo,
-      align: 'right',
-      render: (m) =>
-        m.elo2v2 == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.elo2v2}
-            <RefreshDelta value={deltas[m.publicId]?.elo2v2} />
-            {m.peakElo2v2 != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakElo2v2}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.elo2v2 ?? -1,
-    },
-    {
-      key: 'eloFfa',
-      label: 'FFA Elo',
-      align: 'right',
-      render: (m) =>
-        m.eloFfa == null ? (
-          <span className="text-slate-600">-</span>
-        ) : (
-          <span className="font-display font-bold tabular-nums text-gold-light">
-            {m.eloFfa}
-            {m.peakEloFfa != null && <span className="block text-[11px] font-normal text-slate-500">{t.home.colPeak} {m.peakEloFfa}</span>}
-          </span>
-        ),
-      sortValue: (m) => m.eloFfa ?? -1,
-    },
-    {
       key: 'speedrun',
       label: t.home.colSpeedrun,
       align: 'right',
@@ -162,21 +112,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
           <span className="tabular-nums text-slate-300">{fmtTime(m.speedrunSeconds)}</span>
         ),
       sortValue: (m) => m.speedrunSeconds ?? Number.MAX_SAFE_INTEGER,
-    },
-    {
-      key: 'bumps',
-      label: t.home.colBumps,
-      align: 'right',
-      render: (m) =>
-        m.bumpCount > 0 ? (
-          <span className="tabular-nums text-slate-300">
-            {m.bumpCount}
-            <RefreshDelta value={deltas[m.publicId]?.bumpCount} />
-          </span>
-        ) : (
-          <span className="text-slate-600">-</span>
-        ),
-      sortValue: (m) => m.bumpCount,
     },
     {
       key: 'all',
@@ -193,10 +128,6 @@ function makeColumns(all: MemberStats[], deltas: Deltas, t: TranslationShape): C
   ]
 }
 
-function modeLabel(g: PlayerGame): string {
-  return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
-}
-
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
   return `${m}m ${String(s % 60).padStart(2, '0')}s`
@@ -206,19 +137,12 @@ export default function Home() {
   const { profile } = useProfile()
   const { t } = useLanguage()
   const { data, loading, refreshing, error, lastUpdated, deltas, refresh } = useRoster(!!profile)
-  const [openGame, setOpenGame] = useState<string | null>(null)
-  const [clanLeaderboard, setClanLeaderboard] = useState<ClanLeaderboardEntry | null>(null)
+  const report = useOpenReport()
+  const { language } = useLanguage()
+  const [registeredOnly, setRegisteredOnly] = useState(false)
+  const winsIndex = useWinsIndex()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
-  const [mostImproved, setMostImproved] = useState<MostImproved[]>([])
-
-  // Live snapshot of OpenFront's own "CLANS" leaderboard tab (rolling
-  // 90-day window + 30-day half-life decay, refreshed by refresh-details.mjs)
-  // - deliberately the one stat on this page meant to match that in-game
-  // number exactly, not the per-game history shown elsewhere on the site.
-  useEffect(() => {
-    fetchClanLeaderboardEntry().then(setClanLeaderboard)
-  }, [])
 
   // Same game can show up under multiple members if several CYN players were
   // in it together - dedupe by gameId so it only appears once, but keep
@@ -245,38 +169,19 @@ export default function Home() {
   const sortedRecentGames = [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
   const recentGames = sortedRecentGames.slice(0, 5)
 
-  // Clan-wide play streak + "games this week" pulse stat (see streak.ts) -
-  // computed straight from the roster's already-loaded game history, no
-  // extra fetch. Memoized since this walks every member's full game list,
-  // same pattern tick 13's INP research flagged for History.tsx's sort/
-  // filter - worth doing right from the start in new code.
-  const allGamesForStreak = useMemo(() => (data?.members ?? []).flatMap((m) => m.cynGames), [data])
-  const streak = useMemo(() => computeClanStreak(allGamesForStreak), [allGamesForStreak])
-  const weeklyGameCount = useMemo(() => {
-    const since = Date.now() - 7 * 24 * 60 * 60 * 1000
-    const seen = new Set<string>()
-    let count = 0
-    for (const g of allGamesForStreak) {
-      if (g.type === 'Private' || !isClanScoreEligible(g) || new Date(g.start).getTime() < since) continue
-      if (seen.has(g.gameId)) continue
-      seen.add(g.gameId)
-      count++
-    }
-    return count
-  }, [allGamesForStreak])
-
   // Memoized so StatsTable's own sort memo (keyed on `columns`) actually
   // holds between renders - a fresh array every render made it re-sort the
   // whole roster on every unrelated state change (reaction click, background
   // reload, ...).
 
-  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t), [data, deltas, t])
+  const donors = useClanDonors()
+  const cardSets = useCardSets()
+  const badgeExtras = useMemo<BadgeExtras>(() => ({ capsDonated: capsDonatedMap(donors), cardSets, de: language === 'de' }), [donors, cardSets, language])
+  const columns = useMemo(() => makeColumns(data?.members ?? [], deltas, t, badgeExtras), [data, deltas, t, badgeExtras])
 
-  useEffect(() => {
-    fetchMostImproved().then(setMostImproved)
-  }, [])
-
-  const reactionsApi = useReactions(recentGames.map(({ g }) => g.gameId))
+  const gameActions = useGameActions(recentGames.map(({ g }) => g.gameId))
+  const eloByGame = useRankedElo(recentGames.map(({ g }) => g))
+  const mapSizes = useMapSizes(recentGames.map(({ g }) => g))
 
   // Warm the Max Tiles cache for the games shown below while the visitor is
   // just browsing the roster, so opening one's report later is instant
@@ -329,88 +234,12 @@ export default function Home() {
 
   if (!profile) return <RegistrationGate />
 
-  const totals = data?.totals
-  const me = data?.members.find((m) => m.publicId === profile.openfront_id)
 
   return (
     <StatsShell>
       <section>
         <SectionHeading center eyebrow={`[${CLAN_TAG}] ${CLAN_NAME}`} title={t.home.title} />
-        {data?.oldestGame && (
-          <p className="mb-4 -mt-3 text-center text-xs text-slate-500">
-            {t.home.countingSincePrefix(CLAN_TAG)}{' '}
-            <span className="text-slate-300">
-              {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>{' '}
-            {t.home.countingSinceSuffix}
-          </p>
-        )}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label={t.home.statMembers} value={totals ? totals.members : '…'} accent="plain" />
-          <StatCard label={t.home.statTopElo} value={totals?.topElo ?? '…'} accent="gold" />
-          <StatCard label={t.home.stat1v1Wins} value={totals ? totals.rankedWins : '…'} accent="purple" />
-          <StatCard label={t.home.stat2v2Wins} value={totals ? totals.twoVTwoWins : '…'} accent="purple" />
-          <StatCard label={t.home.statTeamWins} value={totals ? totals.teamWins : '…'} accent="purple" />
-          <StatCard className="col-span-2 sm:col-span-1" label={t.home.statAllWins} value={totals ? totals.allWins : '…'} accent="gold" />
-        </div>
       </section>
-
-      <section>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatCard label={t.home.weeklyGamesPulse(CLAN_TAG, weeklyGameCount)} value={weeklyGameCount} accent="gold" />
-          <StatCard
-            label={t.home.streakTitle}
-            value={streak.currentDays > 0 ? t.home.streakDays(streak.currentDays) : '—'}
-            sub={streak.currentDays > 0 ? t.home.streakLongest(streak.longestDays) : t.home.streakNone}
-            accent="purple"
-          />
-          <div className="panel px-5 py-4">
-            <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.home.mostImprovedTitle}</p>
-            {(() => {
-              // Excludes anyone with no CYN game in the last 30 days - a
-              // member who left the clan a while ago can still show a
-              // snapshot delta this week purely from the cron backfilling
-              // older CYN-tagged games it hadn't fetched yet (a data
-              // catch-up, not a real "improved this week"), and the same
-              // filter also naturally excludes someone who's simply gone
-              // quiet without having formally left. Doesn't touch the main
-              // roster table - that one intentionally keeps every
-              // ever-registered member, past or present.
-              const visibleMostImproved = mostImproved.filter((mi) => {
-                const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-                return member && member.gamesLast30d > 0
-              })
-              return visibleMostImproved.length === 0 ? (
-                <p className="text-sm text-slate-500">{t.home.mostImprovedEmpty}</p>
-              ) : (
-                <ul className="space-y-0.5">
-                  {visibleMostImproved.map((mi) => {
-                    const member = data?.members.find((m) => m.publicId === mi.openfrontId)
-                    return (
-                      <li key={mi.openfrontId} className="flex items-center justify-between text-sm">
-                        <span className="text-white">{member ? cleanDisplayName(member.name) : mi.openfrontId}</span>
-                        <span className="font-display font-bold text-gold-light">{t.home.mostImprovedWins(mi.winsDelta)}</span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )
-            })()}
-          </div>
-        </div>
-      </section>
-
-      {clanLeaderboard && (
-        <section>
-          <SectionHeading center eyebrow="OpenFront Clan Leaderboard" title="Last 90 Days" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Games" value={clanLeaderboard.games} accent="plain" />
-            <StatCard label="Win Score" value={clanLeaderboard.weightedWins.toFixed(1)} accent="gold" />
-            <StatCard label="Loss Score" value={clanLeaderboard.weightedLosses.toFixed(1)} accent="plain" />
-            <StatCard label="Win/Loss Ratio" value={clanLeaderboard.weightedWLRatio.toFixed(2)} accent="gold" />
-          </div>
-        </section>
-      )}
 
       <TagNotice />
 
@@ -422,19 +251,24 @@ export default function Home() {
         )}
         {data && (
           <>
-            <StatsTable members={data.members} columns={columns} defaultSort="all" limit={10} searchable />
+            <StatsTable
+              members={registeredOnly ? data.members.filter((m) => m.claimed) : data.members}
+              columns={columns}
+              defaultSort="all"
+              limit={10}
+              searchable
+              toolbar={
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-xs text-slate-300">
+                  <input type="checkbox" checked={registeredOnly} onChange={(e) => setRegisteredOnly(e.target.checked)} className="accent-[#8b5cf6]" />
+                  {language === 'de' ? 'Nur registrierte' : 'Registered only'}
+                </label>
+              }
+            />
             <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />
-            <p className="text-center text-xs text-slate-500">{t.home.eloNote}</p>
           </>
         )}
       </section>
 
-      {me && (
-        <section className="mx-auto grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
-          <BumpCard openfrontId={me.publicId} bumpCount={me.bumpCount} lastBumpAt={me.lastBumpAt} onDone={refresh} />
-          <QuestCard xp={me.xp} />
-        </section>
-      )}
 
 
 
@@ -443,60 +277,109 @@ export default function Home() {
           <SectionHeading center eyebrow={t.home.activityEyebrow} title={t.home.latestGamesTitle} />
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-sm">
+              <table className="w-full min-w-0 text-sm sm:min-w-[620px] sm:text-[15px]">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                    <th className="px-4 py-3 text-right font-semibold">Win Score</th>
-                    <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
+                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <>
                   {recentGames.map(({ g, memberNames, memberIds }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    // Ranked games: the Elo the game gave (when the ranked feed knows it) and the member's win rate in that ladder.
+                    const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, memberIds) : null
+                    const winRate = groupWinRate(data?.members.find((x) => x.publicId === memberIds[0]), g)
                     const detail = gameDetails.get(g.gameId)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberNames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberNames.map(cleanDisplayName).join(', ')
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberNames} members={memberIds.map((id, i) => ({ publicId: id, username: memberNames[i] }))} winsById={winsIndex.byId} nameById={winsIndex.nameById} />
                     return (
+                      <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr
-                        key={g.gameId}
-                        onClick={() => setOpenGame(g.gameId)}
-                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                        onClick={() => report.open(g.gameId)}
+                        className="cursor-pointer"
                         title={t.home.clickForReportTitle}
                       >
-                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-2.5 text-slate-400"><GameDate start={g.start} /></td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className="px-4 py-2.5 text-slate-300">{modeLabel(g)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        <td className={`px-4 py-2.5 sm:whitespace-nowrap ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>{gameModeLabel(g)}</td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                        {isRankedGame(g) ? (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {elo ? (
+                              <>
+                                {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                                {fmtEloChange(elo)}
+                              </>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                        ) : (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                          </td>
+                        )}
+                        <td className={`hidden sm:table-cell px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
+                          {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
-                        <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-slate-400">
+                          {g.map}
+                          {mapSizes.get(g.gameId) === 'Compact' && <span className="ml-1 text-gold-light">({t.queue.mapCompact})</span>}
+                        </td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                        <ReactionCell gameId={g.gameId} memberIds={memberIds} api={reactionsApi} />
                       </tr>
+                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50">
+                        <td colSpan={9} className="px-3 pb-2">
+                          <GameActionsBar
+                            gameId={g.gameId}
+                            memberIds={memberIds}
+                            title={`${gameModeLabel(g)} · ${g.map}`}
+                            actions={gameActions}
+                            onOpenComments={report.openComments}
+                          />
+                        </td>
+                      </tr>
+                      </tbody>
                     )
                   })}
-                </tbody>
+                </>
               </table>
             </div>
           </div>
         </section>
       )}
 
-      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
+      {recentGames.length > 0 && (
+        <div className="-mt-4 flex justify-center">
+          <Link to="/history" className="btn-ghost text-sm">
+            {language === 'de' ? 'Mehr anzeigen' : 'Show more'}
+          </Link>
+        </div>
+      )}
+
+      {data?.oldestGame && (
+        <p className="-mt-6 text-center text-xs text-slate-500">
+          {t.home.countingSincePrefix(CLAN_TAG)}{' '}
+          <span className="text-slate-300">
+            {new Date(data.oldestGame).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>{' '}
+          {t.home.countingSinceSuffix}
+        </p>
+      )}
+
+      <GameDetailModal gameId={report.openGame} focusComments={report.focusComments} onClose={report.close} />
     </StatsShell>
   )
 }

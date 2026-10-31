@@ -25,6 +25,7 @@ import { QUESTS_CHANGED } from '../lib/notifications'
 import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
 import { useIsAdmin } from '../lib/useSession'
+import { DONATE_URL } from '../config'
 
 type Avatars = Record<string, { src: string; fit: Fit | null }>
 const TILES_SHOWN = 24
@@ -204,13 +205,25 @@ export default function Collection() {
                 {de ? 'Weitere Booster: ' : 'More boosters: '}
                 <span className="font-bold text-white">{state?.extra ?? 0}</span>
               </p>
-              <p className="text-xs text-slate-500">{de ? `Bisher geöffnet: ${collection?.openedTotal ?? 0}. Mehr Booster gibt es bei besonderen Aktionen.` : `Opened so far: ${collection?.openedTotal ?? 0}. More boosters come with special occasions.`}</p>
+              <p className="text-xs text-slate-500">{de ? `Bisher geöffnet: ${collection?.openedTotal ?? 0}.` : `Opened so far: ${collection?.openedTotal ?? 0}.`}</p>
             </div>
             <button type="button" onClick={() => void open()} disabled={busy || !canOpen} className={`btn-accent !px-7 text-sm disabled:opacity-50 ${canOpen && !busy ? 'glow-ready' : ''}`}>
               {busy ? '…' : de ? 'Booster öffnen' : 'Open a booster'}
             </button>
             {message && <p className="text-sm text-slate-300">{message}</p>}
             <p className="text-xs text-slate-500">{de ? 'Die tägliche Quest „Booster-Zeit“ gibt XP, wenn du einen Booster öffnest.' : 'The daily quest "Booster Time" gives XP when you open a booster.'}</p>
+            <div className="rounded-xl border border-base-600 bg-base-850/60 p-3 text-xs text-slate-400">
+              <p className="mb-2 font-semibold text-slate-200">{de ? 'Mehr Booster: 1 € pro Booster' : 'More boosters: 1 € each'}</p>
+              <p className="mb-2">
+                {de
+                  ? `Bezahle mit PayPal (wie bei den Spenden) und schreib in die Nachricht „Booster“ und deinen Namen (${profile.in_game_name}, ${profile.openfront_id}). Ein Admin schreibt dir die Booster gut, sobald die Zahlung da ist. Das kann etwas dauern.`
+                  : `Pay with PayPal (like the donations) and write "Booster" and your name (${profile.in_game_name}, ${profile.openfront_id}) in the note. An admin credits the boosters as soon as the payment has arrived. That can take a while.`}
+              </p>
+              <a href={`${DONATE_URL}/1EUR`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-base-600 bg-base-800 px-3 py-1.5 font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+                {de ? 'Über PayPal bezahlen (1 €)' : 'Pay with PayPal (1 €)'} ↗
+              </a>
+              <p className="mt-2 text-[11px] text-slate-500">{de ? 'Die Karten sind rein zum Sammeln, sie haben keinen Geldwert und lassen sich nicht verkaufen. Der Inhalt eines Boosters ist Zufall.' : 'The cards are only for collecting, they have no cash value and cannot be sold. What is in a booster is random.'}</p>
+            </div>
           </div>
         </div>
       )}

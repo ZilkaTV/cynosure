@@ -12,6 +12,7 @@ import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
 import ChannelSettings from '../components/ChannelSettings'
+import LanguageSetting from '../components/LanguageSetting'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia', 'Oceania']
@@ -272,6 +273,9 @@ export default function Register() {
             <DiscordIcon className="h-4 w-4" /> {t.register.continueWithDiscord}
           </button>
         </Card>
+        <div className="mt-6">
+          <LanguageSetting />
+        </div>
       </div>
     )
   }
@@ -284,6 +288,8 @@ export default function Register() {
         eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
         title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
       />
+
+      <LanguageSetting />
 
       {session && (
         <p className="mb-4 text-sm text-signal-green">{t.register.signedInAs(discordDisplayName(session))}</p>

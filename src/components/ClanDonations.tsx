@@ -3,36 +3,15 @@ import { Link } from 'react-router-dom'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
 import { RoleName, useWinsIndex } from './RoleName'
-import { useIsAdmin } from '../lib/useSession'
-import { useIsInnerCircle } from '../lib/metrics'
 import { cleanDisplayName } from '../lib/displayName'
-import {
-  createDonorKey,
-  fetchDonorKeyStatus,
-  fetchDonorBotStatus,
-  runDonorBot,
-  type DonorBotStatus,
-  reloadClanDonors,
-  revokeDonorKey,
-  useClanDonors,
-  fetchClanTreasury,
-  parseDonorExport,
-  saveClanDonors,
-  type ClanTreasury,
-  type Currency,
-  type Donor,
-  type DonorExport,
-  type DonorKeyStatus,
-  type Period,
-} from '../lib/clanDonors'
+import { useClanDonors, fetchClanTreasury, type ClanTreasury, type Currency, type Donor, type Period } from '../lib/clanDonors'
 import { RankMedal } from './Emoji'
 import { CurrencyIcon } from './CurrencyIcon'
 import { Card, SectionHeading } from './ui'
+import RecentDonations from './RecentDonations'
 
 const fmt = (n: number | bigint, de: boolean) => n.toLocaleString(de ? 'de-DE' : 'en-US')
 const TOP_ROWS = 10
-/** The page that sends the data (the userscript runs there). */
-const OPENFRONT_ORIGIN = 'https://openfront.io'
 
 /** Caps and plutonium in the clan's treasury, two small cards. */
 export function ClanTreasuryCards() {
@@ -84,214 +63,6 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
   )
 }
 
-/** The sync key: the userscript uses it to send the donors by itself (at most every 10 minutes) whenever its owner is on openfront.io. */
-function SyncKey() {
-  const { language } = useLanguage()
-  const de = language === 'de'
-  const [status, setStatus] = useState<DonorKeyStatus | null | undefined>(undefined)
-  const [bot, setBot] = useState<DonorBotStatus | null>(null)
-  const [key, setKey] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    void fetchDonorKeyStatus().then(setStatus)
-    void fetchDonorBotStatus().then(setBot)
-  }, [])
-  async function make() {
-    setBusy(true)
-    const k = await createDonorKey()
-    setBusy(false)
-    if (k) {
-      setKey(k)
-      setCopied(false)
-      setStatus(await fetchDonorKeyStatus())
-    }
-  }
-  async function revoke() {
-    if (await revokeDonorKey()) {
-      setKey(null)
-      setStatus(await fetchDonorKeyStatus())
-    }
-  }
-  if (status === undefined) return null
-  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–')
-  const botText = (b: DonorBotStatus): { ok: boolean; text: string } => {
-    if (!b.configured) return { ok: false, text: de ? 'CYN-Bot: nicht eingerichtet' : 'CYN bot: not set up' }
-    if (!b.last) return { ok: true, text: de ? 'CYN-Bot: eingerichtet, noch kein Lauf (alle 30 Minuten)' : 'CYN bot: set up, no run yet (every 30 minutes)' }
-    if (b.last.ok) return { ok: true, text: (de ? 'CYN-Bot: letzter Lauf ' : 'CYN bot: last run ') + when(b.last.at) + ' ✓' }
-    const why: Record<string, [string, string]> = {
-      cookie_expired: ['Login-Cookie abgelaufen, bitte ein neues setzen', 'login cookie expired, please set a new one'],
-      not_in_clan: ['der Bot-Account ist nicht im Clan', 'the bot account is not in the clan'],
-    }
-    const w = why[b.last.message]
-    return { ok: false, text: (de ? 'CYN-Bot: Fehler seit ' : 'CYN bot: failing since ') + when(b.last.at) + ' - ' + (w ? w[de ? 0 : 1] : b.last.message) }
-  }
-  return (
-    <div className="mt-3 space-y-2 rounded-lg border border-base-600 bg-base-850/60 p-3">
-      {bot && (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className={`text-xs font-semibold ${botText(bot).ok ? 'text-signal-green' : 'text-signal-red'}`}>{botText(bot).text}</p>
-          {bot.configured && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true)
-                const r = await runDonorBot()
-                setBusy(false)
-                if (r) {
-                  setBot(r)
-                  void reloadClanDonors()
-                }
-              }}
-              className="rounded-md border border-base-600 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-accent disabled:opacity-50"
-            >
-              {busy ? '…' : de ? 'Jetzt testen' : 'Test now'}
-            </button>
-          )}
-        </div>
-      )}
-      <p className="font-semibold text-white">{de ? 'Automatisch aktualisieren (empfohlen)' : 'Update by itself (recommended)'}</p>
-      <ol className="list-inside list-decimal space-y-1 text-slate-400">
-        <li>
-          {de ? 'Userscript einmal installieren (Tampermonkey):' : 'Install the userscript once (Tampermonkey):'}{' '}
-          <a href="/cynosure-donors.user.js" className="text-accent-light underline hover:text-accent">
-            cynosure-donors.user.js
-          </a>
-        </li>
-        <li>{de ? 'Hier einen Schlüssel erzeugen und kopieren.' : 'Make a key here and copy it.'}</li>
-        <li>{de ? 'Auf openfront.io das Schlüssel-Symbol 🔑 unten links klicken und den Schlüssel einfügen. Fertig.' : 'On openfront.io click the key symbol 🔑 at the bottom left and paste the key. Done.'}</li>
-      </ol>
-      <p className="text-xs text-slate-500">
-        {de
-          ? 'Danach schickt das Script die Spender von selbst, höchstens alle 10 Minuten, sobald du auf openfront.io bist (du musst im Clan sein). Quests und das Spender-Abzeichen sind dann aktuell, ohne dass jemand klicken muss. Der Schlüssel erlaubt nur das Senden der Spenderliste. Je mehr Admins oder Inner-Circle-Mitglieder ihn nutzen, desto aktueller die Liste.'
-          : 'After that the script sends the donors by itself, at most every 10 minutes, whenever you are on openfront.io (you have to be in the clan). Quests and the donor badge are then up to date without anybody clicking. The key only allows sending the donor list. The more admins or inner circle members use it, the fresher the list.'}
-      </p>
-      {key && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-base-800 px-3 py-2">
-          <code className="break-all font-mono text-xs text-gold-light">{key}</code>
-          <button
-            type="button"
-            onClick={() => void navigator.clipboard?.writeText(key).then(() => setCopied(true))}
-            className="shrink-0 rounded-md border border-base-600 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-accent"
-          >
-            {copied ? (de ? 'Kopiert' : 'Copied') : de ? 'Kopieren' : 'Copy'}
-          </button>
-          <span className="w-full text-[11px] text-slate-500">{de ? 'Wird nur jetzt angezeigt. Ein neuer Schlüssel macht den alten ungültig.' : 'Shown only now. A new key makes the old one invalid.'}</span>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => void make()} disabled={busy} className="btn-accent !px-4 !py-1.5 text-xs disabled:opacity-50">
-          {busy ? '…' : status?.hasKey ? (de ? 'Neuen Schlüssel erzeugen' : 'Make a new key') : de ? 'Schlüssel erzeugen' : 'Make a key'}
-        </button>
-        {status?.hasKey && (
-          <>
-            <button type="button" onClick={() => void revoke()} className="rounded-lg border border-base-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-signal-red hover:text-signal-red">
-              {de ? 'Widerrufen' : 'Revoke'}
-            </button>
-            <span className="text-xs text-slate-500">
-              {de ? 'Zuletzt benutzt:' : 'Last used:'} {when(status.last_used)}
-            </span>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** The page of an admin who imports: gets the ranking from the userscript on openfront.io (or pasted), shows it, saves it. */
-function ImportPanel({ onSaved }: { onSaved: () => void }) {
-  const { language } = useLanguage()
-  const de = language === 'de'
-  const [pending, setPending] = useState<DonorExport | null>(null)
-  const [paste, setPaste] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const autoOpen = new URLSearchParams(window.location.search).get('import') === 'donors'
-
-  // The userscript opens this page and answers when this page says it is ready (checked origin both ways).
-  useEffect(() => {
-    if (!window.opener) return
-    const onMessage = (e: MessageEvent) => {
-      if (e.origin !== OPENFRONT_ORIGIN || e.data?.type !== 'cyn-donors') return
-      const boards = parseDonorExport(e.data)
-      if (boards) {
-        setPending(boards)
-        setMessage(null)
-      } else setMessage(de ? 'Die Daten von OpenFront sehen nicht richtig aus.' : 'The data from OpenFront does not look right.')
-    }
-    window.addEventListener('message', onMessage)
-    const ping = window.setInterval(() => window.opener?.postMessage({ type: 'cyn-donors-ready' }, OPENFRONT_ORIGIN), 700)
-    const stop = window.setTimeout(() => window.clearInterval(ping), 60_000)
-    return () => {
-      window.removeEventListener('message', onMessage)
-      window.clearInterval(ping)
-      window.clearTimeout(stop)
-    }
-  }, [de])
-
-  function onPaste(text: string) {
-    setPaste(text)
-    if (!text.trim()) return
-    const boards = parseDonorExport(text)
-    setPending(boards)
-    setMessage(boards ? null : de ? 'Das ist nicht der Text des Userscripts.' : 'This is not the text from the userscript.')
-  }
-
-  async function save() {
-    if (!pending) return
-    setSaving(true)
-    const r = await saveClanDonors(pending)
-    setSaving(false)
-    setMessage(r.ok ? (de ? 'Gespeichert.' : 'Saved.') : r.message)
-    if (r.ok) {
-      setPending(null)
-      setPaste('')
-      onSaved()
-    }
-  }
-
-  const count = pending ? pending.boards.soft.all.length + pending.boards.hard.all.length : 0
-  return (
-    <details open={autoOpen} className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
-      <summary className="cursor-pointer font-semibold text-gold-light">{de ? 'Admin / Inner Circle: Spender aktualisieren' : 'Admin / inner circle: update the donors'}</summary>
-      <SyncKey />
-      <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-slate-500">{de ? 'Oder von Hand' : 'Or by hand'}</p>
-      <ol className="mt-1 list-inside list-decimal space-y-1 text-slate-400">
-        <li>
-          {de ? 'Userscript einmal installieren (Tampermonkey):' : 'Install the userscript once (Tampermonkey):'}{' '}
-          <a href="/cynosure-donors.user.js" className="text-accent-light underline hover:text-accent">
-            cynosure-donors.user.js
-          </a>
-        </li>
-        <li>{de ? 'Auf openfront.io die Clan-Seite öffnen (Tab Donations), du musst im Clan sein und angemeldet.' : 'Open the clan page on openfront.io (Donations tab); you have to be in the clan and signed in.'}</li>
-        <li>{de ? 'Unten links auf „An CynClan senden“ klicken: die Daten landen hier, du speicherst sie.' : 'Click “Send to CynClan” at the bottom left: the data arrives here and you save it.'}</li>
-      </ol>
-      <p className="mt-2 text-xs text-slate-500">
-        {de ? 'Dein OpenFront-Login bleibt in deinem Browser, die Seite bekommt nur die Rangliste.' : 'Your OpenFront login stays in your browser, the site only receives the ranking.'}
-      </p>
-      <textarea
-        value={paste}
-        onChange={(e) => onPaste(e.target.value)}
-        rows={2}
-        placeholder={de ? 'Alternativ: Text des Userscripts hier einfügen' : 'Or paste the text of the userscript here'}
-        className="mt-3 w-full rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
-      />
-      {pending && (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span className="text-slate-200">
-            {de ? `Bereit: ${count} Spender-Einträge (Gesamt, Caps und Plutonium) und ${pending?.recent.length ?? 0} einzelne Spenden.` : `Ready: ${count} donor entries (all time, caps and plutonium) and ${pending?.recent.length ?? 0} single donations.`}
-          </span>
-          <button type="button" onClick={save} disabled={saving} className="btn-accent !px-5 !py-1.5 text-sm disabled:opacity-50">
-            {saving ? '…' : de ? 'Speichern' : 'Save'}
-          </button>
-        </div>
-      )}
-      {message && <p className="mt-2 text-xs text-slate-400">{message}</p>}
-    </details>
-  )
-}
-
 function DonorRow({ d, rank, top, name, linked, de }: { d: Donor; rank: number; top: bigint; name: string; linked: boolean; de: boolean }) {
   const total = BigInt(d.total)
   const pct = top > 0n ? Math.max(2, Number((total * 100n) / top)) : 0
@@ -330,15 +101,13 @@ function DonorRow({ d, rank, top, name, linked, de }: { d: Donor; rank: number; 
 export default function ClanDonations() {
   const { language } = useLanguage()
   const de = language === 'de'
-  const isAdmin = useIsAdmin()
-  const isInner = useIsInnerCircle()
   const roster = useSharedRoster()
   const doc = useClanDonors()
   const [currency, setCurrency] = useState<Currency>('soft')
   const [period, setPeriod] = useState<Period>('all')
   const [showAll, setShowAll] = useState(false)
+  const [view, setView] = useState<'top' | 'recent'>('top')
 
-  const reload = () => void reloadClanDonors()
   // coming from the start page (/clan#spenden): scroll to this block once the page has been drawn
   useEffect(() => {
     if (window.location.hash !== '#spenden') return
@@ -358,6 +127,16 @@ export default function ClanDonations() {
       <SectionHeading center eyebrow={de ? 'Clan' : 'Clan'} title={de ? 'Spenden' : 'Donations'} />
       <ClanTreasuryCards />
       <Card className="space-y-4">
+        <div className="flex justify-center">
+          <Segmented
+            value={view}
+            onChange={setView}
+            options={[
+              { key: 'top', label: de ? 'Top-Spender' : 'Top donors' },
+              { key: 'recent', label: de ? 'Neueste' : 'Recent' },
+            ]}
+          />
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Segmented
             value={currency}
@@ -370,20 +149,24 @@ export default function ClanDonations() {
               { key: 'hard', label: 'Plutonium', currency: 'hard' },
             ]}
           />
-          <Segmented
-            value={period}
-            onChange={(p) => {
-              setPeriod(p)
-              setShowAll(false)
-            }}
-            options={[
-              { key: 'all', label: de ? 'Gesamt' : 'All time' },
-              { key: 'month', label: de ? '30 Tage' : '30 days' },
-              { key: 'week', label: de ? '7 Tage' : '7 days' },
-            ]}
-          />
+          {view === 'top' && (
+            <Segmented
+              value={period}
+              onChange={(p) => {
+                setPeriod(p)
+                setShowAll(false)
+              }}
+              options={[
+                { key: 'all', label: de ? 'Gesamt' : 'All time' },
+                { key: 'month', label: de ? '30 Tage' : '30 days' },
+                { key: 'week', label: de ? '7 Tage' : '7 days' },
+              ]}
+            />
+          )}
         </div>
-        {doc === undefined ? (
+        {view === 'recent' && doc?.boards ? (
+          <RecentDonations currency={currency} limit={20} />
+        ) : doc === undefined ? (
           <p className="py-6 text-center text-sm text-slate-500">…</p>
         ) : !doc?.boards ? (
           <p className="py-6 text-center text-sm text-slate-500">
@@ -392,8 +175,8 @@ export default function ClanDonations() {
                 ? 'Die Spender sind nur für angemeldete Mitglieder sichtbar.'
                 : 'The donors are only visible to signed-in members.'
               : de
-                ? 'Noch keine Spender-Daten. Ein Admin kann sie mit dem Userscript eintragen.'
-                : 'No donor data yet. An admin can add it with the userscript.'}
+                ? 'Noch keine Spender-Daten. Der CYN-Bot trägt sie ein, sobald er eingerichtet ist.'
+                : 'No donor data yet. The CYN bot adds them as soon as it is set up.'}
           </p>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{de ? 'In diesem Zeitraum gab es keine Spenden.' : 'No donations in this period.'}</p>
@@ -413,7 +196,6 @@ export default function ClanDonations() {
         )}
         {updated && <p className="text-center text-xs text-slate-500">{de ? `Stand: ${updated}` : `Updated: ${updated}`}</p>}
       </Card>
-      {(isAdmin || isInner) && <ImportPanel onSaved={reload} />}
     </section>
   )
 }

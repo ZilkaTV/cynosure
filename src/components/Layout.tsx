@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import CynLogo from './CynLogo'
-import LanguageSwitcher from './LanguageSwitcher'
 import { CLAN_NAME, CLAN_TAG, DISCORD_INVITE } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useGameNightReminder } from '../lib/useGameNightReminder'
@@ -399,7 +398,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
           <div className="relative flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <LanguageSwitcher />
             {isInnerCircle && (
               <Link to="/metrics" className="top-btn top-btn-inner" aria-label={t.metrics.navLabel}>
                 <ChartIcon />

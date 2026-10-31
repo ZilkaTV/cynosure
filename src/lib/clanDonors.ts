@@ -89,7 +89,7 @@ export interface DonorBotStatus {
   /** The bot's login cookie is set on the server. */
   configured: boolean
   /** What the last run did: ok, or the reason it failed (cookie_expired, not_in_clan, ...). Null before the first run. */
-  last: { at: string; ok: boolean; message: string } | null
+  last: { at: string; ok: boolean; message: string; parts?: Record<string, string> } | null
 }
 
 /** What the CYN bot (the clan account that reads the donations by itself) did last; admins and the inner circle only, null for everybody else. */

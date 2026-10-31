@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, SectionHeading, StatCard, Spinner, MemberNameLink } from '../components/ui'
+import DonorBotCard from '../components/DonorBotCard'
 import TrendChart from '../components/TrendChart'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
@@ -186,6 +187,10 @@ export default function Metrics() {
         />
       </div>
       <p className="mt-6 text-center text-xs text-slate-500">{t.metrics.approximationNotice}</p>
+
+      <div className="mt-8">
+        <DonorBotCard />
+      </div>
 
       <div className="mt-10">
         <SectionHeading

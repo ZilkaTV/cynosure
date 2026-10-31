@@ -8,6 +8,7 @@ import { useClanDonors, type Currency, type Period } from '../lib/clanDonors'
 import { RankMedal } from './Emoji'
 import { RoleName, useWinsIndex } from './RoleName'
 import { CurrencyIcon } from './CurrencyIcon'
+import RecentDonations from './RecentDonations'
 
 const TOP = 5
 const CURRENCIES: { key: Currency; label: string }[] = [
@@ -24,6 +25,7 @@ export function DonorsWindow() {
   const roster = useSharedRoster()
   const [currency, setCurrency] = useState<Currency>('soft')
   const [period, setPeriod] = useState<Period>('all')
+  const [view, setView] = useState<'top' | 'recent'>('top')
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
 
   const wins = useWinsIndex()
@@ -40,8 +42,16 @@ export function DonorsWindow() {
 
   return (
     <div className="panel mt-4 overflow-hidden">
-      <div className="border-b border-base-700 px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-base-700 px-4 py-3">
         <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{de ? 'Spender' : 'Donors'}</span>
+        <div className="inline-flex rounded-lg border border-base-600 bg-base-850/60 p-0.5">
+          <button type="button" onClick={() => setView('top')} className={chip(view === 'top')}>
+            Top
+          </button>
+          <button type="button" onClick={() => setView('recent')} className={chip(view === 'recent')}>
+            {de ? 'Neueste' : 'Recent'}
+          </button>
+        </div>
       </div>
       {doc.boards && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-base-700 px-3 py-2">
@@ -52,16 +62,20 @@ export function DonorsWindow() {
               </button>
             ))}
           </div>
-          <div className="inline-flex rounded-lg border border-base-600 bg-base-850/60 p-0.5">
-            {periods.map((p) => (
-              <button key={p.key} type="button" onClick={() => setPeriod(p.key)} className={chip(period === p.key)}>
-                {p.label}
-              </button>
-            ))}
-          </div>
+          {view === 'top' && (
+            <div className="inline-flex rounded-lg border border-base-600 bg-base-850/60 p-0.5">
+              {periods.map((p) => (
+                <button key={p.key} type="button" onClick={() => setPeriod(p.key)} className={chip(period === p.key)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {!doc.boards ? (
+      {view === 'recent' && doc.boards ? (
+        <RecentDonations currency={currency} limit={6} compact />
+      ) : !doc.boards ? (
         <p className="px-4 py-4 text-sm text-slate-500">{de ? 'Noch keine Spender-Daten.' : 'No donor data yet.'}</p>
       ) : rows.length === 0 ? (
         <p className="px-4 py-4 text-sm text-slate-500">{de ? 'Keine Spenden in diesem Zeitraum.' : 'No donations in this period.'}</p>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
@@ -25,8 +25,19 @@ const TOP_ROWS = 10
 /** The page that sends the data (the userscript runs there). */
 const OPENFRONT_ORIGIN = 'https://openfront.io'
 
+const CARD = 'flex items-center gap-3 rounded-xl border border-base-600 bg-base-850/60 px-4 py-3'
+/** A treasury card; on the start page it leads to the donors block of the Clan page. */
+function Wrap({ linked, de, children }: { linked: boolean; de: boolean; children: ReactNode }) {
+  if (!linked) return <div className={CARD}>{children}</div>
+  return (
+    <Link to="/clan#spenden" title={de ? 'Zu den Spendern' : 'To the donors'} className={`${CARD} transition-colors hover:border-accent/70 hover:bg-base-800`}>
+      {children}
+    </Link>
+  )
+}
+
 /** Caps and plutonium in the clan's treasury, two small cards. */
-export function ClanTreasuryCards() {
+export function ClanTreasuryCards({ linked = false }: { linked?: boolean }) {
   const { language } = useLanguage()
   const de = language === 'de'
   const [t, setT] = useState<ClanTreasury | null | undefined>(undefined)
@@ -45,13 +56,13 @@ export function ClanTreasuryCards() {
   return (
     <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
-        <div key={c.cur} className="flex items-center gap-3 rounded-xl border border-base-600 bg-base-850/60 px-4 py-3">
+        <Wrap key={c.cur} linked={linked} de={de}>
           <Emoji char={CURRENCY_ICON[c.cur]} className="h-7 w-7" label={c.label} />
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{de ? `Clan-Kasse · ${c.label}` : `Clan treasury · ${c.label}`}</p>
             <p className="font-display text-xl font-bold text-white tabular-nums">{c.value == null ? '…' : fmt(c.value, de)}</p>
           </div>
-        </div>
+        </Wrap>
       ))}
     </div>
   )
@@ -211,6 +222,12 @@ export default function ClanDonations() {
   const [showAll, setShowAll] = useState(false)
 
   const reload = () => void fetchClanDonors().then(setDoc)
+  // coming from the start page (/clan#spenden): scroll to this block once the page has been drawn
+  useEffect(() => {
+    if (window.location.hash !== '#spenden') return
+    const timer = window.setTimeout(() => document.getElementById('spenden')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700)
+    return () => window.clearTimeout(timer)
+  }, [])
   useEffect(() => {
     reload()
   }, [])
@@ -223,7 +240,7 @@ export default function ClanDonations() {
   const updated = doc?.updated_at ? new Date(doc.updated_at).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : null
 
   return (
-    <section className="space-y-4">
+    <section id="spenden" className="scroll-mt-4 space-y-4">
       <SectionHeading center eyebrow={de ? 'Clan' : 'Clan'} title={de ? 'Spenden' : 'Donations'} />
       <ClanTreasuryCards />
       <Card className="space-y-4">

@@ -19,7 +19,7 @@ const games = (x: WinLoss) => x.w + x.l
 /** The whole clan as OpenFront lists it - including members who never registered on this site. */
 export default function Clan() {
   const { profile } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [members, setMembers] = useState<ClanMember[] | null>(null)
   const [error, setError] = useState(false)
   const [registered, setRegistered] = useState<Map<string, string>>(new Map())
@@ -109,6 +109,11 @@ export default function Clan() {
       <section className="space-y-4">
         <SectionHeading center eyebrow={t.clanPage.eyebrow} title={t.clanPage.title} />
         <p className="text-center text-sm text-slate-400">{t.clanPage.summary(members.length, registeredCount, members.length - registeredCount)}</p>
+        <div className="flex justify-center">
+          <a href="#spenden" className="btn-ghost text-sm" onClick={(e) => { e.preventDefault(); document.getElementById('spenden')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>
+            {language === 'de' ? 'Spenden (Caps und Plutonium) ↓' : 'Donations (caps and plutonium) ↓'}
+          </a>
+        </div>
         <div className="flex flex-wrap justify-center gap-2">
           {filters.map((f) => (
             <button

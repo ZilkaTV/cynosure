@@ -239,7 +239,7 @@ export default function Home() {
 
       <TagNotice />
 
-      <ClanTreasuryCards />
+      <ClanTreasuryCards linked />
 
       <section className="space-y-4">
         <SectionHeading center eyebrow={t.home.rosterEyebrow} title={t.home.memberStatsTitle} />

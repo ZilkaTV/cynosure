@@ -157,6 +157,46 @@ const CalendarIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
+const menuIcon = 'h-4 w-4 shrink-0'
+const MenuIcon = ({ children }: { children: ReactNode }) => (
+  <svg className={menuIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+)
+const UserIcon = () => (
+  <MenuIcon>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+  </MenuIcon>
+)
+const BookmarkIcon = () => (
+  <MenuIcon>
+    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+  </MenuIcon>
+)
+const SettingsIcon = () => (
+  <MenuIcon>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+  </MenuIcon>
+)
+const FlagIcon = () => (
+  <MenuIcon>
+    <path d="M5 21V4M5 4h12l-2 4 2 4H5" />
+  </MenuIcon>
+)
+const ArchiveIcon = () => (
+  <MenuIcon>
+    <rect x="3" y="4" width="18" height="4" rx="1" />
+    <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
+  </MenuIcon>
+)
+const SignOutIcon = () => (
+  <MenuIcon>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+  </MenuIcon>
+)
+
 const RefreshIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 12a9 9 0 1 1-3-6.7" />
@@ -257,11 +297,13 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
             {rolesText && <p className="text-[11px] text-slate-400">{rolesText}</p>}
             {label && <p className={`text-[11px] font-semibold ${label.cls}`}>{label.text}</p>}
           </div>
-          <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+          <Link to={`/member/${profile.openfront_id}`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <UserIcon />
             {t.accountMenu.myProfile}
           </Link>
-          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
-            ★ {t.accountMenu.savedGames}
+          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <BookmarkIcon />
+            {t.accountMenu.savedGames}
           </Link>
           {isInner && (
             <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">
@@ -272,16 +314,19 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
               </span>
             </Link>
           )}
-          <Link to="/register" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+          <Link to="/register" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <SettingsIcon />
             {t.accountMenu.settings}
           </Link>
           {isAdmin && (
-            <Link to="/reports" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <Link to="/reports" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              <FlagIcon />
               {language === 'de' ? 'Meldungen' : 'Reports'}
             </Link>
           )}
           {isAdmin && (
-            <Link to="/archive" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <Link to="/archive" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+              <ArchiveIcon />
               {language === 'de' ? 'Archiviert' : 'Archived'}
             </Link>
           )}
@@ -292,8 +337,9 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
               if (supabase) await supabase.auth.signOut()
               refresh()
             }}
-            className="block w-full px-4 py-2.5 text-left text-sm text-signal-red hover:bg-base-800"
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-signal-red hover:bg-base-800"
           >
+            <SignOutIcon />
             {t.accountMenu.signOut}
           </button>
         </div>

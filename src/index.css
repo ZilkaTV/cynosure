@@ -172,6 +172,11 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation: role-slide 3.2s linear infinite;
+}
+/* the pulsing glow is a filter that is redrawn every frame: only the two big names have it (the account button and the profile) */
+header .role-name,
+h1 .role-name {
   animation:
     role-slide 3.2s linear infinite,
     role-glow 2.6s ease-in-out infinite;
@@ -233,26 +238,73 @@
 
 /* something is waiting: the Booster button and the Quests entry glow in gold */
 .glow-ready {
+  position: relative;
   border-color: rgba(216, 185, 106, 0.85) !important;
   color: #f3dc9a !important;
+  box-shadow: 0 0 6px rgba(216, 185, 106, 0.3);
+}
+.glow-ready::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 14px rgba(216, 185, 106, 0.75),
+    0 0 26px rgba(216, 185, 106, 0.3);
+  opacity: 0;
   animation: glow-ready 1.9s ease-in-out infinite;
 }
 @keyframes glow-ready {
   0%,
   100% {
-    box-shadow: 0 0 6px rgba(216, 185, 106, 0.3);
+    opacity: 0;
   }
   50% {
-    box-shadow:
-      0 0 14px rgba(216, 185, 106, 0.75),
-      0 0 26px rgba(216, 185, 106, 0.3);
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .glow-ready {
+  .glow-ready::after {
     animation: none;
-    box-shadow: 0 0 10px rgba(216, 185, 106, 0.5);
+    opacity: 0.6;
   }
+}
+
+/* Fewer bolts where the lightning is small: a name and the icon in the header carry five of the eight (a bolt that is not shown costs nothing); profiles keep all */
+.role-name.role-bolts .bolt-6,
+.role-name.role-bolts .bolt-7,
+.role-name.role-bolts .bolt-8,
+header .role-frame.role-bolts .bolt-5,
+header .role-frame.role-bolts .bolt-6,
+header .role-frame.role-bolts .bolt-7,
+header .role-frame.role-bolts .bolt-8 {
+  display: none;
+}
+h1 .role-name.role-bolts .bolt-6,
+h1 .role-name.role-bolts .bolt-7,
+h1 .role-name.role-bolts .bolt-8 {
+  display: revert;
+}
+
+/* Calm mode: the decorative animations stand still. It is on while this window does not have the focus (somebody watching a stream next to it
+   does not want the page to use the graphics card) and when the member switched it on in the settings (see useCalmMode in Layout.tsx). */
+html[data-calm] .role-name,
+html[data-calm] .role-frame-shine,
+html[data-calm] .role-frame-bolt,
+html[data-calm] .role-frame-shine::before,
+html[data-calm] .role-frame-shine::after,
+html[data-calm] .role-bolts .bolt,
+html[data-calm] .role-sparks::before,
+html[data-calm] .role-sparks::after,
+html[data-calm] .glow-ready::after,
+html[data-calm] .crest-glow::before,
+html[data-calm] .text-warn,
+html[data-calm] .animate-pulse {
+  animation: none !important;
+}
+html[data-calm] .glow-ready::after {
+  opacity: 0.6;
 }
 
 /* a card turned over in the booster window */
@@ -417,6 +469,10 @@
   background-image: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%), linear-gradient(90deg, var(--c1), var(--c2), var(--c1));
   background-size: 260% 100%, 200% 100%;
   background-position: 160% 0, 0 0;
+  animation: role-glint 3.4s linear infinite;
+}
+header .role-name.role-glint,
+h1 .role-name.role-glint {
   animation:
     role-glint 3.4s linear infinite,
     role-glow 2.6s ease-in-out infinite;
@@ -428,7 +484,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .role-name.role-glint {
-    animation: role-glow 2.6s ease-in-out infinite;
+    animation: none;
     background-position: 160% 0, 0 0;
   }
 }

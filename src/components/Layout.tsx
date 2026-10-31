@@ -370,6 +370,43 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
   )
 }
 
+/**
+ * Calm mode: the page sets html[data-calm] while its window has no focus (a stream next to it should get the graphics card) or when the member
+ * turned it on in the settings (localStorage "cyn:calm"); the stylesheet then stops the decorative animations.
+ */
+const CALM_KEY = 'cyn:calm'
+const CALM_CHANGED = 'cyn:calm-changed'
+function useCalmMode() {
+  useEffect(() => {
+    const root = document.documentElement
+    const forced = () => {
+      try {
+        return localStorage.getItem(CALM_KEY) === '1'
+      } catch {
+        return false
+      }
+    }
+    const apply = () => {
+      if (forced() || !document.hasFocus() || document.visibilityState === 'hidden') root.dataset.calm = '1'
+      else delete root.dataset.calm
+    }
+    apply()
+    window.addEventListener('focus', apply)
+    window.addEventListener('blur', apply)
+    document.addEventListener('visibilitychange', apply)
+    window.addEventListener(CALM_CHANGED, apply)
+    window.addEventListener('storage', apply)
+    return () => {
+      window.removeEventListener('focus', apply)
+      window.removeEventListener('blur', apply)
+      document.removeEventListener('visibilitychange', apply)
+      window.removeEventListener(CALM_CHANGED, apply)
+      window.removeEventListener('storage', apply)
+      delete root.dataset.calm
+    }
+  }, [])
+}
+
 /** The Booster button: glows in gold while a booster can be opened (the free one of the day or one on hand). */
 function BoosterButton() {
   const { language } = useLanguage()
@@ -406,6 +443,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isInnerCircle = useIsInnerCircle()
   const liveEvent = EVENTS.some((e) => e.status === 'live')
   const questsReady = useQuestsReady()
+  useCalmMode()
   const innerOnly = language === 'de' ? 'Nur Inner Circle' : 'Inner circle only'
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()

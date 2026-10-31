@@ -30,3 +30,15 @@ CREATE TABLE IF NOT EXISTS cyn_card_snapshots (
   prev_stats TEXT,                       -- the update before, for the green + and red - numbers
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+-- "I paid": a member says they paid for boosters (PayPal); an admin checks the payment and credits them with one click
+CREATE TABLE IF NOT EXISTS cyn_booster_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  openfront_id TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',   -- open | done | rejected
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  handled_by TEXT,                       -- the admin (Discord id)
+  handled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS cyn_booster_requests_status ON cyn_booster_requests (status);

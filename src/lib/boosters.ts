@@ -22,6 +22,8 @@ export interface BoosterState {
   /** opened a booster today (UTC, like the quests) */
   openedToday: boolean
   openedTotal: number
+  /** the member said they paid for this many boosters and an admin has not looked at it yet */
+  pendingRequest?: number | null
 }
 export interface PulledCard {
   card_id: string
@@ -105,6 +107,28 @@ export async function openBooster(): Promise<{ ok: true; cards: PulledCard[]; so
 }
 export async function grantBoosters(openfrontId: string, count: number): Promise<string | null> {
   const r = await call<{ error?: string }>('/api/boosters/grant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openfront_id: openfrontId, count }) })
+  return r.ok ? null : (r.data?.error ?? 'failed')
+}
+/** The member says they paid for boosters (PayPal): an admin checks the payment and credits them. Null when it worked, otherwise what is wrong. */
+export async function requestBoosters(count: number): Promise<string | null> {
+  const r = await call<{ error?: string }>('/api/boosters/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count }) })
+  return r.ok ? null : (r.data?.error ?? 'failed')
+}
+export interface BoosterRequest {
+  id: number
+  openfront_id: string
+  name: string | null
+  count: number
+  created_at: string
+}
+/** Admins: the open "I paid" requests. */
+export async function fetchBoosterRequests(): Promise<BoosterRequest[]> {
+  const r = await call<{ requests: BoosterRequest[] }>('/api/boosters/requests')
+  return r.ok && r.data ? r.data.requests : []
+}
+/** Admins: credit the boosters of a request (grant) or turn it down (reject). Null when it worked, otherwise what is wrong. */
+export async function handleBoosterRequest(id: number, action: 'grant' | 'reject'): Promise<string | null> {
+  const r = await call<{ error?: string }>('/api/boosters/requests/handle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) })
   return r.ok ? null : (r.data?.error ?? 'failed')
 }
 /** Comments and reactions written per member (the COM value of the cards). */

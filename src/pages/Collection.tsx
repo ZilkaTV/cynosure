@@ -8,12 +8,16 @@ import {
   RARITIES,
   RARITY_INFO,
   boostersReady,
+  fetchBoosterRequests,
   fetchCollection,
   grantBoosters,
+  handleBoosterRequest,
   openBooster,
   refreshBoosterState,
+  requestBoosters,
   setBoosterState,
   useBoosterState,
+  type BoosterRequest,
   type CollectedCard,
   type PulledCard,
   type Rarity,
@@ -114,6 +118,8 @@ export default function Collection() {
   const [now, setNow] = useState(Date.now())
   const [grantTo, setGrantTo] = useState('')
   const [grantCount, setGrantCount] = useState(1)
+  const [paidCount, setPaidCount] = useState(1)
+  const [requests, setRequests] = useState<BoosterRequest[]>([])
 
   const reload = useCallback(async () => {
     if (!id) return
@@ -128,6 +134,13 @@ export default function Collection() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
+  // admins: the "I paid" requests waiting for them
+  const loadRequests = useCallback(async () => {
+    if (isOwn && isAdmin) setRequests(await fetchBoosterRequests())
+  }, [isOwn, isAdmin])
+  useEffect(() => {
+    void loadRequests()
+  }, [loadRequests])
   // a new profile picture shows on the cards at once
   useEffect(() => {
     const on = () => setAvatars({})
@@ -163,6 +176,18 @@ export default function Collection() {
     setBoosterState(r.state)
     window.dispatchEvent(new Event(QUESTS_CHANGED)) // the daily quest may be claimable now
     setOpened(r.cards)
+  }
+  async function paid() {
+    setMessage(null)
+    const problem = await requestBoosters(paidCount)
+    setMessage(problem === 'already_open' ? (de ? 'Du hast schon eine offene Meldung. Ein Admin prüft sie.' : 'You already have an open note. An admin is checking it.') : problem ? (de ? 'Das hat nicht geklappt. Versuch es gleich noch einmal.' : 'That did not work. Try again in a moment.') : de ? 'Danke! Ein Admin prüft deine Zahlung und schreibt dir die Booster gut.' : 'Thanks! An admin checks your payment and credits the boosters.')
+    await refreshBoosterState()
+  }
+  async function settle(r: BoosterRequest, action: 'grant' | 'reject') {
+    setMessage(null)
+    const problem = await handleBoosterRequest(r.id, action)
+    setMessage(problem ? (de ? `Nicht erledigt (${problem}).` : `Not done (${problem}).`) : action === 'grant' ? (de ? `${r.count} Booster für ${r.name ?? r.openfront_id} gutgeschrieben.` : `Credited ${r.count} booster(s) to ${r.name ?? r.openfront_id}.`) : de ? 'Abgelehnt.' : 'Rejected.')
+    await loadRequests()
   }
   async function grant() {
     setMessage(null)
@@ -222,6 +247,25 @@ export default function Collection() {
               <a href={`${DONATE_URL}/1EUR`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-base-600 bg-base-800 px-3 py-1.5 font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
                 {de ? 'Über PayPal bezahlen (1 €)' : 'Pay with PayPal (1 €)'} ↗
               </a>
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-base-700 pt-3">
+                {state?.pendingRequest ? (
+                  <p className="text-slate-300">{de ? `Deine Zahlung für ${state.pendingRequest} Booster wird geprüft.` : `Your payment for ${state.pendingRequest} booster(s) is being checked.`}</p>
+                ) : (
+                  <>
+                    <span className="text-slate-300">{de ? 'Schon bezahlt?' : 'Already paid?'}</span>
+                    <select value={paidCount} onChange={(e) => setPaidCount(Number(e.target.value))} className="rounded-lg border border-base-600 bg-base-800 px-2 py-1.5 text-white" aria-label={de ? 'Anzahl der Booster' : 'Number of boosters'}>
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? 'Booster' : 'Booster'}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => void paid()} className="rounded-lg border border-base-600 bg-base-800 px-3 py-1.5 font-semibold text-slate-200 transition-colors hover:border-accent hover:text-white">
+                      {de ? 'Ich habe bezahlt' : 'I paid'}
+                    </button>
+                  </>
+                )}
+              </div>
               <p className="mt-2 text-[11px] text-slate-500">{de ? 'Die Karten sind rein zum Sammeln, sie haben keinen Geldwert und lassen sich nicht verkaufen. Der Inhalt eines Boosters ist Zufall.' : 'The cards are only for collecting, they have no cash value and cannot be sold. What is in a booster is random.'}</p>
             </div>
           </div>
@@ -289,6 +333,32 @@ export default function Collection() {
       {isOwn && isAdmin && (
         <div className="panel space-y-3 p-4 sm:p-5">
           <h3 className="font-display text-lg font-bold text-white">{de ? 'Admin: Booster vergeben' : 'Admin: grant boosters'}</h3>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{de ? 'Gekauft (Zahlung zuerst in PayPal prüfen)' : 'Bought (check the payment in PayPal first)'}</p>
+            {requests.length === 0 ? (
+              <p className="text-sm text-slate-500">{de ? 'Keine offenen Meldungen.' : 'No open notes.'}</p>
+            ) : (
+              <ul className="divide-y divide-base-700/60 rounded-lg border border-base-700">
+                {requests.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1">
+                      <span className="font-semibold text-white">{r.name ?? r.openfront_id}</span>
+                      <span className="ml-2 font-mono text-[10px] text-slate-500">{r.openfront_id}</span>
+                      <span className="ml-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </span>
+                    <span className="font-display text-base font-bold text-gold-light">{r.count} Booster</span>
+                    <button type="button" onClick={() => void settle(r, 'grant')} className="btn-accent !px-3 !py-1 text-xs">
+                      {de ? 'Vergeben' : 'Credit'}
+                    </button>
+                    <button type="button" onClick={() => void settle(r, 'reject')} className="rounded-lg border border-base-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-signal-red hover:text-signal-red">
+                      {de ? 'Ablehnen' : 'Reject'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{de ? 'Von Hand vergeben' : 'Grant by hand'}</p>
           <div className="flex flex-wrap items-center gap-2">
             <select value={grantTo} onChange={(e) => setGrantTo(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white">
               <option value="">{de ? 'Mitglied wählen …' : 'Choose a member …'}</option>

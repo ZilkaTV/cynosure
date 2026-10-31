@@ -4,6 +4,9 @@
 //   POST /api/boosters/open               opens one booster (the free one of the day first, then a booster on hand): 3 cards of members in random rarities
 //   GET  /api/boosters/collection?id=ID   the cards a member collected (members of the site see each other's collections)
 //   POST /api/boosters/grant              admins: puts boosters on hand for a member { openfront_id, count }
+//   POST /api/boosters/request            a member says they paid for boosters: { count }
+//   GET  /api/boosters/requests           admins: the open "I paid" requests
+//   POST /api/boosters/requests/handle    admins: credit (grant) or reject one: { id, action }
 //   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
 //   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
 //   POST /api/cards/update                the member updates the own card (once a month): { stats: { COM, INT, ECO, SPE, DEF, ATK } }
@@ -103,6 +106,12 @@ async function stateOf(env, id) {
   return env.DB.prepare('SELECT extra, last_free_day, last_open_at, opened_total FROM cyn_booster_state WHERE openfront_id = ?').bind(id).first()
 }
 
+const MAX_REQUEST = 10
+
+async function isAdmin(env, user) {
+  return !!(await env.DB.prepare('SELECT 1 AS x FROM cyn_event_admins WHERE user_id = ? LIMIT 1').bind(user.id).first())
+}
+
 function publicState(row, now = Date.now()) {
   const today = berlinDay(now)
   return {
@@ -190,7 +199,56 @@ export async function handleBoosters(request, env) {
 
   if (pathname === '/api/boosters/me') {
     if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
-    return json(200, publicState(await stateOf(env, myId)))
+    const open = await env.DB.prepare("SELECT count FROM cyn_booster_requests WHERE openfront_id = ? AND status = 'open' LIMIT 1").bind(myId).first()
+    return json(200, { ...publicState(await stateOf(env, myId)), pendingRequest: open?.count ?? null })
+  }
+
+  if (pathname === '/api/boosters/request') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const count = Number(body?.count)
+    if (!Number.isInteger(count) || count < 1 || count > MAX_REQUEST) return json(400, { error: 'bad_request' })
+    // one open request per member (an admin handles it, then a new one is possible); the check and the insert are one statement
+    const out = await env.DB.prepare("INSERT INTO cyn_booster_requests (openfront_id, count) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM cyn_booster_requests WHERE openfront_id = ? AND status = 'open')").bind(myId, count, myId).run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'already_open' })
+    return json(200, { ok: true })
+  }
+
+  if (pathname === '/api/boosters/requests') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
+    const { results } = await env.DB.prepare("SELECT r.id, r.openfront_id, m.in_game_name AS name, r.count, r.created_at FROM cyn_booster_requests r LEFT JOIN cyn_members m ON m.openfront_id = r.openfront_id WHERE r.status = 'open' ORDER BY r.created_at LIMIT 100").all()
+    return json(200, { requests: results ?? [] })
+  }
+
+  if (pathname === '/api/boosters/requests/handle') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const id = Number(body?.id)
+    const action = body?.action
+    if (!Number.isInteger(id) || id < 1 || (action !== 'grant' && action !== 'reject')) return json(400, { error: 'bad_request' })
+    const row = await env.DB.prepare("SELECT openfront_id, count FROM cyn_booster_requests WHERE id = ? AND status = 'open'").bind(id).first()
+    if (!row) return json(404, { error: 'not_open' })
+    // the request is closed first and only one click can do that, so it is never credited twice
+    const closed = await env.DB.prepare("UPDATE cyn_booster_requests SET status = ?, handled_by = ?, handled_at = ? WHERE id = ? AND status = 'open'").bind(action === 'grant' ? 'done' : 'rejected', user.id, new Date().toISOString(), id).run()
+    if (closed.meta?.changes !== 1) return json(409, { error: 'already_handled' })
+    if (action === 'grant') {
+      await env.DB.prepare('INSERT INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?) ON CONFLICT(openfront_id) DO UPDATE SET extra = MIN(?, extra + ?)').bind(row.openfront_id, Math.min(row.count, MAX_ON_HAND), MAX_ON_HAND, row.count).run()
+    }
+    return json(200, { ok: true })
   }
 
   if (pathname === '/api/boosters/collection') {
@@ -228,7 +286,7 @@ export async function handleBoosters(request, env) {
   if (pathname === '/api/boosters/grant') {
     if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
     if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
-    if (!(await env.DB.prepare('SELECT 1 AS x FROM cyn_event_admins WHERE user_id = ? LIMIT 1').bind(user.id).first())) return json(403, { error: 'admins_only' })
+    if (!(await isAdmin(env, user))) return json(403, { error: 'admins_only' })
     let body
     try {
       body = await request.json()

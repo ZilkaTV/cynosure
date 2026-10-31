@@ -377,9 +377,9 @@ export default function WhatsNew() {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4" onClick={close} role="dialog" aria-modal="true" aria-label={de ? 'Das ist neu' : 'What is new'}>
-      <div className="w-full max-w-lg overflow-hidden md:max-w-3xl rounded-2xl border border-accent/40 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden md:max-w-3xl rounded-2xl border border-accent/40 bg-base-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* header: tag, date, one line of what it is about */}
-        <div className="flex items-start justify-between gap-3 px-5 pt-4 md:px-8 md:pt-6">
+        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 md:px-8 md:pt-6">
           <div>
             <span className="rounded-full bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{de ? 'Neu' : 'New'}</span>
             <span className="ml-2 text-xs text-slate-500">{new Date(latest.date).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -391,7 +391,7 @@ export default function WhatsNew() {
         </div>
 
         {slide ? (
-          <div key={i} className="animate-[fadeUp_.3s_ease]">
+          <div key={i} className="min-h-0 animate-[fadeUp_.3s_ease] overflow-x-hidden overflow-y-auto">
             {/* the picture */}
             <div className="relative mt-4 flex h-52 items-center justify-center md:h-[24rem] bg-gradient-to-br from-accent/25 via-base-850 to-gold/15 px-5">
               <span className="absolute left-4 top-3 rounded-full border border-gold/50 bg-base-950/70 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-gold-light">{L(slide.tag)}</span>
@@ -410,7 +410,7 @@ export default function WhatsNew() {
             </div>
           </div>
         ) : (
-          <div key="more" className="animate-[fadeUp_.3s_ease] px-5 pb-1 pt-5 md:px-8 md:pt-8">
+          <div key="more" className="min-h-0 animate-[fadeUp_.3s_ease] overflow-x-hidden overflow-y-auto px-5 pb-1 pt-5 md:px-8 md:pt-8">
             <h2 className="text-center font-display text-2xl font-bold text-white md:text-4xl">{de ? 'Außerdem' : 'Also'}</h2>
             <div className="mt-4 flex flex-wrap justify-center gap-2 md:mt-6 md:gap-3">
               {latest.more.map((m) => (
@@ -427,7 +427,7 @@ export default function WhatsNew() {
         )}
 
         {/* progress and buttons */}
-        <div className="mt-5 flex items-center justify-between gap-3 border-t border-base-700 px-5 py-3 md:mt-7 md:px-8 md:py-4">
+        <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t border-base-700 px-5 py-3 md:mt-4 md:px-8 md:py-4">
           <button type="button" onClick={() => setI((n) => Math.max(n - 1, 0))} disabled={i === 0} className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-white disabled:invisible">
             {de ? 'Zurück' : 'Back'}
           </button>

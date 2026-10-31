@@ -17,7 +17,6 @@ const TEXT = {
     donate: 'Seite unterstützen',
     discord: 'Discord',
     updated: 'Die Seite prüft das automatisch. Nach einem Sieg dauert es etwas, bis er hier ankommt.',
-    open: 'Offen bleiben nur die Übersicht, „Update“ und „Was ist neu?“. Alles andere ist gesperrt.',
   },
   en: {
     title: 'Your access has expired',
@@ -31,7 +30,6 @@ const TEXT = {
     donate: 'Support the site',
     discord: 'Discord',
     updated: 'The site checks this by itself. A win can take a little while to show up here.',
-    open: 'Only the overview, "Update" and "What is new?" stay open. Everything else is locked.',
   },
 }
 
@@ -44,7 +42,6 @@ export function AccessExpired({ access }: { access: Access }) {
       <CynLogo className="h-16 w-16 drop-shadow-[0_0_16px_rgba(139,92,246,0.4)]" />
       <h1 className="mt-4 font-display text-2xl font-bold text-white">{x.title}</h1>
       <p className="mx-auto mt-2 max-w-md text-slate-400">{x.body(ACCESS_DAYS)}</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{x.open}</p>
       <p className="mt-1 text-sm text-slate-500">{access.lastWinAt ? x.last(new Date(access.lastWinAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB')) : x.never}</p>
       <div className="mt-6 grid w-full gap-4 text-left sm:grid-cols-2">
         <div className="rounded-xl border border-base-600 bg-base-850/60 px-4 py-3">

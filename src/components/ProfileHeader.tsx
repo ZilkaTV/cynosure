@@ -344,6 +344,16 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
               <RoleName wins={m.allWins}>{name}</RoleName>
               <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
+              <Link
+                to={`/card/${m.publicId}`}
+                title={de ? 'Dieses Mitglied hat eine eigene Spielerkarte' : 'This member has an own player card'}
+                className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light transition-colors hover:bg-gold/20"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+                </svg>
+                {de ? 'Eigene Karte' : 'Own card'}
+              </Link>
               {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
@@ -386,6 +396,17 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
                   <path d="M9 13h6M9 17h6M12 7v3" />
                 </svg>
                 {de ? 'Karte' : 'Card'}
+              </Link>
+              <Link
+                to={`/collection/${m.publicId}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-gold/60 hover:text-gold-light"
+                title={de ? 'Sammlung ansehen' : 'View the collection'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                  <rect x="3" y="6" width="12" height="15" rx="2" />
+                  <path d="M7 3h11a2 2 0 0 1 2 2v12" />
+                </svg>
+                {de ? 'Sammlung' : 'Collection'}
               </Link>
               <button
                 type="button"

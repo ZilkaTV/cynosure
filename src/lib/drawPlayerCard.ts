@@ -1,11 +1,12 @@
 import { CARD_STATS, type CardTier, type PlayerCardData } from './playerCard'
+import type { Rarity } from './boosters'
 
 // Draws a player card on a canvas, in our own design (no art from other games): a notched shield, a tier colour, soft rings, the portrait,
 // the rating on the left and the six values at the bottom. Everything is drawn here so the picture can be saved as a PNG.
 
 export const CARD_W = 570
 export const CARD_H = 730
-const SCALE = 2 // the canvas has twice the pixels, so the PNG is sharp
+const DEFAULT_SCALE = 2 // the canvas has twice the pixels, so the PNG is sharp
 
 interface Palette {
   top: string
@@ -19,12 +20,19 @@ interface Palette {
   label: string
 }
 
-const PALETTE: Record<CardTier, Palette> = {
+/** The colours a card can have: the five tiers of the own card, and one more for the rarest booster cards. */
+export type CardLook = CardTier | 'obsidian'
+
+/** The look of a card pulled from a booster, by its rarity. */
+export const RARITY_LOOK: Record<Rarity, CardLook> = { common: 'bronze', rare: 'diamond', epic: 'legend', ultra: 'gold', legendary: 'obsidian' }
+
+const PALETTE: Record<CardLook, Palette> = {
   bronze: { top: '#d79a64', bottom: '#7a4a28', ring: '#f3c79a', glow: '#ffd9b0', text: '#2b1a0c', sub: '#4a2f17', border1: '#f6d3ac', border2: '#8a5a33', label: 'BRONZE' },
   silver: { top: '#eef2f8', bottom: '#8f9bad', ring: '#ffffff', glow: '#ffffff', text: '#1d2736', sub: '#3a475a', border1: '#ffffff', border2: '#8793a6', label: 'SILVER' },
   gold: { top: '#f8df8e', bottom: '#b88a2c', ring: '#fff3c4', glow: '#fff1b8', text: '#3a2a08', sub: '#5c4311', border1: '#fff0b0', border2: '#a67a22', label: 'GOLD' },
   diamond: { top: '#c9efff', bottom: '#3b82c4', ring: '#e8f9ff', glow: '#bfeaff', text: '#08294a', sub: '#134575', border1: '#e4f7ff', border2: '#3a7cb8', label: 'DIAMOND' },
   legend: { top: '#6b3fd1', bottom: '#1d0f45', ring: '#c9a8ff', glow: '#a78bfa', text: '#ffe9a6', sub: '#e6cf86', border1: '#ffe9a6', border2: '#8a6bd6', label: 'LEGEND' },
+  obsidian: { top: '#6a1428', bottom: '#0b0407', ring: '#ff8a9a', glow: '#ff4d6d', text: '#ffdca4', sub: '#f0b872', border1: '#ffdca4', border2: '#c02e49', label: 'LEGENDARY' },
 }
 
 export interface CardAssets {
@@ -76,14 +84,25 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, bx: num
   ctx.drawImage(img, bx - (w - bw) * fx, by - (h - bh) * fy, w, h)
 }
 
-export function drawPlayerCard(canvas: HTMLCanvasElement, card: PlayerCardData, assets: CardAssets) {
+export interface DrawOptions {
+  /** the colours; the tier of the card when missing */
+  look?: CardLook
+  /** the word on the slanted band; the name of the look when missing */
+  label?: string
+  /** pixels per card unit (2 = sharp PNG, less for the small cards of a collection) */
+  scale?: number
+}
+
+export function drawPlayerCard(canvas: HTMLCanvasElement, card: PlayerCardData, assets: CardAssets, opts: DrawOptions = {}) {
+  const SCALE = opts.scale ?? DEFAULT_SCALE
   canvas.width = CARD_W * SCALE
   canvas.height = CARD_H * SCALE
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0)
   ctx.clearRect(0, 0, CARD_W, CARD_H)
-  const p = PALETTE[card.tier]
+  const p = PALETTE[opts.look ?? card.tier]
+  const tierWord = opts.label ?? p.label
   const display = '"Cinzel", "Rajdhani", "Inter", system-ui, serif'
   const body = '"Inter", system-ui, sans-serif'
 
@@ -185,13 +204,13 @@ export function drawPlayerCard(canvas: HTMLCanvasElement, card: PlayerCardData, 
   ctx.save()
   ctx.translate(448, 392)
   ctx.rotate(-0.55)
-  ctx.font = `800 40px ${display}`
   ctx.textAlign = 'center'
+  fitText(ctx, tierWord, 140, 40, 800, display) // a long word like LEGENDARY must stay on the card
   ctx.lineWidth = 3
   ctx.strokeStyle = p.border2 + 'aa'
-  ctx.strokeText(p.label, 0, 0)
+  ctx.strokeText(tierWord, 0, 0)
   ctx.fillStyle = p.border1 + 'dd'
-  ctx.fillText(p.label, 0, 0)
+  ctx.fillText(tierWord, 0, 0)
   ctx.restore()
 
   // ── crest at the top ──

@@ -6,6 +6,7 @@ import { SectionHeading, Card, Spinner, LastUpdated, useCountdown } from '../com
 import { QUESTS, fetchClaimsToday, claimQuest, nextResetAt, periodKey, questPeriod, type QuestDef } from '../lib/quests'
 import { donationTotals, useClanDonors } from '../lib/clanDonors'
 import { fetchReactedToday } from '../lib/reactions'
+import { fetchBoosterState } from '../lib/boosters'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -16,6 +17,7 @@ export default function Quests() {
   const { data, loading, lastUpdated, refreshing, refresh } = useRoster(!!profile)
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
   const [reactedToday, setReactedToday] = useState(false)
+  const [openedBooster, setOpenedBooster] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
   const countdowns = { day: useCountdown(nextResetAt('day')), week: useCountdown(nextResetAt('week')), month: useCountdown(nextResetAt('month')) }
@@ -27,6 +29,7 @@ export default function Quests() {
     if (profile) {
       fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
       fetchReactedToday(profile.openfront_id).then(setReactedToday)
+      void fetchBoosterState().then((b) => setOpenedBooster(!!b?.openedToday))
     }
   }, [profile, data])
 
@@ -36,7 +39,7 @@ export default function Quests() {
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
   const donated = donationTotals(donors, me.publicId)
-  const ctx = { reactedToday, donated }
+  const ctx = { reactedToday, donated, openedBooster }
 
   async function onClaim(questId: string) {
     if (!profile || !me) return

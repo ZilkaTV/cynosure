@@ -53,7 +53,8 @@ const toValue = (p: number) => Math.round(FLOOR + SPAN * Math.min(1, Math.max(0,
 
 /** The raw measures of one member (null = no data). */
 export interface CardMeasures {
-  chat: number | null
+  /** comments and reactions the member wrote on the site */
+  social: number | null
   xp: number | null
   winRate: number | null
   bestElo: number | null
@@ -68,7 +69,7 @@ export interface CardMeasures {
   troopsOut: number | null
 }
 
-export function measuresOf(m: MemberStats, caps: number | null): CardMeasures {
+export function measuresOf(m: MemberStats, caps: number | null, social: number | null): CardMeasures {
   const finished = m.cynGames.filter((g) => g.result !== 'incomplete')
   const won = (list: typeof finished) => list.filter((g) => g.result === 'victory').length
   const team = finished.filter((g) => g.mode === 'Team')
@@ -76,7 +77,7 @@ export function measuresOf(m: MemberStats, caps: number | null): CardMeasures {
   const mean = (pick: (d: (typeof details)[number]) => number) => avg(details.map(pick).filter((v) => Number.isFinite(v)))
   const elos = [m.elo, m.elo2v2, m.eloFfa].filter((v): v is number => typeof v === 'number')
   return {
-    chat: m.chatMessageCount,
+    social,
     xp: m.xp,
     winRate: finished.length >= 10 ? won(finished) / finished.length : null,
     bestElo: elos.length ? Math.max(...elos) : null,
@@ -95,7 +96,7 @@ type Pair = [keyof CardMeasures, boolean] // measure, higher is better
 
 const FORMULA: Record<CardStat, Pair[]> = {
   COM: [
-    ['chat', true],
+    ['social', true],
     ['xp', true],
   ],
   INT: [
@@ -121,8 +122,8 @@ const FORMULA: Record<CardStat, Pair[]> = {
 }
 
 /** The cards of all members: each value is the member's place among the members that have data for it. */
-export function computeCards(members: MemberStats[], capsByMember: Map<string, number>, donorsKnown: boolean): Map<string, PlayerCardData> {
-  const all = members.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null) }))
+export function computeCards(members: MemberStats[], capsByMember: Map<string, number>, donorsKnown: boolean, socialByMember: Map<string, number> | null = null): Map<string, PlayerCardData> {
+  const all = members.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null, socialByMember ? (socialByMember.get(m.publicId) ?? 0) : null) }))
   const population = (key: keyof CardMeasures) => all.map((a) => a.x[key]).filter((v): v is number => typeof v === 'number')
   const pops = {} as Record<keyof CardMeasures, number[]>
   for (const key of Object.keys(all[0]?.x ?? {}) as (keyof CardMeasures)[]) pops[key] = population(key)

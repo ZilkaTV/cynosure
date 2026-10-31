@@ -69,12 +69,13 @@ describe('computeCards', () => {
   const detail = (kills: number, gold: number, out: number, inn: number) => ({ g1: { kills, goldPerMin: gold, troopsOutPerMin: out, troopsInPerMin: inn, clientId: 'c' } })
 
   const members = [
-    member('AAAA1111', { chatMessageCount: 900, xp: 500, cynGames: games(30, 10), elo: 2000, speedrunSeconds: 240, tiles3minPercent: 9, detailByGame: detail(12, 90, 50, 5) }),
-    member('BBBB2222', { chatMessageCount: 50, xp: 40, cynGames: games(10, 30), elo: 1200, speedrunSeconds: 400, tiles3minPercent: 3, detailByGame: detail(2, 30, 10, 20) }),
-    member('CCCC3333', { chatMessageCount: 300, xp: 200, cynGames: games(20, 20), elo: 1600, speedrunSeconds: 300, tiles3minPercent: 6, detailByGame: detail(7, 60, 30, 12) }),
+    member('AAAA1111', { xp: 500, cynGames: games(30, 10), elo: 2000, speedrunSeconds: 240, tiles3minPercent: 9, detailByGame: detail(12, 90, 50, 5) }),
+    member('BBBB2222', { xp: 40, cynGames: games(10, 30), elo: 1200, speedrunSeconds: 400, tiles3minPercent: 3, detailByGame: detail(2, 30, 10, 20) }),
+    member('CCCC3333', { xp: 200, cynGames: games(20, 20), elo: 1600, speedrunSeconds: 300, tiles3minPercent: 6, detailByGame: detail(7, 60, 30, 12) }),
   ]
   const caps = new Map([['AAAA1111', 50000], ['BBBB2222', 0], ['CCCC3333', 1000]])
-  const cards = computeCards(members, caps, true)
+  const social = new Map([['AAAA1111', 90], ['BBBB2222', 5], ['CCCC3333', 30]])
+  const cards = computeCards(members, caps, true, social)
 
   it('puts every value between 46 and 99', () => {
     for (const c of cards.values()) for (const v of Object.values(c.stats)) {
@@ -96,10 +97,11 @@ describe('computeCards', () => {
     expect(['COMMS', 'TACTICIAN', 'ECONOMIST', 'SPRINTER', 'DEFENDER', 'ATTACKER']).toContain(cards.get('AAAA1111')!.title)
   })
   it('shows a neutral 50 and marks it when a value has no data at all', () => {
-    const lone = computeCards([member('DDDD4444'), ...members], caps, true).get('DDDD4444')!
+    const lone = computeCards([member('DDDD4444'), ...members], caps, true, social).get('DDDD4444')!
     expect(lone.stats.SPE).toBe(50)
     expect(lone.noData.SPE).toBe(true)
-    expect(lone.noData.COM).toBe(false)
+    expect(lone.noData.COM).toBe(false) // XP and social are known (0)
+    expect(computeCards([member('DDDD4444'), ...members], caps, true, null).get('DDDD4444')!.noData.COM).toBe(false) // XP alone still counts
   })
   it('works without the donor list (ECO then only has the gold per minute)', () => {
     const c = computeCards(members, new Map(), false).get('AAAA1111')!

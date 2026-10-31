@@ -1,32 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { RegistrationGate } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
-import { flagEmoji } from '../lib/countries'
-import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
-import { drawPlayerCard, type CardAssets } from '../lib/drawPlayerCard'
-import { CARD_STATS, TIER_FROM, computeCards, type CardStat } from '../lib/playerCard'
-import { fetchProfileExtras, parseFit, profileImageSrc } from '../lib/profileExtras'
+import { drawPlayerCard } from '../lib/drawPlayerCard'
+import { loadCardAssets, loadCardFonts } from '../lib/cardImages'
+import { CARD_STATS, TIER_FROM, type CardStat } from '../lib/playerCard'
+import { fetchProfileExtras, profileImageSrc } from '../lib/profileExtras'
+import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
-import { useRoster } from '../lib/useRoster'
-
-function loadImage(src: string, cors: boolean): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    if (cors) img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = src
-  })
-}
-const twemoji = (char: string) =>
-  `https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.3/assets/svg/${Array.from(char)
-    .map((c) => c.codePointAt(0)!.toString(16))
-    .join('-')}.svg`
 
 const WHAT: Record<CardStat, { de: string; en: string; name: { de: string; en: string } }> = {
-  COM: { name: { de: 'Kommunikation', en: 'Communication' }, de: 'Chat-Nachrichten und Quest-XP', en: 'chat messages and quest XP' },
+  COM: { name: { de: 'Kommunikation', en: 'Communication' }, de: 'Kommentare und Reaktionen auf der Seite und Quest-XP', en: 'comments and reactions on the site and quest XP' },
   INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Siegquote und bestes Ranked-Elo', en: 'win rate and best ranked Elo' },
   ECO: { name: { de: 'Wirtschaft', en: 'Economy' }, de: 'Gold pro Minute und gespendete Caps', en: 'gold per minute and donated caps' },
   SPE: { name: { de: 'Tempo', en: 'Speed' }, de: 'Speedrun-Zeit und Gebietsanteil nach 3 Minuten', en: 'speedrun time and tile share after 3 minutes' },
@@ -41,8 +26,7 @@ export default function PlayerCard() {
   const de = language === 'de'
   const params = useParams()
   const id = params.id ?? profile?.openfront_id
-  const { data, loading } = useRoster(!!profile)
-  const donors = useClanDonors()
+  const { cards, loading } = useCardData()
   // the picture of the member; when it cannot be read the card is drawn with the silhouette
   const [picture, setPicture] = useState<{ src: string | null; fit: string | null } | undefined>(undefined)
   useEffect(() => {
@@ -57,23 +41,15 @@ export default function PlayerCard() {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [drawn, setDrawn] = useState(false)
 
-  const cards = useMemo(() => (data ? computeCards(data.members, capsDonatedMap(donors), !!donors?.boards) : null), [data, donors])
   const card = id ? cards?.get(id) : undefined
 
   useEffect(() => {
     if (!card || !canvas.current || picture === undefined) return
     let alive = true
     void (async () => {
-      try {
-        await Promise.all([document.fonts.load('800 40px Cinzel'), document.fonts.load('800 20px Inter')])
-      } catch {
-        /* the system font is used */
-      }
-      const avatar = picture.src ? await loadImage(picture.src, true) : null
-      const flag = card.nationality ? await loadImage(twemoji(flagEmoji(card.nationality)), true) : null
-      const crest = await loadImage('/logo.png', false)
+      await loadCardFonts()
+      const assets = await loadCardAssets(card.nationality, picture.src ? { src: picture.src, fit: picture.fit } : null)
       if (!alive || !canvas.current) return
-      const assets: CardAssets = { avatar, fit: parseFit(picture.fit), flag, crest }
       drawPlayerCard(canvas.current, card, assets)
       setDrawn(true)
     })()

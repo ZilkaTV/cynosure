@@ -180,6 +180,12 @@ const CardIcon = () => (
     <path d="M9 13h6M9 17h6M12 7v3" />
   </MenuIcon>
 )
+const CollectionIcon = () => (
+  <MenuIcon>
+    <rect x="3" y="6" width="12" height="15" rx="2" />
+    <path d="M7 3h11a2 2 0 0 1 2 2v12" />
+  </MenuIcon>
+)
 const SettingsIcon = () => (
   <MenuIcon>
     <circle cx="12" cy="12" r="3" />
@@ -314,6 +320,10 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
           <Link to="/card" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             <CardIcon />
             {language === 'de' ? 'Meine Karte' : 'My card'}
+          </Link>
+          <Link to="/collection" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <CollectionIcon />
+            {language === 'de' ? 'Sammlung & Booster' : 'Collection & boosters'}
           </Link>
           {isInner && (
             <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">

@@ -39,6 +39,8 @@ function isToday(iso: string | null): boolean {
 /** Extra facts a quest can need beyond the roster data (loaded by the Quests page). */
 export interface QuestContext {
   reactedToday: boolean
+  /** opened a card booster today (UTC); missing = not known */
+  openedBooster?: boolean
   /** What the member donated to the clan (from the stored donor list; see src/lib/clanDonors.ts). */
   donated: DonationTotals
 }
@@ -105,6 +107,14 @@ export const QUESTS: QuestDef[] = [
     description: 'Submit a speedrun (any result)',
     xp: 15,
     check: (m) => isToday(m.lastSpeedrunAt),
+  },
+  {
+    id: 'open_booster',
+    name: 'Booster Time',
+    description: 'Open a card booster',
+    de: { name: 'Booster-Zeit', description: 'Öffne einen Karten-Booster' },
+    xp: 10,
+    check: (_m, _coop, ctx) => !!ctx.openedBooster,
   },
   // Donation quests: checked against the single donations of the stored donor list (imported by an admin, so they can lag a little).
   {

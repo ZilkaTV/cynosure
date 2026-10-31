@@ -28,13 +28,14 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export async function loadPersistedRoster(): Promise<RosterResult | null> {
+/** Reads one value of the snapshot store (null when there is none or the browser does not allow IndexedDB). */
+export async function idbGet<T>(key: string): Promise<T | null> {
   try {
     const db = await openDb()
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readonly')
-      const req = tx.objectStore(IDB_STORE).get(KEY)
-      req.onsuccess = () => resolve((req.result as RosterResult | undefined) ?? null)
+      const req = tx.objectStore(IDB_STORE).get(key)
+      req.onsuccess = () => resolve((req.result as T | undefined) ?? null)
       req.onerror = () => reject(req.error)
     })
   } catch {
@@ -42,12 +43,12 @@ export async function loadPersistedRoster(): Promise<RosterResult | null> {
   }
 }
 
-export async function savePersistedRoster(data: RosterResult): Promise<void> {
+export async function idbPut(key: string, data: unknown): Promise<void> {
   try {
     const db = await openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite')
-      tx.objectStore(IDB_STORE).put(data, KEY)
+      tx.objectStore(IDB_STORE).put(data, key)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -55,3 +56,6 @@ export async function savePersistedRoster(data: RosterResult): Promise<void> {
     /* quota / private mode - just rebuilds fresh next time */
   }
 }
+
+export const loadPersistedRoster = () => idbGet<RosterResult>(KEY)
+export const savePersistedRoster = (data: RosterResult) => idbPut(KEY, data)

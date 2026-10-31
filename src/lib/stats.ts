@@ -4,7 +4,7 @@
 // under no tag / another tag are never included.
 
 import {
-  fetchGameDetailsBatch,
+  fetchRosterDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
   type PlayerGame,
@@ -360,17 +360,23 @@ export async function buildRoster(
   const RECENT_DETAIL_COUNT = 20
   const mk = currentMonthKey()
   const teamWinIds = new Set<string>()
-  const wantDetail = new Set<string>()
+  // game id -> the names the members played under in it (the small report keeps those players besides everybody with the clan tag)
+  const wantDetail = new Map<string, Set<string>>()
+  const want = (g: { gameId: string; username: string }) => {
+    const names = wantDetail.get(g.gameId) ?? new Set<string>()
+    names.add(g.username)
+    wantDetail.set(g.gameId, names)
+  }
   for (const { games } of raw) {
     for (const g of games) {
       if (isTeam(g) && isVictory(g)) {
         teamWinIds.add(g.gameId)
-        wantDetail.add(g.gameId)
+        want(g)
       }
-      if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
+      if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) want(g)
     }
     const recentSorted = [...games].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
-    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) wantDetail.add(g.gameId)
+    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) want(g)
   }
   // No cap on how many of these get fetched: an earlier version capped this
   // at 140 "to respect rate limits", which silently dropped whichever games
@@ -388,7 +394,7 @@ export async function buildRoster(
   // reintroduce that bug just by firing a lot of requests - and since a
   // successful detail fetch is now cached forever (not just for an hour),
   // the one-time cost of a large batch like this doesn't recur.
-  const detailMap = await fetchGameDetailsBatch([...wantDetail])
+  const detailMap = await fetchRosterDetailsBatch(wantDetail, CLAN_TAG)
 
   // Co-op = another CYN player in the same team-win game.
   const coopByGame: Record<string, boolean> = {}
@@ -431,14 +437,13 @@ export async function buildRoster(
       const me =
         d.players.find((p) => p.username === g.username && p.clanTag === CLAN_TAG) ??
         d.players.find((p) => p.username === g.username)
-      if (!me?.stats) continue
-      const goldTotal = (me.stats.gold ?? []).reduce((s, x) => s + Number(x || 0), 0)
+      if (!me?.hasStats) continue
       const minutes = d.durationSeconds > 0 ? d.durationSeconds / 60 : 1
       detailByGame[g.gameId] = {
-        kills: me.stats.kills?.length ?? 0,
-        goldPerMin: goldTotal / minutes,
-        troopsOutPerMin: Number(me.stats.attacks?.[0] ?? 0) / minutes,
-        troopsInPerMin: Number(me.stats.attacks?.[1] ?? 0) / minutes,
+        kills: me.kills,
+        goldPerMin: me.gold / minutes,
+        troopsOutPerMin: me.out / minutes,
+        troopsInPerMin: me.inc / minutes,
         clientId: me.clientID,
       }
     }

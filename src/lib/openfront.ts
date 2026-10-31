@@ -6,6 +6,7 @@
 
 import { CACHE_TTL_MS, CLAN_TAG } from '../config'
 import { cleanDisplayName } from './displayName'
+import { idbGet, idbPut } from './rosterCache'
 
 const API_BASE = '/api/of'
 
@@ -767,6 +768,91 @@ export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<stri
       cachePermSet(`${CACHE_NS}:detail:${id}`, detail)
       result.set(id, detail)
     }
+  }
+  return result
+}
+
+/** What the roster needs of one game report: the length and, per player of the clan (or asked for by name), the few numbers behind kills/gold/troops. */
+export interface RosterGameDetail {
+  durationSeconds: number
+  players: { clientID: string; username: string; clanTag: string | null; hasStats: boolean; kills: number; gold: number; out: number; inc: number }[]
+}
+
+const ROSTER_DETAIL_KEY = `roster-detail-v1`
+
+function slimRosterDetail(d: GameDetail, clanTag: string, names: Set<string>): RosterGameDetail {
+  const players: RosterGameDetail['players'] = []
+  for (const p of d.players) {
+    if (p.clanTag !== clanTag && !names.has(p.username)) continue
+    const s = p.stats
+    players.push({
+      clientID: p.clientID,
+      username: p.username,
+      clanTag: p.clanTag,
+      hasStats: !!s,
+      kills: s?.kills?.length ?? 0,
+      gold: (s?.gold ?? []).reduce((sum, x) => sum + Number(x || 0), 0),
+      out: Number(s?.attacks?.[0] ?? 0),
+      inc: Number(s?.attacks?.[1] ?? 0),
+    })
+  }
+  return { durationSeconds: d.durationSeconds, players }
+}
+
+// The full reports that older versions kept in localStorage (a few MB the page holds in memory all the time); nothing needs them kept any more.
+function dropOldFullReports() {
+  const FLAG = `${CACHE_NS}:full-reports-dropped`
+  try {
+    if (localStorage.getItem(FLAG)) return
+    const prefix = `${CACHE_NS}:detail:`
+    for (const k of Object.keys(localStorage)) if (k.startsWith(prefix)) localStorage.removeItem(k)
+    localStorage.setItem(FLAG, '1')
+  } catch {
+    /* blocked storage */
+  }
+}
+
+/**
+ * The game reports for the roster build, boiled down to RosterGameDetail. A full report is ~30 KB and a roster build wants a few hundred of
+ * them, which used to be ~60 MB of JSON downloaded, parsed and thrown away on every load and every background reload (the full reports do not
+ * fit into the browser's storage, so they were never kept). The small versions are kept, so after the first visit only new games are fetched,
+ * and the reports are handled one batch at a time so the memory peak stays small.
+ * wanted: game id -> the names the roster looks for in that game (besides everybody with the clan tag).
+ */
+export async function fetchRosterDetailsBatch(wanted: Map<string, Set<string>>, clanTag: string): Promise<Map<string, RosterGameDetail>> {
+  const result = new Map<string, RosterGameDetail>()
+  dropOldFullReports()
+  const kept = (await idbGet<Record<string, RosterGameDetail>>(ROSTER_DETAIL_KEY)) ?? {}
+  const missing: string[] = []
+  for (const id of wanted.keys()) {
+    if (kept[id]) result.set(id, kept[id])
+    else missing.push(id)
+  }
+  if (missing.length === 0) return result
+
+  const CHUNK = 100
+  let added = false
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const ids = missing.slice(i, i + CHUNK)
+    try {
+      const res = await fetch(`/api/game-detail?ids=${encodeURIComponent(ids.join(','))}`)
+      if (!res.ok) continue
+      const data = (await res.json()) as Record<string, GameDetail>
+      for (const [id, detail] of Object.entries(data)) {
+        const slim = slimRosterDetail(detail, clanTag, wanted.get(id) ?? new Set())
+        result.set(id, slim)
+        kept[id] = slim
+        added = true
+      }
+    } catch {
+      // the Worker route is unreachable: those games simply show "-" until the next build
+    }
+  }
+  if (added) {
+    // only games the roster still asks for stay (games that dropped out of its window are forgotten)
+    const keep: Record<string, RosterGameDetail> = {}
+    for (const id of wanted.keys()) if (kept[id]) keep[id] = kept[id]
+    await idbPut(ROSTER_DETAIL_KEY, keep)
   }
   return result
 }

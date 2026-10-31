@@ -629,7 +629,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <main className="w-full px-3 py-5 sm:px-8 sm:py-8">
         {/* Pages title themselves with <h2> (SectionHeading) and the layout had no <h1> at all - screen readers and crawlers got a page with no top-level heading. */}
         <h1 className="sr-only">{CLAN_NAME}</h1>
-        {access.status === 'expired' && !['/register', '/donate'].some((p) => pathname.startsWith(p)) ? <AccessExpired access={access} /> : children}
+        {access.status === 'expired' && pathname !== '/' && !['/register', '/donate'].some((p) => pathname.startsWith(p)) ? <AccessExpired access={access} /> : children}
       </main>
 
       <footer className="mt-16 border-t border-base-700 pb-24 pt-8 text-center text-sm text-slate-500 sm:pb-8">

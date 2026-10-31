@@ -486,11 +486,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           [{CLAN_TAG}] {CLAN_NAME} · {t.footer.clanDescriptor} ·{' '}
           <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" className="text-accent-light hover:text-accent">
             {t.footer.discord}
-          </a>{' '}
-          ·{' '}
-          <Link to="/clan" className="text-accent-light hover:text-accent">
-            {t.footer.allMembers}
-          </Link>
+          </a>
         </p>
         <p className="mt-1 text-xs text-slate-600">{t.footer.statsNotice(CLAN_TAG)}</p>
         <p className="mt-1 text-xs text-slate-600">

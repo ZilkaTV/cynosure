@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
@@ -64,12 +64,14 @@ export default function MemberProfile() {
   const savedGames = useSavedGames(profile?.openfront_id)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
   const donors = useClanDonors()
-  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered.
+  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered, and again on every click while already on the profile
+  // (the link then only changes the hash, so the location is part of the dependencies).
+  const location = useLocation()
   useEffect(() => {
-    if (window.location.hash !== '#saved') return
+    if (location.hash !== '#saved') return
     const timer = setTimeout(() => document.getElementById('saved')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400)
     return () => clearTimeout(timer)
-  }, [id, data])
+  }, [id, data, location.hash, location.key])
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)

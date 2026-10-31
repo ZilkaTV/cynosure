@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { winsRoleGradient } from '../lib/badges'
-import { Bolts } from './RoleName'
+import { Bolts, type BoltVariant } from './RoleName'
 
 export type RoleFrameKind = 'none' | 'bronze' | 'shine' | 'bolt'
 
@@ -14,13 +14,14 @@ export function roleFrameKind(wins: number | undefined | null): RoleFrameKind {
 
 /**
  * Puts the frame of the member's wins role around its content (banner, icon). Without a role the content gets `plain` instead (an ordinary edge).
- * `radius` is the corner radius of the outside, `width` the thickness of the frame in px. The lightning is drawn around the frame (not on big banners: `bolts={false}`).
+ * `radius` is the corner radius of the outside, `width` the thickness of the frame in px. The lightning is drawn around the frame (its own bolts for an icon and for a banner, see `variant`).
  */
 export default function RoleFrame({
   wins,
   radius = '1rem',
   width = 3,
   bolts = true,
+  variant = 'icon',
   className = '',
   plain = '',
   children,
@@ -29,6 +30,7 @@ export default function RoleFrame({
   radius?: string
   width?: number
   bolts?: boolean
+  variant?: Exclude<BoltVariant, 'name'>
   className?: string
   plain?: string
   children: ReactNode
@@ -49,7 +51,7 @@ export default function RoleFrame({
       style={{ '--c1': colors[0], '--c2': colors[1], '--fw': `${width}px`, '--fr': radius } as CSSProperties}
     >
       <div className="role-frame-inner">{children}</div>
-      {withBolts && <Bolts />}
+      {withBolts && <Bolts variant={variant} />}
     </div>
   )
 }

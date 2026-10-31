@@ -132,14 +132,14 @@
   stroke-width: 0.8px;
   opacity: 0.85;
 }
-.role-bolts .bolt-1 { animation-duration: 3.1s; animation-delay: 0s; }
-.role-bolts .bolt-2 { animation-duration: 3.7s; animation-delay: 0.6s; }
-.role-bolts .bolt-3 { animation-duration: 3.4s; animation-delay: 1.5s; }
-.role-bolts .bolt-4 { animation-duration: 4.1s; animation-delay: 2.1s; }
-.role-bolts .bolt-5 { animation-duration: 3.6s; animation-delay: 0.9s; }
-.role-bolts .bolt-6 { animation-duration: 4.4s; animation-delay: 2.8s; }
-.role-bolts .bolt-7 { animation-duration: 3.3s; animation-delay: 1.2s; }
-.role-bolts .bolt-8 { animation-duration: 4.8s; animation-delay: 3.3s; }
+.role-bolts .bolt-1 { animation-duration: 3.1s; animation-delay: calc(0s + var(--bd, 0s)); }
+.role-bolts .bolt-2 { animation-duration: 3.7s; animation-delay: calc(0.6s + var(--bd, 0s)); }
+.role-bolts .bolt-3 { animation-duration: 3.4s; animation-delay: calc(1.5s + var(--bd, 0s)); }
+.role-bolts .bolt-4 { animation-duration: 4.1s; animation-delay: calc(2.1s + var(--bd, 0s)); }
+.role-bolts .bolt-5 { animation-duration: 3.6s; animation-delay: calc(0.9s + var(--bd, 0s)); }
+.role-bolts .bolt-6 { animation-duration: 4.4s; animation-delay: calc(2.8s + var(--bd, 0s)); }
+.role-bolts .bolt-7 { animation-duration: 3.3s; animation-delay: calc(1.2s + var(--bd, 0s)); }
+.role-bolts .bolt-8 { animation-duration: 4.8s; animation-delay: calc(3.3s + var(--bd, 0s)); }
 @keyframes bolt-crackle {
   0% { opacity: 0; }
   4% { opacity: 1; }
@@ -258,6 +258,51 @@
 @media (prefers-reduced-motion: reduce) {
   .role-frame-shine,
   .role-frame-bolt {
+    animation: none;
+  }
+}
+/* silver and gold: a bright sheen sweeps over the picture now and then and a small bolt flashes at a corner of the frame */
+.role-frame-shine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.6) 50%, transparent 62%);
+  background-size: 300% 100%;
+  background-position: 150% 0;
+  animation: frame-sheen 3.6s ease-in-out infinite;
+}
+@keyframes frame-sheen {
+  0% {
+    background-position: 150% 0;
+  }
+  60%,
+  100% {
+    background-position: -50% 0;
+  }
+}
+.role-frame-shine::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  right: -7px;
+  top: -9px;
+  width: 14px;
+  height: 24px;
+  pointer-events: none;
+  background: var(--c1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 18'%3E%3Cpath d='M6.5 0 0 10h4L2.5 18 10 7H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px var(--c1));
+  transform: rotate(18deg);
+  opacity: 0;
+  animation: spark-flash 4.2s linear 0.8s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-frame-shine::before,
+  .role-frame-shine::after {
     animation: none;
   }
 }

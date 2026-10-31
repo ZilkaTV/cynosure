@@ -38,11 +38,41 @@ const BOLT_PATHS: { d: string; branch?: string }[] = [
   { d: bolt(79, [118, 12], [100, 0], 4, 5) }, // upper right corner
 ]
 
-/** The lightning around a name (from 500 wins): drawn over the name, never in the way of the mouse. */
-export function Bolts() {
+// The icon and the banner get their own bolts, so the lightning never looks the same on name, icon and banner: the icon's spikes leave from its
+// corners and sides (box 100 x 100), the banner's run along its edges (box 120 x 40, stretched over the banner).
+const ICON_PATHS: { d: string; branch?: string }[] = [
+  { d: bolt(101, [20, 20], [-6, -8], 5, 9), branch: bolt(7, [10, 8], [16, -4], 2, 4) },
+  { d: bolt(103, [80, 18], [108, -6], 5, 9) },
+  { d: bolt(107, [82, 82], [106, 108], 5, 9), branch: bolt(11, [94, 98], [88, 108], 2, 4) },
+  { d: bolt(109, [18, 84], [-8, 106], 5, 9) },
+  { d: bolt(113, [52, 12], [58, -10], 4, 6) },
+  { d: bolt(127, [12, 48], [-10, 40], 4, 6) },
+  { d: bolt(131, [90, 56], [110, 62], 4, 6) },
+  { d: bolt(137, [44, 90], [38, 110], 4, 6) },
+]
+const BANNER_PATHS: { d: string; branch?: string }[] = [
+  { d: bolt(201, [3, 1.5], [44, 0.5], 12, 2.2), branch: bolt(5, [20, 1], [26, 6], 2, 2) },
+  { d: bolt(203, [68, 1], [117, 2.5], 12, 2.2) },
+  { d: bolt(207, [1.5, 5], [0.5, 35], 8, 1.6) },
+  { d: bolt(211, [118.5, 5], [119.5, 35], 8, 1.6), branch: bolt(13, [119, 20], [114, 24], 2, 2) },
+  { d: bolt(213, [4, 38.5], [50, 39.5], 12, 2.2) },
+  { d: bolt(217, [72, 39], [116, 38], 12, 2.2), branch: bolt(17, [92, 39], [98, 34], 2, 2) },
+  { d: bolt(219, [32, 3], [24, -2], 3, 2.5) },
+  { d: bolt(223, [96, 37], [104, 42], 3, 2.5) },
+]
+const BOLT_SETS = {
+  name: { box: '0 0 120 40', paths: BOLT_PATHS, delay: '0s' },
+  icon: { box: '0 0 100 100', paths: ICON_PATHS, delay: '1.3s' },
+  banner: { box: '0 0 120 40', paths: BANNER_PATHS, delay: '2.2s' },
+}
+export type BoltVariant = keyof typeof BOLT_SETS
+
+/** The lightning around a name, icon or banner (from 500 wins): drawn over it, never in the way of the mouse. Every variant has its own bolts and its own rhythm. */
+export function Bolts({ variant = 'name' }: { variant?: BoltVariant }) {
+  const set = BOLT_SETS[variant]
   return (
-    <svg className="bolts" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">
-      {BOLT_PATHS.map((b, i) => (
+    <svg className="bolts" style={{ '--bd': set.delay } as CSSProperties} viewBox={set.box} preserveAspectRatio="none" aria-hidden="true">
+      {set.paths.map((b, i) => (
         <g key={i} className={`bolt bolt-${i + 1}`}>
           <path d={b.d} className="glow" />
           {b.branch && <path d={b.branch} className="glow" />}

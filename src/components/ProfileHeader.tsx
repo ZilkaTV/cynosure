@@ -301,7 +301,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
 
   return (
     <div className="space-y-4">
-      <RoleFrame wins={m.allWins} radius="1rem" width={3} bolts={false} plain="border border-base-700 bg-base-900/70">
+      <RoleFrame wins={m.allWins} radius="1rem" width={3} variant="banner" plain="border border-base-700 bg-base-900/70">
       <div className="bg-base-900/70">
         <div className="relative h-36 sm:h-56">
           {banner ? <FitImage src={banner} fit={fits.banner} onFit={editingNow ? (f) => setDraft({ ...fits, banner: f }) : undefined} /> : <div className="h-full w-full bg-gradient-to-br from-accent/35 via-base-850 to-gold/20" />}
@@ -320,8 +320,8 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
               <RoleName wins={m.allWins}>{name}</RoleName>
-              {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
               <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
+              {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-xs font-semibold text-gold-light" title={titleForLevel(level)}>

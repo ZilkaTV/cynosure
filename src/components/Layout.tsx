@@ -174,6 +174,12 @@ const BookmarkIcon = () => (
     <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
   </MenuIcon>
 )
+const CardIcon = () => (
+  <MenuIcon>
+    <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+    <path d="M9 13h6M9 17h6M12 7v3" />
+  </MenuIcon>
+)
 const SettingsIcon = () => (
   <MenuIcon>
     <circle cx="12" cy="12" r="3" />
@@ -304,6 +310,10 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
           <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             <BookmarkIcon />
             {t.accountMenu.savedGames}
+          </Link>
+          <Link to="/card" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+            <CardIcon />
+            {language === 'de' ? 'Meine Karte' : 'My card'}
           </Link>
           {isInner && (
             <Link to="/game-nights" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gold-light hover:bg-base-800">

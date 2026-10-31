@@ -86,6 +86,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     more: [
       { text: { de: 'Zugang: 7 Tage ohne Sieg mit [CYN]-Tag sperren die Seite', en: 'Access: 7 days without a win with the [CYN] tag lock the site' }, important: true },
       { text: { de: 'Benachrichtigungen mit Glocke, Zahl im Tab und Ton', en: 'Notification bell with a number in the tab and a sound' } },
+      { text: { de: 'Spielerkarte zum Speichern (Account-Menü: Meine Karte)', en: 'Player card to save (account menu: My card)' } },
       { text: { de: 'Profil melden', en: 'Report a profile' } },
       { text: { de: 'Namen führen zum Profil', en: 'Names lead to the profile' } },
       { text: { de: 'Speedruns: CYN-Tag in der Start-Zeit nötig', en: 'Speedruns: CYN tag needed in the start window' } },

@@ -13,6 +13,7 @@ import { useLanguage } from './i18n/LanguageContext'
 const Monthly = lazy(() => import('./pages/Monthly'))
 const Register = lazy(() => import('./pages/Register'))
 const MemberProfile = lazy(() => import('./pages/MemberProfile'))
+const PlayerCard = lazy(() => import('./pages/PlayerCard'))
 const Speedrun = lazy(() => import('./pages/Speedrun'))
 const Events = lazy(() => import('./pages/Events'))
 const Quests = lazy(() => import('./pages/Quests'))
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/monthly/1v1" element={<Navigate to="/ranked/1v1" replace />} />
             <Route path="/monthly/2v2" element={<Navigate to="/ranked/2v2" replace />} />
             <Route path="/member/:id" element={<MemberProfile />} />
+            <Route path="/card/:id?" element={<PlayerCard />} />
             <Route path="/speedrun" element={<Speedrun />} />
             <Route path="/events" element={<Events />} />
             <Route path="/quests" element={<Quests />} />

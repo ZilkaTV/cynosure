@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
@@ -375,6 +376,17 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             <div className="flex flex-wrap items-start justify-end gap-2">
               <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
               {!isOwn && <FavoriteButton profileId={m.publicId} de={de} />}
+              <Link
+                to={`/card/${m.publicId}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-base-600 bg-base-800/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-gold/60 hover:text-gold-light"
+                title={de ? 'Spielerkarte ansehen' : 'View the player card'}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                  <path d="M8 3h8l4 4v11l-3 3H7l-3-3V7z" />
+                  <path d="M9 13h6M9 17h6M12 7v3" />
+                </svg>
+                {de ? 'Karte' : 'Card'}
+              </Link>
               <button
                 type="button"
                 onClick={() => document.getElementById('pinnwand')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}

@@ -46,6 +46,10 @@ export const MAX_BIO = 300
 export const MAX_COMMENT = 500
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
+/** Fired when the own icon, banner or text changed, so the account button in the header shows the new icon at once. */
+export const EXTRAS_CHANGED = 'cyn:profile-extras-changed'
+const changed = () => window.dispatchEvent(new Event(EXTRAS_CHANGED))
+
 /** Only pictures this site stored for a profile are ever shown (the Worker writes the address, but the page does not trust it blindly). */
 export function profileImageSrc(url: string | null | undefined): string | null {
   return url && /^\/api\/screenshots\/profiles\/[A-Za-z0-9_.-]+\.(png|jpg|webp|gif)$/.test(url) ? url : null
@@ -110,6 +114,7 @@ export async function deleteProfileComment(id: number): Promise<boolean> {
 
 export async function saveBio(myId: string, text: string): Promise<string | null> {
   const { error } = await db.from('cyn_members').update({ bio: text.trim() === '' ? null : text.trim() }).eq('openfront_id', myId)
+  if (!error) changed()
   return error ? error.message.replace(/^[a-z_]+: /, '') : null
 }
 
@@ -120,6 +125,7 @@ export async function saveFits(myId: string, fits: { avatar?: Fit; banner?: Fit 
   if (fits.banner) patch.banner_fit = fitToString(fits.banner)
   if (Object.keys(patch).length === 0) return null
   const { error } = await db.from('cyn_members').update(patch).eq('openfront_id', myId)
+  if (!error) changed()
   return error ? error.message.replace(/^[a-z_]+: /, '') : null
 }
 
@@ -137,7 +143,10 @@ export async function uploadProfileImage(kind: 'avatar' | 'banner', file: File):
   try {
     const res = await fetch(`/api/profile-media?kind=${kind}`, { method: 'POST', credentials: 'same-origin', body: file })
     const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
-    if (res.ok) return { ok: true, message: 'Saved.' }
+    if (res.ok) {
+      changed()
+      return { ok: true, message: 'Saved.' }
+    }
     if (res.status === 401) return { ok: false, message: 'Sign in with Discord first.' }
     if (res.status === 429) return { ok: false, message: body.message ?? 'Wait a few seconds before the next upload.' }
     if (res.status === 413) return { ok: false, message: 'The picture is too big.' }
@@ -152,6 +161,7 @@ export async function uploadProfileImage(kind: 'avatar' | 'banner', file: File):
 export async function removeProfileMedia(kind: 'avatar' | 'banner' | 'bio', member?: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/profile-media?kind=${kind}${member ? `&member=${encodeURIComponent(member)}` : ''}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (res.ok) changed()
     return res.ok
   } catch {
     return false
@@ -168,6 +178,8 @@ export function useProfileExtras(id: string | undefined) {
   useEffect(() => {
     setExtras(null)
     void reload()
+    window.addEventListener(EXTRAS_CHANGED, reload)
+    return () => window.removeEventListener(EXTRAS_CHANGED, reload)
   }, [reload])
   return { extras, reload }
 }

@@ -4,7 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
 import { useSharedRoster } from '../lib/access'
 import { titleForLevel, xpProgress } from '../lib/levels'
-import { cleanDisplayName } from '../lib/displayName'
+import { cleanDisplayName, initialOf } from '../lib/displayName'
 import { splitAccountUsername } from '../lib/openfront'
 import type { MemberStats } from '../lib/stats'
 import {
@@ -284,7 +284,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             {avatar ? (
               <FitImage src={avatar} alt={name} fit={fits.avatar} onFit={editingNow ? (f) => setDraft({ ...fits, avatar: f }) : undefined} />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{name.slice(0, 1).toUpperCase()}</div>
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{initialOf(m.name)}</div>
             )}
           </div>
           <div className="min-w-0 flex-1 pt-3">

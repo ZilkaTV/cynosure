@@ -28,12 +28,14 @@ function bolt(seed: number, from: [number, number], to: [number, number], steps:
   return 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')
 }
 const BOLT_PATHS: { d: string; branch?: string }[] = [
-  { d: bolt(11, [2, 20], [118, 20], 14, 11), branch: bolt(3, [38, 20], [52, 36], 4, 5) },
-  { d: bolt(23, [10, 6], [60, 40], 7, 9) },
-  { d: bolt(37, [112, 34], [70, 0], 7, 9), branch: bolt(5, [90, 17], [108, 8], 3, 4) },
-  { d: bolt(41, [0, 30], [112, 12], 13, 10) },
-  { d: bolt(53, [30, 0], [20, 40], 6, 10) },
-  { d: bolt(67, [96, 40], [104, 0], 6, 9), branch: bolt(7, [100, 18], [118, 28], 3, 4) },
+  { d: bolt(11, [8, 20], [112, 20], 12, 8), branch: bolt(3, [40, 20], [52, 34], 4, 4) }, // along the letters
+  { d: bolt(23, [8, 4], [2, 37], 7, 7) }, // left side
+  { d: bolt(37, [114, 36], [116, 3], 7, 7), branch: bolt(5, [115, 20], [104, 26], 3, 3) }, // right side
+  { d: bolt(41, [24, 26], [42, 40], 5, 6) }, // below the name
+  { d: bolt(53, [72, 27], [92, 40], 5, 6), branch: bolt(9, [82, 33], [70, 40], 2, 3) }, // below the name
+  { d: bolt(67, [50, 13], [66, 0], 4, 6) }, // above
+  { d: bolt(71, [2, 30], [26, 40], 4, 5) }, // lower left corner
+  { d: bolt(79, [118, 12], [100, 0], 4, 5) }, // upper right corner
 ]
 
 /** The lightning around a name (from 500 wins): drawn over the name, never in the way of the mouse. */

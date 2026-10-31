@@ -123,31 +123,29 @@
 }
 .role-bolts .bolt .glow {
   stroke: var(--c1);
-  stroke-width: 3.2px;
-  opacity: 0.7;
-  filter: drop-shadow(0 0 4px var(--c1));
+  stroke-width: 2.2px;
+  opacity: 0.42;
+  filter: drop-shadow(0 0 2px var(--c1));
 }
 .role-bolts .bolt .core {
   stroke: #fff;
-  stroke-width: 1.1px;
+  stroke-width: 0.8px;
+  opacity: 0.85;
 }
-.role-bolts .bolt-1 { animation-duration: 1.7s; animation-delay: 0s; }
-.role-bolts .bolt-2 { animation-duration: 2.3s; animation-delay: 0.35s; }
-.role-bolts .bolt-3 { animation-duration: 1.9s; animation-delay: 0.9s; }
-.role-bolts .bolt-4 { animation-duration: 2.7s; animation-delay: 1.3s; }
-.role-bolts .bolt-5 { animation-duration: 2.1s; animation-delay: 0.6s; }
-.role-bolts .bolt-6 { animation-duration: 1.6s; animation-delay: 1.1s; }
+.role-bolts .bolt-1 { animation-duration: 3.1s; animation-delay: 0s; }
+.role-bolts .bolt-2 { animation-duration: 3.7s; animation-delay: 0.6s; }
+.role-bolts .bolt-3 { animation-duration: 3.4s; animation-delay: 1.5s; }
+.role-bolts .bolt-4 { animation-duration: 4.1s; animation-delay: 2.1s; }
+.role-bolts .bolt-5 { animation-duration: 3.6s; animation-delay: 0.9s; }
+.role-bolts .bolt-6 { animation-duration: 4.4s; animation-delay: 2.8s; }
+.role-bolts .bolt-7 { animation-duration: 3.3s; animation-delay: 1.2s; }
+.role-bolts .bolt-8 { animation-duration: 4.8s; animation-delay: 3.3s; }
 @keyframes bolt-crackle {
   0% { opacity: 0; }
-  6% { opacity: 1; }
-  9% { opacity: 0; }
-  12% { opacity: 0.85; }
-  15% { opacity: 0; }
-  58% { opacity: 0; }
-  61% { opacity: 1; }
-  64% { opacity: 0.2; }
-  67% { opacity: 0.95; }
-  71% { opacity: 0; }
+  4% { opacity: 1; }
+  6% { opacity: 0.1; }
+  8% { opacity: 0.9; }
+  11% { opacity: 0; }
   100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

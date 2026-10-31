@@ -8,6 +8,9 @@ import { useGameNightReminder } from '../lib/useGameNightReminder'
 import { useSiteUpdate } from '../lib/useSiteUpdate'
 import WhatsNew, { OPEN_WHATS_NEW_EVENT } from './WhatsNew'
 import NotificationBell from './NotificationBell'
+import FitImage from './FitImage'
+import { parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
+import { initialOf } from '../lib/displayName'
 import { CHANGELOG } from '../data/changelog'
 import { EVENTS } from '../data/events'
 import ProfileSearch from './ProfileSearch'
@@ -160,13 +163,6 @@ const RefreshIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   </svg>
 )
 
-const GearIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-)
-
 /** The small line under the member's name: days of access left, "permanent" or "expired" (null while unknown). */
 function accessLabel(a: Access, language: string): { text: string; cls: string } | null {
   const de = language === 'de'
@@ -194,6 +190,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
   const rolesText = roles.map(roleLabel).join(' · ')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { extras } = useProfileExtras(profile?.openfront_id)
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -219,13 +216,20 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
         className="top-btn !w-auto justify-start !px-3"
         aria-label={t.accountMenu.ariaLabel}
       >
-        <GearIcon />
+        {/* the member's own icon (or the first letter of the name; a clan tag in front is ignored) instead of the gear */}
+        <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">
+          {profileImageSrc(extras?.avatar_url) ? (
+            <FitImage src={profileImageSrc(extras?.avatar_url)!} fit={parseFit(extras?.avatar_fit)} />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-lg font-bold text-white">{initialOf(profile.in_game_name)}</span>
+          )}
+        </span>
         <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
           {lvl && (
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gold-light">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-gold-light">
               {t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}
               {lvl.next != null && (
-                <span className="h-1.5 w-10 overflow-hidden rounded-full border border-white/80 bg-base-700">
+                <span className="h-2.5 w-24 overflow-hidden rounded-full border border-white/80 bg-base-700">
                   <span className="block h-full rounded-full bg-gradient-to-r from-accent to-gold" style={{ width: `${Math.min(100, (lvl.into / lvl.span) * 100)}%` }} />
                 </span>
               )}

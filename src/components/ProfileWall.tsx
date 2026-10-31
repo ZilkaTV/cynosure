@@ -4,7 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { useProfile } from '../lib/useProfile'
 import { useSharedRoster } from '../lib/access'
 import { useIsAdmin } from '../lib/useSession'
-import { cleanDisplayName } from '../lib/displayName'
+import { cleanDisplayName, initialOf } from '../lib/displayName'
 import { MAX_COMMENT, deleteProfileComment, fetchAvatars, fetchProfileComments, postProfileComment, type Fit, type ProfileComment } from '../lib/profileExtras'
 import FitImage from './FitImage'
 import ReportDialog from './ReportDialog'
@@ -95,7 +95,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
             return (
               <li key={c.id} className="flex gap-3 rounded-xl border border-base-700 bg-base-850/50 px-3 py-3">
                 <Link to={`/member/${c.author_openfront_id}`} className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-base-600 bg-base-800">
-                  {avatar ? <FitImage src={avatar.src} fit={avatar.fit} /> : <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/40 to-base-800 font-display text-lg font-bold text-white">{name.slice(0, 1).toUpperCase()}</span>}
+                  {avatar ? <FitImage src={avatar.src} fit={avatar.fit} /> : <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/40 to-base-800 font-display text-lg font-bold text-white">{initialOf(names.get(c.author_openfront_id) ?? c.author_name ?? c.author_openfront_id)}</span>}
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">

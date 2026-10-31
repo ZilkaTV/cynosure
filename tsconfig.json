@@ -200,6 +200,21 @@
     },
     {
       "path": "./src/vendor/openfront-core-a2d20f8"
+    },
+    {
+      "path": "./src/vendor/openfront-core-14ba82b"
+    },
+    {
+      "path": "./src/vendor/openfront-core-bf0ac8a"
+    },
+    {
+      "path": "./src/vendor/openfront-core-9f4a28f"
+    },
+    {
+      "path": "./src/vendor/openfront-core-c144d13"
+    },
+    {
+      "path": "./src/vendor/openfront-core-7ee9686"
     }
   ]
 }

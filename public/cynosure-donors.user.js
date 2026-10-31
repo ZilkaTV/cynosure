@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cynosure clan donors
 // @namespace    https://cynclan.com
-// @version      2.0.0
+// @version      2.0.1
 // @description  Sends the donors of your clan (caps and plutonium) from OpenFront to cynclan.com, by itself with a sync key or by a click. For admins and the inner circle of the site who are in the clan.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -136,11 +136,33 @@
       })
   }
 
+  // A request to the OpenFront API that is gentle with its rate limit: a short pause before every request, and on "429 too many requests" it waits
+  // (as long as OpenFront asks, at most 20 s) and tries again, up to four times.
+  function get(url, tries) {
+    tries = tries || 0
+    return new Promise(function (resolve) {
+      setTimeout(resolve, 350)
+    })
+      .then(function () {
+        return realFetch(url, { headers: { Accept: 'application/json', Authorization: auth } })
+      })
+      .then(function (res) {
+        if (res.status !== 429 || tries >= 4) return res
+        var asked = parseInt(res.headers.get('Retry-After') || '', 10)
+        var wait = Math.min(20000, (isNaN(asked) ? 3 * (tries + 1) : asked) * 1000)
+        return new Promise(function (resolve) {
+          setTimeout(resolve, wait)
+        }).then(function () {
+          return get(url, tries + 1)
+        })
+      })
+  }
+
   function board(currency, period) {
     var rows = []
     function page(n, limit) {
       var url = API + '/clans/' + TAG + '/donations/leaderboard?currencyType=' + currency + '&period=' + period + '&page=' + n + '&limit=' + limit
-      return realFetch(url, { headers: { Accept: 'application/json', Authorization: auth } }).then(function (res) {
+      return get(url).then(function (res) {
         if (res.status === 403) throw new Error('Only members of the clan can see the donations.')
         if (res.status === 401) throw new Error('OpenFront does not know you are logged in: open the clan page first.')
         if (res.status === 400 && limit > 10) return page(n, 10) // an older limit of the API
@@ -165,7 +187,7 @@
     var rows = []
     function page(n) {
       var url = API + '/clans/' + TAG + '/donations?page=' + n + '&limit=50'
-      return realFetch(url, { headers: { Accept: 'application/json', Authorization: auth } }).then(function (res) {
+      return get(url).then(function (res) {
         if (!res.ok) return rows // the ranking above is the main thing; a missing list only switches the donation quests off
         return res.json().then(function (j) {
           var list = j.results || []

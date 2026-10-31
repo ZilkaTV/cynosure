@@ -439,7 +439,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* centred crest - always links home */}
         <Link to="/" className="mt-0.5 flex flex-row items-center justify-center gap-2 px-4 pb-1 sm:mt-1 sm:pb-2 sm:flex-col sm:gap-2" aria-label={`${CLAN_NAME} ${t.nav.homeAria}`}>
-          <CynLogo className="h-8 w-8 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-28 sm:w-28 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-32 lg:w-32" />
+          <span className="crest-glow">
+            <CynLogo className="h-12 w-12 drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] sm:h-40 sm:w-40 sm:drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] lg:h-52 lg:w-52" />
+          </span>
           <span className="text-center font-display text-base font-bold tracking-[0.08em] text-white sm:text-3xl sm:tracking-[0.3em] lg:text-4xl">
             [{CLAN_TAG}] <span className="text-gold">{CLAN_NAME.toUpperCase()}</span>
           </span>

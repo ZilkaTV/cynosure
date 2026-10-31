@@ -221,6 +221,42 @@
   }
 }
 
+/* The crest in the header: a purple glow behind it that slowly pulses */
+.crest-glow {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.crest-glow::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(139, 92, 246, 0.22) 42%, transparent 70%);
+  animation: crest-pulse 4.5s ease-in-out infinite;
+}
+.crest-glow > * {
+  position: relative;
+}
+@keyframes crest-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crest-glow::before {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
 /* The frame of a wins role around the banner and the icon (RoleFrame.tsx): bronze a brown edge, silver / gold a shimmering one in the role's colour,
    diamond and above a glowing bluish one (the lightning is drawn by RoleName's Bolts) */
 .role-frame {

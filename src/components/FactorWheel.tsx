@@ -5,6 +5,8 @@ import { computeRaffleEntries, type RaffleEntry } from '../lib/raffle'
 import { useIsAdmin } from '../lib/useSession'
 import { useLanguage } from '../i18n/LanguageContext'
 import { cleanDisplayName } from '../lib/displayName'
+import { Link } from 'react-router-dom'
+import { RoleName, useWinsIndex } from './RoleName'
 
 const COLORS = ['#ffb454', '#4fd1c0', '#f2718c', '#7c9eff', '#c2e86b', '#d68cff', '#ffd166', '#5ad1a5', '#ff9f6b', '#8fb8ff']
 const fmt = (n: number) => (Math.round(n * 10) / 10).toLocaleString('en-US', { minimumFractionDigits: n % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 })
@@ -20,6 +22,7 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
   const de = language === 'de'
   const isAdmin = useIsAdmin()
   const roster = useSharedRoster()
+  const wins = useWinsIndex()
   const [boosts, setBoosts] = useState<Map<string, number> | null>(null)
   const [entries, setEntries] = useState<RaffleEntry[] | null>(null)
   const [removed, setRemoved] = useState<Set<string>>(new Set())
@@ -222,7 +225,9 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
           {winner && (
             <div className="w-full rounded-xl border border-gold bg-gold/10 px-4 py-4 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent-light">{de ? 'Gewinner' : 'Winner'}</p>
-              <p className="font-display text-3xl font-bold text-white">{cleanDisplayName(winner.entry.name)}</p>
+              <p className="font-display text-3xl font-bold text-white">
+                <RoleName wins={wins.byId.get(winner.entry.id)}>{cleanDisplayName(winner.entry.name)}</RoleName>
+              </p>
               <p className="text-xs text-slate-400">
                 {de ? 'Chance' : 'Odds'} {fmt(winner.chance)}% · {de ? 'Gewicht' : 'weight'} {fmt(winner.entry.weight)}
               </p>
@@ -276,7 +281,11 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                           <span className="mr-2 inline-block h-3 w-3 rounded" style={{ background: colorOf(e.id) }} />
                           {i + 1}
                         </td>
-                        <td className="px-3 py-2 font-medium text-white">{cleanDisplayName(e.name)}</td>
+                        <td className="px-3 py-2 font-medium text-white">
+                          <Link to={`/member/${e.id}`} className="hover:text-accent-light">
+                            <RoleName wins={wins.byId.get(e.id)}>{cleanDisplayName(e.name)}</RoleName>
+                          </Link>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-300" title={`+${fmt(e.gamesFactor)}`}>
                           {e.games} <span className="text-xs text-slate-500">+{fmt(e.gamesFactor)}</span>
                         </td>

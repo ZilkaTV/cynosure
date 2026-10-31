@@ -85,6 +85,33 @@ export async function fetchDonorKeyStatus(): Promise<DonorKeyStatus | null> {
   }
 }
 
+export interface DonorBotStatus {
+  /** The bot's login cookie is set on the server. */
+  configured: boolean
+  /** What the last run did: ok, or the reason it failed (cookie_expired, not_in_clan, ...). Null before the first run. */
+  last: { at: string; ok: boolean; message: string } | null
+}
+
+/** What the CYN bot (the clan account that reads the donations by itself) did last; admins and the inner circle only, null for everybody else. */
+export async function fetchDonorBotStatus(): Promise<DonorBotStatus | null> {
+  try {
+    const res = await fetch('/api/clan-donors/bot', { credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as DonorBotStatus) : null
+  } catch {
+    return null
+  }
+}
+
+/** Runs the bot once right now (admins and the inner circle); the status it ends with, or null when that did not work (too soon, not allowed). */
+export async function runDonorBot(): Promise<DonorBotStatus | null> {
+  try {
+    const res = await fetch('/api/clan-donors/bot', { method: 'POST', credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as DonorBotStatus) : null
+  } catch {
+    return null
+  }
+}
+
 /** Makes a new sync key (the old one stops working); shown once, only its hash is kept on the server. */
 export async function createDonorKey(): Promise<string | null> {
   try {

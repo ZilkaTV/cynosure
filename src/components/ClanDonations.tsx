@@ -9,6 +9,9 @@ import { cleanDisplayName } from '../lib/displayName'
 import {
   createDonorKey,
   fetchDonorKeyStatus,
+  fetchDonorBotStatus,
+  runDonorBot,
+  type DonorBotStatus,
   reloadClanDonors,
   revokeDonorKey,
   useClanDonors,
@@ -86,11 +89,13 @@ function SyncKey() {
   const { language } = useLanguage()
   const de = language === 'de'
   const [status, setStatus] = useState<DonorKeyStatus | null | undefined>(undefined)
+  const [bot, setBot] = useState<DonorBotStatus | null>(null)
   const [key, setKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     void fetchDonorKeyStatus().then(setStatus)
+    void fetchDonorBotStatus().then(setBot)
   }, [])
   async function make() {
     setBusy(true)
@@ -110,8 +115,42 @@ function SyncKey() {
   }
   if (status === undefined) return null
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–')
+  const botText = (b: DonorBotStatus): { ok: boolean; text: string } => {
+    if (!b.configured) return { ok: false, text: de ? 'CYN-Bot: nicht eingerichtet' : 'CYN bot: not set up' }
+    if (!b.last) return { ok: true, text: de ? 'CYN-Bot: eingerichtet, noch kein Lauf (alle 30 Minuten)' : 'CYN bot: set up, no run yet (every 30 minutes)' }
+    if (b.last.ok) return { ok: true, text: (de ? 'CYN-Bot: letzter Lauf ' : 'CYN bot: last run ') + when(b.last.at) + ' ✓' }
+    const why: Record<string, [string, string]> = {
+      cookie_expired: ['Login-Cookie abgelaufen, bitte ein neues setzen', 'login cookie expired, please set a new one'],
+      not_in_clan: ['der Bot-Account ist nicht im Clan', 'the bot account is not in the clan'],
+    }
+    const w = why[b.last.message]
+    return { ok: false, text: (de ? 'CYN-Bot: Fehler seit ' : 'CYN bot: failing since ') + when(b.last.at) + ' - ' + (w ? w[de ? 0 : 1] : b.last.message) }
+  }
   return (
     <div className="mt-3 space-y-2 rounded-lg border border-base-600 bg-base-850/60 p-3">
+      {bot && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className={`text-xs font-semibold ${botText(bot).ok ? 'text-signal-green' : 'text-signal-red'}`}>{botText(bot).text}</p>
+          {bot.configured && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                const r = await runDonorBot()
+                setBusy(false)
+                if (r) {
+                  setBot(r)
+                  void reloadClanDonors()
+                }
+              }}
+              className="rounded-md border border-base-600 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-accent disabled:opacity-50"
+            >
+              {busy ? '…' : de ? 'Jetzt testen' : 'Test now'}
+            </button>
+          )}
+        </div>
+      )}
       <p className="font-semibold text-white">{de ? 'Automatisch aktualisieren (empfohlen)' : 'Update by itself (recommended)'}</p>
       <ol className="list-inside list-decimal space-y-1 text-slate-400">
         <li>

@@ -12,6 +12,7 @@
 //
 // Stored as one small document in the hot database's `blobs` table (key "clan-donors").
 import { readSession } from './session.js'
+import { syncClanDonors } from './donorBot.js'
 
 const KEYS = 'donor-keys'
 const KEY_FORMAT = /^cdk_[0-9a-f]{64}$/
@@ -19,6 +20,7 @@ const INGEST_GAP_MS = 4 * 60_000
 const OPENFRONT = 'https://openfront.io'
 
 const KEY = 'clan-donors'
+export const BOT_STATUS_KEY = 'donor-bot-status'
 const MAX_BODY = 200_000
 const MAX_ROWS = 100
 const MAX_RECENT = 400
@@ -109,7 +111,7 @@ function siteOriginAllowed(request, env) {
 }
 
 /** Cleans a submitted ranking and writes it; returns a Response when something is wrong, otherwise the stored document. */
-async function storeDonors(env, body, by) {
+export async function storeDonors(env, body, by) {
   const cleaned = cleanBoards(body?.boards)
   if (cleaned.error) return { response: json(400, { error: 'bad_boards', message: cleaned.error }) }
   const cleanedRecent = cleanRecent(body?.recent)
@@ -161,10 +163,32 @@ export async function handleClanDonors(request, env) {
   if (!env.DB || !env.HOT_DB) return json(503, { error: 'not_configured' })
   const { pathname } = new URL(request.url)
   if (pathname === '/api/clan-donors/ingest') return ingest(request, env)
-  if (pathname !== '/api/clan-donors' && pathname !== '/api/clan-donors/key') return json(404, { error: 'not_found' })
+  if (pathname !== '/api/clan-donors' && pathname !== '/api/clan-donors/key' && pathname !== '/api/clan-donors/bot') return json(404, { error: 'not_found' })
   if (!env.DB || !env.HOT_DB) return json(503, { error: 'not_configured' })
   const user = await readSession(request, env)
   if (!user) return json(401, { error: 'not_signed_in' })
+
+  // what the bot (worker/donorBot.js) did last, for admins and the inner circle
+  if (pathname === '/api/clan-donors/bot') {
+    if (request.method !== 'GET' && request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!(await trusted(env, user))) return json(403, { error: 'not_allowed' })
+    const readLast = async () => {
+      const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(BOT_STATUS_KEY).first()
+      try {
+        return row?.value ? JSON.parse(row.value) : null
+      } catch {
+        return null // unreadable: treated as never run
+      }
+    }
+    if (request.method === 'GET') return json(200, { configured: !!env.OPENFRONT_BOT_COOKIE, last: await readLast() })
+    // POST: run the bot right now (the test button), at most once a minute
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    if (!env.OPENFRONT_BOT_COOKIE) return json(200, { configured: false, last: null })
+    const before = await readLast()
+    if (before?.at && Date.now() - Date.parse(before.at) < 60_000) return json(429, { error: 'too_soon' })
+    await syncClanDonors(env)
+    return json(200, { configured: true, last: await readLast() })
+  }
 
   // the sync key of this member (shown once when it is made; only its hash is kept)
   if (pathname === '/api/clan-donors/key') {

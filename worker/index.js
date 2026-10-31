@@ -27,6 +27,7 @@ import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
 import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleClanDonors } from './clanDonors.js'
+import { syncClanDonors } from './donorBot.js'
 import { handleProfileMedia } from './profileMedia.js'
 import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
 
@@ -120,6 +121,8 @@ export default {
     ctx.waitUntil(hasPendingSpeedruns(env).then((pending) => pending && startVerifyWorkflow(env)))
     // Role sync (wins tiers, speedrun title announcement): every 30 minutes.
     if (new Date(event.scheduledTime).getUTCMinutes() % 30 === 20) ctx.waitUntil(dispatch(env, 'discord-role-sync', 'discord-role-sync.yml'))
+    // the CYN bot reads the clan's donations (does nothing until its cookie secret is set)
+    if (minute % 30 === 0) ctx.waitUntil(syncClanDonors(env).catch((err) => console.error('donor bot failed:', err?.message ?? err)))
     ctx.waitUntil(refreshRankedBlob(env).catch((err) => console.error('ranked refresh failed:', err?.message ?? err)))
   },
 }

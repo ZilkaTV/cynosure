@@ -21,3 +21,12 @@ CREATE TABLE IF NOT EXISTS cyn_card_pulls (
   pulled_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS cyn_card_pulls_owner ON cyn_card_pulls (openfront_id, pulled_at);
+
+-- The card of a member as it was at the last monthly update (once a month the member can update it and sees what changed)
+CREATE TABLE IF NOT EXISTS cyn_card_snapshots (
+  openfront_id TEXT PRIMARY KEY,
+  month TEXT NOT NULL,                   -- Berlin month (YYYY-MM) of the last update
+  stats TEXT NOT NULL,                   -- JSON { COM, INT, ECO, SPE, DEF, ATK }
+  prev_stats TEXT,                       -- the update before, for the green + and red - numbers
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);

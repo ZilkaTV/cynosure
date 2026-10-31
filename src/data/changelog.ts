@@ -6,7 +6,7 @@
 export type Localized = { de: string; en: string }
 
 /** The picture of a slide: a small mock-up of the feature, drawn in WhatsNew.tsx. */
-export type SlideVisual = 'site' | 'profile' | 'strip' | 'report' | 'colors' | 'donors' | 'event'
+export type SlideVisual = 'site' | 'profile' | 'strip' | 'report' | 'colors' | 'donors' | 'cards' | 'event'
 
 export interface ChangelogSlide {
   visual: SlideVisual
@@ -74,6 +74,13 @@ export const CHANGELOG: ChangelogEntry[] = [
         title: { de: 'Spenden und Quests', en: 'Donations and quests' },
         text: { de: 'Caps und Plutonium der Spender, tägliche, wöchentliche und monatliche Spenden-Quests und das Badge Clan Spender. Die Glocke meldet Neues.', en: 'Caps and plutonium of the donors, daily, weekly and monthly donation quests and the Clan Donor badge. The bell tells you what is new.' },
         link: { to: '/clan#spenden', label: { de: 'Zu den Spenden', en: 'To the donations' } },
+      },
+      {
+        visual: 'cards',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Karte trainieren und Booster öffnen', en: 'Train your card and open boosters' },
+        text: { de: 'Einmal im Monat trainierst du deine Karte und siehst in Grün und Rot, was sich geändert hat. Jeden Tag wartet ein Gratis-Booster mit 3 Karten.', en: 'Once a month you train your card and see in green and red what changed. A free booster with 3 cards waits for you every day.' },
+        link: { to: '/collection', label: { de: 'Zur Sammlung', en: 'To the collection' } },
       },
       {
         visual: 'event',

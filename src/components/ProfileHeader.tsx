@@ -338,7 +338,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-4xl font-bold text-white sm:text-5xl">{initialOf(m.name)}</div>
             )}
           </RoleFrame>
-          <div className="min-w-0 flex-1 pt-3">
+          <div className="min-w-0 flex-1 basis-60 pt-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">{t.memberProfile.memberBadge(CLAN_TAG)}</p>
             <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
@@ -382,8 +382,8 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
               )}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 pt-3">
-            <div className="flex flex-wrap items-start justify-end gap-2">
+          <div className="flex w-full flex-col items-start gap-2 pt-1">
+            <div className="flex flex-wrap items-start justify-start gap-2">
               <LikeButton profileId={m.publicId} isOwn={isOwn} names={names} />
               {!isOwn && <FavoriteButton profileId={m.publicId} de={de} />}
               <Link

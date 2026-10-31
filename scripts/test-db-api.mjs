@@ -480,5 +480,28 @@ check('card social: counts per member (comments and reactions written)', r.statu
 r = await boost('GET', '/api/card-social')
 check('card social: signed out -> 401', r.status === 401, r)
 
+// ── the monthly card update ──
+const GOOD = { COM: 80, INT: 70, ECO: 60, SPE: 50, DEF: 90, ATK: 75 }
+r = await boost('GET', '/api/cards/snapshots', A)
+check('cards: nobody has an update yet', r.status === 200 && Object.keys(r.body.snapshots).length === 0 && /^\d{4}-\d{2}$/.test(r.body.month), r)
+r = await boost('POST', '/api/cards/update', A, { stats: { ...GOOD, COM: 100 } })
+check('cards: a value above 99 is refused', r.status === 400 && r.body.error === 'bad_stats', r)
+r = await boost('POST', '/api/cards/update', A, { stats: { ...GOOD, SPE: 45 } })
+check('cards: a value below 46 is refused', r.status === 400, r)
+r = await boost('POST', '/api/cards/update', A, { stats: { COM: 80 } })
+check('cards: missing values are refused', r.status === 400, r)
+r = await boost('POST', '/api/cards/update', A, { stats: { ...GOOD, COM: 80.5 } })
+check('cards: a value with decimals is refused', r.status === 400, r)
+r = await boost('POST', '/api/cards/update', C, { stats: GOOD })
+check('cards: a visitor that is no member cannot update', r.status === 403, r)
+r = await boost('POST', '/api/cards/update', A, { stats: GOOD })
+check('cards: the first update works and has nothing before it', r.status === 200 && r.body.prev === null, r)
+r = await boost('POST', '/api/cards/update', A, { stats: { ...GOOD, COM: 85 } })
+check('cards: a second update in the same month -> 409', r.status === 409 && r.body.error === 'already_updated', r)
+const two = await Promise.all([boost('POST', '/api/cards/update', BOB, { stats: GOOD }), boost('POST', '/api/cards/update', BOB, { stats: GOOD })])
+check('cards: two clicks at once update once', two.filter((x) => x.status === 200).length === 1 && two.filter((x) => x.status === 409).length === 1, two)
+r = await boost('GET', '/api/cards/snapshots', BOB)
+check('cards: everybody can read the snapshots', r.status === 200 && r.body.snapshots.AAAA1111?.stats.DEF === 90 && r.body.snapshots.AAAA1111.prev === null, r)
+
 console.log(fails ? `${fails} FAILED` : 'ALL OK')
 process.exit(fails ? 1 : 0)

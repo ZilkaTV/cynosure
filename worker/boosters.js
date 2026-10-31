@@ -5,6 +5,8 @@
 //   GET  /api/boosters/collection?id=ID   the cards a member collected (members of the site see each other's collections)
 //   POST /api/boosters/grant              admins: puts boosters on hand for a member { openfront_id, count }
 //   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
+//   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
+//   POST /api/cards/update                the member updates the own card (once a month): { stats: { COM, INT, ECO, SPE, DEF, ATK } }
 //
 // The draw happens here, with the Worker's random numbers, so nobody can pick their cards. One free booster per day (Berlin time), a member's first
 // visit puts one starter booster on hand. More boosters only come from an admin for now (there is no payment in the site).
@@ -66,6 +68,29 @@ export function nextBerlinMidnight(ms = Date.now()) {
   return hi
 }
 
+export const CARD_STATS = ['COM', 'INT', 'ECO', 'SPE', 'DEF', 'ATK']
+const STAT_MIN = 46
+const STAT_MAX = 99
+// the values are worked out in the browser (the percentiles over the roster), so the server keeps them within reason: a value changes by at most this much per update
+const MAX_STEP = 30
+
+/** The month in Berlin (YYYY-MM). */
+export function berlinMonth(ms = Date.now()) {
+  return berlinDay(ms).slice(0, 7)
+}
+
+/** The six values from a request, or null when they do not look right. */
+export function cleanStats(input) {
+  if (!input || typeof input !== 'object') return null
+  const out = {}
+  for (const k of CARD_STATS) {
+    const v = input[k]
+    if (!Number.isInteger(v) || v < STAT_MIN || v > STAT_MAX) return null
+    out[k] = v
+  }
+  return out
+}
+
 function siteOriginAllowed(request, env) {
   const origin = request.headers.get('Origin')
   const own = env.SITE_ENV === 'dev' && origin === new URL(request.url).origin
@@ -116,6 +141,51 @@ export async function handleBoosters(request, env) {
       for (const r of results ?? []) counts[r.id] = (counts[r.id] ?? 0) + Number(r.n)
     }
     return new Response(JSON.stringify({ counts }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } })
+  }
+
+  if (pathname === '/api/cards/snapshots') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const { results } = await env.DB.prepare('SELECT openfront_id, month, stats, prev_stats, updated_at FROM cyn_card_snapshots').all()
+    const snapshots = {}
+    for (const r of results ?? []) {
+      try {
+        snapshots[r.openfront_id] = { month: r.month, stats: JSON.parse(r.stats), prev: r.prev_stats ? JSON.parse(r.prev_stats) : null, at: r.updated_at }
+      } catch {
+        /* a row that cannot be read is left out */
+      }
+    }
+    return json(200, { month: berlinMonth(), snapshots })
+  }
+
+  if (pathname === '/api/cards/update') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const stats = cleanStats(body?.stats)
+    if (!stats) return json(400, { error: 'bad_stats' })
+    const month = berlinMonth()
+    const row = await env.DB.prepare('SELECT month, stats FROM cyn_card_snapshots WHERE openfront_id = ?').bind(myId).first()
+    if (row?.month === month) return json(409, { error: 'already_updated' })
+    let before = null
+    try {
+      before = row ? JSON.parse(row.stats) : null
+    } catch {
+      before = null
+    }
+    if (before && CARD_STATS.some((k) => Math.abs(stats[k] - before[k]) > MAX_STEP)) return json(400, { error: 'too_big' })
+    // one statement that only writes when the month has not been used yet, so two clicks at once update once
+    const out = await env.DB.prepare(
+      "INSERT INTO cyn_card_snapshots (openfront_id, month, stats, prev_stats, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(openfront_id) DO UPDATE SET month = excluded.month, stats = excluded.stats, prev_stats = cyn_card_snapshots.stats, updated_at = excluded.updated_at WHERE cyn_card_snapshots.month != excluded.month",
+    )
+      .bind(myId, month, JSON.stringify(stats), null, new Date().toISOString())
+      .run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'already_updated' })
+    return json(200, { ok: true, month, stats, prev: before })
   }
 
   if (pathname === '/api/boosters/me') {

@@ -8,6 +8,8 @@ import { REACTION_EMOJIS } from '../lib/reactions'
 import RoleFrame from './RoleFrame'
 import { RoleName } from './RoleName'
 import { CurrencyIcon } from './CurrencyIcon'
+import CardCanvas from './CardCanvas'
+import type { PlayerCardData } from '../lib/playerCard'
 import { useLanguage } from '../i18n/LanguageContext'
 import { WHATS_NEW_AFTER_UPDATE_KEY } from '../lib/useSiteUpdate'
 
@@ -100,6 +102,44 @@ function ProfileVisual({ de }: { de: boolean }) {
           </div>
         </div>
       </RoleFrame>
+    </div>
+  )
+}
+
+const SAMPLE_CARD: PlayerCardData = {
+  publicId: 'SAMPLE01',
+  name: 'Zilka',
+  nationality: 'DE',
+  overall: 89,
+  tier: 'legend',
+  title: 'ATTACKER',
+  stats: { COM: 96, INT: 90, ECO: 92, SPE: 91, DEF: 78, ATK: 86 },
+  noData: { COM: false, INT: false, ECO: false, SPE: false, DEF: false, ATK: false },
+  delta: { COM: 2, INT: 0, ECO: -3, SPE: 0, DEF: -2, ATK: 3 },
+  updatedMonth: '2026-11',
+}
+
+/** Your own card with the green and red changes of the monthly training, next to a booster pack. */
+function CardsVisual({ de }: { de: boolean }) {
+  return (
+    <div className="flex w-full max-w-sm items-center justify-center gap-4 px-2">
+      <div className="w-[44%] shrink-0">
+        <CardCanvas card={SAMPLE_CARD} deltas scale={0.7} className="w-full rounded-xl drop-shadow-[0_8px_18px_rgba(0,0,0,0.55)]" />
+      </div>
+      <div className="flex flex-1 flex-col items-center gap-2">
+        <div className="relative flex aspect-[3/4] w-full max-w-[120px] flex-col items-center justify-center rounded-xl border-2 border-gold/60 bg-gradient-to-br from-accent/60 via-base-800 to-gold/30 p-2 text-center shadow-xl">
+          <img src="/logo.png" alt="" className="h-9 w-9" />
+          <p className="mt-1 font-display text-sm font-bold tracking-widest text-gold-light">BOOSTER</p>
+          <p className="text-[8px] uppercase tracking-wide text-slate-300">{de ? '3 Karten' : '3 cards'}</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-1">
+          {(['rare', 'epic', 'ultra', 'legendary'] as const).map((r) => (
+            <span key={r} className="rounded-full border border-base-600 bg-base-900/80 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-slate-300">
+              {r}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -246,6 +286,7 @@ function Visual({ kind, de }: { kind: SlideVisual; de: boolean }): ReactNode {
   if (kind === 'site') return <SiteVisual de={de} />
   if (kind === 'profile') return <ProfileVisual de={de} />
   if (kind === 'donors') return <DonorsVisual de={de} />
+  if (kind === 'cards') return <CardsVisual de={de} />
   if (kind === 'strip') return <StripVisual de={de} />
   if (kind === 'report') return <ReportVisual />
   if (kind === 'colors') return <ColorsVisual />

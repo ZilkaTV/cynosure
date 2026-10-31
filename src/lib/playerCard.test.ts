@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeCards, percentile, tierOf } from './playerCard'
+import { applySnapshot, computeCards, percentile, tierOf } from './playerCard'
 import type { MemberStats } from './stats'
 
 const member = (id: string, over: Partial<MemberStats> = {}): MemberStats =>
@@ -106,5 +106,26 @@ describe('computeCards', () => {
   it('works without the donor list (ECO then only has the gold per minute)', () => {
     const c = computeCards(members, new Map(), false).get('AAAA1111')!
     expect(c.noData.ECO).toBe(false)
+  })
+})
+
+describe('applySnapshot', () => {
+  const base = computeCards([member('AAAA1111', { xp: 100 }), member('BBBB2222', { xp: 10 })], new Map(), false, null).get('AAAA1111')!
+  const stats = { COM: 80, INT: 70, ECO: 60, SPE: 50, DEF: 90, ATK: 75 }
+
+  it('shows the values of the update and keeps the live ones', () => {
+    const card = applySnapshot(base, { month: '2026-11', stats, prev: null, at: 'x' })
+    expect(card.stats).toEqual(stats)
+    expect(card.overall).toBe(71) // (80+70+60+50+90+75) / 6 = 70.8
+    expect(card.tier).toBe('silver')
+    expect(card.title).toBe('DEFENDER')
+    expect(card.live).toEqual(base.stats)
+    expect(card.updatedMonth).toBe('2026-11')
+    expect(card.delta).toBeUndefined() // the first update has nothing to compare with
+  })
+
+  it('knows what changed since the update before', () => {
+    const card = applySnapshot(base, { month: '2026-12', stats, prev: { COM: 78, INT: 72, ECO: 60, SPE: 50, DEF: 85, ATK: 75 }, at: 'x' })
+    expect(card.delta).toEqual({ COM: 2, INT: -2, ECO: 0, SPE: 0, DEF: 5, ATK: 0 })
   })
 })

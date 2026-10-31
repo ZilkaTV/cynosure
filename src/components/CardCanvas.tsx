@@ -10,6 +10,7 @@ export default function CardCanvas({
   look,
   label,
   scale = 1,
+  deltas,
   avatar,
   className = '',
   onDrawn,
@@ -18,6 +19,8 @@ export default function CardCanvas({
   look?: CardLook
   label?: string
   scale?: number
+  /** the green + and red - numbers of the last update */
+  deltas?: boolean
   avatar?: { src: string; fit: Fit | string | null } | null
   className?: string
   onDrawn?: () => void
@@ -29,7 +32,7 @@ export default function CardCanvas({
       await loadCardFonts()
       const assets = await loadCardAssets(card.nationality, avatar)
       if (!alive || !ref.current) return
-      drawPlayerCard(ref.current, card, assets, { look, label, scale })
+      drawPlayerCard(ref.current, card, assets, { look, label, scale, deltas })
       onDrawn?.()
     })()
     return () => {
@@ -37,6 +40,6 @@ export default function CardCanvas({
     }
     // the picture of the avatar is part of the dependencies by its address
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card, look, label, scale, avatar?.src, avatar?.fit])
+  }, [card, look, label, scale, deltas, avatar?.src, avatar?.fit])
   return <canvas ref={ref} className={className} style={{ aspectRatio: '570 / 730' }} aria-label={`${card.name}, ${card.overall}`} />
 }

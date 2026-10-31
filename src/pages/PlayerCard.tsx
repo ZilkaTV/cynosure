@@ -6,6 +6,7 @@ import { useLanguage } from '../i18n/LanguageContext'
 import { drawPlayerCard } from '../lib/drawPlayerCard'
 import { loadCardAssets, loadCardFonts } from '../lib/cardImages'
 import { CARD_STATS, TIER_FROM, type CardStat } from '../lib/playerCard'
+import { berlinMonth, nextUpdateDate, updateCardSnapshot } from '../lib/cardSnapshots'
 import { EXTRAS_CHANGED, fetchProfileExtras, profileImageSrc } from '../lib/profileExtras'
 import { useCardData } from '../lib/useCardData'
 import { useProfile } from '../lib/useProfile'
@@ -26,7 +27,9 @@ export default function PlayerCard() {
   const de = language === 'de'
   const params = useParams()
   const id = params.id ?? profile?.openfront_id
-  const { cards, loading } = useCardData()
+  const { cards, live, loading, reloadSnapshots } = useCardData()
+  const [updating, setUpdating] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   // the picture of the member; when it cannot be read the card is drawn with the silhouette
   const [picture, setPicture] = useState<{ src: string | null; fit: string | null } | undefined>(undefined)
   useEffect(() => {
@@ -54,7 +57,7 @@ export default function PlayerCard() {
       await loadCardFonts()
       const assets = await loadCardAssets(card.nationality, picture.src ? { src: picture.src, fit: picture.fit } : null)
       if (!alive || !canvas.current) return
-      drawPlayerCard(canvas.current, card, assets)
+      drawPlayerCard(canvas.current, card, assets, { deltas: true })
       setDrawn(true)
     })()
     return () => {
@@ -87,6 +90,31 @@ export default function PlayerCard() {
     }, 'image/png')
   }
   const isOwn = id === profile.openfront_id
+  const thisMonth = berlinMonth()
+  const canUpdate = isOwn && card.updatedMonth !== thisMonth
+  const liveCard = live?.get(card.publicId)
+  const nextUpdate = nextUpdateDate().toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'long' })
+
+  async function update() {
+    if (!liveCard) return
+    setUpdating(true)
+    setNote(null)
+    const problem = await updateCardSnapshot(liveCard.stats)
+    if (problem) {
+      setUpdating(false)
+      setNote(
+        problem === 'already_updated'
+          ? de ? 'Diesen Monat hast du die Karte schon aktualisiert.' : 'You already updated the card this month.'
+          : problem === 'too_big'
+            ? de ? 'Die Werte haben sich zu stark verändert. Melde dich bei einem Admin.' : 'The values changed too much. Ask an admin.'
+            : de ? 'Das hat nicht geklappt. Versuch es gleich noch einmal.' : 'That did not work. Try again in a moment.',
+      )
+      return
+    }
+    await reloadSnapshots()
+    setUpdating(false)
+    setNote(de ? 'Karte aktualisiert.' : 'Card updated.')
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -101,6 +129,21 @@ export default function PlayerCard() {
             {de ? 'Als PNG speichern' : 'Save as PNG'}
           </button>
           <p className="text-center text-[11px] text-slate-500">{de ? 'Lade das Bild herunter und teile es zum Beispiel in Discord.' : 'Download the picture and share it, for example in Discord.'}</p>
+          {isOwn && (
+            <div className="panel space-y-2 p-3 text-center">
+              <button type="button" onClick={() => void update()} disabled={!canUpdate || updating || !liveCard} className={`btn-accent w-full text-sm disabled:opacity-50 ${canUpdate && !updating ? 'glow-ready' : ''}`}>
+                {updating ? '…' : de ? 'Karte trainieren' : 'Train your card'}
+              </button>
+              <p className="text-[11px] text-slate-400">
+                {canUpdate
+                  ? card.updatedMonth
+                    ? de ? 'Du kannst deine Karte diesen Monat aktualisieren und siehst dann, was sich geändert hat.' : 'You can update your card this month and then see what changed.'
+                    : de ? 'Deine erste Aktualisierung: sie speichert die Werte, ab dann siehst du jeden Monat die Veränderung.' : 'Your first update: it saves the values, from then on you see the change every month.'
+                  : de ? `Schon aktualisiert. Die nächste Aktualisierung ist ab dem ${nextUpdate} möglich.` : `Already updated. The next update is possible from ${nextUpdate}.`}
+              </p>
+              {note && <p className="text-xs text-slate-300">{note}</p>}
+            </div>
+          )}
         </div>
         <div className="space-y-5">
           <div className="panel p-4 sm:p-5">
@@ -121,7 +164,10 @@ export default function PlayerCard() {
                       {card.noData[s] ? (de ? ' · noch keine Daten (zählt als 50)' : ' · no data yet (counts as 50)') : ''}
                     </span>
                   </span>
-                  <span className="shrink-0 font-display text-xl font-bold tabular-nums text-white">{card.stats[s]}</span>
+                  <span className="shrink-0 font-display text-xl font-bold tabular-nums text-white">
+                    {card.stats[s]}
+                    {!!card.delta?.[s] && <span className={`ml-2 text-sm ${card.delta[s] > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{card.delta[s] > 0 ? `+${card.delta[s]}` : `\u2212${Math.abs(card.delta[s])}`}</span>}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -139,7 +185,7 @@ export default function PlayerCard() {
               })}
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              {de ? 'Neue Daten (Spiele, Chat, Spenden) ändern die Karte. Mit einem eigenen Profilbild sieht sie am besten aus.' : 'New data (games, chat, donations) changes the card. It looks best with your own profile picture.'}
+              {de ? 'Einmal im Monat kannst du deine Karte trainieren: Sie übernimmt deine aktuellen Werte, und du siehst grün, was besser wurde, und rot, was schlechter wurde. Mit einem eigenen Profilbild sieht sie am besten aus.' : 'Once a month you can train your card: it takes your current values and you see in green what got better and in red what got worse. It looks best with your own profile picture.'}
             </p>
           </div>
         </div>

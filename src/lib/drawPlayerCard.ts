@@ -91,6 +91,8 @@ export interface DrawOptions {
   label?: string
   /** pixels per card unit (2 = sharp PNG, less for the small cards of a collection) */
   scale?: number
+  /** draw the green + and red - numbers of the last update under the values */
+  deltas?: boolean
 }
 
 export function drawPlayerCard(canvas: HTMLCanvasElement, card: PlayerCardData, assets: CardAssets, opts: DrawOptions = {}) {
@@ -250,6 +252,18 @@ export function drawPlayerCard(canvas: HTMLCanvasElement, card: PlayerCardData, 
     ctx.font = `800 46px ${display}`
     ctx.fillText(String(card.stats[stat]), cx, 636)
   })
+
+  // ── what changed with the last update ──
+  if (opts.deltas && card.delta) {
+    const dark = card.tier === 'legend' || opts.look === 'legend' || opts.look === 'obsidian'
+    CARD_STATS.forEach((stat, i) => {
+      const d = card.delta![stat]
+      if (!d) return
+      ctx.fillStyle = d > 0 ? (dark ? '#4ade80' : '#15803d') : dark ? '#f87171' : '#b91c1c'
+      ctx.font = `800 17px ${body}`
+      ctx.fillText(d > 0 ? `+${d}` : `\u2212${Math.abs(d)}`, 85 + i * 80, 660)
+    })
+  }
 
   // ── footer ──
   ctx.fillStyle = p.sub

@@ -19,6 +19,20 @@ export interface PlayerCardData {
   stats: Record<CardStat, number>
   /** true when a value had no data of the member at all (it then shows a neutral 50) */
   noData: Record<CardStat, boolean>
+  /** the values right now (they differ from `stats` once the card was updated and the member has played since) */
+  live?: Record<CardStat, number>
+  /** what changed with the last monthly update (+2, -1), only for a card that was updated before */
+  delta?: Record<CardStat, number>
+  /** the month (YYYY-MM) of the last update */
+  updatedMonth?: string
+}
+
+/** The card as it was at the last monthly update. */
+export interface CardSnapshot {
+  month: string
+  stats: Record<CardStat, number>
+  prev: Record<CardStat, number> | null
+  at: string
 }
 
 const FLOOR = 46
@@ -119,6 +133,15 @@ const FORMULA: Record<CardStat, Pair[]> = {
     ['kills', true],
     ['troopsOut', true],
   ],
+}
+
+/** The card with the values of its last monthly update instead of the live ones (the live values stay in `live`). */
+export function applySnapshot(card: PlayerCardData, snap: CardSnapshot): PlayerCardData {
+  const stats = { ...snap.stats }
+  const overall = Math.round(CARD_STATS.reduce((s, k) => s + stats[k], 0) / CARD_STATS.length)
+  const best = CARD_STATS.reduce((a, b) => (stats[b] > stats[a] ? b : a), CARD_STATS[0])
+  const delta = snap.prev ? (Object.fromEntries(CARD_STATS.map((k) => [k, stats[k] - snap.prev![k]])) as Record<CardStat, number>) : undefined
+  return { ...card, stats, overall, tier: tierOf(overall), title: TITLES[best], live: card.stats, delta, updatedMonth: snap.month }
 }
 
 /** The cards of all members: each value is the member's place among the members that have data for it. */

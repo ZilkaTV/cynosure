@@ -242,7 +242,7 @@
 .role-frame-bolt {
   background-image: linear-gradient(110deg, var(--c2) 0%, var(--c1) 28%, #ffffff 50%, var(--c1) 72%, var(--c2) 100%);
   background-size: 300% 100%;
-  animation: frame-shimmer 3.4s linear infinite;
+  animation: frame-shimmer 7s linear infinite;
   box-shadow: 0 0 10px color-mix(in srgb, var(--c1) 55%, transparent);
 }
 .role-frame-bolt {
@@ -272,7 +272,7 @@
   background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.6) 50%, transparent 62%);
   background-size: 300% 100%;
   background-position: 150% 0;
-  animation: frame-sheen 3.6s ease-in-out infinite;
+  animation: frame-sheen 8s ease-in-out infinite;
 }
 @keyframes frame-sheen {
   0% {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useSharedRoster } from '../lib/access'
+import { RoleName, useWinsIndex } from './RoleName'
 import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle } from '../lib/metrics'
 import { cleanDisplayName } from '../lib/displayName'
@@ -256,6 +257,7 @@ function DonorRow({ d, rank, top, name, linked, de }: { d: Donor; rank: number; 
   const total = BigInt(d.total)
   const pct = top > 0n ? Math.max(2, Number((total * 100n) / top)) : 0
   const label = cleanDisplayName(name)
+  const winsOf = useWinsIndex().byId.get(d.playerId)
   return (
     <div className="rounded-xl border border-base-700 bg-base-850/50 px-4 py-3">
       <div className="flex items-center gap-3">
@@ -265,8 +267,8 @@ function DonorRow({ d, rank, top, name, linked, de }: { d: Donor; rank: number; 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             {linked ? (
-              <Link to={`/member/${d.playerId}`} className="truncate font-semibold text-white hover:text-accent-light">
-                {label}
+              <Link to={`/member/${d.playerId}`} className="min-w-0 break-words font-semibold text-white hover:text-accent-light">
+                <RoleName wins={winsOf}>{label}</RoleName>
               </Link>
             ) : (
               <span className="truncate font-semibold text-slate-200">{label}</span>

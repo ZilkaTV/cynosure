@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { RoleName, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
@@ -143,6 +145,7 @@ function fmtDuration(s: number | null): string {
 type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Record<string, { rank: number; elo: number }>; ffa: Record<string, { rank: number; elo: number }> }
 
 function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null; names?: Map<string, string> }) {
+  const wins = useWinsIndex()
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
@@ -151,24 +154,36 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
   // A registered member who plays under another name in the queue: the public id tells who it is, so the member's own name is added.
   const real = !own && p.id ? names?.get(p.id) : undefined
   const showReal = real && cleanDisplayName(real).toLowerCase() !== cleanDisplayName(p.n).toLowerCase() ? real : null
+  // A registered member: the name opens their profile on this site (in the colours of their wins role); the id below goes to OpenFront like before.
+  const memberId = p.id && names?.has(p.id) ? p.id : null
+  const openfront = p.id ? `https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}` : null
+  const nameNode = memberId ? (
+    <Link to={`/member/${memberId}`} className="hover:text-accent-light">
+      <RoleName wins={wins.byId.get(memberId)}>{p.n}</RoleName>
+    </Link>
+  ) : openfront ? (
+    <a href={openfront} target="_blank" rel="noreferrer" className="hover:text-accent-light">
+      {p.n}
+    </a>
+  ) : (
+    p.n
+  )
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
-      {p.n}
+      {nameNode}
       {own && <span className="ml-1 text-gold-light">({own.name})</span>}
       {showReal && <span className="ml-1 text-gold-light">({cleanDisplayName(showReal)})</span>}
-      {p.id && <span className="block font-mono text-[10px] font-normal text-slate-500">({p.id})</span>}
+      {openfront && (
+        <a href={openfront} target="_blank" rel="noreferrer" className="block font-mono text-[10px] font-normal text-slate-500 hover:text-accent-light">
+          ({p.id})
+        </a>
+      )}
     </span>
   )
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
-      {p.id ? (
-        <a href={`https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}`} target="_blank" rel="noreferrer" className="hover:text-accent-light">
-          {label}
-        </a>
-      ) : (
-        label
-      )}
+      {label}
       {p.r != null && (
         <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
           #{p.r}

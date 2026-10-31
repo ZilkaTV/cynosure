@@ -100,9 +100,17 @@ export function GameActionsBar({
     const below = r.top < 70
     setPickerAt({ left: r.left, top: below ? r.bottom + 4 : r.top - 4, below })
   }
-  // The list of reactions stays open while the mouse moves away; an emote, Escape or a click anywhere else puts it away. Only one list is open at a time.
+  // The list of reactions opens on hover and closes again a moment after the mouse has left the Like button and the list (the delay lets the mouse
+  // travel from one to the other); an emote, Escape or a click anywhere else puts it away too. Only one list is open at a time.
+  const leaveTimer = useRef<number | undefined>(undefined)
+  const cancelClose = () => window.clearTimeout(leaveTimer.current)
+  const scheduleClose = () => {
+    window.clearTimeout(leaveTimer.current)
+    leaveTimer.current = window.setTimeout(() => closeMine.current(), 300)
+  }
   const openPicker = () => {
     window.clearTimeout(timer.current)
+    cancelClose()
     if (!myId) return
     if (closeOpenPicker && closeOpenPicker !== closeMine.current) closeOpenPicker()
     closeOpenPicker = closeMine.current
@@ -114,6 +122,7 @@ export function GameActionsBar({
     closeMine.current = close
     return () => {
       if (closeOpenPicker === close) closeOpenPicker = null
+      window.clearTimeout(leaveTimer.current)
     }
   }, [])
   // it follows its Like button when the page scrolls or the window changes size
@@ -183,6 +192,7 @@ export function GameActionsBar({
         type="button"
         onClick={onLike}
         onMouseEnter={openPicker}
+        onMouseLeave={scheduleClose}
         onTouchStart={() => {
           timer.current = window.setTimeout(openPicker, 450)
         }}
@@ -206,6 +216,8 @@ export function GameActionsBar({
             ref={pickerRef}
             style={{ position: 'fixed', left: pickerAt.left, top: pickerAt.top, transform: pickerAt.below ? undefined : 'translateY(-100%)' }}
             className="z-[120] flex gap-0.5 rounded-full border border-base-600 bg-base-850 p-1 shadow-xl"
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
             onClick={(e) => e.stopPropagation()}
           >
             {REACTION_EMOJIS.map((emoji) => (

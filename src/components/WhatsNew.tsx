@@ -5,6 +5,9 @@ import { Emoji } from './Emoji'
 import { winsRoleGradient } from '../lib/badges'
 import { winRateClass } from '../lib/gameRows'
 import { REACTION_EMOJIS } from '../lib/reactions'
+import RoleFrame from './RoleFrame'
+import { RoleName } from './RoleName'
+import { CurrencyIcon } from './CurrencyIcon'
 import { useLanguage } from '../i18n/LanguageContext'
 import { WHATS_NEW_AFTER_UPDATE_KEY } from '../lib/useSiteUpdate'
 
@@ -66,6 +69,64 @@ function SiteVisual({ de }: { de: boolean }) {
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/** A profile page: banner and icon in the frame of the wins role, name with the channel icons, like, comment. */
+function ProfileVisual({ de }: { de: boolean }) {
+  return (
+    <div className="w-full max-w-sm px-3 py-3">
+      <RoleFrame wins={620} radius="0.9rem" width={3} variant="banner" plain="border border-base-700 bg-base-900">
+        <div className="bg-base-900">
+          <div className="h-20 bg-gradient-to-br from-accent/50 via-base-800 to-gold/30" />
+          <div className="flex items-end gap-3 px-3 pb-3">
+            <RoleFrame wins={620} radius="0.8rem" width={3} className="-mt-8 h-16 w-16 shrink-0" plain="border-2 border-base-900 bg-base-800">
+              <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/60 to-base-800 font-display text-2xl font-bold text-white">Z</span>
+            </RoleFrame>
+            <div className="min-w-0 flex-1 pt-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gold">[CYN] {de ? 'Mitglied' : 'member'}</p>
+              <p className="flex items-center gap-1.5 font-display text-lg font-bold text-white">
+                <RoleName wins={620}>Zilka</RoleName>
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-base-600 bg-base-800 text-[10px] text-[#ff0000]">▶</span>
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-base-600 bg-base-800 text-[10px] text-[#9146ff]">◼</span>
+              </p>
+              <div className="mt-1 flex gap-1">
+                <span className={pill}>♥ 12</span>
+                <span className={pill}>💬 4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </RoleFrame>
+    </div>
+  )
+}
+
+/** Donations: the top donors with caps and plutonium, a donation quest, the bell. */
+function DonorsVisual({ de }: { de: boolean }) {
+  const row = (rank: string, name: string, v: string, c: 'soft' | 'hard') => (
+    <div className="flex items-center gap-2 border-b border-base-700/60 px-2.5 py-1.5 text-xs last:border-0">
+      <span className="w-4 font-display font-bold text-slate-500">{rank}</span>
+      <span className="flex-1 truncate font-medium text-slate-200">{name}</span>
+      <span className="inline-flex items-center gap-1 font-display font-bold tabular-nums text-gold-light">
+        {v} <CurrencyIcon currency={c} className="h-3.5 w-3.5" />
+      </span>
+    </div>
+  )
+  return (
+    <div className="w-full max-w-sm space-y-2">
+      <div className="overflow-hidden rounded-xl border border-base-700 bg-base-900/90">
+        {row('1', 'Calos', '48,200', 'soft')}
+        {row('2', 'Chuma', '31,900', 'soft')}
+        {row('3', 'Icey', '120', 'hard')}
+      </div>
+      <div className="flex items-center justify-between gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-2 text-xs">
+        <span className="text-slate-200">{de ? 'Quest: 10.000 Caps spenden' : 'Quest: donate 10,000 caps'}</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-base-950/70 px-2 py-0.5 font-semibold text-gold-light">
+          <span aria-hidden>🔔</span> 1
+        </span>
       </div>
     </div>
   )
@@ -152,8 +213,8 @@ function ColorsVisual() {
         {names.map(([n, wins]) => {
           const c = winsRoleGradient(wins) ?? ['#fff', '#fff']
           return (
-            <span key={n} className="role-name text-sm font-bold" style={{ '--c1': c[0], '--c2': c[1] } as CSSProperties}>
-              {n}
+            <span key={n} className="px-1 text-sm font-bold" style={{ '--c1': c[0], '--c2': c[1] } as CSSProperties}>
+              <RoleName wins={wins}>{n}</RoleName>
             </span>
           )
         })}
@@ -183,6 +244,8 @@ function EventVisual({ de }: { de: boolean }) {
 
 function Visual({ kind, de }: { kind: SlideVisual; de: boolean }): ReactNode {
   if (kind === 'site') return <SiteVisual de={de} />
+  if (kind === 'profile') return <ProfileVisual de={de} />
+  if (kind === 'donors') return <DonorsVisual de={de} />
   if (kind === 'strip') return <StripVisual de={de} />
   if (kind === 'report') return <ReportVisual />
   if (kind === 'colors') return <ColorsVisual />

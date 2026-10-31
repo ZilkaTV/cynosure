@@ -408,18 +408,6 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
 
         {state === 'ok' && detail && (
           <div className="p-4 sm:p-6">
-            {/* like, reactions with their numbers, comment, save, share */}
-            {gameId && (
-              <div className="mb-4 rounded-xl border border-base-700 bg-base-850/50 px-2 py-1.5">
-                <GameActionsBar
-                  gameId={gameId}
-                  memberIds={playedBy}
-                  title={`${detail.map} · ${detail.players.length}`}
-                  actions={actions}
-                  onOpenComments={() => commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                />
-              </div>
-            )}
             {/* header tiles */}
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tile label={t.gameDetail.tileDuration} value={fmtDuration(detail.durationSeconds)} />
@@ -569,7 +557,20 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
             </div>
             <p className="mt-3 hidden text-center text-xs text-slate-500 sm:block">{t.gameDetail.footerNote}</p>
 
-            <div ref={commentsRef} className="mt-6 scroll-mt-4 border-t border-base-700 pt-5">
+            {/* like, reactions with their numbers, comment, save, share: between the game and its comments */}
+            {gameId && (
+              <div className="mt-4 rounded-xl border border-base-700 bg-base-850/50 px-2 py-1.5">
+                <GameActionsBar
+                  gameId={gameId}
+                  memberIds={playedBy}
+                  title={`${detail.map} · ${detail.players.length}`}
+                  actions={actions}
+                  onOpenComments={() => commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                />
+              </div>
+            )}
+
+            <div ref={commentsRef} className="mt-4 scroll-mt-4 border-t border-base-700 pt-5">
               <GameComments gameId={detail.gameId} />
             </div>
           </div>

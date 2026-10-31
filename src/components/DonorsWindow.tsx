@@ -6,6 +6,7 @@ import { useSharedRoster } from '../lib/access'
 import { cleanDisplayName } from '../lib/displayName'
 import { useClanDonors, type Currency, type Period } from '../lib/clanDonors'
 import { RankMedal } from './Emoji'
+import { RoleName, useWinsIndex } from './RoleName'
 import { CurrencyIcon } from './CurrencyIcon'
 
 const TOP = 5
@@ -25,6 +26,7 @@ export function DonorsWindow() {
   const [period, setPeriod] = useState<Period>('all')
   const names = useMemo(() => new Map((roster?.members ?? []).map((m) => [m.publicId, m.name] as const)), [roster])
 
+  const wins = useWinsIndex()
   // only for signed-in members; nothing while loading or when the visitor may not see the list
   if (!profile || !doc) return null
   const periods: { key: Period; label: string }[] = [
@@ -73,7 +75,15 @@ export function DonorsWindow() {
                   <span className="flex w-5 shrink-0 justify-center text-xs font-bold text-slate-500">
                     <RankMedal rank={i + 1} className="h-4 w-4" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">{cleanDisplayName(names.get(d.playerId) ?? d.username ?? d.playerId)}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm font-medium text-slate-200">
+                    {names.has(d.playerId) ? (
+                      <Link to={`/member/${d.playerId}`} className="hover:text-accent-light">
+                        <RoleName wins={wins.byId.get(d.playerId)}>{cleanDisplayName(names.get(d.playerId) ?? d.playerId)}</RoleName>
+                      </Link>
+                    ) : (
+                      cleanDisplayName(d.username ?? d.playerId)
+                    )}
+                  </span>
                   <span className="shrink-0 font-display text-sm font-bold text-gold-light tabular-nums">{BigInt(d.total).toLocaleString(de ? 'de-DE' : 'en-US')}</span>
                 </div>
                 <div className="ml-7 mt-1 h-1 overflow-hidden rounded-full bg-base-700">

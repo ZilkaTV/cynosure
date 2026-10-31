@@ -6,7 +6,7 @@
 export type Localized = { de: string; en: string }
 
 /** The picture of a slide: a small mock-up of the feature, drawn in WhatsNew.tsx. */
-export type SlideVisual = 'site' | 'strip' | 'report' | 'colors' | 'event'
+export type SlideVisual = 'site' | 'profile' | 'strip' | 'report' | 'colors' | 'donors' | 'event'
 
 export interface ChangelogSlide {
   visual: SlideVisual
@@ -44,6 +44,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         text: { de: 'Neues Menü, Profil-Suchleiste, einheitliche Buttons und klare Farben auf jeder Seite.', en: 'New menu, profile search bar, matching buttons and clear colours on every page.' },
       },
       {
+        visual: 'profile',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Dein eigenes Profil', en: 'Your own profile' },
+        text: { de: 'Icon und Banner (auch GIFs), Über-mich, Likes, Pinnwand, YouTube und Twitch. Der Rahmen zeigt deine Win-Rolle.', en: 'Icon and banner (GIFs too), about me, likes, a wall, YouTube and Twitch. The frame shows your wins role.' },
+      },
+      {
         visual: 'strip',
         tag: { de: 'Neu', en: 'New' },
         title: { de: 'Reagieren, kommentieren, teilen', en: 'React, comment, share' },
@@ -60,7 +66,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         visual: 'colors',
         tag: { de: 'Look', en: 'Look' },
         title: { de: 'Dein Name leuchtet', en: 'Your name shines' },
-        text: { de: 'Mit Discord-Win-Rolle bekommt dein Name einen Farbverlauf. Siegquoten sind jetzt farbig.', en: 'With a Discord wins role your name gets a colour gradient. Win rates are coloured now.' },
+        text: { de: 'Mit Win-Rolle bekommt dein Name einen Farbverlauf: ab Silber mit Glanz, ab Diamant mit Blitzen. Siegquoten sind farbig.', en: 'With a wins role your name gets a colour gradient: shimmer from silver, lightning from diamond. Win rates are coloured.' },
+      },
+      {
+        visual: 'donors',
+        tag: { de: 'Neu', en: 'New' },
+        title: { de: 'Spenden und Quests', en: 'Donations and quests' },
+        text: { de: 'Caps und Plutonium der Spender, tägliche, wöchentliche und monatliche Spenden-Quests und das Badge Clan Spender. Die Glocke meldet Neues.', en: 'Caps and plutonium of the donors, daily, weekly and monthly donation quests and the Clan Donor badge. The bell tells you what is new.' },
+        link: { to: '/clan#spenden', label: { de: 'Zu den Spenden', en: 'To the donations' } },
       },
       {
         visual: 'event',
@@ -72,6 +85,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     more: [
       { text: { de: 'Zugang: 7 Tage ohne Sieg mit [CYN]-Tag sperren die Seite', en: 'Access: 7 days without a win with the [CYN] tag lock the site' }, important: true },
+      { text: { de: 'Benachrichtigungen mit Glocke, Zahl im Tab und Ton', en: 'Notification bell with a number in the tab and a sound' } },
+      { text: { de: 'Profil melden', en: 'Report a profile' } },
+      { text: { de: 'Namen führen zum Profil', en: 'Names lead to the profile' } },
+      { text: { de: 'Speedruns: CYN-Tag in der Start-Zeit nötig', en: 'Speedruns: CYN tag needed in the start window' } },
       { text: { de: 'Profil-Suchleiste', en: 'Profile search bar' } },
       { text: { de: 'Rolle und Titel unter deinem Namen', en: 'Role and title under your name' } },
       { text: { de: 'Ranked in Gold mit Elo', en: 'Ranked in gold with Elo' } },

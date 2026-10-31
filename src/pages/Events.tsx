@@ -10,6 +10,7 @@ import { EVENTS, type ClanEvent } from '../data/events'
 import { fetchTopClanLeaderboard } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
 import FactorWheel from '../components/FactorWheel'
+import { RoleName, useWinsIndex } from '../components/RoleName'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import {
@@ -103,12 +104,13 @@ const PLAYER_LINK_ALIASES: Record<string, string> = {
 
 function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string; nationality?: string }[] }) {
   const lookupName = PLAYER_LINK_ALIASES[name.toLowerCase()] ?? name
+  const wins = useWinsIndex()
   const match = roster.find((m) => m.name.toLowerCase() === lookupName.toLowerCase())
   if (!match) return <span>{name}</span>
   return (
     <Link to={`/member/${match.publicId}`} className="inline-flex items-center gap-1 text-accent-light hover:text-accent">
       {match.nationality && <Flag code={match.nationality} />}
-      {name}
+      <RoleName wins={wins.byId.get(match.publicId)}>{name}</RoleName>
     </Link>
   )
 }

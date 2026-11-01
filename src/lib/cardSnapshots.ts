@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { CardSnapshot, CardStat } from './playerCard'
 
 // The monthly update of a card (the Worker side is worker/boosters.js): the values of the card stay as they were until the member updates it,
@@ -27,6 +28,26 @@ export async function fetchSnapshots(): Promise<Record<string, CardSnapshot>> {
 /** Has this member updated (trained) the own card this month? For the monthly quest. */
 export async function cardTrainedThisMonth(openfrontId: string): Promise<boolean> {
   return (await fetchSnapshots())[openfrontId]?.month === berlinMonth()
+}
+
+const overallOf = (stats: Record<CardStat, number>) => Math.round(Object.values(stats).reduce((a, b) => a + b, 0) / Object.values(stats).length)
+
+let overallCache: { at: number; map: Map<string, number> } | null = null
+/** The overall rating of every member's trained card (the card as it was at the last monthly update), for the card badge; null while it loads. */
+export function useCardOverall(enabled = true): Map<string, number> | null {
+  const [map, setMap] = useState<Map<string, number> | null>(overallCache && Date.now() - overallCache.at < 300_000 ? overallCache.map : null)
+  useEffect(() => {
+    if (!enabled || (overallCache && Date.now() - overallCache.at < 300_000)) return
+    let alive = true
+    void fetchSnapshots().then((s) => {
+      overallCache = { at: Date.now(), map: new Map(Object.entries(s).map(([id, snap]) => [id, overallOf(snap.stats)])) }
+      if (alive) setMap(overallCache.map)
+    })
+    return () => {
+      alive = false
+    }
+  }, [enabled])
+  return map
 }
 
 /** Updates the own card with the values right now. Null when it worked, otherwise what is wrong. */

@@ -316,7 +316,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
             <UserIcon />
             {t.accountMenu.myProfile}
           </Link>
-          <Link to={`/member/${profile.openfront_id}#saved`} onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
+          <Link to="/saved" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-200 hover:bg-base-800">
             <BookmarkIcon />
             {t.accountMenu.savedGames}
           </Link>

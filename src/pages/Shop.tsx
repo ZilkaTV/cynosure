@@ -148,21 +148,23 @@ const HeartIcon = ({ filled, className = 'h-5 w-5' }: { filled: boolean; classNa
   </svg>
 )
 
-function ItemCard({ item, kind, preview, votes, onVote, onView, de, children }: { item: Item; kind: Kind; preview: ReactNode; votes: { count: number; mine: boolean }; onVote: () => void; onView: () => void; de: boolean; children?: ReactNode }) {
+function ItemCard({ item, kind, preview, votes, onVote, onView, de, children }: { item: Item; kind: Kind; preview: ReactNode; votes: { count: number; mine: boolean }; onVote: () => void; onView?: () => void; de: boolean; children?: ReactNode }) {
   return (
     <div className={`flex flex-col items-center gap-2 rounded-xl border bg-base-900/70 p-3 text-center ${RARITY[item.rarity ?? 'common'] ?? RARITY.common}`}>
       <div className="relative flex min-h-[11rem] w-full items-center justify-center overflow-hidden">
         {preview}
         {/* like in OpenFront: the eye opens the in-game view, the heart is the upvote, both on the picture */}
-        <button
-          type="button"
-          onClick={onView}
-          title={de ? 'Im Spiel ansehen' : 'In-game view'}
-          aria-label={de ? 'Im Spiel ansehen' : 'In-game view'}
-          className="absolute left-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-base-950/80 text-slate-200 transition-colors hover:bg-accent hover:text-white"
-        >
-          <EyeIcon className="h-4 w-4" />
-        </button>
+        {onView && (
+          <button
+            type="button"
+            onClick={onView}
+            title={de ? 'Im Spiel ansehen' : 'In-game view'}
+            aria-label={de ? 'Im Spiel ansehen' : 'In-game view'}
+            className="absolute left-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-base-950/80 text-slate-200 transition-colors hover:bg-accent hover:text-white"
+          >
+            <EyeIcon className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={onVote}
@@ -456,8 +458,12 @@ export default function Shop() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((j: Cosmetics) => {
         if (!alive) return
-        const clean = (list: Item[]) => list.filter((i) => !HIDDEN.has(i.id))
-        setData({ ...j, patterns: clean(j.patterns) as PatternItem[], flags: clean(j.flags) as ImageItem[], crowns: clean(j.crowns) as ImageItem[] })
+        // cheapest first, then alphabetical; what has no price in plutonium comes last
+        const clean = <T extends Item>(list: T[]) =>
+          list
+            .filter((i) => !HIDDEN.has(i.id))
+            .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+        setData({ ...j, patterns: clean(j.patterns), flags: clean(j.flags), crowns: clean(j.crowns) })
       })
       .catch(() => alive && setError(true))
     return () => {
@@ -584,7 +590,6 @@ export default function Shop() {
                     de={de}
                     votes={vk(kind, it.id)}
                     onVote={() => void vote(kind, it.id)}
-                    onView={() => setViewing({ kind, id: it.id, palette: 0, team: null })}
                     preview={<img src={it.url} alt={it.name} loading="lazy" decoding="async" className="max-h-44 max-w-full object-contain" />}
                   />
                 ))}

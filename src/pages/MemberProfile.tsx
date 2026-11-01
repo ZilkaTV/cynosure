@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
@@ -12,6 +12,7 @@ import { cynPlayersByGame, memberWinScore, scoredGameIdsOf } from '../lib/winSco
 import { BadgeBoard } from '../components/Badges'
 import { computeBadges } from '../lib/badges'
 import { useCardSets } from '../lib/boosters'
+import { useCardOverall } from '../lib/cardSnapshots'
 import ProfileHeader from '../components/ProfileHeader'
 import ProfileWall from '../components/ProfileWall'
 import { useProfileExtras } from '../lib/profileExtras'
@@ -31,29 +32,11 @@ import {
 } from '../lib/stats'
 import { CLAN_TAG } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
-import { unsaveGame, useArmed, useSavedGames } from '../lib/savedGames'
 import { useIsAdmin } from '../lib/useSession'
 import { isEventAdmin, addEventAdmin, removeEventAdmin } from '../lib/events'
 import { isSupporter, addSupporter, removeSupporter } from '../lib/chat'
 
 /** "Remove" that asks "Sure?" first: the second click within a few seconds removes the saved game. */
-function RemoveSaved({ label, sure, onConfirm }: { label: string; sure: string; onConfirm: () => void }) {
-  const { armed, arm, disarm } = useArmed()
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!armed) return arm()
-        disarm()
-        onConfirm()
-      }}
-      className={armed ? 'rounded-md bg-signal-red/15 px-2 py-0.5 text-xs font-semibold text-signal-red' : 'text-xs text-slate-500 hover:text-signal-red'}
-    >
-      {armed ? sure : label}
-    </button>
-  )
-}
-
 export default function MemberProfile() {
   const { id } = useParams()
   const { profile } = useProfile()
@@ -62,18 +45,10 @@ export default function MemberProfile() {
   const [allGames, setAllGames] = useState(false)
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
-  const savedGames = useSavedGames(profile?.openfront_id)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
   const donors = useClanDonors()
   const cardSets = useCardSets(!!profile)
-  // The menu entry "Saved games" links to #saved: scroll there once the profile has rendered, and again on every click while already on the profile
-  // (the link then only changes the hash, so the location is part of the dependencies).
-  const location = useLocation()
-  useEffect(() => {
-    if (location.hash !== '#saved') return
-    const timer = setTimeout(() => document.getElementById('saved')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400)
-    return () => clearTimeout(timer)
-  }, [id, data, location.hash, location.key])
+  const cardOverall = useCardOverall(!!profile)
   const viewerIsAdmin = useIsAdmin()
   const [viewedIsAdmin, setViewedIsAdmin] = useState(false)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
@@ -246,35 +221,13 @@ export default function MemberProfile() {
             </label>
           </div>
         </div>
-        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), cardSets, de: language === 'de' })} showLocked={showLocked} />
+        <BadgeBoard badges={computeBadges(m, data?.members ?? [], t, { capsDonated: capsDonatedMap(donors), cardSets, cardOverall, de: language === 'de' })} showLocked={showLocked} />
       </section>
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={t.memberProfile.statsOverviewTitle(recent.length)} />
         <ProfileStatsOverview member={m} games={recent} />
       </section>
-
-      {profile?.openfront_id === m.publicId && (
-        <section id="saved" className="scroll-mt-6">
-          <SectionHeading center eyebrow={t.memberProfile.savedEyebrow} title={t.memberProfile.savedTitle} />
-          <div className="panel divide-y divide-base-700/60">
-            {savedGames.games.length === 0 ? (
-              <p className="px-5 py-6 text-center text-sm text-slate-500">{t.memberProfile.savedEmpty}</p>
-            ) : (
-              savedGames.games.map((g) => (
-                <div key={g.game_id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
-                  <button type="button" onClick={() => setOpenGame(g.game_id)} className="font-mono text-accent-light underline-offset-2 hover:underline">
-                    {g.game_id}
-                  </button>
-                  <span className="min-w-0 flex-1 truncate text-slate-300">{g.title ?? ''}</span>
-                  <span className="text-xs text-slate-500">{new Date(g.saved_at).toLocaleDateString()}</span>
-                  <RemoveSaved label={t.memberProfile.savedRemove} sure={language === 'de' ? 'Sicher?' : 'Sure?'} onConfirm={() => void unsaveGame(profile.openfront_id, g.game_id)} />
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      )}
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={profile?.openfront_id === m.publicId ? t.memberProfile.yourLastGames : t.memberProfile.latestCynGames(CLAN_TAG)} />

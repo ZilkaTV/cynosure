@@ -225,6 +225,8 @@ export interface BadgeExtras {
   capsDonated?: ReadonlyMap<string, number>
   /** how many different cards each member has per rarity (from the booster collection) */
   cardSets?: ReadonlyMap<string, Partial<Record<Rarity, number>>> | null
+  /** the overall rating of each member's trained card (the card as of the last monthly update) */
+  cardOverall?: ReadonlyMap<string, number> | null
   de?: boolean
 }
 
@@ -251,6 +253,21 @@ function cardCollectorBadge(m: MemberStats, all: MemberStats[], extras?: BadgeEx
       ? de ? `Sammle jede Karte einmal in ${name(next)}: ${have}/${total}` : `Collect every card once in ${name(next)}: ${have}/${total}`
       : de ? `Jede Karte in ${name(RARITIES[done - 1])} gesammelt. Weiter: ${name(next)} ${have}/${total}` : `Every card collected in ${name(RARITIES[done - 1])}. Next: ${name(next)} ${have}/${total}`
   return { id: 'cardCollector', name: de ? 'Kartensammler' : 'Card Collector', kind: 'icon', icon: 'cards', tier: done > 0 ? CARD_BADGE_TIER[done - 1] : undefined, earned: done > 0, group: 'milestone', desc }
+}
+
+export const CARD_ELITE_FROM = 80
+export const CARD_LEGEND_FROM = 88
+
+/** Train your card to 80+: the overall rating of the trained card; from 88 (the legend tier of the cards) the badge gets the top colour. */
+function cardEliteBadge(m: MemberStats, extras?: BadgeExtras): Badge {
+  const de = !!extras?.de
+  const overall = extras?.cardOverall?.get(m.publicId)
+  const earned = overall != null && overall >= CARD_ELITE_FROM
+  const desc =
+    overall == null
+      ? de ? `Trainiere deine Karte auf ${CARD_ELITE_FROM}+ (Gesamtwertung).` : `Train your card to ${CARD_ELITE_FROM}+ (overall rating).`
+      : de ? `Gesamtwertung deiner trainierten Karte: ${overall}. Ziel: ${earned && overall < CARD_LEGEND_FROM ? CARD_LEGEND_FROM : CARD_ELITE_FROM}+.` : `Overall rating of your trained card: ${overall}. Goal: ${earned && overall < CARD_LEGEND_FROM ? CARD_LEGEND_FROM : CARD_ELITE_FROM}+.`
+  return { id: 'cardElite', name: de ? 'Karten-Elite' : 'Card Elite', kind: 'icon', icon: 'cards', tier: earned ? (overall >= CARD_LEGEND_FROM ? 'winsChampion' : 'diamond') : undefined, earned, group: 'milestone', desc }
 }
 
 export function computeBadges(m: MemberStats, all: MemberStats[], t: TranslationShape, extras?: BadgeExtras): Badge[] {
@@ -318,6 +335,7 @@ export function computeBadges(m: MemberStats, all: MemberStats[], t: Translation
       desc: extras?.de ? `Spende mindestens ${DONOR_BADGE_CAPS.toLocaleString('de-DE')} Caps an den Clan` : `Donate at least ${DONOR_BADGE_CAPS.toLocaleString('en-US')} caps to the clan`,
     },
     cardCollectorBadge(m, all, extras),
+    cardEliteBadge(m, extras),
     // ── monthly (losable) ──
     {
       id: 'predator',

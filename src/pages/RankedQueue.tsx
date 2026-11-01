@@ -327,7 +327,9 @@ export default function RankedQueue() {
           ))}
         </div>
 
-        <Card className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
+        {/* the alert settings and "who of CYN is in the queue" next to each other */}
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
           <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             {(['1v1', '2v2', 'ffa'] as const).map((l) => {
@@ -362,6 +364,7 @@ export default function RankedQueue() {
         </Card>
 
         <QueuePresence />
+        </div>
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>

@@ -85,7 +85,7 @@ export default {
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
     if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleMemberGames(request, env)))
     if (pathname === '/api/skin-votes') return withSecurityHeaders(await handleSkinVotes(request, env))
-    if (pathname === '/api/cosmetics') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleCosmetics(request)))
+    if (pathname === '/api/cosmetics') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleCosmetics(request, env)))
     if (pathname === '/api/clan-members') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleClanMembers(request)))
     if (pathname === '/api/verify-ownership') return withSecurityHeaders(await handleVerifyOwnership(request, env))
     if (pathname === '/api/solo-latest') return withSecurityHeaders(await edgeCached(request, ctx, 15, () => handleSoloLatest(request)))

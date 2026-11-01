@@ -26,6 +26,7 @@ export default function DonorBotCard() {
     ['donors', de ? 'Spenden' : 'Donations'],
     ['members', de ? 'Mitglieder' : 'Members'],
     ['games', de ? 'Spiele' : 'Games'],
+    ['shop', 'Skin Shop'],
   ]
 
   async function test() {

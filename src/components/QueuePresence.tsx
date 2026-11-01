@@ -30,7 +30,7 @@ export default function QueuePresence() {
   }
 
   return (
-    <Card className="mx-auto max-w-3xl space-y-3 !py-4">
+    <Card className="w-full space-y-3 !py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-semibold text-slate-200">🎮 {de ? 'Wer von CYN ist gerade in der Queue?' : 'Who of CYN is in the queue right now?'}</span>
         <span className="text-[11px] text-slate-500">{de ? `Eine Meldung gilt ${PRESENCE_MINUTES} Minuten.` : `A report counts for ${PRESENCE_MINUTES} minutes.`}</span>

@@ -20,6 +20,8 @@ const RECENT_PAGES = 4
 const CURRENCIES = ['soft', 'hard']
 const PERIODS = ['all', 'month', 'week']
 const MEMBERS_KEY = 'clan-members'
+const SHOP_KEY = 'shop-items'
+const SHOP_AFFILIATE = 'cyn'
 const GAMES_KEY = 'clan-games'
 const MEMBER_PAGES = 15
 const GAME_PAGES = 3
@@ -260,6 +262,32 @@ async function fingerprint(text) {
 }
 
 /** One run of the bot. Returns { ok, message } (null when the bot is not set up); never throws. `f` is the fetch to use (tests pass their own). */
+/** What the Skin Shop page knows about the clan store: when each item of the CYN store was first seen by the bot (see syncShop). */
+export async function getShopState(env) {
+  if (!env.HOT_DB) return null
+  return parseJson(await getBlob(env, SHOP_KEY))
+}
+
+// The CYN store: every pass the bot looks at OpenFront's public cosmetics file (patterns, flags, crowns with the clan's affiliate code) and remembers
+// when it first saw each item, so the Skin Shop page can mark new ones. The first pass only records what is there (nothing counts as new then).
+async function syncShop(env, f, shape) {
+  const res = await f(`${API}/cosmetics.json`, { headers: { Accept: 'application/json', 'User-Agent': UA } })
+  if (!res.ok) throw new Error(`shop_${res.status}`)
+  const src = await res.json()
+  const seen = {}
+  for (const [group, kind] of [['patterns', 'pattern'], ['flags', 'flag'], ['crowns', 'crown']]) {
+    for (const [id, it] of Object.entries(src[group] ?? {})) if (String(it?.affiliateCode ?? '').toLowerCase() === SHOP_AFFILIATE) seen[`${kind}:${id}`] = true
+  }
+  const before = parseJson(await getBlob(env, SHOP_KEY))
+  const now = new Date().toISOString()
+  const items = {}
+  for (const key of Object.keys(seen)) items[key] = before?.items?.[key] ?? (before ? { firstSeen: now } : { firstSeen: null })
+  const added = Object.keys(items).filter((k) => before && !before.items?.[k])
+  const removed = before ? Object.keys(before.items ?? {}).filter((k) => !items[k]) : []
+  await putBlob(env, SHOP_KEY, JSON.stringify({ items, updated_at: now, added: added.length ? added : (before?.added ?? []), addedAt: added.length ? now : (before?.addedAt ?? null), removed }))
+  shape.shop = { items: Object.keys(items).length, added: added.length, removed: removed.length }
+}
+
 export async function syncClanDonors(env, f = fetch) {
   const seed = env.OPENFRONT_BOT_COOKIE
   if (!seed || !env.HOT_DB) return null
@@ -308,6 +336,7 @@ export async function syncClanDonors(env, f = fetch) {
     })
     await part('members', () => syncMembers(env, f, jwt, shape))
     await part('games', () => syncGames(env, f, jwt, shape))
+    await part('shop', () => syncShop(env, f, shape))
     const failed = Object.values(parts).find((v) => v !== 'ok')
     await setStatus(env, !failed, failed ?? 'ok', parts, shape)
     return { ok: !failed, message: failed ?? 'ok' }

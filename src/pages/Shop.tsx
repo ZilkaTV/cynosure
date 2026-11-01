@@ -21,6 +21,8 @@ interface Item {
   price: number | null
   cyn: boolean
   paid: boolean
+  /** the CYN bot saw it in the store for the first time within the last 14 days */
+  isNew?: boolean
 }
 interface PatternItem extends Item {
   pattern: string
@@ -134,16 +136,51 @@ function Price({ item, de }: { item: Item; de: boolean }) {
   return <span className="text-xs text-slate-400">{item.paid ? (de ? 'Bezahlt im Store' : 'Paid in the store') : ''}</span>
 }
 
+const EyeIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+const HeartIcon = ({ filled, className = 'h-5 w-5' }: { filled: boolean; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 21s-6.7-4.35-9.3-8.1C.9 10.2 1.4 6.6 4.3 5 6.4 3.8 9 4.3 12 7c3-2.7 5.6-3.2 7.7-2 2.9 1.6 3.4 5.2 1.6 7.9C18.7 16.65 12 21 12 21Z" />
+  </svg>
+)
+
 function ItemCard({ item, kind, preview, votes, onVote, onView, de, children }: { item: Item; kind: Kind; preview: ReactNode; votes: { count: number; mine: boolean }; onVote: () => void; onView: () => void; de: boolean; children?: ReactNode }) {
   return (
     <div className={`flex flex-col items-center gap-2 rounded-xl border bg-base-900/70 p-3 text-center ${RARITY[item.rarity ?? 'common'] ?? RARITY.common}`}>
-      <div className="flex min-h-[11rem] w-full items-center justify-center overflow-hidden">{preview}</div>
+      <div className="relative flex min-h-[11rem] w-full items-center justify-center overflow-hidden">
+        {preview}
+        {/* like in OpenFront: the eye opens the in-game view, the heart is the upvote, both on the picture */}
+        <button
+          type="button"
+          onClick={onView}
+          title={de ? 'Im Spiel ansehen' : 'In-game view'}
+          aria-label={de ? 'Im Spiel ansehen' : 'In-game view'}
+          className="absolute left-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-base-950/80 text-slate-200 transition-colors hover:bg-accent hover:text-white"
+        >
+          <EyeIcon className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onVote}
+          aria-pressed={votes.mine}
+          title={de ? 'Lieblings-Skin: Upvote' : 'Favourite: upvote'}
+          className={`absolute right-1.5 top-1.5 flex h-8 items-center gap-1 rounded-full bg-base-950/80 px-2 text-xs font-semibold transition-colors ${votes.mine ? 'text-rose-400' : 'text-slate-200 hover:text-rose-300'}`}
+        >
+          <HeartIcon filled={votes.mine} className="h-4 w-4" />
+          {votes.count}
+        </button>
+        {item.isNew && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{de ? 'Neu' : 'New'}</span>}
+      </div>
       {children}
       <p className="w-full truncate text-sm font-semibold text-white" title={item.name}>
         {item.name.replace(/_/g, ' ')}
       </p>
       <p className="text-[11px] uppercase tracking-wide">
-        {item.rarity ?? ''} · {kind === 'pattern' ? (de ? 'Skin' : 'Skin') : kind === 'flag' ? (de ? 'Flagge' : 'Flag') : de ? 'Krone' : 'Crown'}
+        {item.rarity ?? ''} · {kind === 'pattern' ? 'Skin' : kind === 'flag' ? (de ? 'Flagge' : 'Flag') : de ? 'Krone' : 'Crown'}
       </p>
       <Price item={item} de={de} />
       {item.artist && (
@@ -151,38 +188,84 @@ function ItemCard({ item, kind, preview, votes, onVote, onView, de, children }: 
           {de ? 'von' : 'by'} {item.artist}
         </p>
       )}
-      <div className="mt-1 flex w-full items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={onVote}
-          aria-pressed={votes.mine}
-          title={de ? 'Lieblings-Skin: Upvote' : 'Favourite: upvote'}
-          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${votes.mine ? 'border-gold bg-gold/20 text-gold-light' : 'border-base-600 text-slate-300 hover:border-gold/60 hover:text-gold-light'}`}
-        >
-          ▲ {votes.count}
-        </button>
-        <button type="button" onClick={onView} className="rounded-lg border border-base-600 px-2.5 py-1 text-xs font-semibold text-slate-300 transition-colors hover:border-accent hover:text-white">
-          {de ? 'Im Spiel ansehen' : 'In-game view'}
-        </button>
-      </div>
     </div>
   )
 }
 
 interface View {
-  pattern: string | null
+  kind: Kind
+  id: string
   palette: number
-  flag: string | null
-  crown: string | null
+  /** index into TEAM_COLORS (the team colour replaces the skin's own colours), null = the skin's own colours */
+  team: number | null
 }
 
-/** "In game": a piece of map with the territory of a player (pattern), the name with the flag and the crown above it. */
+// the colours OpenFront offers to try a skin with in a team game
+const TEAM_COLORS = ['#ef4444', '#3b82f6', '#06b6d4', '#8b5cf6', '#eab308', '#f97316', '#22c55e']
+
+// The terrain of the preview: OpenFront's Australia map (500 x 375 tiles, one byte each: bit 7 land, bit 6 shore, bits 0-4 height or distance from the
+// coast), coloured like the game's light theme. The file is public/maps/australia-16x.bin (from the OpenFront repository, resources/maps/australia).
+const MAP_W = 500
+const MAP_H = 375
+let mapTerrain: Promise<{ terrain: HTMLCanvasElement; land: HTMLCanvasElement }> | null = null
+function loadMap() {
+  mapTerrain ??= fetch('/maps/australia-16x.bin')
+    .then((r) => r.arrayBuffer())
+    .then((buf) => {
+      const bytes = new Uint8Array(buf)
+      const terrain = document.createElement('canvas')
+      const land = document.createElement('canvas')
+      terrain.width = land.width = MAP_W
+      terrain.height = land.height = MAP_H
+      const tctx = terrain.getContext('2d')!
+      const lctx = land.getContext('2d')!
+      const timg = tctx.createImageData(MAP_W, MAP_H)
+      const limg = lctx.createImageData(MAP_W, MAP_H)
+      for (let i = 0; i < MAP_W * MAP_H; i++) {
+        const b = bytes[i]
+        const isLand = (b & 128) !== 0
+        const shore = (b & 64) !== 0
+        const mag = b & 31
+        let r: number, g: number, bl: number
+        if (isLand) {
+          if (shore) [r, g, bl] = [204, 203, 158]
+          else if (mag < 10) [r, g, bl] = [190, 220 - 2 * mag, 138]
+          else if (mag < 20) [r, g, bl] = [200 + 2 * (mag - 10), 183 + 2 * (mag - 10), 138 + 2 * (mag - 10)]
+          else [r, g, bl] = [230 + (mag - 20) / 2, 230 + (mag - 20) / 2, 230 + (mag - 20) / 2]
+        } else if (shore) [r, g, bl] = [100, 160, 205]
+        else {
+          const d = Math.min(mag, 10) * 2
+          ;[r, g, bl] = [70 - d, 132 - d, 180 - d]
+        }
+        timg.data.set([r, g, bl, 255], i * 4)
+        limg.data.set([255, 255, 255, isLand ? 255 : 0], i * 4)
+      }
+      tctx.putImageData(timg, 0, 0)
+      lctx.putImageData(limg, 0, 0)
+      return { terrain, land }
+    })
+  return mapTerrain
+}
+
+const loadImage = (src: string | undefined) =>
+  new Promise<HTMLImageElement | null>((resolve) => {
+    if (!src) return resolve(null)
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+
+const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+/** "In game" like OpenFront's store preview: the Australia map with the skin over all the land (or a team territory with name, flag and crown), zoom, skin and team colours. */
 function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; onClose: () => void; de: boolean }) {
   const [view, setView] = useState<View>(start)
+  const [zoom, setZoom] = useState(1)
   const ref = useRef<HTMLCanvasElement>(null)
-  const pattern = data.patterns.find((p) => p.id === view.pattern)
-  const flag = data.flags.find((f) => f.id === view.flag)
-  const crown = data.crowns.find((c) => c.id === view.crown)
+  const item: Item | undefined = (view.kind === 'pattern' ? data.patterns : view.kind === 'flag' ? data.flags : data.crowns).find((x) => x.id === view.id)
+  const pattern = view.kind === 'pattern' ? (item as PatternItem | undefined) : undefined
+  const imageUrl = view.kind !== 'pattern' ? (item as ImageItem | undefined)?.url : undefined
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -194,151 +277,157 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
     const canvas = ref.current
     if (!canvas) return
     let alive = true
-    const W = 720
-    const H = 420
+    const W = 816
+    const H = 500
     canvas.width = W
     canvas.height = H
-    const ctx = canvas.getContext('2d')!
-    const load = (src: string | undefined) =>
-      new Promise<HTMLImageElement | null>((resolve) => {
-        if (!src) return resolve(null)
-        const img = new Image()
-        img.onload = () => resolve(img)
-        img.onerror = () => resolve(null)
-        img.src = src
-      })
     void (async () => {
-      const [flagImg, crownImg] = await Promise.all([load(flag?.url), load(crown?.url)])
+      const [{ terrain, land }, img] = await Promise.all([loadMap(), loadImage(imageUrl)])
       if (!alive) return
-      // the sea and a bit of land around the territory, like the game's map
-      ctx.fillStyle = '#1b3a5c'
+      const ctx = canvas.getContext('2d')!
+      // the part of the map in view: the whole width of Australia at zoom 1 (the map has 2000 x 1500 game tiles)
+      const s = (W / 1500) * zoom // canvas pixels per game tile
+      const viewW = W / s
+      const viewH = H / s
+      const vx = Math.min(Math.max(1000 - viewW / 2, 0), 2000 - viewW)
+      const vy = Math.min(Math.max(750 - viewH / 2, 0), 1500 - viewH)
+      const mapRect = { x: -vx * s, y: -vy * s, w: 2000 * s, h: 1500 * s }
+      ctx.clearRect(0, 0, W, H)
+      ctx.imageSmoothingEnabled = true
+      ctx.fillStyle = '#4684b4'
       ctx.fillRect(0, 0, W, H)
-      ctx.fillStyle = '#2a4f78'
-      for (let i = 0; i < 90; i++) ctx.fillRect((i * 97) % W, (i * 53) % H, 22, 4)
-      // the territory: a fixed lumpy shape
-      const cx = W / 2
-      const cy = H / 2 + 20
-      ctx.beginPath()
-      const pts = 28
-      for (let i = 0; i <= pts; i++) {
-        const a = (i / pts) * Math.PI * 2
-        const r = 150 + 22 * Math.sin(a * 3 + 1) + 14 * Math.sin(a * 5 + 2) + 9 * Math.sin(a * 9)
-        const x = cx + Math.cos(a) * r * 1.35
-        const y = cy + Math.sin(a) * r * 0.72
-        if (i === 0) ctx.moveTo(x, y)
-        else ctx.lineTo(x, y)
-      }
-      ctx.closePath()
+      ctx.drawImage(terrain, mapRect.x, mapRect.y, mapRect.w, mapRect.h)
+
+      // the territory colours: the skin's palette or the chosen team colour (with black)
+      const palette = pattern ? pattern.palettes[view.palette] : undefined
+      const primary = view.team != null ? TEAM_COLORS[view.team] : (palette?.primary ?? '#ffffff')
+      const secondary = view.team != null ? '#000000' : (palette?.secondary ?? '#000000')
+      const over = document.createElement('canvas')
+      over.width = W
+      over.height = H
+      const octx = over.getContext('2d')!
       const decoded = pattern ? decodePattern(pattern.pattern) : null
-      if (decoded && pattern) {
-        const tile = patternTile(decoded, pattern.palettes[view.palette] ?? pattern.palettes[0])
-        // one game tile is 4 pixels in this view
-        const big = document.createElement('canvas')
-        big.width = tile.width * 4
-        big.height = tile.height * 4
-        const bctx = big.getContext('2d')!
-        bctx.imageSmoothingEnabled = false
-        bctx.drawImage(tile, 0, 0, big.width, big.height)
-        ctx.fillStyle = ctx.createPattern(big, 'repeat') ?? '#3b82f6'
-      } else ctx.fillStyle = '#3b82f6'
-      ctx.fill()
-      ctx.lineWidth = 3
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-      ctx.stroke()
-      // name with flag and crown
-      const name = 'Zilka'
-      ctx.font = '700 34px Inter, system-ui, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      const tw = ctx.measureText(name).width
-      const flagW = flagImg ? 44 : 0
-      const total = tw + (flagW ? flagW + 10 : 0)
-      const left = cx - total / 2
-      if (flagImg) {
-        const fh = (flagW * flagImg.naturalHeight) / flagImg.naturalWidth
-        ctx.drawImage(flagImg, left, cy - fh / 2, flagW, fh)
+      if (decoded) {
+        const tile = patternTile(decoded, { name: 'x', primary, secondary })
+        const scaled = document.createElement('canvas')
+        scaled.width = Math.max(1, Math.round(tile.width * s))
+        scaled.height = Math.max(1, Math.round(tile.height * s))
+        const sctx = scaled.getContext('2d')!
+        sctx.imageSmoothingEnabled = false
+        sctx.drawImage(tile, 0, 0, scaled.width, scaled.height)
+        const pat = octx.createPattern(scaled, 'repeat')
+        if (pat) {
+          pat.setTransform(new DOMMatrix().translate(mapRect.x % scaled.width, mapRect.y % scaled.height))
+          octx.fillStyle = pat
+          octx.fillRect(0, 0, W, H)
+        }
+      } else {
+        // flags and crowns: a team territory around the middle of the map
+        octx.fillStyle = primary
+        octx.beginPath()
+        octx.ellipse(mapRect.x + 1000 * s, mapRect.y + 760 * s, 330 * s, 240 * s, 0, 0, Math.PI * 2)
+        octx.fill()
       }
-      ctx.lineWidth = 6
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)'
-      ctx.fillStyle = '#ffffff'
-      const textX = left + (flagW ? flagW + 10 : 0) + tw / 2
-      ctx.strokeText(name, textX, cy)
-      ctx.fillText(name, textX, cy)
-      if (crownImg) {
-        const cw = 70
-        const ch = (cw * crownImg.naturalHeight) / crownImg.naturalWidth
-        ctx.drawImage(crownImg, cx - cw / 2, cy - 28 - ch, cw, ch)
+      octx.globalCompositeOperation = 'destination-in'
+      octx.drawImage(land, mapRect.x, mapRect.y, mapRect.w, mapRect.h)
+      ctx.globalAlpha = 0.62
+      ctx.drawImage(over, 0, 0)
+      ctx.globalAlpha = 1
+
+      if (!decoded) {
+        // the player's name with the flag in front and the crown above, like in the game
+        const k = Math.min(zoom, 1.6)
+        const cx = mapRect.x + 1000 * s
+        const cy = mapRect.y + 760 * s
+        const name = 'Zilka'
+        ctx.font = `700 ${Math.round(34 * k)}px Inter, system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const tw = ctx.measureText(name).width
+        const fl = view.kind === 'flag' ? img : null
+        const flagW = fl ? 46 * k : 0
+        const left = cx - (tw + (flagW ? flagW + 10 : 0)) / 2
+        if (fl) ctx.drawImage(fl, left, cy - (flagW * fl.naturalHeight) / fl.naturalWidth / 2, flagW, (flagW * fl.naturalHeight) / fl.naturalWidth)
+        const tx = left + (flagW ? flagW + 10 : 0) + tw / 2
+        ctx.lineWidth = 6
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)'
+        ctx.fillStyle = '#ffffff'
+        ctx.strokeText(name, tx, cy)
+        ctx.fillText(name, tx, cy)
+        if (view.kind === 'crown' && img) {
+          const cw = 72 * k
+          const ch = (cw * img.naturalHeight) / img.naturalWidth
+          ctx.drawImage(img, cx - cw / 2, cy - 26 * k - ch, cw, ch)
+        }
       }
     })()
     return () => {
       alive = false
     }
-  }, [pattern, flag, crown, view.palette])
+  }, [pattern, imageUrl, view.palette, view.team, view.kind, zoom])
 
-  const sel = 'rounded-lg border border-base-600 bg-base-800 px-2 py-1.5 text-sm text-white'
+  const palettes = pattern?.palettes ?? []
+  const swatch = (a: string, b: string) => ({ background: `linear-gradient(135deg, ${a} 50%, ${b} 50%)` })
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/85 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={de ? 'Im Spiel ansehen' : 'In-game view'}>
-      <div className="w-full max-w-3xl space-y-3 rounded-2xl border border-accent/40 bg-base-900 p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-xl font-bold text-white">{de ? 'So sieht es im Spiel aus' : 'How it looks in game'}</h2>
-          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-base-800 hover:text-white" aria-label={de ? 'Schließen' : 'Close'}>
-            ✕
-          </button>
+      <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/10 bg-[#171717] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="font-display text-xl font-bold text-white">{titleCase(item?.name ?? view.id)}</h2>
+            {item?.rarity && <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${RARITY[item.rarity] ?? RARITY.common}`}>{item.rarity}</span>}
+            {item?.artist && (
+              <span className="text-xs text-slate-400">
+                {de ? 'Künstler' : 'Artist'}: <b className="text-slate-200">{item.artist}</b>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-white/10">
+              <button type="button" onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="−">
+                −
+              </button>
+              <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="+">
+                +
+              </button>
+            </div>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-slate-200 hover:bg-white/20" aria-label={de ? 'Schließen' : 'Close'}>
+              ✕
+            </button>
+          </div>
         </div>
-        <canvas ref={ref} className="w-full rounded-xl border border-base-700" style={{ aspectRatio: '720 / 420' }} />
-        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-          <label className="flex items-center gap-2">
-            {de ? 'Skin' : 'Skin'}
-            <select
-              className={sel}
-              value={view.pattern ?? ''}
-              onChange={(e) => setView({ ...view, pattern: e.target.value || null, palette: 0 })}
-            >
-              <option value="">{de ? 'ohne' : 'none'}</option>
-              {data.patterns.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
-          {pattern && pattern.palettes.length > 1 && (
-            <span className="flex gap-1">
-              {pattern.palettes.map((p, n) => (
+        <div className="p-4">
+          <canvas ref={ref} className="w-full rounded-xl" style={{ aspectRatio: '816 / 500' }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/10 px-5 py-3 text-sm text-slate-200">
+          {pattern && (
+            <div className="flex items-center gap-3">
+              <span className="font-semibold">{de ? 'Skin-Farben' : 'Skin colors'}</span>
+              {palettes.map((p, n) => (
                 <button
                   key={p.name}
                   type="button"
-                  onClick={() => setView({ ...view, palette: n })}
+                  onClick={() => setView({ ...view, palette: n, team: null })}
                   title={p.name.replace(/_/g, ' ')}
                   aria-label={p.name}
-                  className={`h-5 w-5 rounded-full border-2 ${n === view.palette ? 'border-white' : 'border-base-600'}`}
-                  style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }}
+                  className={`h-8 w-8 rounded-full border-2 ${view.team == null && n === view.palette ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-white/20'}`}
+                  style={swatch(p.primary, p.secondary)}
                 />
               ))}
-            </span>
+            </div>
           )}
-          <label className="flex items-center gap-2">
-            {de ? 'Flagge' : 'Flag'}
-            <select className={sel} value={view.flag ?? ''} onChange={(e) => setView({ ...view, flag: e.target.value || null })}>
-              <option value="">{de ? 'ohne' : 'none'}</option>
-              {data.flags.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2">
-            {de ? 'Krone' : 'Crown'}
-            <select className={sel} value={view.crown ?? ''} onChange={(e) => setView({ ...view, crown: e.target.value || null })}>
-              <option value="">{de ? 'ohne' : 'none'}</option>
-              {data.crowns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex items-center gap-3">
+            <span className="font-semibold">{de ? 'Team-Farben' : 'Team colors'}</span>
+            {TEAM_COLORS.map((c, n) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setView({ ...view, team: view.team === n ? null : n })}
+                aria-label={c}
+                className={`h-8 w-8 rounded-full border-2 ${view.team === n ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-white/20'}`}
+                style={swatch(c, '#000000')}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -428,18 +517,13 @@ export default function Shop() {
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="max-w-2xl text-sm text-slate-400">
           {de
-            ? 'Alle Skin-Muster, Flaggen und Kronen des CYN-Stores auf einen Blick. Stimm für deine Lieblinge ab und sieh dir an, wie sie im Spiel aussehen. Kaufen kannst du sie direkt im Store von OpenFront.'
-            : 'All skin patterns, flags and crowns of the CYN store at a glance. Upvote your favourites and see how they look in game. You buy them in OpenFront’s own store.'}
+            ? 'Alle Skin-Muster, Flaggen und Kronen des CYN-Stores auf einen Blick. Stimm mit dem Herz für deine Lieblinge ab und sieh dir mit dem Auge an, wie sie im Spiel aussehen. Kaufen kannst du sie direkt im Store von OpenFront.'
+            : 'All skin patterns, flags and crowns of the CYN store at a glance. Upvote your favourites with the heart and see how they look in game with the eye. You buy them in OpenFront’s own store.'}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <a href={storeUrl} target="_blank" rel="noopener noreferrer" className="btn-gold">
             {de ? 'Zum Store' : 'Open the store'} ↗
           </a>
-          {data && (
-            <button type="button" onClick={() => setViewing({ pattern: data.patterns[0]?.id ?? null, palette: 0, flag: data.flags[0]?.id ?? null, crown: data.crowns[0]?.id ?? null })} className="btn-ghost">
-              {de ? 'Im Spiel ansehen' : 'In-game view'}
-            </button>
-          )}
         </div>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
           <input type="checkbox" checked={scope === 'all'} onChange={(e) => setScope(e.target.checked ? 'all' : 'cyn')} className="accent-[#8b5cf6]" />
@@ -470,7 +554,7 @@ export default function Shop() {
                       de={de}
                       votes={vk('pattern', it.id)}
                       onVote={() => void vote('pattern', it.id)}
-                      onView={() => setViewing({ pattern: it.id, palette: at, flag: null, crown: null })}
+                      onView={() => setViewing({ kind: 'pattern', id: it.id, palette: at, team: null })}
                       preview={<PatternSwatch pattern={it.pattern} palette={it.palettes[at]} />}
                     >
                       {it.palettes.length > 1 && (
@@ -500,7 +584,7 @@ export default function Shop() {
                     de={de}
                     votes={vk(kind, it.id)}
                     onVote={() => void vote(kind, it.id)}
-                    onView={() => setViewing({ pattern: null, palette: 0, flag: kind === 'flag' ? it.id : null, crown: kind === 'crown' ? it.id : null })}
+                    onView={() => setViewing({ kind, id: it.id, palette: 0, team: null })}
                     preview={<img src={it.url} alt={it.name} loading="lazy" decoding="async" className="max-h-44 max-w-full object-contain" />}
                   />
                 ))}

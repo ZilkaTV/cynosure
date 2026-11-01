@@ -300,10 +300,10 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
       ctx.fillRect(0, 0, W, H)
       ctx.drawImage(terrain, mapRect.x, mapRect.y, mapRect.w, mapRect.h)
 
-      // the territory colours: the skin's palette or the chosen team colour (with black)
+      // the territory colours: the skin's palette; a team colour always replaces the upper (primary) colour only, the second colour stays the skin's
       const palette = pattern ? pattern.palettes[view.palette] : undefined
       const primary = view.team != null ? TEAM_COLORS[view.team] : (palette?.primary ?? '#ffffff')
-      const secondary = view.team != null ? '#000000' : (palette?.secondary ?? '#000000')
+      const secondary = palette?.secondary ?? '#000000'
       const over = document.createElement('canvas')
       over.width = W
       over.height = H
@@ -426,7 +426,7 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
                 onClick={() => setView({ ...view, team: view.team === n ? null : n })}
                 aria-label={c}
                 className={`h-8 w-8 rounded-full border-2 ${view.team === n ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-white/20'}`}
-                style={swatch(c, '#000000')}
+                style={swatch(c, palettes[view.palette]?.secondary ?? '#000000')}
               />
             ))}
           </div>

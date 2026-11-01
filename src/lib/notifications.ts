@@ -7,6 +7,8 @@ import { QUESTS, fetchClaimsToday, periodKey, questPeriod } from './quests'
 import { fetchReactedToday } from './reactions'
 import { donationTotals, useClanDonors } from './clanDonors'
 import { currentBoosterState } from './boosters'
+import { cardTrainedThisMonth } from './cardSnapshots'
+import { fetchReferral } from './referrals'
 import { isCalm } from './calm'
 
 // The notification bell (like on Facebook): who reacted to my games, who commented under them or answered my comments, who liked my profile
@@ -192,9 +194,11 @@ export function useNotifications() {
     lastLoad.current = Date.now()
     setNotices(await fetchNotices(me, gameKey ? gameKey.split(',') : [], isAdmin))
     if (member && roster) {
-      const [claims, reacted, booster] = await Promise.all([fetchClaimsToday(me), fetchReactedToday(me), currentBoosterState()])
-      const ctx = { reactedToday: reacted, donated: donationTotals(donors, me), openedBooster: !!booster?.openedToday }
+      const [claims, reacted, booster, trained, referral] = await Promise.all([fetchClaimsToday(me), fetchReactedToday(me), currentBoosterState(), cardTrainedThisMonth(me), fetchReferral()])
+      const ctx = { reactedToday: reacted, donated: donationTotals(donors, me), openedBooster: !!booster?.openedToday, cardTrained: trained }
       const ready = QUESTS.filter((q) => q.check(member, roster.coopByGame, ctx) && !claims.has(q.id)).map((q) => ({ id: q.id, key: `${q.id}:${periodKey(questPeriod(q))}` }))
+      // a friend who named me: the quest "Invite a friend" is ready (one booster per friend, the key changes with the number waiting)
+      if ((referral?.pending ?? 0) > 0) ready.unshift({ id: 'refer_friend', key: `refer_friend:${referral!.total}:${referral!.pending}` })
       setClaimable(ready)
       publishQuestsReady(ready.length)
     }

@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS cyn_members (
   avatar_fit TEXT,
   banner_fit TEXT,
   yt_channel TEXT,
-  twitch_channel TEXT
+  twitch_channel TEXT,
+  discord_avatar TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cyn_speedruns (
@@ -338,6 +339,22 @@ CREATE TABLE IF NOT EXISTS cyn_card_snapshots (
   prev_stats TEXT,                       -- the update before, for the green + and red - numbers
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+-- "I am in the ranked queue right now" (Live Ranked Queue page): a row counts for 20 minutes
+CREATE TABLE IF NOT EXISTS cyn_queue_presence (
+  openfront_id TEXT PRIMARY KEY,
+  ladder TEXT NOT NULL,
+  since TEXT NOT NULL
+);
+
+-- "Invite a friend": a member names once who brought them; that member collects one booster per named friend
+CREATE TABLE IF NOT EXISTS cyn_referrals (
+  referred_id TEXT PRIMARY KEY,
+  referrer_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  claimed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS cyn_referrals_referrer ON cyn_referrals (referrer_id, claimed_at);
 
 -- Cards a member shows on the own profile (picked in the collection): at most 8 per member
 CREATE TABLE IF NOT EXISTS cyn_profile_cards (

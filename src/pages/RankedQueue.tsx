@@ -4,6 +4,7 @@ import { RoleName, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
+import QueuePresence from '../components/QueuePresence'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
@@ -359,6 +360,8 @@ export default function RankedQueue() {
           {alert.permission === 'denied' && alert.ladders.length > 0 && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
           <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
         </Card>
+
+        <QueuePresence />
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>

@@ -9,6 +9,9 @@
 //   POST /api/boosters/requests/handle    admins: credit (grant) or reject one: { id, action }
 //   GET  /api/boosters/featured?id=ID     the cards a member shows on the own profile, in the order they were picked
 //   POST /api/boosters/feature            the member picks or removes a card of the own collection for the profile: { card_id, rarity, on }
+//   GET  /api/referrals/me                who named me as the one who brought them (once), who I named, and how many boosters wait for me
+//   POST /api/referrals/set               name the member who brought me to the site: { referrer_id } (only once, not myself)
+//   POST /api/referrals/claim             collect the booster for one named friend (+1 booster on hand)
 //   GET  /api/boosters/summary            how many different cards each member has per rarity (the Card Collector badge), cached for 5 minutes
 //   GET  /api/card-social                 how many comments and reactions each member wrote (the COM value of the card)
 //   GET  /api/cards/snapshots             the cards as they were at the last monthly update, of all members
@@ -275,6 +278,45 @@ export async function handleBoosters(request, env) {
     } catch {
       return json(200, await compute())
     }
+  }
+
+  if (pathname === '/api/referrals/me') {
+    if (request.method !== 'GET') return json(405, { error: 'method_not_allowed' })
+    const mine = await env.DB.prepare('SELECT r.referrer_id, m.in_game_name AS name FROM cyn_referrals r LEFT JOIN cyn_members m ON m.openfront_id = r.referrer_id WHERE r.referred_id = ?').bind(myId).first()
+    const counts = await env.DB.prepare('SELECT COUNT(*) AS total, SUM(CASE WHEN claimed_at IS NULL THEN 1 ELSE 0 END) AS pending FROM cyn_referrals WHERE referrer_id = ?').bind(myId).first()
+    return json(200, { referrer: mine ? { id: mine.referrer_id, name: mine.name ?? null } : null, total: Number(counts?.total ?? 0), pending: Number(counts?.pending ?? 0) })
+  }
+
+  if (pathname === '/api/referrals/set') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return json(400, { error: 'bad_json' })
+    }
+    const referrer = typeof body?.referrer_id === 'string' ? body.referrer_id : ''
+    if (!ID.test(referrer)) return json(400, { error: 'bad_request' })
+    if (referrer === myId) return json(400, { error: 'not_yourself' })
+    if (!(await env.DB.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ? AND user_id IS NOT NULL').bind(referrer).first())) return json(404, { error: 'unknown_member' })
+    if (await env.DB.prepare('SELECT 1 AS x FROM cyn_referrals WHERE referred_id = ?').bind(myId).first()) return json(409, { error: 'already_set' })
+    // two members naming each other would just give each other boosters
+    if (await env.DB.prepare('SELECT 1 AS x FROM cyn_referrals WHERE referred_id = ? AND referrer_id = ?').bind(referrer, myId).first()) return json(409, { error: 'circular' })
+    const out = await env.DB.prepare('INSERT OR IGNORE INTO cyn_referrals (referred_id, referrer_id, created_at) VALUES (?, ?, ?)').bind(myId, referrer, new Date().toISOString()).run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'already_set' })
+    return json(200, { ok: true })
+  }
+
+  if (pathname === '/api/referrals/claim') {
+    if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' })
+    if (!siteOriginAllowed(request, env)) return json(403, { error: 'bad_origin' })
+    // one conditional update takes exactly one waiting friend, so two clicks at once cannot take it twice
+    const out = await env.DB.prepare('UPDATE cyn_referrals SET claimed_at = ? WHERE referred_id = (SELECT referred_id FROM cyn_referrals WHERE referrer_id = ? AND claimed_at IS NULL ORDER BY created_at LIMIT 1) AND claimed_at IS NULL').bind(new Date().toISOString(), myId).run()
+    if (out.meta?.changes !== 1) return json(409, { error: 'nothing_to_claim' })
+    await env.DB.prepare('INSERT INTO cyn_booster_state (openfront_id, extra) VALUES (?, ?) ON CONFLICT(openfront_id) DO UPDATE SET extra = MIN(?, extra + 1)').bind(myId, 1, MAX_ON_HAND).run()
+    const left = await env.DB.prepare('SELECT COUNT(*) AS n FROM cyn_referrals WHERE referrer_id = ? AND claimed_at IS NULL').bind(myId).first()
+    return json(200, { ok: true, pending: Number(left?.n ?? 0), state: publicState(await stateOf(env, myId)) })
   }
 
   if (pathname === '/api/boosters/featured') {

@@ -25,7 +25,8 @@ export const USERS_META = {
       "avatar_fit",
       "banner_fit",
       "yt_channel",
-      "twitch_channel"
+      "twitch_channel",
+      "discord_avatar"
     ]
   },
   "cyn_speedruns": {

@@ -324,7 +324,7 @@ function sqlValue(v) {
 }
 
 // Profile extras (worker/d1/006-profiles.sql): only returned when asked for by name, so "*" keeps working on a database that does not have them yet.
-const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit', 'yt_channel', 'twitch_channel'])
+const OPTIONAL_COLS = new Set(['avatar_url', 'banner_url', 'bio', 'avatar_fit', 'banner_fit', 'yt_channel', 'twitch_channel', 'discord_avatar'])
 
 function colList(meta, wanted) {
   if (!wanted || wanted === '*') return meta.cols.filter((c) => !OPTIONAL_COLS.has(c))
@@ -474,6 +474,7 @@ async function runWrite(c, q, meta, rules) {
         delete row.banner_fit
         delete row.yt_channel
         delete row.twitch_channel
+        delete row.discord_avatar
         delete row.created_at
         row.updated_at = nowIso()
         if (membersExisting && !membersExisting.user_id) row.created_at = nowIso()
@@ -549,6 +550,7 @@ async function runWrite(c, q, meta, rules) {
       delete patch.claimed
       delete patch.avatar_url
       delete patch.banner_url
+      delete patch.discord_avatar
       if ('bio' in patch) patch.bio = cleanBio(patch.bio)
       if ('avatar_fit' in patch) patch.avatar_fit = cleanFit(patch.avatar_fit)
       if ('banner_fit' in patch) patch.banner_fit = cleanFit(patch.banner_fit)

@@ -107,7 +107,7 @@ export default function NotificationBell() {
     if (!fresh) return
     const q = QUESTS.find((x) => x.id === fresh.detail)
     const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined
-    setToast({ id: fresh.id, name: qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? '' })
+    setToast({ id: fresh.id, name: fresh.detail === 'refer_friend' ? (de ? 'Freunde werben' : 'Invite a friend') : (qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? '') })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questKey, loaded])
   useEffect(() => {
@@ -174,7 +174,7 @@ export default function NotificationBell() {
       case 'quest': {
         const q = QUESTS.find((x) => x.id === n.detail)
         const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined
-        const name = qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? ''
+        const name = n.detail === 'refer_friend' ? (de ? 'Freunde werben' : 'Invite a friend') : (qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? '')
         return de ? `Quest zum Abholen: ${name}` : `Quest ready to collect: ${name}`
       }
       case 'report':

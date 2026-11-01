@@ -15,6 +15,7 @@ import {
   fetchProfileLikes,
   parseFit,
   profileImageSrc,
+  avatarSrc,
   removeProfileMedia,
   saveBio,
   saveFits,
@@ -312,7 +313,8 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
   const [draft, setDraft] = useState<{ avatar: Fit; banner: Fit } | null>(null)
   const names = useMemo(() => new Map((roster?.members ?? []).map((x) => [x.publicId, x.name] as const)), [roster])
   const banner = profileImageSrc(extras?.banner_url)
-  const avatar = profileImageSrc(extras?.avatar_url)
+  // the own upload, otherwise the Discord icon
+  const avatar = avatarSrc(m.publicId, extras?.avatar_url, extras?.discord_avatar)
   const level = xpProgress(m.xp ?? 0).level
   const savedFits = { avatar: parseFit(extras?.avatar_fit) ?? DEFAULT_FIT, banner: parseFit(extras?.banner_fit) ?? DEFAULT_FIT }
   const editingNow = isOwn && editing

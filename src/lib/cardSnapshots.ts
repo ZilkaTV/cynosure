@@ -24,6 +24,11 @@ export async function fetchSnapshots(): Promise<Record<string, CardSnapshot>> {
   }
 }
 
+/** Has this member updated (trained) the own card this month? For the monthly quest. */
+export async function cardTrainedThisMonth(openfrontId: string): Promise<boolean> {
+  return (await fetchSnapshots())[openfrontId]?.month === berlinMonth()
+}
+
 /** Updates the own card with the values right now. Null when it worked, otherwise what is wrong. */
 export async function updateCardSnapshot(stats: Record<CardStat, number>): Promise<string | null> {
   try {

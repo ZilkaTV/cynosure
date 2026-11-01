@@ -14,6 +14,7 @@ import { Card, SectionHeading, Spinner } from '../components/ui'
 import ChannelSettings from '../components/ChannelSettings'
 import LanguageSetting from '../components/LanguageSetting'
 import CalmSetting from '../components/CalmSetting'
+import ReferralSetting from '../components/ReferralSetting'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia', 'Oceania']
@@ -293,6 +294,7 @@ export default function Register() {
 
       <LanguageSetting />
       <CalmSetting />
+      <ReferralSetting />
 
       {session && (
         <p className="mb-4 text-sm text-signal-green">{t.register.signedInAs(discordDisplayName(session))}</p>

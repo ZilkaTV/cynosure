@@ -41,6 +41,8 @@ export interface QuestContext {
   reactedToday: boolean
   /** opened a card booster today (UTC); missing = not known */
   openedBooster?: boolean
+  /** The own card was trained (updated) this month; missing = not known */
+  cardTrained?: boolean
   /** What the member donated to the clan (from the stored donor list; see src/lib/clanDonors.ts). */
   donated: DonationTotals
 }
@@ -55,6 +57,8 @@ export interface QuestDef {
   period?: QuestPeriod
   xp: number
   check: (m: MemberStats, coopByGame: Record<string, boolean>, ctx: QuestContext) => boolean
+  /** How far the member is (shown as a bar), for quests that count something. */
+  progress?: (ctx: QuestContext) => { value: number; target: number }
 }
 
 export const QUESTS: QuestDef[] = [
@@ -124,6 +128,7 @@ export const QUESTS: QuestDef[] = [
     de: { name: 'Offene Hand', description: 'Spende heute 100 Caps an den Clan' },
     xp: 15,
     check: (_m, _coop, ctx) => ctx.donated.capsDay >= 100,
+    progress: (ctx) => ({ value: ctx.donated.capsDay, target: 100 }),
   },
   {
     id: 'donate_caps_week',
@@ -133,6 +138,7 @@ export const QUESTS: QuestDef[] = [
     period: 'week',
     xp: 60,
     check: (_m, _coop, ctx) => ctx.donated.capsWeek >= 10_000,
+    progress: (ctx) => ({ value: ctx.donated.capsWeek, target: 10_000 }),
   },
   {
     id: 'donate_plutonium_month',
@@ -142,6 +148,16 @@ export const QUESTS: QuestDef[] = [
     period: 'month',
     xp: 100,
     check: (_m, _coop, ctx) => ctx.donated.plutoniumMonth >= 100,
+    progress: (ctx) => ({ value: ctx.donated.plutoniumMonth, target: 100 }),
+  },
+  {
+    id: 'train_card',
+    name: 'Train Your Card',
+    description: 'Train your player card this month',
+    de: { name: 'Karte trainieren', description: 'Trainiere diesen Monat deine Spielerkarte' },
+    period: 'month',
+    xp: 30,
+    check: (_m, _coop, ctx) => !!ctx.cardTrained,
   },
 ]
 

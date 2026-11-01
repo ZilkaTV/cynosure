@@ -13,6 +13,8 @@ export interface ProfileExtras {
   banner_fit: string | null
   yt_channel: string | null
   twitch_channel: string | null
+  /** hash of the Discord icon (kept by the role sync); the default picture while no own one is uploaded */
+  discord_avatar?: string | null
 }
 
 /** How a picture sits in its frame: x / y = how much of the overflow is cut off left / top (0-100 %), zoom 1 = the picture just covers the frame. */
@@ -57,9 +59,19 @@ export function profileImageSrc(url: string | null | undefined): string | null {
   return url && /^\/api\/screenshots\/profiles\/[A-Za-z0-9_.-]+\.(png|jpg|webp|gif)$/.test(url) ? url : null
 }
 
+/** The picture of a member: the own upload, otherwise the Discord icon (served by /api/avatars, the hash in the address only renews the browser's copy). */
+export function avatarSrc(id: string, ownUrl: string | null | undefined, discordHash: string | null | undefined): string | null {
+  return profileImageSrc(ownUrl) ?? (discordHash && /^[a-z0-9_]{6,64}$/.test(discordHash) ? `/api/avatars/${encodeURIComponent(id)}?v=${discordHash}` : null)
+}
+
 export async function fetchProfileExtras(id: string): Promise<ProfileExtras | null> {
+  // discord_avatar is asked for separately: a database that does not have the column yet must not break the rest
   const { data, error } = await db.from('cyn_members').select('avatar_url, banner_url, bio, avatar_fit, banner_fit, yt_channel, twitch_channel').eq('openfront_id', id).maybeSingle()
   if (error) return null
+  if (data) {
+    const d = await db.from('cyn_members').select('discord_avatar').eq('openfront_id', id).maybeSingle()
+    ;(data as ProfileExtras).discord_avatar = d.error ? null : ((d.data as { discord_avatar: string | null } | null)?.discord_avatar ?? null)
+  }
   return (data as ProfileExtras | null) ?? { avatar_url: null, banner_url: null, bio: null, avatar_fit: null, banner_fit: null, yt_channel: null, twitch_channel: null }
 }
 
@@ -67,11 +79,16 @@ export async function fetchProfileExtras(id: string): Promise<ProfileExtras | nu
 export async function fetchAvatars(ids: string[]): Promise<Record<string, { src: string; fit: Fit | null }>> {
   const out: Record<string, { src: string; fit: Fit | null }> = {}
   for (let i = 0; i < ids.length; i += 80) {
-    const { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit').in('openfront_id', ids.slice(i, i + 80))
+    const chunk = ids.slice(i, i + 80)
+    const { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit').in('openfront_id', chunk)
     if (error || !data) continue
+    const discord = new Map<string, string | null>()
+    const d = await db.from('cyn_members').select('openfront_id, discord_avatar').in('openfront_id', chunk)
+    if (!d.error) for (const r of (d.data ?? []) as { openfront_id: string; discord_avatar: string | null }[]) discord.set(r.openfront_id, r.discord_avatar)
     for (const r of data as { openfront_id: string; avatar_url: string | null; avatar_fit: string | null }[]) {
-      const src = profileImageSrc(r.avatar_url)
-      if (src) out[r.openfront_id] = { src, fit: parseFit(r.avatar_fit) }
+      const src = avatarSrc(r.openfront_id, r.avatar_url, discord.get(r.openfront_id))
+      // the fit (placement) belongs to an own upload only
+      if (src) out[r.openfront_id] = { src, fit: profileImageSrc(r.avatar_url) ? parseFit(r.avatar_fit) : null }
     }
   }
   return out

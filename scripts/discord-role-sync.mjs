@@ -214,6 +214,23 @@ async function fetchClanIds() {
   return ids.size >= 20 && (!total || ids.size >= total) ? ids : null
 }
 
+// Keeps cyn_members.discord_avatar (the hash of the Discord icon) in step with Discord. Isolated: a database without that column (not migrated yet) or any
+// other problem here must never stop the role sync.
+async function syncAvatars(avatarByMember) {
+  if (avatarByMember.size === 0) return 0
+  const { data, error } = await usersDb.from('cyn_members').select('openfront_id, discord_avatar')
+  if (error) throw error
+  const before = new Map((data ?? []).map((r) => [r.openfront_id, r.discord_avatar ?? null]))
+  let changed = 0
+  for (const [id, hash] of avatarByMember) {
+    if (!before.has(id) || before.get(id) === hash) continue
+    const { error: upErr } = await usersDb.from('cyn_members').update({ discord_avatar: hash }).eq('openfront_id', id)
+    if (upErr) throw upErr
+    changed++
+  }
+  return changed
+}
+
 async function main() {
   const botToken = process.env.DISCORD_BOT_TOKEN
   const roleIdsJson = process.env.DISCORD_WINS_ROLE_IDS
@@ -275,6 +292,8 @@ async function main() {
   })
   console.log(clanIds ? `clan list: ${clanIds.size} members` : 'clan list: not available, nobody is excluded')
   let leftClan = 0
+  // The Discord icon of each member (the hash), for the default profile picture; written after the loop, see syncAvatars.
+  const avatarByMember = new Map()
   // Filled in during the per-member loop below (currentRoles is already
   // fetched there for the wins-tier sync) - reused after the loop by the
   // Flash/Hero/Master of Cyn sections so they don't need their own
@@ -351,6 +370,7 @@ async function main() {
       }
       if (!memberRes.ok) throw new Error(`GET member ${m.discord_user_id}: ${memberRes.status}`)
       const memberData = await memberRes.json()
+      avatarByMember.set(m.openfront_id, memberData.user?.avatar ?? null)
       const currentRoles = new Set(memberData.roles ?? [])
       rolesByMember.set(m.openfront_id, currentRoles)
       discordStatus.set(m.openfront_id, { in_guild: true, has_cyn_role: currentRoles.has(CYN_ROLE_ID) })
@@ -556,7 +576,11 @@ Can you beat that? [cynclan.com](https://cynclan.com/)
     }
   }
 
-  console.log(JSON.stringify({ checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, leftClan, updated, unchanged, failed }, null, 2))
+  const avatarsChanged = await syncAvatars(avatarByMember).catch((err) => {
+    console.error('discord avatars not synced (non-fatal):', err?.message ?? err)
+    return -1
+  })
+  console.log(JSON.stringify({ avatarsChanged, checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, leftClan, updated, unchanged, failed }, null, 2))
 }
 
 main().catch((err) => {

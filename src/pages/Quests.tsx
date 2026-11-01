@@ -7,7 +7,9 @@ import { QUESTS, fetchClaimsToday, claimQuest, nextResetAt, periodKey, questPeri
 import { donationTotals, useClanDonors } from '../lib/clanDonors'
 import { fetchReactedToday } from '../lib/reactions'
 import { currentBoosterState } from '../lib/boosters'
+import { cardTrainedThisMonth } from '../lib/cardSnapshots'
 import { QUESTS_CHANGED } from '../lib/notifications'
+import { claimReferral, useReferral } from '../lib/referrals'
 import { xpProgress, titleForLevel, MAX_LEVEL } from '../lib/levels'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -19,6 +21,7 @@ export default function Quests() {
   const [claimedToday, setClaimedToday] = useState<Set<string>>(new Set())
   const [reactedToday, setReactedToday] = useState(false)
   const [openedBooster, setOpenedBooster] = useState(false)
+  const [cardTrained, setCardTrained] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
   const countdowns = { day: useCountdown(nextResetAt('day')), week: useCountdown(nextResetAt('week')), month: useCountdown(nextResetAt('month')) }
@@ -31,6 +34,7 @@ export default function Quests() {
       fetchClaimsToday(profile.openfront_id).then(setClaimedToday)
       fetchReactedToday(profile.openfront_id).then(setReactedToday)
       void currentBoosterState().then((b) => setOpenedBooster(!!b?.openedToday))
+      void cardTrainedThisMonth(profile.openfront_id).then(setCardTrained)
     }
   }, [profile, data])
 
@@ -40,7 +44,7 @@ export default function Quests() {
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
   const donated = donationTotals(donors, me.publicId)
-  const ctx = { reactedToday, donated, openedBooster }
+  const ctx = { reactedToday, donated, openedBooster, cardTrained }
 
   async function onClaim(questId: string) {
     if (!profile || !me) return
@@ -84,6 +88,8 @@ export default function Quests() {
         </Card>
       </section>
 
+      <ReferralQuest />
+
       {(['day', 'week', 'month'] as const).map((period) => {
         const list = QUESTS.filter((q) => questPeriod(q) === period)
         const heading = {
@@ -97,7 +103,7 @@ export default function Quests() {
             {period === 'day' && <LastUpdated ts={lastUpdated} onRefresh={refresh} refreshing={refreshing} />}
             <div className="space-y-3">
               {list.map((q) => (
-                <QuestRow key={q.id} q={q} done={q.check(me, coop, ctx)} claimed={claimedToday.has(q.id)} busy={busyId === q.id} message={msg[q.id]} resetIn={countdowns[period]} onClaim={() => onClaim(q.id)} donorsUpdated={donors?.updated_at} donorsHaveRecent={donated.hasRecent} />
+                <QuestRow key={q.id} q={q} done={q.check(me, coop, ctx)} claimed={claimedToday.has(q.id)} busy={busyId === q.id} message={msg[q.id]} resetIn={countdowns[period]} onClaim={() => onClaim(q.id)} donorsUpdated={donors?.updated_at} donorsHaveRecent={donated.hasRecent} progress={q.progress && donated.hasRecent ? q.progress(ctx) : undefined} />
               ))}
             </div>
             {period === 'day' && <p className="text-center text-xs text-slate-500">{t.quests.footerNote(MAX_LEVEL)}</p>}
@@ -108,7 +114,54 @@ export default function Quests() {
   )
 }
 
-function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpdated, donorsHaveRecent }: { q: QuestDef; done: boolean; claimed: boolean; busy: boolean; message?: string; resetIn: string | null; onClaim: () => void; donorsUpdated?: string; donorsHaveRecent: boolean }) {
+/** "Invite a friend": a member who named you as the one who brought them gives you a booster (instead of XP); the quest comes back for the next friend. */
+function ReferralQuest() {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const { state } = useReferral(true)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const pending = state?.pending ?? 0
+  async function claim() {
+    setBusy(true)
+    setMessage(null)
+    const problem = await claimReferral()
+    setBusy(false)
+    setMessage(problem ? (de ? 'Das hat nicht geklappt. Versuch es gleich noch einmal.' : 'That did not work. Try again in a moment.') : de ? '+1 Booster!' : '+1 booster!')
+  }
+  return (
+    <section className="space-y-4">
+      <SectionHeading center eyebrow={de ? 'Neu' : 'New'} title={de ? 'Freunde werben' : 'Invite a friend'} />
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold text-white">{de ? 'Hol einen Freund auf die Seite' : 'Bring a friend to the site'}</p>
+          <p className="text-sm text-slate-400">
+            {de
+              ? 'Nennt dich ein neues Mitglied in den Einstellungen als den, der es geworben hat, bekommst du dafür einen Booster statt XP. Danach ist die Quest wieder frei für den nächsten Freund.'
+              : 'When a new member names you in the settings as the one who brought them, you get a booster instead of XP. Then the quest is open again for the next friend.'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {de ? `Bisher geworben: ${state?.total ?? 0}` : `Friends brought so far: ${state?.total ?? 0}`}
+            {pending > 0 && <span className="ml-2 font-semibold text-signal-green">{de ? `${pending} Booster zum Abholen` : `${pending} booster(s) to collect`}</span>}
+          </p>
+          {message && <p className="mt-1 text-xs text-slate-500">{message}</p>}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-display text-sm font-bold text-gold-light">+1 Booster</span>
+          <button
+            disabled={pending === 0 || busy}
+            onClick={() => void claim()}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${pending > 0 ? 'bg-signal-green/15 text-signal-green hover:bg-signal-green/25' : 'cursor-not-allowed bg-base-700 text-slate-500'}`}
+          >
+            {busy ? '…' : pending > 0 ? (de ? 'Abholen' : 'Claim') : de ? 'Noch nicht' : 'Not yet'}
+          </button>
+        </div>
+      </Card>
+    </section>
+  )
+}
+
+function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpdated, donorsHaveRecent, progress }: { progress?: { value: number; target: number }; q: QuestDef; done: boolean; claimed: boolean; busy: boolean; message?: string; resetIn: string | null; onClaim: () => void; donorsUpdated?: string; donorsHaveRecent: boolean }) {
   const { t, language } = useLanguage()
   const de = language === 'de'
   const qt = t.quests.items[q.id as keyof typeof t.quests.items]
@@ -130,6 +183,16 @@ function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpd
                 ? 'Noch keine Spenden-Liste mit einzelnen Spenden vorhanden: ein Admin muss sie erst aktualisieren.'
                 : 'There is no donor list with single donations yet: an admin has to refresh it first.'}
           </p>
+        )}
+        {progress && !claimed && (
+          <div className="mt-2 flex max-w-xs items-center gap-2" title={`${progress.value} / ${progress.target}`}>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-base-700" role="progressbar" aria-valuemin={0} aria-valuemax={progress.target} aria-valuenow={Math.min(progress.value, progress.target)}>
+              <div className={`h-full rounded-full transition-all ${progress.value >= progress.target ? 'bg-signal-green' : 'bg-gradient-to-r from-accent to-gold'}`} style={{ width: `${Math.min(100, (progress.value / progress.target) * 100)}%` }} />
+            </div>
+            <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-300">
+              {Math.min(progress.value, progress.target).toLocaleString(de ? 'de-DE' : 'en-GB')} / {progress.target.toLocaleString(de ? 'de-DE' : 'en-GB')}
+            </span>
+          </div>
         )}
         {message && <p className="mt-1 text-xs text-slate-500">{message}</p>}
         {claimed && <p className="mt-1 text-xs text-slate-500">{resetIn ? t.quests.resetsIn(resetIn) : t.quests.resetsInAMoment}</p>}

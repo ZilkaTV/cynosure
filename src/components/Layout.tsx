@@ -12,7 +12,7 @@ import { useQuestsReady } from '../lib/notifications'
 import RoleFrame from './RoleFrame'
 import { RoleName, useWinsIndex } from './RoleName'
 import FitImage from './FitImage'
-import { parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
+import { avatarSrc, parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
 import { initialOf } from '../lib/displayName'
 import { CHANGELOG } from '../data/changelog'
 import { EVENTS } from '../data/events'
@@ -274,8 +274,8 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
       >
         {/* the member's own icon (or the first letter of the name; a clan tag in front is ignored) instead of the gear */}
         <RoleFrame wins={myWins} radius="0.6rem" width={2} className="h-9 w-9 shrink-0" plain="border border-base-600 bg-base-800">
-          {profileImageSrc(extras?.avatar_url) ? (
-            <FitImage src={profileImageSrc(extras?.avatar_url)!} fit={parseFit(extras?.avatar_fit)} />
+          {avatarSrc(profile.openfront_id, extras?.avatar_url, extras?.discord_avatar) ? (
+            <FitImage src={avatarSrc(profile.openfront_id, extras?.avatar_url, extras?.discord_avatar)!} fit={profileImageSrc(extras?.avatar_url) ? parseFit(extras?.avatar_fit) : null} />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/50 to-base-800 font-display text-lg font-bold text-white">{initialOf(profile.in_game_name)}</span>
           )}

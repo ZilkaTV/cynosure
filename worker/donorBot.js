@@ -270,8 +270,8 @@ export async function getShopState(env) {
 
 // The CYN store: every pass the bot looks at OpenFront's public cosmetics file (patterns, flags, crowns with the clan's affiliate code) and remembers
 // when it first saw each item, so the Skin Shop page can mark new ones. The first pass only records what is there (nothing counts as new then).
-async function syncShop(env, f, shape) {
-  const res = await f(`${API}/cosmetics.json`, { headers: { Accept: 'application/json', 'User-Agent': UA } })
+async function syncShop(env, f, jwt, shape) {
+  const res = await f(`${API}/cosmetics.json`, { headers: { Accept: 'application/json', 'User-Agent': UA, Authorization: `Bearer ${jwt}` } })
   if (!res.ok) throw new Error(`shop_${res.status}`)
   const src = await res.json()
   const seen = {}
@@ -336,8 +336,9 @@ export async function syncClanDonors(env, f = fetch) {
     })
     await part('members', () => syncMembers(env, f, jwt, shape))
     await part('games', () => syncGames(env, f, jwt, shape))
-    await part('shop', () => syncShop(env, f, shape))
-    const failed = Object.values(parts).find((v) => v !== 'ok')
+    await part('shop', () => syncShop(env, f, jwt, shape))
+    // the shop check is a bonus: when it fails the status line stays green (the card still shows its own part)
+    const failed = Object.entries(parts).find(([k, v]) => k !== 'shop' && v !== 'ok')?.[1]
     await setStatus(env, !failed, failed ?? 'ok', parts, shape)
     return { ok: !failed, message: failed ?? 'ok' }
   } catch (err) {

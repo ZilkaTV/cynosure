@@ -129,7 +129,7 @@ describe('the CYN bot: clan members and games', () => {
     expect(games.games[0]).toMatchObject({ gameId: 'gameAAA1', result: 'victory', rankedType: null, totalPlayers: 40 })
     expect(games.games[0].clanPlayers).toEqual([{ publicId: 'AAAA1111', username: 'CYN Calos', won: true }])
     const status = JSON.parse(db.rows.get('donor-bot-status')!)
-    expect(status.parts).toEqual({ donors: 'ok', members: 'ok', games: 'ok' })
+    expect(status.parts).toEqual({ donors: 'ok', members: 'ok', games: 'ok', shop: 'ok' })
     expect(status.shape.members).toContain('publicId')
   })
 

@@ -62,6 +62,12 @@ function latestModeGames(members: MemberStats[], month: string, isMode: (g: Play
 // 'ffa' and 'team' are the monthly game tables; '1v1', '2v2' and 'rffa' are the ranked (Elo) boards.
 type Variant = 'ffa' | 'team' | '1v1' | '2v2' | 'rffa'
 
+/** The place on OpenFront's global top-100 board, or a note that the member is not among the 100. */
+function GlobalRank({ rank, de }: { rank: number | null | undefined; de: boolean }) {
+  if (rank == null) return <span className="text-xs text-slate-500">{de ? 'nicht in den Top 100' : 'not in the top 100'}</span>
+  return <span className="font-display font-bold tabular-nums text-gold-light">#{rank}</span>
+}
+
 function fmtGold(n: number | null): string {
   if (n == null) return '-'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -237,7 +243,8 @@ function LatestGamesSection({
 
 export default function Monthly({ variant }: { variant: Variant }) {
   const { profile } = useProfile()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const de = language === 'de'
   const { data, loading, refreshing, error, lastUpdated, refresh } = useRoster(!!profile)
   const [month, setMonth] = useState<string>(currentMonthKey())
   // Stored standing of the chosen month in OpenFront's FFA ranking (rank, Elo, peak, first Elo of the month).
@@ -465,11 +472,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
             <>
               <div className="panel overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(4)]:hidden max-sm:[&_td:nth-child(4)]:hidden">
+                  <table className="sticky-cols w-full min-w-[520px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(5)]:hidden max-sm:[&_td:nth-child(5)]:hidden">
                     <thead>
                       <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                        <th className="px-3 py-3 text-left font-semibold">{de ? 'Rang global' : 'Global rank'}</th>
                         <SortTh label="FFA Elo" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.home.colPeak} sortKey="peak" active={sortKey === 'peak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colEloDelta} sortKey="delta" active={sortKey === 'delta'} dir={sortDir} onClick={onSortClick} />
@@ -481,6 +489,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                           <td className="px-3 py-3 font-display font-bold text-slate-500">{rank ?? i + 1}</td>
                           <td className="px-3 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                          <td className="px-3 py-3"><GlobalRank rank={rank} de={de} /></td>
                           <td className="px-3 py-3 text-right font-display text-lg font-bold tabular-nums text-gold-light">{elo}</td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-400">{peak}</td>
                           <td className={`px-3 py-3 text-right tabular-nums ${delta == null || delta === 0 ? 'text-slate-500' : delta > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{delta == null ? '-' : delta > 0 ? `+${delta}` : delta}</td>
@@ -652,11 +661,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+5):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+5):nth-child(-n+6)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <th className="px-4 py-3 text-left font-semibold">{de ? 'Rang global' : 'Global rank'}</th>
                       <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
@@ -669,6 +679,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                        <td className="px-4 py-3"><GlobalRank rank={m.rank1v1} de={de} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>
@@ -703,11 +714,12 @@ export default function Monthly({ variant }: { variant: Variant }) {
           return (
             <div className="panel overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+4):nth-child(-n+5)]:hidden max-sm:[&_td:nth-child(n+4):nth-child(-n+5)]:hidden">
+                <table className="sticky-cols w-full min-w-[600px] text-sm max-sm:min-w-0 max-sm:[&_th:nth-child(n+5):nth-child(-n+6)]:hidden max-sm:[&_td:nth-child(n+5):nth-child(-n+6)]:hidden">
                   <thead>
                     <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                       <th className="px-4 py-3 text-left font-semibold">{t.monthly.colName}</th>
+                      <th className="px-4 py-3 text-left font-semibold">{de ? 'Rang global' : 'Global rank'}</th>
                       <SortTh label={t.monthly.colWins} sortKey="wins" active={sortKey === 'wins'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colLosses} sortKey="losses" active={sortKey === 'losses'} dir={sortDir} onClick={onSortClick} />
                       <SortTh label={t.monthly.colWR} sortKey="winRatePct" active={sortKey === 'winRatePct'} dir={sortDir} onClick={onSortClick} />
@@ -720,6 +732,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                       <tr key={m.publicId} className="border-b border-base-700/50 last:border-0 hover:bg-base-800/40">
                         <td className="px-4 py-3 font-display font-bold text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3"><MemberNameLink publicId={m.publicId} name={m.name} nationality={m.nationality} /></td>
+                        <td className="px-4 py-3"><GlobalRank rank={m.rank2v2} de={de} /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-signal-green">{b.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-400">{b.losses}</td>
                         <td className={`px-4 py-3 text-right tabular-nums ${winRateClass(wr)}`}>{wr}%</td>

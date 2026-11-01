@@ -800,8 +800,8 @@ async function main() {
   const OLD_SHAPE_BACKFILL_PER_RUN = 150
   let oldShapeFixed = 0
   try {
-    // In D1 this scans every stored detail (json_extract), so it only runs once an hour; the old-shape backlog is long cleared.
-    const oldShapeRows = new Date().getUTCMinutes() < 10
+    // In D1 this scans every stored detail (json_extract, about 16,000 rows read each time), so it only runs once a day (03:00 UTC); the old-shape backlog is long cleared.
+    const oldShapeRows = new Date().getUTCHours() === 3 && new Date().getUTCMinutes() < 10
       ? (await hotListOldShapeDetailIds(OLD_SHAPE_BACKFILL_PER_RUN)).map((game_id) => ({ game_id }))
       : []
     for (const row of oldShapeRows ?? []) {

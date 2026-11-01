@@ -154,10 +154,10 @@ const SUPABASE_PAGE_SIZE = 1000
  * member per day, forever), so a fixed row cap was always going to break
  * again eventually even at a higher limit.
  */
-async function fetchAllRows(supabase, table, columns) {
+async function fetchAllRows(supabase, table, columns, filter = (q) => q) {
   const rows = []
   for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + SUPABASE_PAGE_SIZE - 1)
+    const { data, error } = await filter(supabase.from(table).select(columns)).range(from, from + SUPABASE_PAGE_SIZE - 1)
     if (error) throw error
     rows.push(...(data ?? []))
     if (!data || data.length < SUPABASE_PAGE_SIZE) break
@@ -317,7 +317,10 @@ async function main() {
   // "today" is already the authoritative, freshly computed value - reading
   // that instead of an all-time max is what actually reflects reality once
   // a bad value like that exists anywhere in the table's history.
-  const snapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, snapshot_date, all_wins')
+  // Only the last two weeks (refresh-details.mjs writes a row for every member every day): the whole table is read again and again on D1's free plan
+  // (rows read per day are limited). A member without a row in that time is looked up alone further down.
+  const recentFrom = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)
+  const snapshotRows = await fetchAllRows(supabase, 'cyn_member_snapshots', 'openfront_id, snapshot_date, all_wins', (q) => q.gte('snapshot_date', recentFrom))
   const latestWinsByMember = new Map()
   for (const row of [...(snapshotRows ?? [])].sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))) {
     latestWinsByMember.set(row.openfront_id, row.all_wins)
@@ -357,6 +360,10 @@ async function main() {
       // somebody who is not in the clan any more counts as 0 wins here: no wins-tier role (an existing one is taken away below)
       const inClan = !clanIds || clanIds.has(m.openfront_id)
       if (!inClan) leftClan++
+      if (inClan && !latestWinsByMember.has(m.openfront_id)) {
+        const { data: older } = await supabase.from('cyn_member_snapshots').select('all_wins').eq('openfront_id', m.openfront_id).order('snapshot_date', { ascending: false }).limit(1)
+        if (older?.[0]) latestWinsByMember.set(m.openfront_id, older[0].all_wins)
+      }
       const allWins = inClan ? (latestWinsByMember.get(m.openfront_id) ?? 0) : 0
       const targetTier = tierFromWins(allWins)
       const targetRoleId = targetTier ? roleIdByTier[targetTier] : null

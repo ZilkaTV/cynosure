@@ -177,8 +177,8 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
         <BlockLabel>{de ? 'Preis' : 'Prize'}</BlockLabel>
         <div className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
           {de
-            ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu Plutonium.'
-            : 'An exclusive skin that will exist only 3 times in the world, plus Plutonium.'}
+            ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu 1.000 Plutonium pro Gewinner.'
+            : 'An exclusive skin that will exist only 3 times in the world, plus 1,000 Plutonium per winner.'}
         </div>
         {event.skinImages && (
           <div className="mt-3">

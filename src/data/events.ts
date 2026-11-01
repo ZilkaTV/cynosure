@@ -41,8 +41,8 @@ const EVENT_LIST: ClanEvent[] = [
     goalRank: 7,
     windowFrom: '2026-10-31T23:00:00Z', // 1 Nov 00:00 German time
     windowTo: '2026-12-31T22:59:59Z', // 31 Dec 23:59:59 German time
-    description: 'Reach rank 7 on the clan leaderboard. Everybody who plays team games with another CYN member can win an exclusive skin that exists only 3 times in the world, plus Plutonium.',
-    reward: 'An exclusive skin that exists only 3 times in the world, plus Plutonium.',
+    description: 'Reach rank 7 on the clan leaderboard. Everybody who plays team games with another CYN member can win an exclusive skin that exists only 3 times in the world, plus 1,000 Plutonium per winner.',
+    reward: 'An exclusive skin that exists only 3 times in the world, plus 1,000 Plutonium per winner.',
     skinImages: [
       { url: '/events/cyn-hero-ffa.webp', label: 'FFA mode' },
       { url: '/events/cyn-hero-team.webp', label: 'Team mode' },

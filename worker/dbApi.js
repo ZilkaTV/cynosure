@@ -235,7 +235,9 @@ const RULES = {
     update: ADMIN,
   },
   cyn_inner_circle: { read: PUBLIC },
-  cyn_boosters: { read: PUBLIC }, // members who boost the Discord server (scripts/discord-role-sync.mjs): permanent access
+  // members who boost the Discord server (scripts/discord-role-sync.mjs adds / removes the rows): permanent access. Discord does not say how many
+  // boosts a member has, so an admin sets the number (Factor Wheel page).
+  cyn_boosters: { read: PUBLIC, update: ADMIN },
   cyn_game_nights: {
     read: SIGNED_IN,
     insert: async (row, c) => {
@@ -544,6 +546,10 @@ async function runWrite(c, q, meta, rules) {
   if (op === 'update') {
     const patch = cleanRow(meta, q.values)
     delete patch.user_id
+    if (q.table === 'cyn_boosters') {
+      delete patch.openfront_id
+      if ('boosts' in patch) patch.boosts = Math.max(1, Math.min(10, Math.round(Number(patch.boosts)) || 1))
+    }
     if (!c.service && q.table === 'cyn_members') {
       delete patch.created_at
       delete patch.openfront_id

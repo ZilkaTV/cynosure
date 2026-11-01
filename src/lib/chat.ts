@@ -51,6 +51,13 @@ export async function fetchBoostCounts(): Promise<Map<string, number>> {
   return out
 }
 
+/** An admin sets how many boosts a member has (Discord only says that somebody boosts, not how often). */
+export async function setBoostCount(openfrontId: string, boosts: number): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.from('cyn_boosters').update({ boosts }).eq('openfront_id', openfrontId)
+  return !error
+}
+
 /** Every member's chat message count at once - for buildRoster's up-front pass (the Chatter badge). */
 export async function fetchAllChatMessageCounts(): Promise<Record<string, number>> {
   if (!supabase) return {}

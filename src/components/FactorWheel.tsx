@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSharedRoster } from '../lib/access'
-import { fetchBoostCounts } from '../lib/chat'
+import { fetchBoostCounts, setBoostCount } from '../lib/chat'
 import { computeRaffleEntries, type RaffleEntry } from '../lib/raffle'
 import { useIsAdmin } from '../lib/useSession'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -192,6 +192,21 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
     )
   }
 
+  const [boostError, setBoostError] = useState(false)
+  async function changeBoosts(id: string, next: number) {
+    if (!isAdmin || !boosts || next < 1 || next > 10) return
+    setBoostError(false)
+    if (await setBoostCount(id, next)) setBoosts(new Map(boosts).set(id, next))
+    else setBoostError(true)
+  }
+  const boosters = useMemo(
+    () =>
+      [...(boosts ?? new Map<string, number>())]
+        .map(([id, n]) => ({ id, n, name: roster?.members.find((m) => m.publicId === id)?.name ?? id }))
+        .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)),
+    [boosts, roster],
+  )
+
   const rows = showAll ? live : live.slice(0, TOP_ROWS)
   const colorOf = (id: string) => COLORS[live.findIndex((e) => e.id === id) % COLORS.length]
 
@@ -300,6 +315,33 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+          {isAdmin && boosters.length > 0 && (
+            <div className="rounded-xl border border-base-700 bg-base-850/40 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{de ? 'Server-Boosts (nur Admins)' : 'Server boosts (admins only)'}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {de
+                  ? 'Discord meldet nur, dass jemand boostet, nicht wie oft. Hier die Anzahl einstellen: jeder Boost gibt +10 Basisgewicht.'
+                  : 'Discord only says that somebody boosts, not how often. Set the number here: every boost gives +10 base weight.'}
+              </p>
+              <ul className="mt-2 space-y-1">
+                {boosters.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate text-slate-200">{cleanDisplayName(b.name)}</span>
+                    <span className="flex items-center gap-2">
+                      <button type="button" className="btn-ghost !px-2.5 !py-0.5" aria-label={de ? 'Weniger' : 'Fewer'} disabled={b.n <= 1} onClick={() => void changeBoosts(b.id, b.n - 1)}>
+                        −
+                      </button>
+                      <span className="w-6 text-center font-bold tabular-nums text-white">{b.n}</span>
+                      <button type="button" className="btn-ghost !px-2.5 !py-0.5" aria-label={de ? 'Mehr' : 'More'} disabled={b.n >= 10} onClick={() => void changeBoosts(b.id, b.n + 1)}>
+                        +
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {boostError && <p className="mt-2 text-xs text-red-400">{de ? 'Speichern hat nicht geklappt.' : 'Saving failed.'}</p>}
             </div>
           )}
           {live.length > TOP_ROWS && (

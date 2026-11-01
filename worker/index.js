@@ -31,6 +31,7 @@ import { handleBoosters } from './boosters.js'
 import { handleAvatar } from './avatars.js'
 import { handleQueuePresence } from './queuePresence.js'
 import { handleCosmetics } from './cosmetics.js'
+import { handleSkinVotes } from './skinVotes.js'
 import { syncClanDonors } from './donorBot.js'
 import { handleProfileMedia } from './profileMedia.js'
 import { handleSpeedrunSubmit, handleSpeedrunPending, hasPendingSpeedruns, startVerifyWorkflow } from './speedrun.js'
@@ -83,6 +84,7 @@ export default {
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
     if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleMemberGames(request, env)))
+    if (pathname === '/api/skin-votes') return withSecurityHeaders(await handleSkinVotes(request, env))
     if (pathname === '/api/cosmetics') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleCosmetics(request)))
     if (pathname === '/api/clan-members') return withSecurityHeaders(await edgeCached(request, ctx, 3600, () => handleClanMembers(request)))
     if (pathname === '/api/verify-ownership') return withSecurityHeaders(await handleVerifyOwnership(request, env))

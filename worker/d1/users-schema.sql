@@ -340,6 +340,15 @@ CREATE TABLE IF NOT EXISTS cyn_card_snapshots (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Upvotes for the skins, flags and crowns of the Skin Shop page (one per member and item)
+CREATE TABLE IF NOT EXISTS cyn_skin_votes (
+  voter_id TEXT NOT NULL,
+  item_key TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (voter_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS cyn_skin_votes_item ON cyn_skin_votes (item_key);
+
 -- "I am in the ranked queue right now" (Live Ranked Queue page): a row counts for 20 minutes
 CREATE TABLE IF NOT EXISTS cyn_queue_presence (
   openfront_id TEXT PRIMARY KEY,

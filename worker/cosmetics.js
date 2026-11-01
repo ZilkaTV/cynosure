@@ -3,6 +3,8 @@
 // The browser may not read OpenFront's file itself (it only allows openfront.io), so the Worker does; the router puts the Cache API in front (1 hour).
 const AFFILIATE = 'cyn'
 const SOURCE = 'https://api.openfront.io/cosmetics.json'
+// items that are in OpenFront's file but are not in the store (they cannot be bought)
+const HIDDEN = new Set(['cyn_2'])
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -13,7 +15,7 @@ export async function handleCosmetics(request) {
     const res = await fetch(SOURCE, { headers: { Accept: 'application/json', 'User-Agent': 'CynClanBot/1.0 (+https://cynclan.com)' }, signal: AbortSignal.timeout(15000) })
     if (!res.ok) throw new Error(`openfront ${res.status}`)
     const src = await res.json()
-    const keep = (it) => all || String(it?.affiliateCode ?? '').toLowerCase() === AFFILIATE
+    const keep = (it) => !HIDDEN.has(it?.name) && (all || String(it?.affiliateCode ?? '').toLowerCase() === AFFILIATE)
     const palettes = src.colorPalettes ?? {}
     const colors = (name) => (palettes[name] ? { name, primary: palettes[name].primaryColor, secondary: palettes[name].secondaryColor } : null)
     const base = (id, it) => ({ id, name: it.name ?? id, rarity: it.rarity ?? null, artist: it.artist ?? null, price: it.priceHard ?? null, cyn: String(it.affiliateCode ?? '').toLowerCase() === AFFILIATE, paid: !!it.product })

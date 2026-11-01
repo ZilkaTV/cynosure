@@ -73,6 +73,9 @@ function decodePattern(b64: string): Decoded | null {
   }
 }
 
+// the colours OpenFront offers to try a skin with in a team game (a team colour replaces the upper colour of the skin)
+const TEAM_COLORS = ['#ef4444', '#3b82f6', '#06b6d4', '#8b5cf6', '#eab308', '#f97316', '#22c55e']
+
 const hexRgb = (c: string) => [parseInt(c.slice(1, 3), 16) || 0, parseInt(c.slice(3, 5), 16) || 0, parseInt(c.slice(5, 7), 16) || 0]
 
 /** One full repeat of the pattern (game tiles, one pixel each) in the two colours, as a canvas. */
@@ -103,7 +106,7 @@ function patternTile(p: Decoded, palette: Palette | undefined): HTMLCanvasElemen
 }
 
 /** The pattern zoomed out: at least two full repeats side by side, so the whole motif can be seen. */
-function PatternSwatch({ pattern, palette, size = 176 }: { pattern: string; palette: Palette | undefined; size?: number }) {
+function PatternSwatch({ pattern, palette, team = null, size = 176 }: { pattern: string; palette: Palette | undefined; team?: number | null; size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current
@@ -113,7 +116,7 @@ function PatternSwatch({ pattern, palette, size = 176 }: { pattern: string; pale
     canvas.height = size
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const tile = patternTile(p, palette)
+    const tile = patternTile(p, team != null ? { name: 'team', primary: TEAM_COLORS[team], secondary: palette?.secondary ?? '#000000' } : palette)
     // as many pixels per game tile as fit two repeats into the picture (at least a fraction of one, never more than 6)
     const px = Math.min(6, size / (2 * Math.max(tile.width, tile.height)))
     ctx.imageSmoothingEnabled = false
@@ -122,7 +125,7 @@ function PatternSwatch({ pattern, palette, size = 176 }: { pattern: string; pale
     const w = tile.width * px
     const h = tile.height * px
     for (let y = 0; y < size; y += h) for (let x = 0; x < size; x += w) ctx.drawImage(tile, x, y, w, h)
-  }, [pattern, palette, size])
+  }, [pattern, palette, team, size])
   return <canvas ref={ref} style={{ width: size, height: size }} className="max-w-full rounded-lg [image-rendering:pixelated]" aria-hidden />
 }
 
@@ -148,9 +151,9 @@ const HeartIcon = ({ filled, className = 'h-5 w-5' }: { filled: boolean; classNa
   </svg>
 )
 
-function ItemCard({ item, kind, preview, votes, onVote, onView, de, children }: { item: Item; kind: Kind; preview: ReactNode; votes: { count: number; mine: boolean }; onVote: () => void; onView?: () => void; de: boolean; children?: ReactNode }) {
+function ItemCard({ item, kind, preview, votes, onVote, onView, onHover, de, children }: { item: Item; kind: Kind; preview: ReactNode; votes: { count: number; mine: boolean }; onVote: () => void; onView?: () => void; onHover?: (on: boolean) => void; de: boolean; children?: ReactNode }) {
   return (
-    <div className={`flex flex-col items-center gap-2 rounded-xl border bg-base-900/70 p-3 text-center ${RARITY[item.rarity ?? 'common'] ?? RARITY.common}`}>
+    <div onMouseEnter={onHover ? () => onHover(true) : undefined} onMouseLeave={onHover ? () => onHover(false) : undefined} className={`flex flex-col items-center gap-2 rounded-xl border bg-base-900/70 p-3 text-center ${RARITY[item.rarity ?? 'common'] ?? RARITY.common}`}>
       <div className="relative flex min-h-[11rem] w-full items-center justify-center overflow-hidden">
         {preview}
         {/* like in OpenFront: the eye opens the in-game view, the heart is the upvote, both on the picture */}
@@ -201,9 +204,6 @@ interface View {
   /** index into TEAM_COLORS (the team colour replaces the skin's own colours), null = the skin's own colours */
   team: number | null
 }
-
-// the colours OpenFront offers to try a skin with in a team game
-const TEAM_COLORS = ['#ef4444', '#3b82f6', '#06b6d4', '#8b5cf6', '#eab308', '#f97316', '#22c55e']
 
 // The terrain of the preview: OpenFront's Australia map (500 x 375 tiles, one byte each: bit 7 land, bit 6 shore, bits 0-4 height or distance from the
 // coast), coloured like the game's light theme. The file is public/maps/australia-16x.bin (from the OpenFront repository, resources/maps/australia).
@@ -264,7 +264,11 @@ const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.
 function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; onClose: () => void; de: boolean }) {
   const [view, setView] = useState<View>(start)
   const [zoom, setZoom] = useState(1)
+  // the middle of the view, in game tiles (the map is 2000 x 1500); dragged with the left mouse button
+  const [centre, setCentre] = useState({ x: 1000, y: 750 })
   const ref = useRef<HTMLCanvasElement>(null)
+  const drag = useRef<{ x: number; y: number } | null>(null)
+  const tiles = useRef(new Map<string, HTMLCanvasElement>())
   const item: Item | undefined = (view.kind === 'pattern' ? data.patterns : view.kind === 'flag' ? data.flags : data.crowns).find((x) => x.id === view.id)
   const pattern = view.kind === 'pattern' ? (item as PatternItem | undefined) : undefined
   const imageUrl = view.kind !== 'pattern' ? (item as ImageItem | undefined)?.url : undefined
@@ -291,8 +295,8 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
       const s = (W / 1500) * zoom // canvas pixels per game tile
       const viewW = W / s
       const viewH = H / s
-      const vx = Math.min(Math.max(1000 - viewW / 2, 0), 2000 - viewW)
-      const vy = Math.min(Math.max(750 - viewH / 2, 0), 1500 - viewH)
+      const vx = Math.min(Math.max(centre.x - viewW / 2, 0), 2000 - viewW)
+      const vy = Math.min(Math.max(centre.y - viewH / 2, 0), 1500 - viewH)
       const mapRect = { x: -vx * s, y: -vy * s, w: 2000 * s, h: 1500 * s }
       ctx.clearRect(0, 0, W, H)
       ctx.imageSmoothingEnabled = true
@@ -310,13 +314,24 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
       const octx = over.getContext('2d')!
       const decoded = pattern ? decodePattern(pattern.pattern) : null
       if (decoded) {
-        const tile = patternTile(decoded, { name: 'x', primary, secondary })
-        const scaled = document.createElement('canvas')
-        scaled.width = Math.max(1, Math.round(tile.width * s))
-        scaled.height = Math.max(1, Math.round(tile.height * s))
-        const sctx = scaled.getContext('2d')!
-        sctx.imageSmoothingEnabled = false
-        sctx.drawImage(tile, 0, 0, scaled.width, scaled.height)
+        // the coloured tile and its zoomed copy are kept, so dragging only has to paint
+        const tileKey = `${pattern?.id}|${primary}|${secondary}`
+        let tile = tiles.current.get(tileKey)
+        if (!tile) {
+          tile = patternTile(decoded, { name: 'x', primary, secondary })
+          tiles.current.set(tileKey, tile)
+        }
+        const scaledKey = `${tileKey}|${s.toFixed(3)}`
+        let scaled = tiles.current.get(scaledKey)
+        if (!scaled) {
+          scaled = document.createElement('canvas')
+          scaled.width = Math.max(1, Math.round(tile.width * s))
+          scaled.height = Math.max(1, Math.round(tile.height * s))
+          const sctx = scaled.getContext('2d')!
+          sctx.imageSmoothingEnabled = false
+          sctx.drawImage(tile, 0, 0, scaled.width, scaled.height)
+          tiles.current.set(scaledKey, scaled)
+        }
         const pat = octx.createPattern(scaled, 'repeat')
         if (pat) {
           pat.setTransform(new DOMMatrix().translate(mapRect.x % scaled.width, mapRect.y % scaled.height))
@@ -366,7 +381,30 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
     return () => {
       alive = false
     }
-  }, [pattern, imageUrl, view.palette, view.team, view.kind, zoom])
+  }, [pattern, imageUrl, view.palette, view.team, view.kind, zoom, centre])
+
+  // dragging with the left mouse button moves the view, the wheel zooms
+  const limit = (c: { x: number; y: number }, z: number) => {
+    const viewW = 1500 / z
+    const viewH = (500 / 816) * 1500 / z
+    return { x: Math.min(Math.max(c.x, viewW / 2), 2000 - viewW / 2), y: Math.min(Math.max(c.y, viewH / 2), 1500 - viewH / 2) }
+  }
+  const zoomTo = (z: number) => {
+    const next = Math.min(3, Math.max(1, +z.toFixed(2)))
+    setZoom(next)
+    setCentre((c) => limit(c, next))
+  }
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      zoomTo(zoom + (e.deltaY < 0 ? 0.25 : -0.25))
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom])
 
   const palettes = pattern?.palettes ?? []
   const swatch = (a: string, b: string) => ({ background: `linear-gradient(135deg, ${a} 50%, ${b} 50%)` })
@@ -385,10 +423,10 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
           </div>
           <div className="flex items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-white/10">
-              <button type="button" onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="−">
+              <button type="button" onClick={() => zoomTo(zoom - 0.5)} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="−">
                 −
               </button>
-              <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="+">
+              <button type="button" onClick={() => zoomTo(zoom + 0.5)} className="px-3 py-1.5 text-slate-300 hover:bg-white/10" aria-label="+">
                 +
               </button>
             </div>
@@ -398,7 +436,28 @@ function GameView({ data, start, onClose, de }: { data: Cosmetics; start: View; 
           </div>
         </div>
         <div className="p-4">
-          <canvas ref={ref} className="w-full rounded-xl" style={{ aspectRatio: '816 / 500' }} />
+          <canvas
+            ref={ref}
+            className="w-full cursor-grab touch-none rounded-xl active:cursor-grabbing"
+            style={{ aspectRatio: '816 / 500' }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
+              e.currentTarget.setPointerCapture(e.pointerId)
+              drag.current = { x: e.clientX, y: e.clientY }
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current
+              if (!d) return
+              const k = 816 / e.currentTarget.clientWidth // screen pixels to canvas pixels
+              const s = (816 / 1500) * zoom // canvas pixels per game tile
+              const dx = ((e.clientX - d.x) * k) / s
+              const dy = ((e.clientY - d.y) * k) / s
+              drag.current = { x: e.clientX, y: e.clientY }
+              setCentre((c) => limit({ x: c.x - dx, y: c.y - dy }, zoom))
+            }}
+            onPointerUp={() => (drag.current = null)}
+            onPointerCancel={() => (drag.current = null)}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/10 px-5 py-3 text-sm text-slate-200">
           {pattern && (
@@ -448,6 +507,15 @@ export default function Shop() {
   const [votes, setVotes] = useState<{ counts: Record<string, number>; mine: Set<string>; signedIn: boolean }>({ counts: {}, mine: new Set(), signedIn: false })
   const [note, setNote] = useState<string | null>(null)
   const [viewing, setViewing] = useState<View | null>(null)
+  // while the mouse is over a skin its picture shows the team colours one after the other, like a slideshow
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [slide, setSlide] = useState(0)
+  useEffect(() => {
+    setSlide(0)
+    if (!hovered) return
+    const timer = window.setInterval(() => setSlide((n) => (n + 1) % (TEAM_COLORS.length + 1)), 700)
+    return () => window.clearInterval(timer)
+  }, [hovered])
 
   useEffect(() => {
     let alive = true
@@ -561,7 +629,8 @@ export default function Shop() {
                       votes={vk('pattern', it.id)}
                       onVote={() => void vote('pattern', it.id)}
                       onView={() => setViewing({ kind: 'pattern', id: it.id, palette: at, team: null })}
-                      preview={<PatternSwatch pattern={it.pattern} palette={it.palettes[at]} />}
+                      onHover={(on) => setHovered(on ? it.id : (h) => (h === it.id ? null : h))}
+                      preview={<PatternSwatch pattern={it.pattern} palette={it.palettes[at]} team={hovered === it.id && slide > 0 ? slide - 1 : null} />}
                     >
                       {it.palettes.length > 1 && (
                         <div className="flex gap-1">

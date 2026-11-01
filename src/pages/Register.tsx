@@ -11,6 +11,10 @@ import { checkOwnership, newVerifyCode } from '../lib/ownership'
 import { COUNTRIES, countryName } from '../lib/countries'
 import { Flag } from '../components/Emoji'
 import { Card, SectionHeading, Spinner } from '../components/ui'
+import ChannelSettings from '../components/ChannelSettings'
+import LanguageSetting from '../components/LanguageSetting'
+import CalmSetting from '../components/CalmSetting'
+import ReferralSetting from '../components/ReferralSetting'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const TIMEZONES = ['EU', 'America', 'Middle East', 'Asia', 'Oceania']
@@ -271,19 +275,40 @@ export default function Register() {
             <DiscordIcon className="h-4 w-4" /> {t.register.continueWithDiscord}
           </button>
         </Card>
+        <div className="mt-6">
+          <LanguageSetting />
+          <CalmSetting />
+        </div>
       </div>
     )
   }
 
   // ── Details form (signed in, or backend not configured yet) ────────────────
   return (
-    <div className="mx-auto max-w-xl">
-      {backHome}
-      <SectionHeading
-        eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
-        title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
-      />
+    <div className="w-full">
+      <div className="mx-auto max-w-xl">
+        {backHome}
+        <SectionHeading
+          eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
+          title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
+        />
+      </div>
 
+      {/* the settings blocks use the whole width: language and "brought here by" at the left edge, calm mode and "your channels" at the right edge */}
+      <div className="mb-8 grid items-start gap-6 md:grid-cols-2 [&>div>.panel]:m-0 [&>div>.panel]:max-w-none">
+        <div className="w-full max-w-xl justify-self-start">
+          <LanguageSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start md:justify-self-end">
+          <CalmSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start">
+          <ReferralSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start md:justify-self-end">{profile && <ChannelSettings />}</div>
+      </div>
+
+      <div className="mx-auto max-w-xl">
       {session && (
         <p className="mb-4 text-sm text-signal-green">{t.register.signedInAs(discordDisplayName(session))}</p>
       )}
@@ -442,6 +467,7 @@ export default function Register() {
           </div>
         </form>
       </Card>
+      </div>
     </div>
   )
 }

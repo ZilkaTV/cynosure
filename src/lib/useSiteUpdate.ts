@@ -3,6 +3,9 @@ import { useLanguage } from '../i18n/LanguageContext'
 
 const CHECK_EVERY_MS = 3 * 60 * 1000
 
+/** Set by the Update button right before it reloads, so the "what's new" window can open once after exactly that reload. */
+export const WHATS_NEW_AFTER_UPDATE_KEY = 'cyn:whatsnew-after-update'
+
 /** Hashed entry bundle of the page that is running right now, e.g. "/assets/index-AbC123.js". */
 function loadedBundle(): string | null {
   const el = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/index-"]')
@@ -63,5 +66,15 @@ export function useSiteUpdate() {
     }
   }, [available, t])
 
-  return { available, apply: () => location.reload() }
+  // the "what's new" window opens after this reload, even on the dev copy (see WhatsNew.tsx)
+  const apply = () => {
+    try {
+      sessionStorage.setItem(WHATS_NEW_AFTER_UPDATE_KEY, '1')
+    } catch {
+      /* blocked storage: the window then only shows through its normal once-per-browser rule */
+    }
+    location.reload()
+  }
+
+  return { available, apply }
 }

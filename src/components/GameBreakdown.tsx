@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import { is1v1, is2v2, isFfa, isTeam } from '../lib/stats'
 import { deriveNumTeams, type PlayerGame } from '../lib/openfront'
 import { useLanguage } from '../i18n/LanguageContext'
+import { winRateClass } from '../lib/gameRows'
 
-interface Tally {
+export interface Tally {
   wins: number
   losses: number
   other: number
@@ -17,15 +18,15 @@ function add(t: Tally, g: PlayerGame) {
   else t.other++
 }
 
-const games = (t: Tally) => t.wins + t.losses + t.other
+export const games = (t: Tally) => t.wins + t.losses + t.other
 const pct = (t: Tally) => (t.wins + t.losses > 0 ? (100 * t.wins) / (t.wins + t.losses) : null)
 
-function Row({ label, tally, hint }: { label: string; tally: Tally; hint?: string }) {
+export function Row({ label, tally, hint, compact = false }: { label: string; tally: Tally; hint?: string; compact?: boolean }) {
   const decided = tally.wins + tally.losses
   const winShare = decided > 0 ? (100 * tally.wins) / decided : 0
   const p = pct(tally)
   return (
-    <div className="grid grid-cols-[minmax(5.5rem,8rem)_1fr_auto] items-center gap-3 text-sm">
+    <div className={compact ? 'grid grid-cols-[4.2rem_1fr_auto] items-center gap-2 text-xs' : 'grid grid-cols-[minmax(5.5rem,8rem)_1fr_auto] items-center gap-3 text-sm'}>
       <span className="truncate text-slate-300" title={hint}>
         {label}
       </span>
@@ -39,7 +40,7 @@ function Row({ label, tally, hint }: { label: string; tally: Tally; hint?: strin
       </div>
       <span className="whitespace-nowrap text-right tabular-nums text-slate-400">
         <span className="text-signal-green">{tally.wins}</span>-<span className="text-signal-red">{tally.losses}</span>
-        <span className="ml-2 inline-block w-12 text-slate-200">{p == null ? '-' : `${p.toFixed(0)}%`}</span>
+        <span className={`inline-block ${p == null ? 'text-slate-500' : winRateClass(p)} ${compact ? 'ml-1 w-9' : 'ml-2 w-12'}`}>{p == null ? '-' : `${p.toFixed(0)}%`}</span>
       </span>
     </div>
   )
@@ -49,9 +50,8 @@ function Row({ label, tally, hint }: { label: string; tally: Tally; hint?: strin
  * "Games (total)" split by category, plus the win rate by number of teams in team games - both from the
  * member's cached [CYN] game list, so no extra request.
  */
-export default function GameBreakdown({ games: list }: { games: PlayerGame[] }) {
-  const { t } = useLanguage()
-  const { cats, byTeams, total } = useMemo(() => {
+export function useBreakdown(list: PlayerGame[]) {
+  return useMemo(() => {
     const cats = { ffa: empty(), team: empty(), one: empty(), two: empty() }
     const byTeams = new Map<number, Tally>()
     for (const g of list) {
@@ -69,6 +69,11 @@ export default function GameBreakdown({ games: list }: { games: PlayerGame[] }) 
     }
     return { cats, byTeams: [...byTeams.entries()].sort((a, b) => a[0] - b[0]), total: list.length }
   }, [list])
+}
+
+export default function GameBreakdown({ games: list }: { games: PlayerGame[] }) {
+  const { t } = useLanguage()
+  const { cats, byTeams, total } = useBreakdown(list)
 
   const rows: [string, Tally][] = [
     [t.memberProfile.catFfa, cats.ffa],

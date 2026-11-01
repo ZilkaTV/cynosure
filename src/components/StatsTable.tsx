@@ -10,6 +10,8 @@ export interface Column {
   sortValue?: (m: MemberStats) => number | string
   /** Keeps a crowded column (badges) from being squeezed into one narrow stack. */
   minWidth?: number
+  /** Left out on a phone, where the table has to fit next to the name. */
+  hideOnPhone?: boolean
 }
 
 const ALIGN_CLASS = { left: 'text-left', right: 'text-right', center: 'text-center' } as const
@@ -21,6 +23,7 @@ export function StatsTable({
   emptyLabel,
   limit,
   searchable = false,
+  toolbar,
 }: {
   members: MemberStats[]
   columns: Column[]
@@ -30,6 +33,8 @@ export function StatsTable({
   limit?: number
   /** A search box above the table: player name or OpenFront id. */
   searchable?: boolean
+  /** Extra controls next to the search box. */
+  toolbar?: ReactNode
 }) {
   const { t } = useLanguage()
   const [sortKey, setSortKey] = useState(defaultSort)
@@ -82,6 +87,7 @@ export function StatsTable({
             placeholder={t.common.searchPlayerOrId}
             className="w-full max-w-sm rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
           />
+          {toolbar}
           {q && <span className="text-xs text-slate-500">{t.common.searchResults(matches.length, sorted.length)}</span>}
         </div>
       )}
@@ -94,7 +100,7 @@ export function StatsTable({
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  className={`px-2 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''}`}
+                  className={`${c.hideOnPhone ? 'hidden sm:table-cell ' : ''}px-2 py-2.5 font-semibold ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''}`}
                   style={c.minWidth ? ({ '--mw': `${c.minWidth}px` } as CSSProperties) : undefined}
                 >
                   {c.sortValue ? (
@@ -119,7 +125,7 @@ export function StatsTable({
                 <tr key={m.publicId} className="border-b border-base-700/50 transition-colors last:border-0 hover:bg-base-800/40">
                   <td className="px-2 py-2.5 font-display font-bold text-slate-500">{rank}</td>
                   {columns.map((c) => (
-                    <td key={c.key} className={`px-2 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''} ${c.key === 'name' ? 'max-w-[12rem] truncate' : ''}`} style={c.minWidth ? ({ '--mw': `${c.minWidth}px` } as CSSProperties) : undefined}>
+                    <td key={c.key} className={`${c.hideOnPhone ? 'hidden sm:table-cell ' : ''}px-2 py-2.5 ${ALIGN_CLASS[c.align ?? 'left']} ${c.minWidth ? 'min-w-[var(--mw)] sm:min-w-0' : ''} ${c.key === 'name' ? 'max-w-[12rem] truncate' : ''}`} style={c.minWidth ? ({ '--mw': `${c.minWidth}px` } as CSSProperties) : undefined}>
                       {c.render(m, rank)}
                     </td>
                   ))}

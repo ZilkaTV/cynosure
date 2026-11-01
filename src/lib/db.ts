@@ -16,6 +16,7 @@ export class DbError extends Error {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the data layer mirrors the untyped Supabase client it replaced
 export interface DbResult<T = any> {
   data: T
   error: DbError | null

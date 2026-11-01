@@ -194,6 +194,43 @@ async function postMessage(botToken, channelId, content) {
   if (!res.ok) throw new Error(`POST message to ${channelId}: ${res.status}`)
 }
 
+// Members who are not in the OpenFront clan any more (for example somebody who left with a lot of wins) get no wins-tier role and lose the one they
+// had: the clan's public member list decides. When that list cannot be read, or looks cut off, nobody is excluded (a failed read must never strip the
+// whole clan of its roles).
+async function fetchClanIds() {
+  const ids = new Set()
+  let total = 0
+  for (let page = 1; page <= 12; page++) {
+    const res = await fetch(`https://api.openfront.io/public/clan/${CLAN_TAG}/members?limit=50&page=${page}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'CynosureClanSite (cynclan.com)' },
+    })
+    if (!res.ok) return null
+    const body = await res.json()
+    total = Number(body.total) || total
+    const list = body.results ?? []
+    for (const m of list) if (m?.publicId) ids.add(m.publicId)
+    if (list.length < 50 || (total && ids.size >= total)) break
+  }
+  return ids.size >= 20 && (!total || ids.size >= total) ? ids : null
+}
+
+// Keeps cyn_members.discord_avatar (the hash of the Discord icon) in step with Discord. Isolated: a database without that column (not migrated yet) or any
+// other problem here must never stop the role sync.
+async function syncAvatars(avatarByMember) {
+  if (avatarByMember.size === 0) return 0
+  const { data, error } = await usersDb.from('cyn_members').select('openfront_id, discord_avatar')
+  if (error) throw error
+  const before = new Map((data ?? []).map((r) => [r.openfront_id, r.discord_avatar ?? null]))
+  let changed = 0
+  for (const [id, hash] of avatarByMember) {
+    if (!before.has(id) || before.get(id) === hash) continue
+    const { error: upErr } = await usersDb.from('cyn_members').update({ discord_avatar: hash }).eq('openfront_id', id)
+    if (upErr) throw upErr
+    changed++
+  }
+  return changed
+}
+
 async function main() {
   const botToken = process.env.DISCORD_BOT_TOKEN
   const roleIdsJson = process.env.DISCORD_WINS_ROLE_IDS
@@ -249,6 +286,14 @@ async function main() {
     }
   }
   const membersByOpenfrontId = new Map((members ?? []).map((m) => [m.openfront_id, m]))
+  const clanIds = await fetchClanIds().catch((err) => {
+    console.error('clan member list unavailable, nobody is excluded:', err?.message ?? err)
+    return null
+  })
+  console.log(clanIds ? `clan list: ${clanIds.size} members` : 'clan list: not available, nobody is excluded')
+  let leftClan = 0
+  // The Discord icon of each member (the hash), for the default profile picture; written after the loop, see syncAvatars.
+  const avatarByMember = new Map()
   // Filled in during the per-member loop below (currentRoles is already
   // fetched there for the wins-tier sync) - reused after the loop by the
   // Flash/Hero/Master of Cyn sections so they don't need their own
@@ -309,7 +354,10 @@ async function main() {
     }
     checked++
     try {
-      const allWins = latestWinsByMember.get(m.openfront_id) ?? 0
+      // somebody who is not in the clan any more counts as 0 wins here: no wins-tier role (an existing one is taken away below)
+      const inClan = !clanIds || clanIds.has(m.openfront_id)
+      if (!inClan) leftClan++
+      const allWins = inClan ? (latestWinsByMember.get(m.openfront_id) ?? 0) : 0
       const targetTier = tierFromWins(allWins)
       const targetRoleId = targetTier ? roleIdByTier[targetTier] : null
       const wants100GamesRole = (totalGamesByMember.get(m.openfront_id) ?? 0) >= GAMES_100_THRESHOLD
@@ -322,6 +370,7 @@ async function main() {
       }
       if (!memberRes.ok) throw new Error(`GET member ${m.discord_user_id}: ${memberRes.status}`)
       const memberData = await memberRes.json()
+      avatarByMember.set(m.openfront_id, memberData.user?.avatar ?? null)
       const currentRoles = new Set(memberData.roles ?? [])
       rolesByMember.set(m.openfront_id, currentRoles)
       discordStatus.set(m.openfront_id, { in_guild: true, has_cyn_role: currentRoles.has(CYN_ROLE_ID) })
@@ -346,6 +395,22 @@ async function main() {
           }
         } catch (innerCircleErr) {
           console.error(`cyn_inner_circle sync failed for ${m.openfront_id} (non-fatal):`, innerCircleErr)
+        }
+      }
+
+      // Server boosters keep access to the site without the 7-day rule (src/lib/access.ts): Discord marks a boosting member with
+      // premium_since. Mirrored like the inner circle, non-fatal. The table (worker/d1/boosters.sql) has to exist first.
+      if (supabaseAdmin) {
+        try {
+          if (memberData.premium_since) {
+            const { error: boosterError } = await supabaseAdmin.from('cyn_boosters').upsert({ openfront_id: m.openfront_id }, { onConflict: 'openfront_id' })
+            if (boosterError) throw new Error(`cyn_boosters upsert for ${m.openfront_id}: ${boosterError.message}`)
+          } else {
+            const { error: boosterError } = await supabaseAdmin.from('cyn_boosters').delete().eq('openfront_id', m.openfront_id)
+            if (boosterError) throw new Error(`cyn_boosters delete for ${m.openfront_id}: ${boosterError.message}`)
+          }
+        } catch (boosterErr) {
+          console.error(`cyn_boosters sync failed for ${m.openfront_id} (non-fatal):`, boosterErr)
         }
       }
 
@@ -511,7 +576,11 @@ Can you beat that? [cynclan.com](https://cynclan.com/)
     }
   }
 
-  console.log(JSON.stringify({ checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, updated, unchanged, failed }, null, 2))
+  const avatarsChanged = await syncAvatars(avatarByMember).catch((err) => {
+    console.error('discord avatars not synced (non-fatal):', err?.message ?? err)
+    return -1
+  })
+  console.log(JSON.stringify({ avatarsChanged, checked, resolvedByUsername, unresolvedUsernames, skippedNoDiscordId, leftClan, updated, unchanged, failed }, null, 2))
 }
 
 main().catch((err) => {

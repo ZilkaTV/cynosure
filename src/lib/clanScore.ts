@@ -220,6 +220,8 @@ export interface ClanLeaderboardEntry {
   weightedWins: number
   weightedLosses: number
   weightedWLRatio: number
+  /** The clan's Elo on OpenFront's clan leaderboard. */
+  elo?: number
 }
 
 /** One row of the top-N clans overall (see fetchTopClanLeaderboard) - the same shape as ClanLeaderboardEntry, plus which clan it is. */

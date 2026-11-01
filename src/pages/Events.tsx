@@ -7,6 +7,10 @@ import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner } from '../components/ui'
 import { Flag, RankMedal } from '../components/Emoji'
 import { EVENTS, type ClanEvent } from '../data/events'
+import { fetchTopClanLeaderboard } from '../lib/clanScore'
+import { CLAN_TAG } from '../config'
+import FactorWheel from '../components/FactorWheel'
+import { RoleName, useWinsIndex } from '../components/RoleName'
 import { useLanguage } from '../i18n/LanguageContext'
 import type { TranslationShape } from '../i18n/translations'
 import {
@@ -33,7 +37,7 @@ function fmtDate(iso: string): string {
 const STATUS_STYLE: Record<ClanEvent['status'], string> = {
   live: 'bg-signal-green/15 text-signal-green border-signal-green/30',
   upcoming: 'bg-signal-blue/15 text-signal-blue border-signal-blue/30',
-  ended: 'bg-base-700 text-slate-400 border-base-600',
+  ended: 'bg-signal-red/15 text-signal-red border-signal-red/30',
 }
 
 /** Section label used for Rules / Points / Reward, so the event card reads as clearly separated blocks. */
@@ -100,12 +104,13 @@ const PLAYER_LINK_ALIASES: Record<string, string> = {
 
 function PlayerTag({ name, roster }: { name: string; roster: { publicId: string; name: string; nationality?: string }[] }) {
   const lookupName = PLAYER_LINK_ALIASES[name.toLowerCase()] ?? name
+  const wins = useWinsIndex()
   const match = roster.find((m) => m.name.toLowerCase() === lookupName.toLowerCase())
   if (!match) return <span>{name}</span>
   return (
     <Link to={`/member/${match.publicId}`} className="inline-flex items-center gap-1 text-accent-light hover:text-accent">
       {match.nationality && <Flag code={match.nationality} />}
-      {name}
+      <RoleName wins={wins.byId.get(match.publicId)}>{name}</RoleName>
     </Link>
   )
 }
@@ -113,6 +118,158 @@ function PlayerTag({ name, roster }: { name: string; roster: { publicId: string;
 /** Translated category label (base label + the point value, pluralised per language). */
 function categoryLabel(t: TranslationShape, c: SubmissionCategory): string {
   return `${t.events.category[c]} (${t.common.pts(CATEGORY_POINTS[c])})`
+}
+
+/** The info card of a raffle event: goal, who can take part, how the points work, the prize and pictures of the skin. */
+function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
+  const { language } = useLanguage()
+  const de = language === 'de'
+  const [rank, setRank] = useState<number | null | undefined>(undefined)
+  const [open, setOpen] = useState(true)
+  useEffect(() => {
+    fetchTopClanLeaderboard()
+      .then((top) => {
+        const i = top.findIndex((c) => c.clanTag === CLAN_TAG)
+        setRank(i >= 0 ? i + 1 : null)
+      })
+      .catch(() => setRank(null))
+  }, [])
+
+  const line = 'flex items-start gap-2 text-sm leading-relaxed text-slate-300'
+  const dot = <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+  return (
+    <div className="panel space-y-6 p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
+          <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {fmtDate(event.start)} - {fmtDate(event.end)}
+            {event.endTime && ` ${event.endTime} ${de ? '(deutsche Zeit)' : '(German time)'}`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={event.name}
+          className="mt-1 shrink-0 rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-slate-300 hover:bg-base-700 hover:text-white"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+
+      {open && (
+        <>
+      <div>
+        <BlockLabel>{de ? 'Ziel' : 'Goal'}</BlockLabel>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
+          <span>{de ? `Clan-Leaderboard Rang ${event.goalRank}` : `Clan leaderboard rank ${event.goalRank}`}</span>
+          <span className="font-display font-bold text-gold-light">
+            {de ? 'Aktuell' : 'Currently'}: {rank === undefined ? '…' : rank === null ? (de ? 'außerhalb der Top 20' : 'outside the top 20') : `#${rank}`}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'Preis' : 'Prize'}</BlockLabel>
+        <div className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
+          {de
+            ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu Plutonium.'
+            : 'An exclusive skin that will exist only 3 times in the world, plus Plutonium.'}
+        </div>
+        {event.skinImages && (
+          <div className="mt-3">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {event.skinImages.map((img) => (
+                <div key={img.url} className="space-y-1.5">
+                  <SkinPreview url={img.url} alt={`${event.name} ${img.label}`} t={t} />
+                  <p className="text-center text-xs text-slate-500">{de ? (img.label === 'FFA mode' ? 'FFA-Modus' : 'Team-Modus') : img.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'So nimmst du teil' : 'How to take part'}</BlockLabel>
+        <ul className="space-y-2">
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Ein einziges Team-Game reicht, aber mindestens ein anderes CYN-Mitglied muss dabei gewesen sein.'
+                : 'One team game is enough, but at least one other CYN member must have been in it.'}
+            </span>
+          </li>
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Jedes Team-Spiel mit einem anderen CYN-Mitglied gibt 1 Punkt, egal ob Sieg oder Niederlage. Dazu kommt dein persönlicher Win Score im Clan: je höher, desto mehr Punkte.'
+                : 'Every team game with another CYN member gives 1 point, win or loss. On top comes your personal Win Score in the clan: the higher, the more points.'}
+            </span>
+          </li>
+          <li className={line}>
+            {dot}
+            <span>
+              {de
+                ? 'Im nächsten Jahr werden live auf Zilkas Stream 3 Spieler mit dem Factor Wheel ausgelost, die den Skin erhalten. Wer mehr Punkte hat, hat auf dem Rad ein größeres Stück.'
+                : "Next year, 3 players are drawn live on Zilka's stream with the Factor Wheel and receive the skin. The more points you have, the bigger your slice of the wheel."}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <BlockLabel>{de ? 'Punkte' : 'Points'}</BlockLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(de
+            ? [
+                ['Basispunkte von Anfang an', ''],
+                ['Pro Discord-Server-Boost', '+10'],
+                ['Pro 5 € Spende an die Website', '+3'],
+                ['Für alle', ''],
+                ['1 Spiel = 1 Punkt: je Team-Spiel mit einem anderen CYN-Mitglied (Sieg oder Niederlage)', '+1'],
+                ['Je 1 Win Score (95,1 Win Score = 95 Punkte)', '+1'],
+              ]
+            : [
+                ['Base points from the start', ''],
+                ['Per Discord server boost', '+10'],
+                ['Per 5 € donated to the website', '+3'],
+                ['For everybody', ''],
+                ['1 game = 1 point: per team game with another CYN member (win or loss)', '+1'],
+                ['Per 1 Win Score (95.1 Win Score = 95 points)', '+1'],
+              ]
+          ).map(([label, pts], i) =>
+            pts === '' ? (
+              <p key={i} className="pt-1 text-xs font-semibold uppercase tracking-widest text-slate-500 sm:col-span-2">
+                {label}
+              </p>
+            ) : (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-base-700 bg-base-850/40 px-3 py-2 text-sm">
+                <span className="text-slate-300">{label}</span>
+                <span className="font-display font-bold text-accent-light">{pts}</span>
+              </div>
+            ),
+          )}
+        </div>
+      </div>
+
+      {event.windowFrom && event.windowTo && (
+        <div>
+          <BlockLabel>Factor Wheel</BlockLabel>
+          <FactorWheel fromMs={Date.parse(event.windowFrom)} toMs={Date.parse(event.windowTo)} />
+        </div>
+      )}
+
+        </>
+      )}
+    </div>
+  )
 }
 
 function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
@@ -484,34 +641,15 @@ function EventCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
 export default function Events() {
   const { profile } = useProfile()
   const { t } = useLanguage()
-  // Default to the running event, else the most recent one in the list.
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   if (!profile) return <RegistrationGate />
-  const selected = EVENTS.find((ev) => ev.id === selectedId) ?? EVENTS.find((ev) => ev.status === 'live') ?? EVENTS[0]
 
   return (
     <StatsShell>
       <section className="space-y-6">
         <SectionHeading center eyebrow={t.events.eyebrow} title={t.events.title} />
         {EVENTS.length === 0 && <Card className="text-center text-sm text-slate-400">{t.events.noEvents}</Card>}
-        {/* With several events a dropdown picks which one to show; a single event needs no picker. */}
-        {EVENTS.length > 1 && (
-          <div className="flex justify-center">
-            <select
-              value={selected.id}
-              onChange={(ev) => setSelectedId(ev.target.value)}
-              aria-label={t.events.title}
-              className="rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white focus:border-accent focus:outline-none"
-            >
-              {EVENTS.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {selected && <EventCard key={selected.id} event={selected} t={t} />}
+        {/* Every event is one window of its own; the arrow at the top right folds it. */}
+        {EVENTS.map((ev) => (ev.kind === 'raffle' ? <RaffleCard key={ev.id} event={ev} t={t} /> : <EventCard key={ev.id} event={ev} t={t} />))}
       </section>
     </StatsShell>
   )

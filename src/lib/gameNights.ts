@@ -79,7 +79,7 @@ export async function createGameNight(startsAt: string, note: string, createdBy:
   const { error } = await supabase.from('cyn_game_nights').insert({ starts_at: new Date(startsAt).toISOString(), note: note.trim() || null, created_by: createdBy })
   if (error) {
     if (error.code === '42501' || error.message.includes('row-level security')) {
-      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+      return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
     }
     return { ok: false, message: `Couldn't create: ${error.message}` }
   }
@@ -103,7 +103,7 @@ export async function setRsvp(gameNightId: number, openfrontId: string, status: 
     .upsert({ game_night_id: gameNightId, openfront_id: openfrontId, status, updated_at: new Date().toISOString() }, { onConflict: 'game_night_id,openfront_id' })
   if (error) {
     if (error.code === '42501' || error.message.includes('row-level security')) {
-      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+      return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
     }
     return { ok: false, message: `Couldn't save: ${error.message}` }
   }

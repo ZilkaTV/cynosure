@@ -6,6 +6,7 @@
 
 import { CACHE_TTL_MS, CLAN_TAG } from '../config'
 import { cleanDisplayName } from './displayName'
+import { idbGet, idbPut } from './rosterCache'
 
 const API_BASE = '/api/of'
 
@@ -543,6 +544,10 @@ export interface GameDetail {
   // (not just [CYN]'s) own Win Score/Loss Score for this specific game,
   // straight from this cached detail with no extra fetch.
   numTeams: number | null
+  /** Ranked ladder of the game ('1v1', '2v2', 'ffa', 'clanwars' or 'unranked'); missing in reports cached before it was kept. */
+  rankedType?: string | null
+  /** 'Compact' or 'Normal'; missing in reports cached before it was kept. */
+  mapSize?: string | null
   start: number
   players: GamePlayerStat[]
 }
@@ -669,7 +674,7 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
       // deriveNumTeams's own comment. Can come through as either a number or
       // a string depending on which, so normalized to a string below before
       // parsing either way.
-      config?: { gameMap?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number }
+      config?: { gameMap?: string; gameMapSize?: string; gameType?: string; nations?: string; bots?: number; playerTeams?: string | number; rankedType?: string }
       players?: GamePlayerStat[]
     }
   } | null
@@ -687,6 +692,8 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
         numTurns: info.num_turns ?? 0,
         winnerClientIds: parseWinnerClientIds(info.winner),
         numTeams: deriveNumTeams(info.config?.playerTeams != null ? String(info.config.playerTeams) : null, info.players?.length ?? null),
+        rankedType: info.config?.rankedType ?? null,
+        mapSize: info.config?.gameMapSize ?? null,
         start: info.start ?? 0,
         players: info.players ?? [],
       }
@@ -694,6 +701,21 @@ async function fetchGameDetailLive(gameId: string): Promise<GameDetail | null> {
   cachePermSet(key, detail)
   if (detail) saveSharedGameDetail(gameId, detail)
   return detail
+}
+
+/**
+ * The map size ('Compact' / 'Normal') of one game, for the game tables. Reports cached before the size was kept do not
+ * have it, so it is read from OpenFront once per game and kept in this browser for good; null when it cannot be read.
+ */
+export async function fetchGameMapSize(gameId: string): Promise<string | null> {
+  const key = `${CACHE_NS}:mapsize:${gameId}`
+  const cached = cachePermGet<string | null>(key)
+  if (cached.hit) return cached.data
+  const json = (await getJson(`${API_BASE}/public/game/${encodeURIComponent(gameId)}?turns=false`).catch(() => null)) as { info?: { config?: { gameMapSize?: string } } } | null
+  if (json === null) return null // failed: try again next time
+  const size = json.info?.config?.gameMapSize ?? null
+  cachePermSet(key, size)
+  return size
 }
 
 export async function fetchGameDetail(gameId: string): Promise<GameDetail | null> {
@@ -746,6 +768,91 @@ export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<stri
       cachePermSet(`${CACHE_NS}:detail:${id}`, detail)
       result.set(id, detail)
     }
+  }
+  return result
+}
+
+/** What the roster needs of one game report: the length and, per player of the clan (or asked for by name), the few numbers behind kills/gold/troops. */
+export interface RosterGameDetail {
+  durationSeconds: number
+  players: { clientID: string; username: string; clanTag: string | null; hasStats: boolean; kills: number; gold: number; out: number; inc: number }[]
+}
+
+const ROSTER_DETAIL_KEY = `roster-detail-v1`
+
+function slimRosterDetail(d: GameDetail, clanTag: string, names: Set<string>): RosterGameDetail {
+  const players: RosterGameDetail['players'] = []
+  for (const p of d.players) {
+    if (p.clanTag !== clanTag && !names.has(p.username)) continue
+    const s = p.stats
+    players.push({
+      clientID: p.clientID,
+      username: p.username,
+      clanTag: p.clanTag,
+      hasStats: !!s,
+      kills: s?.kills?.length ?? 0,
+      gold: (s?.gold ?? []).reduce((sum, x) => sum + Number(x || 0), 0),
+      out: Number(s?.attacks?.[0] ?? 0),
+      inc: Number(s?.attacks?.[1] ?? 0),
+    })
+  }
+  return { durationSeconds: d.durationSeconds, players }
+}
+
+// The full reports that older versions kept in localStorage (a few MB the page holds in memory all the time); nothing needs them kept any more.
+function dropOldFullReports() {
+  const FLAG = `${CACHE_NS}:full-reports-dropped`
+  try {
+    if (localStorage.getItem(FLAG)) return
+    const prefix = `${CACHE_NS}:detail:`
+    for (const k of Object.keys(localStorage)) if (k.startsWith(prefix)) localStorage.removeItem(k)
+    localStorage.setItem(FLAG, '1')
+  } catch {
+    /* blocked storage */
+  }
+}
+
+/**
+ * The game reports for the roster build, boiled down to RosterGameDetail. A full report is ~30 KB and a roster build wants a few hundred of
+ * them, which used to be ~60 MB of JSON downloaded, parsed and thrown away on every load and every background reload (the full reports do not
+ * fit into the browser's storage, so they were never kept). The small versions are kept, so after the first visit only new games are fetched,
+ * and the reports are handled one batch at a time so the memory peak stays small.
+ * wanted: game id -> the names the roster looks for in that game (besides everybody with the clan tag).
+ */
+export async function fetchRosterDetailsBatch(wanted: Map<string, Set<string>>, clanTag: string): Promise<Map<string, RosterGameDetail>> {
+  const result = new Map<string, RosterGameDetail>()
+  dropOldFullReports()
+  const kept = (await idbGet<Record<string, RosterGameDetail>>(ROSTER_DETAIL_KEY)) ?? {}
+  const missing: string[] = []
+  for (const id of wanted.keys()) {
+    if (kept[id]) result.set(id, kept[id])
+    else missing.push(id)
+  }
+  if (missing.length === 0) return result
+
+  const CHUNK = 100
+  let added = false
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const ids = missing.slice(i, i + CHUNK)
+    try {
+      const res = await fetch(`/api/game-detail?ids=${encodeURIComponent(ids.join(','))}`)
+      if (!res.ok) continue
+      const data = (await res.json()) as Record<string, GameDetail>
+      for (const [id, detail] of Object.entries(data)) {
+        const slim = slimRosterDetail(detail, clanTag, wanted.get(id) ?? new Set())
+        result.set(id, slim)
+        kept[id] = slim
+        added = true
+      }
+    } catch {
+      // the Worker route is unreachable: those games simply show "-" until the next build
+    }
+  }
+  if (added) {
+    // only games the roster still asks for stay (games that dropped out of its window are forgotten)
+    const keep: Record<string, RosterGameDetail> = {}
+    for (const id of wanted.keys()) if (kept[id]) keep[id] = kept[id]
+    await idbPut(ROSTER_DETAIL_KEY, keep)
   }
   return result
 }
@@ -857,4 +964,13 @@ export function fmtTeamRoster(names: string[], maxNames = 6): string {
   names = names.map(cleanDisplayName)
   if (names.length <= maxNames) return names.join(', ')
   return `${names.slice(0, maxNames - 1).join(', ')} +${names.length - (maxNames - 1)}`
+}
+
+/**
+ * Team games that OpenFront does not count as clan sessions: ranked 2v2 and clan wars. For reports cached before the
+ * ranked type was kept, a 4-player game with two teams is taken for a 2v2.
+ */
+export function isUnscoredTeamGame(d: Pick<GameDetail, 'rankedType' | 'numTeams' | 'players'>): boolean {
+  if (d.rankedType) return d.rankedType === '2v2' || d.rankedType === 'clanwars'
+  return d.numTeams === 2 && d.players.length === 4
 }

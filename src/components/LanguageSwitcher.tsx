@@ -3,6 +3,16 @@ import { languages } from '../i18n/translations'
 import { useLanguage } from '../i18n/LanguageContext'
 import { Emoji } from './Emoji'
 
+const PICK: Record<string, string> = {
+  en: 'Select language',
+  de: 'Sprache wählen',
+  fr: 'Choisir la langue',
+  ru: 'Выбрать язык',
+  it: 'Scegli la lingua',
+  es: 'Elegir idioma',
+  ko: '언어 선택',
+}
+
 export default function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -23,10 +33,13 @@ export default function LanguageSwitcher() {
         onClick={() => setOpen((o) => !o)}
         aria-label="Change language"
         aria-expanded={open}
-        className="btn-ghost inline-flex items-center gap-1.5 !px-3 !py-2 text-xs font-bold uppercase tracking-wide"
+        className="top-btn"
       >
-        <Emoji char={current.flag} className="h-3.5 w-3.5" />
-        <span className="hidden min-[400px]:inline">{language}</span>
+        <Emoji char={current.flag} className="h-4 w-4 shrink-0" />
+        <span className="hidden flex-col items-start leading-tight sm:flex">
+          <span className="text-sm">{current.label}</span>
+          <span className="text-[9px] font-normal uppercase tracking-wide text-slate-500">{PICK[language] ?? PICK.en}</span>
+        </span>
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-36 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">

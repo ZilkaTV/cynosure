@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import DiscordWidget from './DiscordWidget'
 import { GameNightsSidebar } from './GameNightsCard'
+import { ClanWindow } from './ClanWindow'
+import { DonorsWindow } from './DonorsWindow'
 import CynLogo from './CynLogo'
 import { CLAN_TAG, DISCORD_INVITE, USEFUL_LINKS } from '../config'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -41,7 +43,7 @@ export function UsefulLinks() {
  * on the right. On mobile it collapses to one column (content, then widget,
  * then links).
  */
-export function StatsShell({ children }: { children: ReactNode }) {
+export function StatsShell({ children, leftExtra }: { children: ReactNode; leftExtra?: ReactNode }) {
   // Widgets sit beside the content only where the content stays wide enough for the member tables:
   // below 1280px everything is one column, from 1280px one column of widgets on the right, from 1536px one on each side.
   return (
@@ -52,6 +54,12 @@ export function StatsShell({ children }: { children: ReactNode }) {
       <aside className="order-2 xl:order-none xl:col-start-2 xl:row-start-1 2xl:col-start-1">
         <DiscordWidget />
         <GameNightsSidebar />
+        {/* the windows of this page and the clan windows move along when the page is scrolled, like the useful links on the right */}
+        <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:[scrollbar-width:thin]">
+          {leftExtra}
+          <ClanWindow />
+          <DonorsWindow />
+        </div>
       </aside>
       <aside className="order-3 xl:order-none xl:col-start-2 xl:row-start-2 2xl:col-start-3 2xl:row-start-1 xl:sticky xl:top-6 xl:self-start">
         <UsefulLinks />
@@ -64,11 +72,11 @@ export function StatsShell({ children }: { children: ReactNode }) {
 export function TagNotice() {
   const { t } = useLanguage()
   return (
-    <div className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-4 text-center">
-      <p className="font-display text-base font-bold uppercase tracking-wide text-gold-light sm:text-lg">
+    <div className="rounded-xl border border-gold/40 bg-gold/10 px-3 py-2.5 text-center sm:px-5 sm:py-4">
+      <p className="font-display text-sm font-bold uppercase tracking-wide text-gold-light sm:text-lg">
         {t.statsShell.tagNoticeTitle(CLAN_TAG)}
       </p>
-      <p className="mt-1 text-sm text-slate-300">
+      <p className="mt-0.5 text-xs text-slate-300 sm:mt-1 sm:text-sm">
         {t.statsShell.tagNoticeBodyPre}{' '}
         <span className="font-semibold text-white">{t.statsShell.tagNoticeBodyBold}</span> {t.statsShell.tagNoticeBodyPost}
       </p>

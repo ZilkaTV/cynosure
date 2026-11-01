@@ -9,3 +9,13 @@
 export function cleanDisplayName(name: string): string {
   return name.replace(/(.)\1{3,}/giu, '$1')
 }
+
+/**
+ * The letter that stands in for a member without an icon: the first letter of the name, a clan tag in front is ignored
+ * ("CYN Bane" and "[CYN] Bane" -> B, "soothxng" -> S).
+ */
+export function initialOf(name: string): string {
+  const bare = cleanDisplayName(name).replace(/^\s*(?:\[\s*cyn\s*\]|\(\s*cyn\s*\)|cyn)(?=[\s:_.\-|\]]|$)[\s:_.\-|\]]*/iu, '')
+  const letter = bare.match(/[\p{L}\p{N}]/u)?.[0] ?? cleanDisplayName(name).match(/[\p{L}\p{N}]/u)?.[0] ?? '?'
+  return letter.toUpperCase()
+}

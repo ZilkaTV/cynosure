@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeBadges } from './badges'
+import { cardCollectorProgress, computeBadges } from './badges'
 import { translations } from '../i18n/translations'
 import type { MemberStats } from './stats'
 
@@ -40,5 +40,32 @@ describe('computeBadges', () => {
     const after = computeBadges(updated[2], updated, translations.en as never).find((b) => b.id === 'mostWins')?.earned
     expect(before).toBe(true)
     expect(after).toBe(false)
+  })
+})
+
+describe('the Card Collector badge', () => {
+  const all = Array.from({ length: 4 }, (_, i) => fakeMember(i, 10))
+  const badge = (sets: Record<string, Partial<Record<string, number>>>) => computeBadges(all[0], all, translations.en as never, { cardSets: new Map(Object.entries(sets)) as never }).find((b) => b.id === 'cardCollector')!
+
+  it('works out how far a collector is', () => {
+    expect(cardCollectorProgress(undefined, 4)).toEqual({ done: 0, next: 'common', have: 0 })
+    expect(cardCollectorProgress({ common: 3 }, 4)).toEqual({ done: 0, next: 'common', have: 3 })
+    expect(cardCollectorProgress({ common: 4, rare: 1 }, 4)).toEqual({ done: 1, next: 'rare', have: 1 })
+    expect(cardCollectorProgress({ common: 4, rare: 4, epic: 4, ultra: 4, legendary: 4 }, 4)).toEqual({ done: 5, next: null, have: 4 })
+  })
+  it('a later rarity does not count while an earlier one is not complete', () => {
+    expect(cardCollectorProgress({ common: 3, rare: 4, epic: 4 }, 4).done).toBe(0)
+  })
+  it('is locked at first and upgrades with every rarity', () => {
+    expect(badge({}).earned).toBe(false)
+    expect(badge({ m0: { common: 4 } })).toMatchObject({ earned: true, tier: 'bronze' })
+    expect(badge({ m0: { common: 4, rare: 4 } })).toMatchObject({ tier: 'silver' })
+    expect(badge({ m0: { common: 4, rare: 4, epic: 4 } })).toMatchObject({ tier: 'gold' })
+    expect(badge({ m0: { common: 4, rare: 4, epic: 4, ultra: 4 } })).toMatchObject({ tier: 'diamond' })
+    expect(badge({ m0: { common: 4, rare: 4, epic: 4, ultra: 4, legendary: 4 } })).toMatchObject({ tier: 'winsChampion' })
+  })
+  it('tells the progress in the description', () => {
+    expect(badge({ m0: { common: 2 } }).desc).toBe('Collect every card once in Common: 2/4')
+    expect(badge({ m0: { common: 4, rare: 1 } }).desc).toContain('Next: Rare 1/4')
   })
 })

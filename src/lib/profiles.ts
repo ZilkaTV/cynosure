@@ -163,6 +163,18 @@ export async function fetchByDiscord(discordUsername: string): Promise<Profile |
   return (data as Profile) ?? null
 }
 
+/** One registered member by OpenFront id (the dev site restores the profile of its stand-in member with it). */
+export async function fetchByOpenfrontId(openfrontId: string): Promise<Profile | null> {
+  if (!supabase || !openfrontId) return null
+  const { data, error } = await supabase
+    .from('cyn_members')
+    .select('openfront_id, in_game_name, timezone, discord_username, nationality')
+    .eq('openfront_id', openfrontId)
+    .maybeSingle()
+  if (error) return null
+  return (data as Profile) ?? null
+}
+
 /** The full registered roster (for name/timezone enrichment). */
 export async function fetchRegistered(): Promise<Profile[]> {
   if (supabase) {

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>CYN Ziel-Rangliste (Concept)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1100px; padding: 36px 40px 30px; background: #0b0a17; font-family: 'Segoe UI', Inter, Arial, sans-serif; color: #e8e6f5; }
+  .tag { display: inline-block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #d8b96a; border: 1px solid #d8b96a66; border-radius: 999px; padding: 4px 12px; }
+  h1 { margin: 12px 0 4px; font-size: 34px; letter-spacing: .04em; }
+  h1 span { color: #b79cff; }
+  .sub { color: #9a97b5; font-size: 14px; margin-bottom: 22px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab { padding: 8px 18px; border-radius: 8px; background: #181530; color: #9a97b5; font-size: 14px; }
+  .tab.on { background: #8b5cf6; color: #fff; }
+  table { width: 100%; border-collapse: collapse; background: #120f22; border: 1px solid #221d43; border-radius: 14px; overflow: hidden; }
+  th { text-align: right; font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8e8aa8; padding: 12px 16px; border-bottom: 1px solid #221d43; background: #0f0d1e; }
+  td { padding: 13px 16px; text-align: right; font-size: 16px; border-bottom: 1px solid #1a1634; font-variant-numeric: tabular-nums; }
+  th:nth-child(1), td:nth-child(1) { text-align: center; width: 70px; }
+  th:nth-child(2), td:nth-child(2) { text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  .rank { font-weight: 700; color: #8e8aa8; }
+  tr:nth-child(1) .rank { color: #f2c94c; } tr:nth-child(2) .rank { color: #cfd3dc; } tr:nth-child(3) .rank { color: #d08a4c; }
+  .clan { color: #8b5cf6; font-weight: 700; margin-right: 8px; }
+  .name { font-weight: 600; color: #fff; }
+  .elo { color: #d8b96a; font-weight: 700; }
+  .win { color: #4cd68f; } .loss { color: #e0707a; }
+  .note { margin-top: 18px; display: flex; justify-content: space-between; align-items: center; color: #8e8aa8; font-size: 13px; }
+  .note b { color: #d8b96a; }
+  .badge { background: #181530; border: 1px solid #322a5e; border-radius: 8px; padding: 7px 12px; color: #b79cff; font-weight: 600; }
+</style>
+</head>
+<body>
+  <span class="tag">Concept · Beispielwerte · keine echte Rangliste</span>
+  <h1><span>[CYN]</span> Top 10 – unser Ziel</h1>
+  <div class="sub">So könnte die 2v2-Rangliste aussehen, wenn wir alle dranbleiben und investieren.</div>
+  <div class="tabs"><div class="tab">1v1</div><div class="tab on">2v2</div><div class="tab">FFA</div></div>
+  <table>
+    <thead><tr><th>#</th><th>Spieler</th><th>Elo</th><th>Spiele</th><th>Siege</th><th>Niederlagen</th><th>Quote</th></tr></thead>
+    <tbody>
+      <tr><td class="rank">1</td><td><span class="clan">CYN</span><span class="name">Zilka</span></td><td class="elo">2400</td><td>250</td><td class="win">220</td><td class="loss">30</td><td>88 %</td></tr>
+      <tr><td class="rank">2</td><td><span class="clan">CYN</span><span class="name">Calos</span></td><td class="elo">2340</td><td>230</td><td class="win">200</td><td class="loss">30</td><td>87 %</td></tr>
+      <tr><td class="rank">3</td><td><span class="clan">CYN</span><span class="name">Franquito</span></td><td class="elo">2290</td><td>210</td><td class="win">180</td><td class="loss">30</td><td>86 %</td></tr>
+      <tr><td class="rank">4</td><td><span class="clan">CYN</span><span class="name">Kvxlyn</span></td><td class="elo">2250</td><td>205</td><td class="win">175</td><td class="loss">30</td><td>85 %</td></tr>
+      <tr><td class="rank">5</td><td><span class="clan">CYN</span><span class="name">Chuma</span></td><td class="elo">2210</td><td>200</td><td class="win">168</td><td class="loss">32</td><td>84 %</td></tr>
+      <tr><td class="rank">6</td><td><span class="clan">CYN</span><span class="name">Soothxng</span></td><td class="elo">2170</td><td>190</td><td class="win">158</td><td class="loss">32</td><td>83 %</td></tr>
+      <tr><td class="rank">7</td><td><span class="clan">CYN</span><span class="name">Kon_quest</span></td><td class="elo">2130</td><td>185</td><td class="win">152</td><td class="loss">33</td><td>82 %</td></tr>
+      <tr><td class="rank">8</td><td><span class="clan">CYN</span><span class="name">Bane</span></td><td class="elo">2095</td><td>180</td><td class="win">146</td><td class="loss">34</td><td>81 %</td></tr>
+      <tr><td class="rank">9</td><td><span class="clan">CYN</span><span class="name">Kris</span></td><td class="elo">2060</td><td>175</td><td class="win">140</td><td class="loss">35</td><td>80 %</td></tr>
+      <tr><td class="rank">10</td><td><span class="clan">CYN</span><span class="name">smsfun</span></td><td class="elo">2030</td><td>170</td><td class="win">135</td><td class="loss">35</td><td>79 %</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><span>Ziel: <b>10 von 10</b> Plätzen in der Top 10 mit [CYN]-Tag. Alle Zahlen sind Zielwerte, kein echter Stand.</span><span class="badge">cynclan.com</span></div>
+</body>
+</html>

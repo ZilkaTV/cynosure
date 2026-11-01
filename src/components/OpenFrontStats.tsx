@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { fetchLifetimeStats, type LifetimeStats } from '../lib/playerStats'
 import { useLanguage } from '../i18n/LanguageContext'
 
-const compact = (n: number) => {
+export const compact = (n: number) => {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`
   return String(Math.round(n))
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+export function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-base-700 bg-base-850/60 p-3 text-center">
       <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
@@ -96,7 +96,6 @@ export default function OpenFrontStats({ publicId }: { publicId: string }) {
           </Group>
         </div>
       </details>
-      <p className="text-center text-xs text-slate-500">{t.memberProfile.ofNote}</p>
     </div>
   )
 }

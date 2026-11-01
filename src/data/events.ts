@@ -16,9 +16,38 @@ export interface ClanEvent {
   skinImageUrl?: string
   /** Set once status is 'ended' - the winning team's name, exactly as registered in cyn_event_teams. */
   winner?: string
+  /** 'raffle' = no teams and no submissions: an info card (goal, how to take part, points, prize, skin pictures) built in Events.tsx. */
+  kind?: 'raffle'
+  /** Local clock time of the last day, shown behind the end date. */
+  endTime?: string
+  /** Pictures of the reward (raffle events). */
+  skinImages?: { url: string; label: string }[]
+  /** Clan leaderboard rank the clan has to reach (raffle events). */
+  goalRank?: number
+  /** Exact window of the raffle in UTC (German time is UTC+1 in winter) - what counts for the Factor Wheel. */
+  windowFrom?: string
+  windowTo?: string
 }
 
-export const EVENTS: ClanEvent[] = [
+const EVENT_LIST: ClanEvent[] = [
+  {
+    id: 'cyn-hero-skin-2026',
+    name: 'CYN Hero Skin Event',
+    kind: 'raffle',
+    status: 'upcoming',
+    start: '2026-11-01',
+    end: '2026-12-31',
+    endTime: '23:59',
+    goalRank: 7,
+    windowFrom: '2026-10-31T23:00:00Z', // 1 Nov 00:00 German time
+    windowTo: '2026-12-31T22:59:59Z', // 31 Dec 23:59:59 German time
+    description: 'Reach rank 7 on the clan leaderboard. Everybody who plays team games with another CYN member can win an exclusive skin that exists only 3 times in the world, plus Plutonium.',
+    reward: 'An exclusive skin that exists only 3 times in the world, plus Plutonium.',
+    skinImages: [
+      { url: '/events/cyn-hero-ffa.webp', label: 'FFA mode' },
+      { url: '/events/cyn-hero-team.webp', label: 'Team mode' },
+    ],
+  },
   {
     id: 'trio-challenge-2026',
     name: 'CYN Trio Challenge',
@@ -36,3 +65,17 @@ export const EVENTS: ClanEvent[] = [
     winner: 'Team CYN',
   },
 ]
+
+/**
+ * The events as the page sees them. An event with a time window (windowFrom / windowTo) changes its status by itself: upcoming until the start,
+ * live until the end, then ended - so the CYN Hero Skin event goes live on 1 November 00:00 German time without a new release. Events without a
+ * window keep the status written above.
+ */
+export const EVENTS: ClanEvent[] = EVENT_LIST.map((ev) => {
+  if (!ev.windowFrom || !ev.windowTo) return ev
+  const now = Date.now()
+  // The dev copy of the site shows the event as live; what counts for the wheel is always only the window itself.
+  const onDev = /^(dev\.|cynosure-dev\.)/.test(window.location.hostname)
+  const status: ClanEvent['status'] = onDev ? 'live' : now < Date.parse(ev.windowFrom) ? 'upcoming' : now <= Date.parse(ev.windowTo) ? 'live' : 'ended'
+  return { ...ev, status }
+})

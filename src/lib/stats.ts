@@ -4,8 +4,7 @@
 // under no tag / another tag are never included.
 
 import {
-  fetchFfaLeaderboard,
-  fetchGameDetailsBatch,
+  fetchRosterDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
   type PlayerGame,
@@ -65,15 +64,13 @@ export interface MemberStats {
   eloMonthDelta2v2: number | null
   rank1v1: number | null // global 1v1 ladder position (top 100), for star badges
   rank2v2: number | null // global 2v2 ladder position (top 100), for star badges
-  ffaRank: number | null // global FFA (trackerfront) position (top 100), for ship badges
+  ffaRank: number | null // position on OpenFront's ranked FFA ladder (top 100), for ship badges
   speedrunSeconds: number | null // best verified Australia/solo/no-nations time
   speedrunAttempts: number // how many valid runs this member has submitted
   speedrunVerified: boolean // the engine replay verified the best run
   speedrunGameId: string | null // game id of their best run, for the leaderboard link
   lastSpeedrunAt: string | null
   tiles3minPercent: number | null // tile share at 3:00 in that same best-time game (not an independent attempt)
-  bumpCount: number // self-reported Discord bumps (2h cooldown enforced)
-  lastBumpAt: string | null
   xp: number // total XP from claimed daily quests
   chatMessageCount: number // clan chat messages sent, for the Chatter badge
   isSupporter: boolean // admin-marked donor, for the Supporter badge
@@ -339,15 +336,13 @@ export async function buildRoster(
     string,
     { seconds: number; attempts: number; game_id?: string; submitted_at?: string; tiles3min_percent?: number | null; verified?: boolean }
   > = {},
-  bumps: Record<string, { bump_count: number; last_bump_at: string | null }> = {},
   xpMap: Record<string, number> = {},
   chatCounts: Record<string, number> = {},
   supporters: string[] = [],
 ): Promise<RosterResult> {
   const registeredWithId = registered.filter((r) => r.openfront_id)
-  const [{ oneVOne: ranked, twoVTwo: ranked2v2, ffa: rankedFfa }, ffaLb, gamesById] = await Promise.all([
+  const [{ oneVOne: ranked, twoVTwo: ranked2v2, ffa: rankedFfa }, gamesById] = await Promise.all([
     fetchRankedMap(),
-    fetchFfaLeaderboard(),
     fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
   ])
 
@@ -365,17 +360,23 @@ export async function buildRoster(
   const RECENT_DETAIL_COUNT = 20
   const mk = currentMonthKey()
   const teamWinIds = new Set<string>()
-  const wantDetail = new Set<string>()
+  // game id -> the names the members played under in it (the small report keeps those players besides everybody with the clan tag)
+  const wantDetail = new Map<string, Set<string>>()
+  const want = (g: { gameId: string; username: string }) => {
+    const names = wantDetail.get(g.gameId) ?? new Set<string>()
+    names.add(g.username)
+    wantDetail.set(g.gameId, names)
+  }
   for (const { games } of raw) {
     for (const g of games) {
       if (isTeam(g) && isVictory(g)) {
         teamWinIds.add(g.gameId)
-        wantDetail.add(g.gameId)
+        want(g)
       }
-      if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) wantDetail.add(g.gameId)
+      if (monthKeyOf(g.start) === mk && (isFfa(g) || isTeam(g))) want(g)
     }
     const recentSorted = [...games].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
-    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) wantDetail.add(g.gameId)
+    for (const g of recentSorted.slice(0, RECENT_DETAIL_COUNT)) want(g)
   }
   // No cap on how many of these get fetched: an earlier version capped this
   // at 140 "to respect rate limits", which silently dropped whichever games
@@ -393,7 +394,7 @@ export async function buildRoster(
   // reintroduce that bug just by firing a lot of requests - and since a
   // successful detail fetch is now cached forever (not just for an hour),
   // the one-time cost of a large batch like this doesn't recur.
-  const detailMap = await fetchGameDetailsBatch([...wantDetail])
+  const detailMap = await fetchRosterDetailsBatch(wantDetail, CLAN_TAG)
 
   // Co-op = another CYN player in the same team-win game.
   const coopByGame: Record<string, boolean> = {}
@@ -436,14 +437,13 @@ export async function buildRoster(
       const me =
         d.players.find((p) => p.username === g.username && p.clanTag === CLAN_TAG) ??
         d.players.find((p) => p.username === g.username)
-      if (!me?.stats) continue
-      const goldTotal = (me.stats.gold ?? []).reduce((s, x) => s + Number(x || 0), 0)
+      if (!me?.hasStats) continue
       const minutes = d.durationSeconds > 0 ? d.durationSeconds / 60 : 1
       detailByGame[g.gameId] = {
-        kills: me.stats.kills?.length ?? 0,
-        goldPerMin: goldTotal / minutes,
-        troopsOutPerMin: Number(me.stats.attacks?.[0] ?? 0) / minutes,
-        troopsInPerMin: Number(me.stats.attacks?.[1] ?? 0) / minutes,
+        kills: me.kills,
+        goldPerMin: me.gold / minutes,
+        troopsOutPerMin: me.out / minutes,
+        troopsInPerMin: me.inc / minutes,
         clientId: me.clientID,
       }
     }
@@ -475,11 +475,7 @@ export async function buildRoster(
       eloMonthDelta2v2: eloMonthDelta(input.openfront_id, elo2v2, '2v2'),
       rank1v1: r?.rank ?? null,
       rank2v2: r2?.rank ?? null,
-      ffaRank:
-        ffaLb[input.in_game_name?.trim() ?? ''] ??
-        (r?.username ? ffaLb[r.username] : undefined) ??
-        (games[0]?.username ? ffaLb[games[0].username] : undefined) ??
-        null,
+      ffaRank: rFfa?.rank ?? null,
       speedrunSeconds: speedruns[input.openfront_id]?.seconds ?? null,
       speedrunAttempts: speedruns[input.openfront_id]?.attempts ?? 0,
       speedrunVerified: speedruns[input.openfront_id]?.verified ?? false,
@@ -487,8 +483,6 @@ export async function buildRoster(
       lastSpeedrunAt: speedruns[input.openfront_id]?.submitted_at ?? null,
       tiles3minPercent: speedruns[input.openfront_id]?.tiles3min_percent ?? null,
       xp: xpMap[input.openfront_id] ?? 0,
-      bumpCount: bumps[input.openfront_id]?.bump_count ?? 0,
-      lastBumpAt: bumps[input.openfront_id]?.last_bump_at ?? null,
       chatMessageCount: chatCounts[input.openfront_id] ?? 0,
       isSupporter: supporters.includes(input.openfront_id),
       gamesLast30d: games.filter((g) => within30d(g.start)).length,

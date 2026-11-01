@@ -3,24 +3,21 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
-import { SectionHeading, Spinner } from '../components/ui'
+import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
-import { ReactionCell } from '../components/ReactionCell'
-import { useReactions } from '../lib/useReactions'
+import { GameActionsBar, useGameActions, useOpenReport } from '../components/GameActionsBar'
 import { fetchReactionTotals } from '../lib/reactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
 import { useLanguage } from '../i18n/LanguageContext'
-import { fetchGameDetailsBatch, teamRosterNames, fmtTeamRoster, type PlayerGame, type GameDetail } from '../lib/openfront'
+import { fetchGameDetailsBatch, teamRosterNames, type PlayerGame, type GameDetail } from '../lib/openfront'
 import { CLAN_TAG } from '../config'
 import { cleanDisplayName } from '../lib/displayName'
+import { RosterNames, useWinsIndex } from '../components/RoleName'
+import { eloChangeFor, fmtEloChange, gameModeLabel, groupWinRate, isRankedGame, useMapSizes, useRankedElo, winRateClass } from '../lib/gameRows'
 
-const PAGE_SIZE = 40
+const PAGE_SIZE = 10
 
-type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'private' | 'incomplete' | 'reacted'
-
-function modeLabel(g: PlayerGame): string {
-  return is1v1(g) ? '1v1' : is2v2(g) ? '2v2' : isTeam(g) ? 'Team' : isFfa(g) ? 'FFA' : g.mode
-}
+type Filter = 'all' | 'ffa' | 'team' | '1v1' | '2v2' | 'other' | 'reacted'
 
 function fmtDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -38,8 +35,7 @@ function fmtDuration(s: number): string {
 // lists, but are still reachable here on purpose rather than just gone.
 function matchesFilter(g: PlayerGame, filter: Filter): boolean {
   if (filter === 'reacted') return true
-  if (filter === 'incomplete') return g.result === 'incomplete'
-  if (filter === 'private') return g.type === 'Private'
+  if (filter === 'other') return g.type === 'Private' || g.result === 'incomplete'
   if (g.type === 'Private' || isIncompleteRanked(g)) return false
   if (filter === 'all') return true
   if (filter === 'ffa') return isFfa(g)
@@ -56,8 +52,10 @@ export default function History() {
   const { data, loading } = useRoster(!!profile)
   const [filter, setFilter] = useState<Filter>('all')
   const [playerFilter, setPlayerFilter] = useState<string>(ALL_PLAYERS)
+  const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const [openGame, setOpenGame] = useState<string | null>(null)
+  const report = useOpenReport()
+  const winsIndex = useWinsIndex()
   const [clanScores, setClanScores] = useState<Map<string, ClanScoreRow>>(new Map())
   const [gameDetails, setGameDetails] = useState<Map<string, GameDetail>>(new Map())
 
@@ -105,7 +103,10 @@ export default function History() {
     if (filter === 'reacted' && reactionTotals === null) fetchReactionTotals().then(setReactionTotals)
   }, [filter, reactionTotals])
   const filteredGames = useMemo(() => {
-    const byPlayer = ({ members }: { members: { publicId: string }[] }) => playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)
+    const q = query.trim().toLowerCase()
+    const byPlayer = ({ g, members }: { g: PlayerGame; members: { publicId: string; name: string; username: string }[] }) =>
+      (playerFilter === ALL_PLAYERS || members.some((m) => m.publicId === playerFilter)) &&
+      (!q || g.gameId.toLowerCase() === q || members.some((m) => m.publicId.toLowerCase() === q || m.name.toLowerCase().includes(q) || m.username.toLowerCase().includes(q)))
     if (filter === 'reacted') {
       const totals = reactionTotals ?? {}
       return allGames
@@ -113,10 +114,13 @@ export default function History() {
         .sort((a, b) => (totals[b.g.gameId] ?? 0) - (totals[a.g.gameId] ?? 0) || new Date(b.g.start).getTime() - new Date(a.g.start).getTime())
     }
     return allGames.filter((game) => matchesFilter(game.g, filter) && byPlayer(game))
-  }, [allGames, filter, playerFilter, reactionTotals])
+  }, [allGames, filter, playerFilter, query, reactionTotals])
   const visibleGames = filteredGames.slice(0, visibleCount)
   const remaining = filteredGames.length - visibleGames.length
-  const reactionsApi = useReactions(visibleGames.map(({ g }) => g.gameId))
+  const gameActions = useGameActions(visibleGames.map(({ g }) => g.gameId))
+  const eloByGame = useRankedElo(visibleGames.map(({ g }) => g))
+  const mapSizes = useMapSizes(visibleGames.map(({ g }) => g))
+  const memberById = useMemo(() => new Map((data?.members ?? []).map((m) => [m.publicId, m])), [data])
   const sortedMembers = useMemo(() => [...(data?.members ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [data])
 
   // Batches one lookup per page of newly-revealed rows instead of one per
@@ -158,8 +162,7 @@ export default function History() {
     { key: 'team', label: t.history.filterTeam },
     { key: '1v1', label: t.history.filter1v1 },
     { key: '2v2', label: t.history.filter2v2 },
-    { key: 'private', label: t.history.filterPrivate },
-    { key: 'incomplete', label: t.history.filterIncomplete },
+    { key: 'other', label: `${t.history.filterPrivate} / ${t.history.filterIncomplete}` },
     { key: 'reacted', label: t.history.filterReacted },
   ]
 
@@ -185,7 +188,18 @@ export default function History() {
           ))}
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setVisibleCount(PAGE_SIZE)
+            }}
+            aria-label={t.common.searchPlayerOrId}
+            placeholder={t.common.searchPlayerOrId}
+            className="w-full max-w-sm rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+          />
           <select
             value={playerFilter}
             onChange={(e) => {
@@ -208,25 +222,28 @@ export default function History() {
         ) : (
           <div className="panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-0 text-sm sm:min-w-[720px] sm:text-[15px]">
                 <thead>
                   <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                    <th className="px-4 py-3 text-right font-semibold">Win Score</th>
-                    <th className="px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
-                    <th className="px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
+                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t.common.table.result}</th>
-                    <th className="px-4 py-3 text-right font-semibold">{t.home.reactionButton}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <>
                   {visibleGames.map(({ g, members }) => {
                     const clanScore = clanScores.get(g.gameId)
                     const ratioChange = clanScore ? fmtRatioChange(clanScore.ratioBefore, clanScore.ratioAfter) : null
+                    // Ranked games: the Elo the game gave (when the ranked feed knows it); the ratio cell shows the member's win rate
+                    // in that ladder, so it is never empty for a game that has no clan ratio.
+                    const elo = isRankedGame(g) ? eloChangeFor(eloByGame, g.gameId, members.map((m) => m.publicId)) : null
+                    const winRate = groupWinRate(memberById.get(members[0]?.publicId), g)
                     // Full team roster when it can be reconstructed (see
                     // teamRosterNames) - everyone who was actually there,
                     // not just whichever registered members happened to
@@ -236,35 +253,64 @@ export default function History() {
                     const detail = gameDetails.get(g.gameId)
                     const memberUsernames = members.map((m) => m.username)
                     const fullRoster = detail && g.result !== 'incomplete' ? teamRosterNames(detail, g.result === 'victory', memberUsernames) : null
-                    const playerDisplay = fullRoster ? fmtTeamRoster(fullRoster) : memberUsernames.map(cleanDisplayName).join(', ')
+                    const playerDisplay = <RosterNames names={fullRoster ?? memberUsernames} members={members} winsById={winsIndex.byId} nameById={winsIndex.nameById} />
                     return (
+                      <tbody key={g.gameId} className="hover:bg-base-800/50">
                       <tr
-                        key={g.gameId}
-                        onClick={() => setOpenGame(g.gameId)}
-                        className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
+                        onClick={() => report.open(g.gameId)}
+                        className="cursor-pointer"
                         title={t.home.clickForReportTitle}
                       >
-                        <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-2.5 text-slate-400"><GameDate start={g.start} /></td>
                         <td className="px-4 py-2.5 text-white">{playerDisplay}</td>
-                        <td className="px-4 py-2.5 text-slate-300">
-                          {modeLabel(g)}
+                        <td className={`px-4 py-2.5 sm:whitespace-nowrap ${isRankedGame(g) ? 'font-medium text-gold-light' : 'text-slate-300'}`}>
+                          {gameModeLabel(g)}
                           {g.type === 'Private' && <span className="ml-1.5 text-xs text-slate-500">({t.history.filterPrivate})</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
-                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
-                          {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{g.totalPlayers ?? '-'}</td>
+                        {isRankedGame(g) ? (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${elo ? (elo.d >= 0 ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {elo ? (
+                              <>
+                                {elo.before != null && <span className="mr-1.5 font-normal text-slate-400">{elo.before}</span>}
+                                {fmtEloChange(elo)}
+                              </>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                        ) : (
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
+                            {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
+                          </td>
+                        )}
+                        <td className={`hidden sm:table-cell px-4 py-2.5 text-right tabular-nums ${ratioChange || winRate == null ? 'text-slate-400' : winRateClass(winRate)}`}>
+                          {ratioChange ?? (winRate != null ? `WR ${winRate}%` : '-')}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{ratioChange ?? '-'}</td>
-                        <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-slate-400">
+                          {g.map}
+                          {mapSizes.get(g.gameId) === 'Compact' && <span className="ml-1 text-gold-light">({t.queue.mapCompact})</span>}
+                        </td>
+                        <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                         <td className={`px-4 py-2.5 text-right font-medium ${g.result === 'victory' ? 'text-signal-green' : g.result === 'defeat' ? 'text-signal-red' : 'text-slate-500'}`}>
                           {g.result}
                         </td>
-                        <ReactionCell gameId={g.gameId} memberIds={members.map((m) => m.publicId)} api={reactionsApi} />
                       </tr>
+                      <tr onClick={() => report.open(g.gameId)} title={t.home.clickForReportTitle} className="cursor-pointer border-b border-base-700/50">
+                        <td colSpan={9} className="px-3 pb-2">
+                          <GameActionsBar
+                            gameId={g.gameId}
+                            memberIds={members.map((m) => m.publicId)}
+                            title={`${gameModeLabel(g)} · ${g.map}`}
+                            actions={gameActions}
+                            onOpenComments={report.openComments}
+                          />
+                        </td>
+                      </tr>
+                      </tbody>
                     )
                   })}
-                </tbody>
+                </>
               </table>
             </div>
           </div>
@@ -282,7 +328,7 @@ export default function History() {
         )}
       </section>
 
-      <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />
+      <GameDetailModal gameId={report.openGame} focusComments={report.focusComments} onClose={report.close} />
     </StatsShell>
   )
 }

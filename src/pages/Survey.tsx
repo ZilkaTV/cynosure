@@ -187,7 +187,7 @@ function SurveyForm() {
     })
     setBusy(false)
     if (!result.ok) {
-      setError(result.error ?? 'Something went wrong - please try again.')
+      setError(result.error ?? 'Something went wrong. Please try again.')
       return
     }
     clearSurveyDraft()

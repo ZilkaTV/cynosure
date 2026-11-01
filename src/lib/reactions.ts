@@ -54,8 +54,9 @@ export async function removeReaction(gameId: string, fromOpenfrontId: string, em
 export async function giveReaction(gameId: string, fromOpenfrontId: string, toOpenfrontIds: string[], emoji: string): Promise<GiveReactionResult> {
   if (!supabase) return { ok: false, message: 'Backend not connected.' }
   if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) return { ok: false, message: 'Unknown reaction.' }
-  const recipients = [...new Set(toOpenfrontIds)].filter((id) => id !== fromOpenfrontId)
-  if (recipients.length === 0) return { ok: false, message: 'Nothing to react to.' }
+  const others = [...new Set(toOpenfrontIds)].filter((id) => id !== fromOpenfrontId)
+  // A game nobody else of the clan played can still be liked: the reaction is then stored for the giver themselves.
+  const recipients = others.length > 0 ? others : [fromOpenfrontId]
 
   // Same expired-session nudge as recordBump/claimQuest - see bumps.ts's own comment.
   await supabase.auth.getSession()
@@ -66,7 +67,7 @@ export async function giveReaction(gameId: string, fromOpenfrontId: string, toOp
   if (error) {
     if (error.code === '23505') return { ok: false, message: 'Already given.' }
     if (error.code === '42501' || error.message.includes('row-level security')) {
-      return { ok: false, message: 'Your session expired - sign out and back in with Discord, then try again.' }
+      return { ok: false, message: 'Your session expired. Sign out and back in with Discord, then try again.' }
     }
     return { ok: false, message: `Couldn't save: ${error.message}` }
   }

@@ -157,7 +157,15 @@ export default function NotificationBell() {
 
   function text(n: Notice): ReactNode {
     // the name carries the colours of the member's wins role, like everywhere else on the site
-    const who = <RoleName wins={n.who ? wins.byId.get(n.who) : undefined}>{nameOf(n.who)}</RoleName>
+    const whoName = <RoleName wins={n.who ? wins.byId.get(n.who) : undefined}>{nameOf(n.who)}</RoleName>
+    // the name opens the profile of that member (it sits above the link that covers the whole row)
+    const who = n.who ? (
+      <Link to={`/member/${n.who}`} onClick={() => setOpen(false)} className="relative z-10 hover:underline">
+        {whoName}
+      </Link>
+    ) : (
+      whoName
+    )
     switch (n.kind) {
       case 'game_reaction':
         return de ? <>{who} hat auf dein Spiel reagiert {n.detail}</> : <>{who} reacted to your game {n.detail}</>
@@ -182,7 +190,9 @@ export default function NotificationBell() {
     }
   }
 
-  const rowClass = 'flex items-start gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-base-800'
+  const rowClass = 'relative flex items-start gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-base-800'
+  // a link that covers the whole row: the name inside the text is a link of its own and lies above it
+  const coverClass = 'absolute inset-0'
   const rowBody = (n: Notice) => (
     <>
       <span className="mt-0.5 w-5 shrink-0 text-center text-base leading-none">{ICON[n.kind]}</span>
@@ -258,16 +268,15 @@ export default function NotificationBell() {
               <ul className="divide-y divide-base-700/60">
                 {notices.map((n) => (
                   <li key={n.id}>
-                    {n.to.startsWith('/history?game=') ? (
-                      // a full page load: the History page opens the report from the address when it starts
-                      <a href={n.to} className={rowClass} onClick={() => setOpen(false)}>
-                        {rowBody(n)}
-                      </a>
-                    ) : (
-                      <Link to={n.to} className={rowClass} onClick={() => setOpen(false)}>
-                        {rowBody(n)}
-                      </Link>
-                    )}
+                    <div className={rowClass}>
+                      {rowBody(n)}
+                      {n.to.startsWith('/history?game=') ? (
+                        // a full page load: the History page opens the report from the address when it starts
+                        <a href={n.to} className={coverClass} aria-label={de ? 'Öffnen' : 'Open'} onClick={() => setOpen(false)} />
+                      ) : (
+                        <Link to={n.to} className={coverClass} aria-label={de ? 'Öffnen' : 'Open'} onClick={() => setOpen(false)} />
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

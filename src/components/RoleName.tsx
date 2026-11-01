@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useSharedRoster } from '../lib/access'
 import { fetchClanMembers } from '../lib/clanMembers'
 import { winsRoleGradient } from '../lib/badges'
@@ -106,12 +107,14 @@ interface WinsIndex {
   nameById: Map<string, string>
   /** name (lower case) -> all-time wins, only for names that belong to ONE member (a name several members played under is skipped) */
   byName: Map<string, number>
+  /** name (lower case) -> member id, same rules as byName but for every registered member (also those who left the clan): the profile a name links to */
+  idByName: Map<string, string>
 }
 
 const NO_MEMBERS: MemberStats[] = []
 let indexedFor: MemberStats[] | null = null
 let indexedClan: ReadonlySet<string> | null = null
-let index: WinsIndex = { byId: new Map(), nameById: new Map(), byName: new Map() }
+let index: WinsIndex = { byId: new Map(), nameById: new Map(), byName: new Map(), idByName: new Map() }
 
 /**
  * The wins index of a roster. With the list of the people who are in the clan right now (`clan`), members who are not in it any more (they left
@@ -138,11 +141,29 @@ export function buildWinsIndex(all: MemberStats[], clan: ReadonlySet<string> | n
       if (!byName.has(played) && owners.get(played)?.size === 1) byName.set(played, m.allWins)
     }
   }
+  const idByName = new Map<string, string>()
+  const idOwners = new Map<string, Set<string>>()
+  for (const m of all) {
+    idByName.set(cleanDisplayName(m.name).toLowerCase(), m.publicId)
+    for (const g of m.cynGames) {
+      const played = cleanDisplayName(g.username).toLowerCase()
+      const set = idOwners.get(played) ?? new Set<string>()
+      set.add(m.publicId)
+      idOwners.set(played, set)
+    }
+  }
+  for (const m of all) {
+    for (const g of m.cynGames) {
+      const played = cleanDisplayName(g.username).toLowerCase()
+      if (!idByName.has(played) && idOwners.get(played)?.size === 1) idByName.set(played, m.publicId)
+    }
+  }
   return {
     byId: new Map(members.map((m) => [m.publicId, m.allWins])),
     // the registered names stay for everybody: a member who left is still named correctly, just without the colours
     nameById: new Map(all.map((m) => [m.publicId, cleanDisplayName(m.name)])),
     byName,
+    idByName,
   }
 }
 
@@ -214,7 +235,14 @@ export function RosterNames({
         return (
           <span key={i}>
             {i > 0 && ', '}
-            <RoleName wins={member ? winsById.get(member.publicId) : undefined}>{n}</RoleName>
+            {member ? (
+              // the rows of the game lists open the report on a click: the name goes to the profile instead
+              <Link to={`/member/${member.publicId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">
+                <RoleName wins={winsById.get(member.publicId)}>{n}</RoleName>
+              </Link>
+            ) : (
+              <RoleName wins={undefined}>{n}</RoleName>
+            )}
             {registered && registered.toLowerCase() !== n.toLowerCase() && <span className="ml-1 text-gold-light">({registered})</span>}
           </span>
         )

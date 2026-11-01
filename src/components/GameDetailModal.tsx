@@ -13,6 +13,7 @@ import GameComments from './GameComments'
 import { GameActionsBar, useGameActions } from './GameActionsBar'
 import { useSharedRoster } from '../lib/access'
 import { RoleName, useWinsIndex } from './RoleName'
+import { Link } from 'react-router-dom'
 
 // The report lists this many places (teams, or players in a solo game) before "show more".
 const TOP_PLACES = 10
@@ -476,7 +477,23 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                                         )}{' '}
                                       </span>
                                     )}
-                                    {isCyn ? <RoleName wins={winsIndex.byName.get(cleanDisplayName(r.p.username).toLowerCase())}>{r.p.username}</RoleName> : r.p.username}
+                                    {isCyn ? (
+                                      (() => {
+                                        const key = cleanDisplayName(r.p.username).toLowerCase()
+                                        const name = <RoleName wins={winsIndex.byName.get(key)}>{r.p.username}</RoleName>
+                                        const id = winsIndex.idByName.get(key)
+                                        // the report is a window above the page: it closes when the profile opens
+                                        return id ? (
+                                          <Link to={`/member/${id}`} onClick={onClose} className="hover:underline">
+                                            {name}
+                                          </Link>
+                                        ) : (
+                                          name
+                                        )
+                                      })()
+                                    ) : (
+                                      r.p.username
+                                    )}
                                   </span>
                                   {r.isWinner && <Emoji char={EMOJI.trophy} label={t.gameDetail.tileWinner} className="h-3.5 w-3.5 shrink-0" />}
                                 </span>

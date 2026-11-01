@@ -285,17 +285,30 @@ export default function Register() {
 
   // ── Details form (signed in, or backend not configured yet) ────────────────
   return (
-    <div className="mx-auto max-w-xl">
-      {backHome}
-      <SectionHeading
-        eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
-        title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
-      />
+    <div className="w-full">
+      <div className="mx-auto max-w-xl">
+        {backHome}
+        <SectionHeading
+          eyebrow={profile ? t.register.eyebrowSettings : t.register.eyebrowMembers}
+          title={profile ? t.register.titleYourProfile(CLAN_TAG) : t.register.titleJoin(CLAN_TAG)}
+        />
+      </div>
 
-      <LanguageSetting />
-      <CalmSetting />
-      <ReferralSetting />
+      {/* the settings blocks use the whole width: language and "brought here by" at the left edge, calm mode and "your channels" at the right edge */}
+      <div className="mb-8 grid items-start gap-6 md:grid-cols-2 [&>div>.panel]:m-0 [&>div>.panel]:max-w-none">
+        <div className="w-full max-w-xl justify-self-start">
+          <LanguageSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start md:justify-self-end">
+          <CalmSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start">
+          <ReferralSetting />
+        </div>
+        <div className="w-full max-w-xl justify-self-start md:justify-self-end">{profile && <ChannelSettings />}</div>
+      </div>
 
+      <div className="mx-auto max-w-xl">
       {session && (
         <p className="mb-4 text-sm text-signal-green">{t.register.signedInAs(discordDisplayName(session))}</p>
       )}
@@ -454,7 +467,7 @@ export default function Register() {
           </div>
         </form>
       </Card>
-      {profile && <ChannelSettings />}
+      </div>
     </div>
   )
 }

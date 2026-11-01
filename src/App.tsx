@@ -15,6 +15,7 @@ const Register = lazy(() => import('./pages/Register'))
 const MemberProfile = lazy(() => import('./pages/MemberProfile'))
 const PlayerCard = lazy(() => import('./pages/PlayerCard'))
 const Collection = lazy(() => import('./pages/Collection'))
+const Shop = lazy(() => import('./pages/Shop'))
 const Speedrun = lazy(() => import('./pages/Speedrun'))
 const Events = lazy(() => import('./pages/Events'))
 const Quests = lazy(() => import('./pages/Quests'))
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/speedrun" element={<Speedrun />} />
             <Route path="/events" element={<Events />} />
             <Route path="/quests" element={<Quests />} />
+            <Route path="/shop" element={<Shop />} />
             <Route path="/planner" element={<Navigate to="/monthly/team" replace />} />
             <Route path="/queue" element={<RankedQueue />} />
             <Route path="/trends" element={<Navigate to="/" replace />} />

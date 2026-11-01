@@ -130,6 +130,7 @@ function navItems(t: TranslationShape) {
     { to: '/history', label: t.nav.history, shortLabel: t.nav.shortHistory },
     { to: '/events', label: t.nav.events, shortLabel: t.nav.shortEvents },
     { to: '/quests', label: t.nav.quests, shortLabel: t.nav.shortQuests },
+    { to: '/shop', label: 'Skin Shop', shortLabel: 'Shop' },
   ]
 }
 

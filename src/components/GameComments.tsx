@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Emoji } from './Emoji'
 import { MemberNameLink } from './ui'
+import { CommentText, MentionTextarea } from './Mentions'
 import { REACTION_EMOJIS } from '../lib/reactions'
 import { deleteComment, postComment, toggleCommentReaction, useGameComments, type CommentReactions, type GameComment } from '../lib/comments'
 import { useProfile } from '../lib/useProfile'
@@ -57,10 +58,10 @@ function Composer({ gameId, parentId, placeholder, onDone, autoFocus }: { gameId
   return (
     <div className="space-y-1.5">
       <div className="flex gap-2">
-        <textarea
+        <MentionTextarea
           value={text}
           autoFocus={autoFocus}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
@@ -70,7 +71,7 @@ function Composer({ gameId, parentId, placeholder, onDone, autoFocus }: { gameId
           maxLength={500}
           rows={1}
           placeholder={placeholder}
-          className="min-h-[38px] flex-1 resize-y rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+          className="min-h-[38px] w-full resize-y rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
         />
         <button type="button" onClick={submit} disabled={busy || !text.trim()} className="btn-accent self-start !px-4 !py-2 text-sm disabled:opacity-50">
           {t.comments.post}
@@ -118,7 +119,7 @@ function CommentView({ node, gameId, reactions, depth, canDelete }: { node: Node
           <MemberNameLink publicId={c.author_openfront_id} name={c.author_name ?? c.author_openfront_id} className="text-sm font-semibold text-white hover:text-accent-light" />
           <span>{ago(c.created_at)}</span>
         </div>
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-200">{c.body}</p>
+        <CommentText text={c.body} className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-200" />
         <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs">
           {REACTION_EMOJIS.filter((e) => perEmoji[e]?.size).map((emoji) => (
             <button

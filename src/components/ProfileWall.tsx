@@ -11,6 +11,7 @@ import ReportDialog from './ReportDialog'
 import RoleFrame from './RoleFrame'
 import { RoleName, useWinsIndex } from './RoleName'
 import { relativeTime } from './ui'
+import { CommentText, MentionTextarea } from './Mentions'
 
 /** The comment wall of a profile (flat, newest first, like on a Steam profile). Members write; the author, the profile's owner and admins delete. */
 export default function ProfileWall({ profileId }: { profileId: string }) {
@@ -68,12 +69,12 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
       </div>
       <div className="panel p-4">
         <div className="flex gap-2">
-          <textarea
+          <MentionTextarea
             value={text}
-            onChange={(e) => setText(e.target.value.slice(0, MAX_COMMENT))}
+            onChange={(v) => setText(v.slice(0, MAX_COMMENT))}
             rows={2}
             placeholder={de ? 'Kommentar auf dieser Pinnwand hinterlassen …' : 'Leave a comment on this wall …'}
-            className="min-h-[2.75rem] flex-1 resize-y rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+            className="min-h-[2.75rem] w-full resize-y rounded-lg border border-base-600 bg-base-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
           />
           <button type="button" onClick={() => void send()} disabled={busy || !text.trim()} className="btn-accent self-end !px-5 !py-2 text-sm disabled:opacity-50">
             {de ? 'Senden' : 'Post'}
@@ -121,7 +122,7 @@ export default function ProfileWall({ profileId }: { profileId: string }) {
                       )}
                     </span>
                   </div>
-                  <p className="mt-1 whitespace-pre-line break-words text-sm text-slate-200">{c.body}</p>
+                  <CommentText text={c.body} className="mt-1 whitespace-pre-line break-words text-sm text-slate-200" />
                 </div>
               </li>
             )

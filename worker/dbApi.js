@@ -13,6 +13,7 @@
 
 import { USERS_META } from './d1/usersMeta.js'
 import { readSession, verifyOwnershipProof } from './session.js'
+import { mentionStatements } from './mentions.js'
 
 const MAX_BODY = 262144
 const MAX_ROWS = 5000
@@ -154,6 +155,8 @@ const RULES = {
       // The name shown with a comment always is the member's own, never one the caller typed (no posting "as" somebody else).
       return { game_id: String(row.game_id).slice(0, 40), parent_id: parent, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, body }
     },
+    // "@Name" in the text notifies that member (worker/mentions.js)
+    after: (row, c) => mentionStatements(c.db, { table: 'cyn_game_comments', kind: 'game', ref: row.game_id, authorId: row.author_openfront_id, body: row.body }),
     delete: async (c) => {
       if (!c.user) return false
       if (await c.isAdmin()) return true
@@ -202,6 +205,7 @@ const RULES = {
       if (!(await c.db.prepare('SELECT 1 AS x FROM cyn_members WHERE openfront_id = ?').bind(row.profile_id).first())) throw new DbError('P0001', 'invalid_target: profile not found')
       return { profile_id: row.profile_id, author_openfront_id: m.openfront_id, author_name: m.in_game_name || m.openfront_id, body }
     },
+    after: (row, c) => mentionStatements(c.db, { table: 'cyn_profile_comments', kind: 'profile', ref: row.profile_id, authorId: row.author_openfront_id, body: row.body }),
     delete: async (c) => {
       if (!c.user) return false
       if (await c.isAdmin()) return true
@@ -520,8 +524,8 @@ async function runWrite(c, q, meta, rules) {
       mainIdx.push({ i: statements.length - 1, check: checkChanged })
       written.push(row)
       if (!c.service && rules.after) {
-        const extra = rules.after(row)
-        statements.push(c.db.prepare(extra.sql).bind(...extra.args))
+        // one statement { sql, args } or prepared statements, possibly after a lookup
+        for (const extra of [].concat(await rules.after(row, c))) statements.push(typeof extra.bind === 'function' ? extra : c.db.prepare(extra.sql).bind(...extra.args))
       }
     }
     if (statements.length) {

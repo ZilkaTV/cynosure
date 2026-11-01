@@ -40,6 +40,7 @@ const ICON: Record<Notice['kind'], string> = {
   comment_reply: '↩️',
   profile_like: '💜',
   profile_comment: '📝',
+  mention: '@',
   quest: '🎯',
   report: '⚑',
 }
@@ -179,6 +180,8 @@ export default function NotificationBell() {
         return de ? <>{who} gefällt dein Profil</> : <>{who} likes your profile</>
       case 'profile_comment':
         return de ? <>{who} hat auf deine Pinnwand geschrieben</> : <>{who} wrote on your wall</>
+      case 'mention':
+        return de ? <>{who} hat dich in einem Kommentar erwähnt</> : <>{who} mentioned you in a comment</>
       case 'quest': {
         const q = QUESTS.find((x) => x.id === n.detail)
         const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined

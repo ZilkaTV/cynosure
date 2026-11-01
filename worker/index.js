@@ -30,6 +30,7 @@ import { handleClanDonors } from './clanDonors.js'
 import { handleBoosters } from './boosters.js'
 import { handleAvatar } from './avatars.js'
 import { handleQueuePresence } from './queuePresence.js'
+import { handleMentions } from './mentionsApi.js'
 import { handleCosmetics } from './cosmetics.js'
 import { handleSkinVotes } from './skinVotes.js'
 import { syncClanDonors } from './donorBot.js'
@@ -75,6 +76,7 @@ export default {
     if (pathname === '/api/speedrun/pending') return withSecurityHeaders(await handleSpeedrunPending(request, env))
     if (pathname === '/api/profile-media') return withSecurityHeaders(await handleProfileMedia(request, env))
     if (pathname === '/api/queue-presence') return withSecurityHeaders(await handleQueuePresence(request, env))
+    if (pathname === '/api/mentions') return withSecurityHeaders(await handleMentions(request, env))
     if (pathname.startsWith('/api/avatars/')) return withSecurityHeaders(await handleAvatar(request, env, ctx))
     if (pathname === '/api/card-social' || pathname.startsWith('/api/boosters/') || pathname.startsWith('/api/cards/') || pathname.startsWith('/api/referrals/')) return withSecurityHeaders(await handleBoosters(request, env))
     if (pathname === '/api/clan-donors' || pathname.startsWith('/api/clan-donors/')) return withSecurityHeaders(await handleClanDonors(request, env))

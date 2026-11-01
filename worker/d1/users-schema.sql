@@ -365,6 +365,18 @@ CREATE TABLE IF NOT EXISTS cyn_referrals (
 );
 CREATE INDEX IF NOT EXISTS cyn_referrals_referrer ON cyn_referrals (referrer_id, claimed_at);
 
+-- "@Name" in a comment: one row per mentioned member (written together with the comment, see worker/mentions.js); the bell reads them
+CREATE TABLE IF NOT EXISTS cyn_mentions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mentioned_id TEXT NOT NULL,
+  author_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  comment_id INTEGER,
+  ref_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS cyn_mentions_mentioned ON cyn_mentions (mentioned_id, created_at);
+
 -- Cards a member shows on the own profile (picked in the collection): at most 8 per member
 CREATE TABLE IF NOT EXISTS cyn_profile_cards (
   openfront_id TEXT NOT NULL,

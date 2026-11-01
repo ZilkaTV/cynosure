@@ -15,7 +15,7 @@ import { isCalm } from './calm'
 // or wrote on its wall, quests that can be collected, and (for admins) open reports. Nothing is stored for it: it reads the existing tables
 // every few minutes. "Seen" is remembered per browser (localStorage), a quest or a report counts as new as long as it is waiting.
 
-export type NoticeKind = 'game_reaction' | 'comment_reaction' | 'game_comment' | 'comment_reply' | 'profile_like' | 'profile_comment' | 'quest' | 'report'
+export type NoticeKind = 'game_reaction' | 'comment_reaction' | 'game_comment' | 'comment_reply' | 'profile_like' | 'profile_comment' | 'mention' | 'quest' | 'report'
 
 export interface Notice {
   id: string
@@ -132,6 +132,20 @@ export async function fetchNotices(me: string, myGameIds: string[], isAdmin: boo
     for (const r of (wall as { id: number; author_openfront_id: string; created_at: string }[] | null) ?? []) {
       if (r.author_openfront_id !== me) out.push({ id: `pcomment:${r.id}`, kind: 'profile_comment', at: t(r.created_at), who: r.author_openfront_id, to: `/member/${me}#pinnwand` })
     }
+  }
+
+  // "@Name" in a comment (worker/mentions.js): the Worker lists them for the signed-in member
+  try {
+    const res = await fetch('/api/mentions', { credentials: 'same-origin' })
+    if (res.ok) {
+      const body = (await res.json()) as { mentions?: { id: number; author: string; kind: 'game' | 'profile'; ref: string; at: string }[] }
+      for (const r of body.mentions ?? []) {
+        if (r.author === me) continue
+        out.push({ id: `mention:${r.id}`, kind: 'mention', at: t(r.at), who: r.author, to: r.kind === 'game' ? `/history?game=${r.ref}` : `/member/${r.ref}#pinnwand` })
+      }
+    }
+  } catch {
+    /* offline: the rest of the notices still show */
   }
 
   if (isAdmin) {

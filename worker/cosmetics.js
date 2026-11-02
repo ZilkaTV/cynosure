@@ -5,6 +5,8 @@ const AFFILIATE = 'cyn'
 const SOURCE = 'https://api.openfront.io/cosmetics.json'
 // items that are in OpenFront's file but are not in the store (they cannot be bought)
 const HIDDEN = new Set(['cyn_2'])
+// clan skins that carry no affiliate code and cannot be bought (prizes of clan events): the Skin Shop shows them anyway, marked as event prizes
+const EVENT_PRIZES = new Set(['cyn_trio_event_winner', 'ofml_cyn_cw_pattern'])
 
 import { getShopState } from './donorBot.js'
 
@@ -17,7 +19,7 @@ export async function handleCosmetics(request, env) {
     const res = await fetch(SOURCE, { headers: { Accept: 'application/json', 'User-Agent': 'CynClanBot/1.0 (+https://cynclan.com)' }, signal: AbortSignal.timeout(15000) })
     if (!res.ok) throw new Error(`openfront ${res.status}`)
     const src = await res.json()
-    const keep = (it) => !HIDDEN.has(it?.name) && (all || String(it?.affiliateCode ?? '').toLowerCase() === AFFILIATE)
+    const keep = (it) => !HIDDEN.has(it?.name) && (all || EVENT_PRIZES.has(it?.name) || String(it?.affiliateCode ?? '').toLowerCase() === AFFILIATE)
     // when the CYN bot first saw an item of the clan store (the Skin Shop page marks the ones of the last 14 days as new)
     const shop = env ? await getShopState(env).catch(() => null) : null
     const NEW_MS = 14 * 86_400_000
@@ -27,7 +29,7 @@ export async function handleCosmetics(request, env) {
     }
     const palettes = src.colorPalettes ?? {}
     const colors = (name) => (palettes[name] ? { name, primary: palettes[name].primaryColor, secondary: palettes[name].secondaryColor } : null)
-    const base = (kind) => (id, it) => ({ id, name: it.name ?? id, rarity: it.rarity ?? null, artist: it.artist ?? null, price: it.priceHard ?? null, cyn: String(it.affiliateCode ?? '').toLowerCase() === AFFILIATE, paid: !!it.product, isNew: isNew(kind, id) })
+    const base = (kind) => (id, it) => ({ id, name: it.name ?? id, rarity: it.rarity ?? null, artist: it.artist ?? null, price: it.priceHard ?? null, cyn: String(it.affiliateCode ?? '').toLowerCase() === AFFILIATE, paid: !!it.product, event: EVENT_PRIZES.has(it.name), isNew: isNew(kind, id) })
     const patterns = Object.entries(src.patterns ?? {})
       .filter(([, it]) => keep(it))
       .map(([id, it]) => ({

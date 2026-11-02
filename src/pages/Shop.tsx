@@ -21,6 +21,8 @@ interface Item {
   price: number | null
   cyn: boolean
   paid: boolean
+  /** a prize of a clan event: shown in the shop, but it cannot be bought */
+  event?: boolean
   /** the CYN bot saw it in the store for the first time within the last 14 days */
   isNew?: boolean
 }
@@ -136,6 +138,7 @@ function Price({ item, de }: { item: Item; de: boolean }) {
         {item.price.toLocaleString(de ? 'de-DE' : 'en-GB')} <CurrencyIcon currency="hard" className="h-4 w-4" />
       </span>
     )
+  if (item.event) return <span className="text-xs font-semibold text-gold-light">{de ? 'Event-Preis (nicht kaufbar)' : 'Event prize (not for sale)'}</span>
   return <span className="text-xs text-slate-400">{item.paid ? (de ? 'Bezahlt im Store' : 'Paid in the store') : ''}</span>
 }
 

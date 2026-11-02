@@ -6,7 +6,7 @@
 // both by checking cyn_quest_claims first and by its DB primary key.
 
 import { supabase } from './supabase'
-import { isRankedFfa, isTeam, is1v1, is2v2, type MemberStats } from './stats'
+import { isFfa, isRankedFfa, isTeam, is1v1, is2v2, type MemberStats } from './stats'
 import { startOfWeek, type DonationTotals } from './clanDonors'
 
 const MIN_LOBBY_SIZE = 10
@@ -65,9 +65,13 @@ export const QUESTS: QuestDef[] = [
   {
     id: 'ffa_win',
     name: 'Battle Royale',
-    description: 'Win 1 ranked FFA game',
+    description: 'Win 1 FFA game with at least 10 players in the lobby',
     xp: 25,
-    check: (m) => m.cynGames.some((g) => isRankedFfa(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
+    // a public FFA with 10+ players, or a ranked FFA (its lobbies hold 4-10 players, so the size does not count there); private and solo games do not
+    check: (m) =>
+      m.cynGames.some(
+        (g) => g.result === 'victory' && g.start.slice(0, 10) === todayKey() && (isRankedFfa(g) || (isFfa(g) && g.type === 'Public' && (g.totalPlayers ?? 0) >= MIN_LOBBY_SIZE)),
+      ),
   },
   {
     id: 'team_win_friend',

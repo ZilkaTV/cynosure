@@ -7,6 +7,7 @@ import {
   fetchRosterDetailsBatch,
   fetchPlayerGamesBatch,
   fetchRankedMap,
+  fetchRecentPlayerGames,
   type PlayerGame,
   type RankedEntry,
 } from './openfront'
@@ -330,6 +331,10 @@ function eloMonthDelta(publicId: string, currentElo: number | null, mode: '1v1' 
 
 // ── build roster ─────────────────────────────────────────────────────────────
 
+/** Members whose games were asked from OpenFront directly in this page session, and how many may be asked in one roster build. */
+const liveFilled = new Set<string>()
+const MAX_LIVE_FILL = 3
+
 export async function buildRoster(
   registered: RosterInput[],
   speedruns: Record<
@@ -345,6 +350,23 @@ export async function buildRoster(
     fetchRankedMap(),
     fetchPlayerGamesBatch(registeredWithId.map((r) => r.openfront_id)),
   ])
+
+  // A member who registered after their games has no shared game list yet (the scheduled job needs up to half an hour): their newest games are asked from
+  // OpenFront directly, once per page session. Only for a few members at a time - when many lists are missing the shared store is down, and asking for
+  // all of them would flood OpenFront.
+  const withoutList = registeredWithId.map((r) => r.openfront_id).filter((id) => !gamesById[id] && !liveFilled.has(id))
+  if (withoutList.length > 0 && withoutList.length <= MAX_LIVE_FILL) {
+    await Promise.all(
+      withoutList.map(async (id) => {
+        liveFilled.add(id)
+        try {
+          gamesById[id] = await fetchRecentPlayerGames(id)
+        } catch {
+          /* the member simply has no games here yet */
+        }
+      }),
+    )
+  }
 
   const raw = registeredWithId.map((r) => ({
     input: r,

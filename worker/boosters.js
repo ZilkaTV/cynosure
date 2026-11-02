@@ -375,7 +375,9 @@ export async function handleBoosters(request, env) {
       if (extra.meta?.changes === 1) source = 'extra'
     }
     if (!source) return json(409, { error: 'no_booster' })
-    const { results } = await env.DB.prepare('SELECT openfront_id FROM cyn_members').all()
+    // only registered members: a clan member who never registered (claimed = 0) is not on the members list of the site until they have games with the tag,
+    // so there is no card to show for them (the booster showed the back of the card forever and looked like it held two cards)
+    const { results } = await env.DB.prepare('SELECT openfront_id FROM cyn_members WHERE claimed = 1').all()
     const pool = (results ?? []).map((r) => r.openfront_id)
     const cards = drawPack(pool)
     const boosterId = crypto.randomUUID()

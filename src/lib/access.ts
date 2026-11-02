@@ -6,6 +6,7 @@ import { useIsInnerCircle } from './metrics'
 import { fetchBoosters } from './chat'
 import { loadPersistedRoster } from './rosterCache'
 import { loadRosterShared } from './useRoster'
+import { fetchRecentPlayerGames } from './openfront'
 import { isFfa, isTeam, is1v1, is2v2, type MemberStats, type RosterResult } from './stats'
 import type { PlayerGame } from './openfront'
 
@@ -41,6 +42,20 @@ export function isQualifyingWin(g: PlayerGame, cynPlayers: number, coop: boolean
   return false
 }
 
+/**
+ * The latest qualifying win in a plain list of games (end time in ms), null if there is none. Team games count only with a second [CYN] member, which a
+ * single list does not tell: they are left to the roster.
+ */
+export function lastWinInGames(games: PlayerGame[]): number | null {
+  let last: number | null = null
+  for (const g of games) {
+    if (g.clanTag !== CLAN_TAG || !isQualifyingWin(g, 1, false)) continue
+    const at = new Date(g.start).getTime() + (g.durationSeconds ?? 0) * 1000
+    if (!Number.isNaN(at) && (last == null || at > last)) last = at
+  }
+  return last
+}
+
 /** Start time (ms) of the member's latest qualifying win, null if there is none. */
 export function lastQualifyingWin(member: MemberStats, members: MemberStats[], coopByGame: Record<string, boolean>): number | null {
   // How many registered [CYN] members were in each game (the game lists of the members tell it, even without a game report).
@@ -58,7 +73,7 @@ export function lastQualifyingWin(member: MemberStats, members: MemberStats[], c
 export function computeAccess(
   member: MemberStats | undefined,
   roster: RosterResult,
-  extra: { booster: boolean; staff: boolean },
+  extra: { booster: boolean; staff: boolean; /** a win found by asking OpenFront directly (the member's games are not in the shared lists yet) */ liveWinAt?: number | null },
   now = Date.now(),
 ): Access {
   if (!member) return { status: 'guest', daysLeft: null, lastWinAt: null, expiresAt: null }
@@ -71,7 +86,8 @@ export function computeAccess(
         : extra.staff
           ? 'staff'
           : undefined
-  const lastWinAt = lastQualifyingWin(member, roster.members, roster.coopByGame)
+  const fromRoster = lastQualifyingWin(member, roster.members, roster.coopByGame)
+  const lastWinAt = extra.liveWinAt != null && (fromRoster == null || extra.liveWinAt > fromRoster) ? extra.liveWinAt : fromRoster
   if (permanentReason) return { status: 'permanent', permanentReason, daysLeft: null, lastWinAt, expiresAt: null }
   const expiresAt = lastWinAt == null ? null : lastWinAt + ACCESS_DAYS * DAY
   if (expiresAt == null || expiresAt <= now) return { status: 'expired', daysLeft: 0, lastWinAt, expiresAt }
@@ -81,6 +97,9 @@ export function computeAccess(
 // One roster read and one booster list for the whole page, shared by every component that asks (the account menu and the gate).
 let shared: { roster: RosterResult | null; boosters: Set<string>; at: number } | null = null
 let inflight: Promise<void> | null = null
+// members whose games were asked from OpenFront directly in this page session (see useAccess)
+const liveChecked = new Set<string>()
+const liveWins = new Map<string, number | null>()
 const listeners = new Set<() => void>()
 
 async function refreshShared() {
@@ -125,6 +144,23 @@ export function useAccess(): Access {
   const isAdmin = useIsAdmin()
   const isInnerCircle = useIsInnerCircle()
   const [, tick] = useState(0)
+  // Somebody who registered after their games: the scheduled job has no game list for them yet (it can take half an hour), and "no win found" would
+  // lock them out. Their newest games are asked from OpenFront directly, once.
+  const myId = profile?.openfront_id
+  const noGameList = !!shared?.roster && !!myId && (shared.roster.members.find((m) => m.publicId === myId)?.cynGames.length ?? 0) === 0
+  useEffect(() => {
+    if (!myId || !noGameList || liveChecked.has(myId)) return
+    liveChecked.add(myId)
+    fetchRecentPlayerGames(myId)
+      .then((games) => {
+        liveWins.set(myId, lastWinInGames(games))
+        listeners.forEach((l) => l()) // every component that asks for the access state looks again
+      })
+      .catch(() => {
+        liveWins.set(myId, null) // asking failed: the roster's own answer stands
+        listeners.forEach((l) => l())
+      })
+  }, [myId, noGameList])
 
   useEffect(() => {
     if (!profile) return
@@ -141,5 +177,7 @@ export function useAccess(): Access {
   if (!profile) return { status: 'guest', daysLeft: null, lastWinAt: null, expiresAt: null }
   if (!shared?.roster) return { status: 'loading', daysLeft: null, lastWinAt: null, expiresAt: null }
   const member = shared.roster.members.find((m) => m.publicId === profile.openfront_id)
-  return computeAccess(member, shared.roster, { booster: shared.boosters.has(profile.openfront_id), staff: isAdmin || isInnerCircle })
+  // while OpenFront is asked directly, the answer is "loading" (which never blocks), not a flash of the lock screen
+  if (noGameList && !liveWins.has(profile.openfront_id)) return { status: 'loading', daysLeft: null, lastWinAt: null, expiresAt: null }
+  return computeAccess(member, shared.roster, { booster: shared.boosters.has(profile.openfront_id), staff: isAdmin || isInnerCircle, liveWinAt: noGameList ? (liveWins.get(profile.openfront_id) ?? null) : null })
 }

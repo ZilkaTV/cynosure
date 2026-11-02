@@ -456,6 +456,17 @@ async function fetchPlayerGamesLive(publicId: string, maxPages: number): Promise
 }
 
 /**
+ * The newest games of ONE player straight from OpenFront (two pages of each feed), for the access check of a member the scheduled jobs have not
+ * loaded yet (a member who registered a minute ago). Not stored anywhere: the shared lists stay the job's.
+ */
+export async function fetchRecentPlayerGames(publicId: string): Promise<PlayerGame[]> {
+  const [main, ranked] = await Promise.all([fetchGamesPaged(publicId, null, 2), fetchGamesPaged(publicId, 'ranked', 2)])
+  const byGame = new Map<string, PlayerGame>()
+  for (const g of [...main, ...ranked]) byGame.set(g.gameId, g)
+  return [...byGame.values()]
+}
+
+/**
  * A player's full game history: the default feed (FFA/Team) merged with the
  * ranked feed (1v1), de-duplicated by gameId. Cached per player.
  */

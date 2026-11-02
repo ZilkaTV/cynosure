@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import CardCanvas from '../components/CardCanvas'
 import { RegistrationGate } from '../components/StatsShell'
@@ -125,6 +125,7 @@ export default function Collection() {
   const [collection, setCollection] = useState<{ openedTotal: number; cards: CollectedCard[] } | null | undefined>(undefined)
   const state = useBoosterState()
   const [avatars, setAvatars] = useState<Avatars>({})
+  const asked = useRef(new Set<string>())
   const [opened, setOpened] = useState<PulledCard[] | null>(null)
   // the cards this member shows on the profile (own collection only): the tick on a card
   const [featured, setFeaturedList] = useState<Set<string>>(new Set())
@@ -198,20 +199,21 @@ export default function Collection() {
   }, [loadRequests])
   // a new profile picture shows on the cards at once
   useEffect(() => {
-    const on = () => setAvatars({})
+    const on = () => {
+      asked.current.clear()
+      setAvatars({})
+    }
     window.addEventListener(EXTRAS_CHANGED, on)
     return () => window.removeEventListener(EXTRAS_CHANGED, on)
   }, [])
 
   // the pictures of the members whose cards are shown (the collection and a booster that was just opened)
-  const wanted = useMemo(() => [...new Set([...(collection?.cards ?? []).map((c) => c.card_id), ...(opened ?? []).map((c) => c.card_id)])].filter((x) => !avatars[x]), [collection, opened, avatars])
+  // each member is asked for once: a member without a picture gets no entry in avatars and must not be asked for again and again
+  const wanted = useMemo(() => [...new Set([...(collection?.cards ?? []).map((c) => c.card_id), ...(opened ?? []).map((c) => c.card_id)])].filter((x) => !avatars[x] && !asked.current.has(x)), [collection, opened, avatars])
   useEffect(() => {
     if (wanted.length === 0) return
-    let alive = true
-    void fetchAvatars(wanted).then((a) => alive && setAvatars((prev) => ({ ...prev, ...a })))
-    return () => {
-      alive = false
-    }
+    for (const x of wanted) asked.current.add(x)
+    void fetchAvatars(wanted).then((a) => setAvatars((prev) => ({ ...prev, ...a })))
   }, [wanted])
 
   if (!profile) return <RegistrationGate />

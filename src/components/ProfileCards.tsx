@@ -40,14 +40,13 @@ export default function ProfileCards({ memberId }: { memberId: string }) {
     return out
   }, [cards, featured, memberId])
 
-  const wanted = useMemo(() => [...new Set(slides.map((s) => s.id))].filter((x) => !avatars[x]), [slides, avatars])
+  // each member is asked for once: a member without a picture gets no entry in avatars and must not be asked for again and again
+  const asked = useRef(new Set<string>())
+  const wanted = useMemo(() => [...new Set(slides.map((s) => s.id))].filter((x) => !avatars[x] && !asked.current.has(x)), [slides, avatars])
   useEffect(() => {
     if (!wanted.length) return
-    let alive = true
-    void fetchAvatars(wanted).then((a) => alive && setAvatars((prev) => ({ ...prev, ...a })))
-    return () => {
-      alive = false
-    }
+    for (const x of wanted) asked.current.add(x)
+    void fetchAvatars(wanted).then((a) => setAvatars((prev) => ({ ...prev, ...a })))
   }, [wanted])
 
   if (slides.length === 0) return null

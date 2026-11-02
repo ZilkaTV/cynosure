@@ -80,13 +80,12 @@ export async function fetchAvatars(ids: string[]): Promise<Record<string, { src:
   const out: Record<string, { src: string; fit: Fit | null }> = {}
   for (let i = 0; i < ids.length; i += 80) {
     const chunk = ids.slice(i, i + 80)
-    const { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit').in('openfront_id', chunk)
+    // one read for all columns; only a database without the discord_avatar column falls back to the read without it
+    let { data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit, discord_avatar').in('openfront_id', chunk)
+    if (error) ({ data, error } = await db.from('cyn_members').select('openfront_id, avatar_url, avatar_fit').in('openfront_id', chunk))
     if (error || !data) continue
-    const discord = new Map<string, string | null>()
-    const d = await db.from('cyn_members').select('openfront_id, discord_avatar').in('openfront_id', chunk)
-    if (!d.error) for (const r of (d.data ?? []) as { openfront_id: string; discord_avatar: string | null }[]) discord.set(r.openfront_id, r.discord_avatar)
-    for (const r of data as { openfront_id: string; avatar_url: string | null; avatar_fit: string | null }[]) {
-      const src = avatarSrc(r.openfront_id, r.avatar_url, discord.get(r.openfront_id))
+    for (const r of data as { openfront_id: string; avatar_url: string | null; avatar_fit: string | null; discord_avatar?: string | null }[]) {
+      const src = avatarSrc(r.openfront_id, r.avatar_url, r.discord_avatar)
       // the fit (placement) belongs to an own upload only
       if (src) out[r.openfront_id] = { src, fit: profileImageSrc(r.avatar_url) ? parseFit(r.avatar_fit) : null }
     }

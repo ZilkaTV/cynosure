@@ -255,6 +255,8 @@ export default function Collection() {
   const all = collection?.cards ?? []
   const perRarity = Object.fromEntries(RARITIES.map((r) => [r, all.filter((c) => c.rarity === r).reduce((n, c) => n + c.n, 0)])) as Record<Rarity, number>
   const distinct = new Set(all.map((c) => c.card_id)).size
+  // per rarity: how many different members' cards are collected (of all members that have a card), e.g. 7/104; the pulls with duplicates stay in `perRarity`
+  const distinctPerRarity = Object.fromEntries(RARITIES.map((r) => [r, new Set(all.filter((c) => c.rarity === r && cards.has(c.card_id)).map((c) => c.card_id)).size])) as Record<Rarity, number>
   const list = all
     .filter((c) => filter === 'all' || c.rarity === filter)
     .filter((c) => cards.has(c.card_id))
@@ -356,7 +358,10 @@ export default function Collection() {
           </button>
           {RARITIES.map((r) => (
             <button key={r} type="button" onClick={() => { setFilter(r); setShowAll(false) }} className={`rounded-full border px-3 py-1 ${filter === r ? `${RARITY_INFO[r].border} bg-base-800 ${RARITY_INFO[r].text}` : 'border-base-600 text-slate-400 hover:text-white'}`}>
-              {rarityName(r, de)} <span className="tabular-nums">{perRarity[r]}</span>
+              {rarityName(r, de)}{' '}
+              <span className="tabular-nums" title={de ? `${distinctPerRarity[r]} verschiedene von ${cards.size} Mitgliedern, ${perRarity[r]} Karten insgesamt (mit Doppelten)` : `${distinctPerRarity[r]} different of ${cards.size} members, ${perRarity[r]} cards in total (with duplicates)`}>
+                {distinctPerRarity[r]}/{cards.size}
+              </span>
             </button>
           ))}
         </div>

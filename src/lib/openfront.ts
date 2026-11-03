@@ -387,16 +387,18 @@ async function fetchSharedPlayerGamesBatch(publicIds: string[]): Promise<Map<str
   const result = new Map<string, PlayerGame[]>()
   if (publicIds.length === 0) return result
 
+  // A failed read is an error, not "nobody has games": the roster built from an empty answer showed 0 games for everybody (and locked everybody out
+  // by the 7-day rule) and was saved as the last good copy. The callers decide what to do (the roster keeps its previous copy, a single member falls
+  // back to live OpenFront data).
+  let res: Response
   try {
-    const res = await fetch(`/api/member-games?ids=${encodeURIComponent(publicIds.join(','))}`)
-    if (res.ok) {
-      const data = (await res.json()) as Record<string, PlayerGame[]>
-      for (const [id, games] of Object.entries(data)) result.set(id, games)
-      return result
-    }
+    res = await fetch(`/api/member-games?ids=${encodeURIComponent(publicIds.join(','))}`)
   } catch {
-    // the Worker route is unreachable - the caller falls back to live OpenFront data
+    throw new Error('member_games_unreachable')
   }
+  if (!res.ok) throw new Error(`member_games_${res.status}`)
+  const data = (await res.json()) as Record<string, PlayerGame[]>
+  for (const [id, games] of Object.entries(data)) result.set(id, games)
   return result
 }
 
@@ -475,7 +477,7 @@ export async function fetchPlayerGames(publicId: string, maxPages = 25): Promise
   const cached = cacheGet<PlayerGame[]>(key, GAMES_CACHE_TTL_MS)
   if (cached) return cached
 
-  const shared = await fetchSharedPlayerGamesBatch([publicId])
+  const shared = await fetchSharedPlayerGamesBatch([publicId]).catch(() => new Map<string, PlayerGame[]>())
   const sharedGames = shared.get(publicId)
   if (sharedGames) return mergeAndCacheGames(publicId, sharedGames)
 

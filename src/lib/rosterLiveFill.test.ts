@@ -45,6 +45,12 @@ describe('buildRoster: a member without a shared game list', () => {
     expect(recent).not.toHaveBeenCalled()
   })
 
+  it('fails (and so never publishes a roster without games) when the shared lists cannot be read', async () => {
+    batch.mockRejectedValue(new Error('member_games_502'))
+    await expect(buildRoster([member('AAAA1111'), member('NEWW5555')])).rejects.toThrow('member_games_502')
+    expect(recent).not.toHaveBeenCalled()
+  })
+
   it('keeps the member without games when OpenFront cannot be reached', async () => {
     batch.mockResolvedValue({ AAAA1111: [game('g0')] })
     recent.mockRejectedValue(new Error('offline'))

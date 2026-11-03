@@ -3,7 +3,7 @@ import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { SectionHeading, Card, Spinner, LastUpdated, useCountdown } from '../components/ui'
-import { QUESTS, fetchClaimsToday, claimQuest, nextResetAt, periodKey, questPeriod, type QuestDef } from '../lib/quests'
+import { QUESTS, fetchClaimRounds, fetchClaimsToday, claimQuest, nextResetAt, periodKey, questPeriod, winProgress, type QuestDef } from '../lib/quests'
 import { donationTotals, useClanDonors } from '../lib/clanDonors'
 import { fetchReactedToday } from '../lib/reactions'
 import { currentBoosterState } from '../lib/boosters'
@@ -22,6 +22,8 @@ export default function Quests() {
   const [reactedToday, setReactedToday] = useState(false)
   const [openedBooster, setOpenedBooster] = useState(false)
   const [cardTrained, setCardTrained] = useState(false)
+  // win quests: how many rounds (10 wins each) were claimed so far
+  const [rounds, setRounds] = useState<Record<string, number>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<Record<string, string>>({})
   const countdowns = { day: useCountdown(nextResetAt('day')), week: useCountdown(nextResetAt('week')), month: useCountdown(nextResetAt('month')) }
@@ -35,6 +37,7 @@ export default function Quests() {
       fetchReactedToday(profile.openfront_id).then(setReactedToday)
       void currentBoosterState().then((b) => setOpenedBooster(!!b?.openedToday))
       void cardTrainedThisMonth(profile.openfront_id).then(setCardTrained)
+      void fetchClaimRounds(profile.openfront_id).then(setRounds)
     }
   }, [profile, data])
 
@@ -44,7 +47,7 @@ export default function Quests() {
   const progress = xpProgress(me.xp)
   const coop = data?.coopByGame ?? {}
   const donated = donationTotals(donors, me.publicId)
-  const ctx = { reactedToday, donated, openedBooster, cardTrained }
+  const ctx = { reactedToday, donated, openedBooster, cardTrained, rounds }
 
   async function onClaim(questId: string) {
     if (!profile || !me) return
@@ -54,7 +57,9 @@ export default function Quests() {
     setMsg((m) => ({ ...m, [questId]: r.message }))
     setBusyId(null)
     if (r.ok) {
-      setClaimedToday((s) => new Set(s).add(questId))
+      // a win quest goes on with the next round, the others are done until their period is over
+      if (quest.wins) setRounds((r) => ({ ...r, [questId]: (r[questId] ?? 0) + 1 }))
+      else setClaimedToday((s) => new Set(s).add(questId))
       window.dispatchEvent(new Event(QUESTS_CHANGED)) // the Quests entry of the menu stops glowing
       refresh()
     }
@@ -90,8 +95,40 @@ export default function Quests() {
 
       <ReferralQuest />
 
+      <section className="space-y-4">
+        <SectionHeading
+          center
+          eyebrow={de ? 'Zählt ab dem 3. November · jeweils 10 Siege' : 'Counts from 3 November · 10 wins each'}
+          title={de ? 'Sieg-Quests' : 'Win quests'}
+        />
+        <div className="space-y-3">
+          {QUESTS.filter((q) => q.wins).map((q) => {
+            const wp = winProgress(q, me, coop, ctx)
+            return (
+              <QuestRow
+                key={q.id}
+                q={q}
+                done={wp.ready}
+                claimed={false}
+                busy={busyId === q.id}
+                message={msg[q.id]}
+                resetIn={null}
+                onClaim={() => onClaim(q.id)}
+                donorsUpdated={donors?.updated_at}
+                donorsHaveRecent={donated.hasRecent}
+                progress={{ value: wp.value, target: wp.target }}
+                winInfo={{ rounds: wp.rounds, total: wp.total }}
+              />
+            )
+          })}
+        </div>
+        <p className="text-center text-xs text-slate-500">
+          {de ? 'Sind 10 Siege erreicht, holst du die XP ab, und der Balken beginnt von vorn. Es zählen nur Spiele mit dem [CYN]-Tag.' : 'At 10 wins you claim the XP and the bar starts again. Only games with the [CYN] tag count.'}
+        </p>
+      </section>
+
       {(['day', 'week', 'month'] as const).map((period) => {
-        const list = QUESTS.filter((q) => questPeriod(q) === period)
+        const list = QUESTS.filter((q) => questPeriod(q) === period && !q.wins)
         const heading = {
           day: { eyebrow: `${t.quests.resetsDailyPrefix} · ${periodKey('day')}`, title: t.quests.dailyQuestsTitle },
           week: { eyebrow: de ? 'Setzt sich jeden Montag zurück (UTC)' : 'Resets every Monday (UTC)', title: de ? 'Wöchentliche Quests' : 'Weekly quests' },
@@ -161,12 +198,13 @@ function ReferralQuest() {
   )
 }
 
-function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpdated, donorsHaveRecent, progress }: { progress?: { value: number; target: number }; q: QuestDef; done: boolean; claimed: boolean; busy: boolean; message?: string; resetIn: string | null; onClaim: () => void; donorsUpdated?: string; donorsHaveRecent: boolean }) {
+function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpdated, donorsHaveRecent, progress, winInfo }: { progress?: { value: number; target: number }; winInfo?: { rounds: number; total: number }; q: QuestDef; done: boolean; claimed: boolean; busy: boolean; message?: string; resetIn: string | null; onClaim: () => void; donorsUpdated?: string; donorsHaveRecent: boolean }) {
   const { t, language } = useLanguage()
   const de = language === 'de'
   const qt = t.quests.items[q.id as keyof typeof t.quests.items]
   const name = qt?.name ?? (de ? q.de?.name : undefined) ?? q.name
-  const description = qt?.description ?? (de ? q.de?.description : undefined) ?? q.description
+  // the translated descriptions of the win quests still say "Win 1 ...": they use the texts of the quest itself
+  const description = (q.wins ? undefined : qt?.description) ?? (de ? q.de?.description : undefined) ?? q.description
   const donation = q.id.startsWith('donate_')
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3">
@@ -193,6 +231,11 @@ function QuestRow({ q, done, claimed, busy, message, resetIn, onClaim, donorsUpd
               {Math.min(progress.value, progress.target).toLocaleString(de ? 'de-DE' : 'en-GB')} / {progress.target.toLocaleString(de ? 'de-DE' : 'en-GB')}
             </span>
           </div>
+        )}
+        {winInfo && (
+          <p className="mt-1 text-xs text-slate-500">
+            {de ? `Runde ${winInfo.rounds + 1} · ${winInfo.total} Siege gezählt${winInfo.rounds > 0 ? ` · ${winInfo.rounds}× abgeholt` : ''}` : `Round ${winInfo.rounds + 1} · ${winInfo.total} wins counted${winInfo.rounds > 0 ? ` · claimed ${winInfo.rounds}×` : ''}`}
+          </p>
         )}
         {message && <p className="mt-1 text-xs text-slate-500">{message}</p>}
         {claimed && <p className="mt-1 text-xs text-slate-500">{resetIn ? t.quests.resetsIn(resetIn) : t.quests.resetsInAMoment}</p>}

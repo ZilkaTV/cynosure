@@ -11,6 +11,11 @@ import { startOfWeek, type DonationTotals } from './clanDonors'
 
 const MIN_LOBBY_SIZE = 10
 
+/** Win quests ("0/10"): the qualifying wins from this moment on are counted (midnight UTC at the start of 3 November 2026). */
+export const WIN_QUESTS_FROM = Date.UTC(2026, 10, 3)
+/** Every this many wins a win quest can be claimed once, then the count goes on with the next round. */
+export const WIN_QUEST_TARGET = 10
+
 export function todayKey(): string {
   return new Date().toISOString().slice(0, 10) // YYYY-MM-DD, UTC
 }
@@ -45,6 +50,8 @@ export interface QuestContext {
   cardTrained?: boolean
   /** What the member donated to the clan (from the stored donor list; see src/lib/clanDonors.ts). */
   donated: DonationTotals
+  /** Win quests: how many rounds the member has claimed so far, per quest id (fetchClaimRounds); missing = none. */
+  rounds?: Record<string, number>
 }
 
 export interface QuestDef {
@@ -59,49 +66,62 @@ export interface QuestDef {
   check: (m: MemberStats, coopByGame: Record<string, boolean>, ctx: QuestContext) => boolean
   /** How far the member is (shown as a bar), for quests that count something. */
   progress?: (ctx: QuestContext) => { value: number; target: number }
+  /** Win quests only: how many qualifying wins the member has since WIN_QUESTS_FROM (see winProgress). */
+  wins?: (m: MemberStats, coopByGame: Record<string, boolean>) => number
+}
+
+/** Where a member stands in a win quest: wins counted, rounds already claimed, the bar of the open round and whether it can be claimed. */
+export function winProgress(q: QuestDef, m: MemberStats, coopByGame: Record<string, boolean>, ctx: QuestContext): { total: number; rounds: number; value: number; target: number; ready: boolean } {
+  const total = q.wins ? q.wins(m, coopByGame) : 0
+  const rounds = ctx.rounds?.[q.id] ?? 0
+  const open = Math.max(0, total - rounds * WIN_QUEST_TARGET)
+  return { total, rounds, value: Math.min(open, WIN_QUEST_TARGET), target: WIN_QUEST_TARGET, ready: open >= WIN_QUEST_TARGET }
+}
+
+const countWins = (m: MemberStats, qualifies: (g: MemberStats['cynGames'][number]) => boolean) =>
+  m.cynGames.filter((g) => g.result === 'victory' && Date.parse(g.start) >= WIN_QUESTS_FROM && qualifies(g)).length
+
+/** A quest that counts wins: a progress bar to WIN_QUEST_TARGET, claim, and on to the next round. */
+function winQuest(def: Omit<QuestDef, 'check' | 'period'> & { wins: NonNullable<QuestDef['wins']> }): QuestDef {
+  const q: QuestDef = { ...def, check: (m, coop, ctx) => winProgress(q, m, coop, ctx).ready }
+  return q
 }
 
 export const QUESTS: QuestDef[] = [
-  {
+  // The four win quests count wins (since WIN_QUESTS_FROM) instead of resetting every day: a bar to 10, claim, and on to the next round.
+  winQuest({
     id: 'ffa_win',
     name: 'Battle Royale',
-    description: 'Win 1 FFA game with at least 10 players in the lobby',
-    xp: 25,
-    // a public FFA with 10+ players, or a ranked FFA (its lobbies hold 4-10 players, so the size does not count there); private and solo games do not
-    check: (m) =>
-      m.cynGames.some(
-        (g) => g.result === 'victory' && g.start.slice(0, 10) === todayKey() && (isRankedFfa(g) || (isFfa(g) && g.type === 'Public' && (g.totalPlayers ?? 0) >= MIN_LOBBY_SIZE)),
-      ),
-  },
-  {
+    description: 'Win 10 FFA games (public with 10+ players in the lobby, or ranked)',
+    de: { name: 'Battle Royale', description: 'Gewinne 10 FFA-Spiele (öffentlich mit mindestens 10 Spielern in der Lobby, oder Ranked)' },
+    xp: 150,
+    // private and solo games do not count
+    wins: (m) => countWins(m, (g) => isRankedFfa(g) || (isFfa(g) && g.type === 'Public' && (g.totalPlayers ?? 0) >= MIN_LOBBY_SIZE)),
+  }),
+  winQuest({
     id: 'team_win_friend',
     name: 'Brothers in Arms',
-    description: 'Win 1 Team game with another [CYN] member, 10+ players in the lobby',
-    xp: 20,
-    check: (m, coopByGame) =>
-      m.cynGames.some(
-        (g) =>
-          isTeam(g) &&
-          g.result === 'victory' &&
-          (g.totalPlayers ?? 0) >= MIN_LOBBY_SIZE &&
-          g.start.slice(0, 10) === todayKey() &&
-          coopByGame[g.gameId],
-      ),
-  },
-  {
+    description: 'Win 10 Team games with another [CYN] member, 10+ players in the lobby',
+    de: { name: 'Brothers in Arms', description: 'Gewinne 10 Team-Spiele mit einem anderen [CYN]-Mitglied, 10+ Spieler in der Lobby' },
+    xp: 120,
+    wins: (m, coopByGame) => countWins(m, (g) => isTeam(g) && (g.totalPlayers ?? 0) >= MIN_LOBBY_SIZE && !!coopByGame[g.gameId]),
+  }),
+  winQuest({
     id: 'ranked_win',
     name: 'Duelist',
-    description: 'Win 1 ranked 1v1',
-    xp: 20,
-    check: (m) => m.cynGames.some((g) => is1v1(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
-  },
-  {
+    description: 'Win 10 ranked 1v1 games',
+    de: { name: 'Duellant', description: 'Gewinne 10 Ranked-1v1-Spiele' },
+    xp: 100,
+    wins: (m) => countWins(m, is1v1),
+  }),
+  winQuest({
     id: 'ranked_2v2_win',
     name: 'Tag Team',
-    description: 'Win 1 ranked 2v2',
-    xp: 20,
-    check: (m) => m.cynGames.some((g) => is2v2(g) && g.result === 'victory' && g.start.slice(0, 10) === todayKey()),
-  },
+    description: 'Win 10 ranked 2v2 games',
+    de: { name: 'Tag Team', description: 'Gewinne 10 Ranked-2v2-Spiele' },
+    xp: 100,
+    wins: (m) => countWins(m, is2v2),
+  }),
   {
     id: 'react_game',
     name: 'Hype Man',
@@ -182,8 +202,19 @@ export async function fetchClaimsToday(openfrontId: string): Promise<Set<string>
   const keys = (['day', 'week', 'month'] as const).map((p) => periodKey(p))
   const { data, error } = await supabase.from('cyn_quest_claims').select('quest_id, claim_date').eq('openfront_id', openfrontId).in('claim_date', keys)
   if (error) return new Set()
-  const current = new Map(QUESTS.map((q) => [q.id, periodKey(questPeriod(q))]))
+  const current = new Map(QUESTS.filter((q) => !q.wins).map((q) => [q.id, periodKey(questPeriod(q))]))
   return new Set((data as { quest_id: string; claim_date: string }[]).filter((r) => current.get(r.quest_id) === r.claim_date).map((r) => r.quest_id))
+}
+
+/** Win quests: how many rounds the member has claimed so far, per quest id ("round-1", "round-2" ... are the claim keys). */
+export async function fetchClaimRounds(openfrontId: string): Promise<Record<string, number>> {
+  const ids = QUESTS.filter((q) => q.wins).map((q) => q.id)
+  const out: Record<string, number> = {}
+  if (!supabase) return out
+  const { data, error } = await supabase.from('cyn_quest_claims').select('quest_id, claim_date').eq('openfront_id', openfrontId).in('quest_id', ids)
+  if (error) return out
+  for (const r of (data as { quest_id: string; claim_date: string }[]) ?? []) if (r.claim_date.startsWith('round-')) out[r.quest_id] = (out[r.quest_id] ?? 0) + 1
+  return out
 }
 
 export interface ClaimResult {
@@ -217,7 +248,8 @@ export async function claimQuest(
   const { error: claimError } = await supabase.from('cyn_quest_claims').insert({
     openfront_id: openfrontId,
     quest_id: quest.id,
-    claim_date: periodKey(questPeriod(quest)),
+    // a win quest is claimed round by round ("round-1", "round-2" ...), the others once per day / week / month
+    claim_date: quest.wins ? `round-${(ctx.rounds?.[quest.id] ?? 0) + 1}` : periodKey(questPeriod(quest)),
   })
   if (claimError) {
     // Unique violation = already claimed today (e.g. a second tab beat us to it).

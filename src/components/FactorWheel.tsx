@@ -14,7 +14,6 @@ const luminance = (hex: string) => (0.299 * parseInt(hex.slice(1, 3), 16) + 0.58
 const SPIN_MS = 5200
 /** A number in [0, 1) from the browser's secure random source: the winner of a prize draw should not come from Math.random(). */
 const secureRandom = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
-const TOP_ROWS = 10
 
 /** The draw wheel of the CYN Hero Skin event: not everybody has the same odds. The entries come from the site's stats, only admins can spin. */
 export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: number }) {
@@ -26,7 +25,6 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
   const [boosts, setBoosts] = useState<Map<string, number> | null>(null)
   const [entries, setEntries] = useState<RaffleEntry[] | null>(null)
   const [removed, setRemoved] = useState<Set<string>>(new Set())
-  const [showAll, setShowAll] = useState(false)
   const [rotation, setRotation] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [winner, setWinner] = useState<{ entry: RaffleEntry; chance: number } | null>(null)
@@ -207,7 +205,6 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
     [boosts, roster],
   )
 
-  const rows = showAll ? live : live.slice(0, TOP_ROWS)
   const colorOf = (id: string) => COLORS[live.findIndex((e) => e.id === id) % COLORS.length]
 
   return (
@@ -290,7 +287,7 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((e, i) => (
+                    {live.map((e, i) => (
                       <tr key={e.id} className="border-b border-base-700/50 last:border-0">
                         <td className="px-3 py-2 text-slate-500">
                           <span className="mr-2 inline-block h-3 w-3 rounded" style={{ background: colorOf(e.id) }} />
@@ -342,13 +339,6 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                 ))}
               </ul>
               {boostError && <p className="mt-2 text-xs text-red-400">{de ? 'Speichern hat nicht geklappt.' : 'Saving failed.'}</p>}
-            </div>
-          )}
-          {live.length > TOP_ROWS && (
-            <div className="flex justify-center">
-              <button type="button" onClick={() => setShowAll((v) => !v)} className="btn-ghost text-sm">
-                {showAll ? (de ? 'Nur die Top 10' : 'Show only the top 10') : de ? `Alle ${live.length} anzeigen` : `Show all ${live.length}`}
-              </button>
             </div>
           )}
         </div>

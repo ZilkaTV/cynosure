@@ -71,7 +71,9 @@ export interface CardMeasures {
   social: number | null
   xp: number | null
   winRate: number | null
-  bestElo: number | null
+  /** the ranked Elo of the 1v1 and of the 2v2 ladder (each is measured against its own ladder) */
+  elo1v1: number | null
+  elo2v2: number | null
   goldPerMin: number | null
   caps: number | null
   /** lower is better */
@@ -90,14 +92,13 @@ export function measuresOf(m: MemberStats, caps: number | null, social: number |
   const team = finished.filter((g) => g.mode === 'Team')
   const details = Object.values(m.detailByGame)
   const mean = (pick: (d: (typeof details)[number]) => number) => avg(details.map(pick).filter((v) => Number.isFinite(v)))
-  // INT is the best ranked Elo of the two duel ladders (1v1 and 2v2)
-  const elos = [m.elo, m.elo2v2].filter((v): v is number => typeof v === 'number')
   const teamScore = team.filter((g) => g.type !== 'Private' && g.result === 'victory').reduce((s, g) => s + (coopByGame[g.gameId] ? 2 : 1), 0)
   return {
     social,
     xp: m.xp,
     winRate: finished.length >= 10 ? won(finished) / finished.length : null,
-    bestElo: elos.length ? Math.max(...elos) : null,
+    elo1v1: typeof m.elo === 'number' ? m.elo : null,
+    elo2v2: typeof m.elo2v2 === 'number' ? m.elo2v2 : null,
     goldPerMin: mean((d) => d.goldPerMin),
     caps,
     speedrunSeconds: m.speedrunSeconds,
@@ -116,7 +117,11 @@ const FORMULA: Record<CardStat, Pair[]> = {
     ['social', true],
     ['xp', true],
   ],
-  INT: [['bestElo', true]],
+  // both duel ladders count: the place on the 1v1 ladder and the place on the 2v2 ladder, averaged (only the one played if there is just one)
+  INT: [
+    ['elo1v1', true],
+    ['elo2v2', true],
+  ],
   ECO: [
     ['goldPerMin', true],
     ['caps', true],

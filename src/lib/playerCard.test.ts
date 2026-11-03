@@ -103,11 +103,18 @@ describe('computeCards', () => {
     expect(lone.noData.COM).toBe(false) // XP and social are known (0)
     expect(computeCards([member('DDDD4444'), ...members], caps, true, null).get('DDDD4444')!.noData.COM).toBe(false) // XP alone still counts
   })
-  it('INT is the best ranked Elo of 1v1 and 2v2 (the FFA Elo and the win rate do not count)', () => {
-    const duel = [member('EEEE5555', { elo: 1000, elo2v2: 2100, eloFfa: 1000 }), member('FFFF6666', { elo: 1800, eloFfa: 3000 }), member('GGGG7777', { elo: 1500, eloFfa: 1000 })]
+  it('INT counts the 1v1 and the 2v2 Elo, each against its own ladder (the FFA Elo and the win rate do not count)', () => {
+    const duel = [
+      member('EEEE5555', { elo: 1800, elo2v2: 2000, eloFfa: 1000 }),
+      member('FFFF6666', { elo: 1800, eloFfa: 3000 }),
+      member('GGGG7777', { elo: 1500, elo2v2: 1500, eloFfa: 1000 }),
+      member('IIII9999', { elo: 1000, elo2v2: 1000 }),
+    ]
     const c = computeCards(duel, new Map(), false)
+    // strong in both ladders beats strong in one, which beats the middle of both, which beats the bottom of both
     expect(c.get('EEEE5555')!.stats.INT).toBeGreaterThan(c.get('FFFF6666')!.stats.INT)
     expect(c.get('FFFF6666')!.stats.INT).toBeGreaterThan(c.get('GGGG7777')!.stats.INT)
+    expect(c.get('GGGG7777')!.stats.INT).toBeGreaterThan(c.get('IIII9999')!.stats.INT)
     expect(computeCards([member('HHHH8888', { eloFfa: 3000 }), ...duel], new Map(), false).get('HHHH8888')!.noData.INT).toBe(true)
   })
   it('DEF counts the team win score (2 points when another member was in the game)', () => {

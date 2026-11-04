@@ -152,7 +152,9 @@ export function applySnapshot(card: PlayerCardData, snap: CardSnapshot): PlayerC
 
 /** The cards of all members: each value is the member's place among the members that have data for it. */
 export function computeCards(members: MemberStats[], capsByMember: Map<string, number>, donorsKnown: boolean, socialByMember: Map<string, number> | null = null, coopByGame: Record<string, boolean> = {}): Map<string, PlayerCardData> {
-  const all = members.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null, socialByMember ? (socialByMember.get(m.publicId) ?? 0) : null, coopByGame) }))
+  // a member without any known name (the roster then falls back to the public id, e.g. "rRknLlL1") gets no card, and does not count in the percentiles either
+  const named = members.filter((m) => m.name.trim() !== '' && m.name !== m.publicId)
+  const all = named.map((m) => ({ m, x: measuresOf(m, donorsKnown ? (capsByMember.get(m.publicId) ?? 0) : null, socialByMember ? (socialByMember.get(m.publicId) ?? 0) : null, coopByGame) }))
   const population = (key: keyof CardMeasures) => all.map((a) => a.x[key]).filter((v): v is number => typeof v === 'number')
   const pops = {} as Record<keyof CardMeasures, number[]>
   for (const key of Object.keys(all[0]?.x ?? {}) as (keyof CardMeasures)[]) pops[key] = population(key)

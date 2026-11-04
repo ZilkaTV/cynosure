@@ -5,7 +5,7 @@ import type { MemberStats } from './stats'
 const member = (id: string, over: Partial<MemberStats> = {}): MemberStats =>
   ({
     publicId: id,
-    name: id,
+    name: `Player ${id}`, // a real name: a member whose name is only the public id gets no card
     claimed: true,
     accountUsername: null,
     ffaWins: 0,
@@ -127,6 +127,11 @@ describe('computeCards', () => {
     const c = computeCards([member('KKKK1111', { name: 'Franquitooooooooooooooooo' }), member('LLLL2222', { name: 'Missouri' })], new Map(), false)
     expect(c.get('KKKK1111')!.name).toBe('Franquito')
     expect(c.get('LLLL2222')!.name).toBe('Missouri')
+  })
+  it('gives no card to a member without a known name (the name is then the public id)', () => {
+    const c = computeCards([member('NNNN9999', { name: 'NNNN9999' }), member('OOOO8888', { name: 'Olaf' })], new Map(), false)
+    expect(c.has('NNNN9999')).toBe(false)
+    expect(c.has('OOOO8888')).toBe(true)
   })
   it('works without the donor list (ECO then only has the gold per minute)', () => {
     const c = computeCards(members, new Map(), false).get('AAAA1111')!

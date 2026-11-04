@@ -1,3 +1,4 @@
+import { cleanDisplayName } from './displayName'
 import type { MemberStats } from './stats'
 
 // The player card (like the cards of a football game, but our own system): six values from the stats of the site, an overall rating and a tier.
@@ -176,7 +177,8 @@ export function computeCards(members: MemberStats[], capsByMember: Map<string, n
     }
     const overall = Math.round(CARD_STATS.reduce((s, k) => s + stats[k], 0) / CARD_STATS.length)
     const best = CARD_STATS.reduce((a, b) => (stats[b] > stats[a] ? b : a), CARD_STATS[0])
-    out.set(m.publicId, { publicId: m.publicId, name: m.name, nationality: m.nationality, overall, tier: tierOf(overall), title: TITLES[best], stats, noData })
+    // the name on the card is display-only: "Franquitooooooo" is shown as "Franquito" (like in the clan overview)
+    out.set(m.publicId, { publicId: m.publicId, name: cleanDisplayName(m.name), nationality: m.nationality, overall, tier: tierOf(overall), title: TITLES[best], stats, noData })
   }
   return out
 }

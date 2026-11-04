@@ -123,6 +123,11 @@ describe('computeCards', () => {
     const c = computeCards([member('IIII9999', { cynGames: team(['t1', 't2']) }), member('JJJJ0000', { cynGames: team(['t3']) })], new Map(), false, null, coop)
     expect(c.get('IIII9999')!.stats.DEF).toBeGreaterThan(c.get('JJJJ0000')!.stats.DEF)
   })
+  it('shows a name with a long run of one letter shortened, a normal name untouched', () => {
+    const c = computeCards([member('KKKK1111', { name: 'Franquitooooooooooooooooo' }), member('LLLL2222', { name: 'Missouri' })], new Map(), false)
+    expect(c.get('KKKK1111')!.name).toBe('Franquito')
+    expect(c.get('LLLL2222')!.name).toBe('Missouri')
+  })
   it('works without the donor list (ECO then only has the gold per minute)', () => {
     const c = computeCards(members, new Map(), false).get('AAAA1111')!
     expect(c.noData.ECO).toBe(false)

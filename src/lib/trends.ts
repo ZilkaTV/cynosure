@@ -152,6 +152,39 @@ function monthBounds(monthKey: string): { start: string; end: string } {
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) }
 }
 
+type EloRow = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null }
+
+/**
+ * The 1v1/2v2 Elo snapshots of a date range (inclusive). The Worker answers this from its edge cache (one read of the table for everybody, see
+ * worker/trends.js); if that answer is missing, the table is paged through the generic data API like before. Null when neither works.
+ */
+async function fetchEloRows(from: string, to: string): Promise<EloRow[] | null> {
+  try {
+    const res = await fetch(`/api/trends/elo-rows?from=${from}&to=${to}`)
+    if (res.ok) {
+      const body = (await res.json()) as { rows?: [string, string, number | null, number | null][] }
+      if (Array.isArray(body.rows)) return body.rows.map(([openfront_id, snapshot_date, elo, elo_2v2]) => ({ openfront_id, snapshot_date, elo, elo_2v2 }))
+    }
+  } catch {
+    /* fall back to the data API */
+  }
+  if (!supabase) return null
+  const rows: EloRow[] = []
+  for (let start = 0; ; start += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('cyn_member_snapshots')
+      .select('openfront_id, snapshot_date, elo, elo_2v2')
+      .gte('snapshot_date', from)
+      .lte('snapshot_date', to)
+      .order('snapshot_date', { ascending: true })
+      .range(start, start + SUPABASE_PAGE_SIZE - 1)
+    if (error) return null
+    rows.push(...((data ?? []) as EloRow[]))
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break
+  }
+  return rows
+}
+
 /**
  * Every registered member's elo (as of the last tracked day at-or-before
  * the month's end) and elo delta (vs. the last tracked day before the
@@ -168,27 +201,17 @@ export async function fetchMonthlyEloForAllMembers(monthKey: string): Promise<Re
   // without fetching the site's entire history just to compute one month.
   const bufferStart = new Date(new Date(`${start}T00:00:00Z`).getTime() - 40 * 86_400_000).toISOString().slice(0, 10)
 
-  type Row = { openfront_id: string; snapshot_date: string; elo: number | null; elo_2v2: number | null }
-  const rows: Row[] = []
-  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from('cyn_member_snapshots')
-      .select('openfront_id, snapshot_date, elo, elo_2v2')
-      .gte('snapshot_date', bufferStart)
-      .lte('snapshot_date', end)
-      .order('snapshot_date', { ascending: true })
-      .range(from, from + SUPABASE_PAGE_SIZE - 1)
-    if (error) return {}
-    rows.push(...((data ?? []) as Row[]))
-    if (!data || data.length < SUPABASE_PAGE_SIZE) break
-  }
+  const rows = await fetchEloRows(bufferStart, end)
+  if (!rows) return {}
 
-  const byMember = new Map<string, Row[]>()
+  const byMember = new Map<string, EloRow[]>()
   for (const r of rows) {
     const arr = byMember.get(r.openfront_id) ?? []
     arr.push(r)
     byMember.set(r.openfront_id, arr)
   }
+  // the cached answer does not promise an order
+  for (const arr of byMember.values()) arr.sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
 
   type Key = 'elo' | 'elo_2v2'
   const result: Record<string, MonthlyEloPoint> = {}
@@ -266,6 +289,16 @@ export interface MostImproved {
 
 /** Top N members by all_wins gained over the last `days` days, highest first. Members with no gain are excluded entirely, not shown as 0. */
 export async function fetchMostImproved(days = 7, limit = 3): Promise<MostImproved[]> {
+  // the Worker works it out once for everybody and keeps the answer in its edge cache (worker/trends.js)
+  try {
+    const res = await fetch(`/api/trends/most-improved?days=${days}&limit=${limit}`)
+    if (res.ok) {
+      const body = (await res.json()) as { list?: MostImproved[] }
+      if (Array.isArray(body.list)) return body.list
+    }
+  } catch {
+    /* fall back to reading the snapshots here */
+  }
   const byMember = await fetchAllMemberTrends(days + 1)
   const deltas: MostImproved[] = []
   for (const [openfrontId, points] of Object.entries(byMember)) {

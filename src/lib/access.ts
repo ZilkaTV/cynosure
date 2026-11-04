@@ -5,7 +5,7 @@ import { useIsAdmin } from './useSession'
 import { useIsInnerCircle } from './metrics'
 import { fetchBoosters } from './chat'
 import { loadPersistedRoster } from './rosterCache'
-import { loadRosterShared } from './useRoster'
+import { loadRosterShared, onRosterBuilt } from './useRoster'
 import { fetchRecentPlayerGames } from './openfront'
 import { isFfa, isTeam, is1v1, is2v2, type MemberStats, type RosterResult } from './stats'
 import type { PlayerGame } from './openfront'
@@ -101,6 +101,13 @@ let inflight: Promise<void> | null = null
 const liveChecked = new Set<string>()
 const liveWins = new Map<string, number | null>()
 const listeners = new Set<() => void>()
+
+// A roster that any page built (every page with stats rebuilds it every 2 minutes) is the shared one from then on.
+onRosterBuilt((roster) => {
+  if (!shared) return // the first read of the boosters and the roster together is refreshShared's (the access check needs both)
+  shared = { roster, boosters: shared.boosters, at: Date.now() }
+  listeners.forEach((l) => l())
+})
 
 async function refreshShared() {
   if (inflight) return inflight

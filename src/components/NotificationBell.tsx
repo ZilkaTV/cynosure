@@ -94,6 +94,7 @@ export default function NotificationBell() {
   // and the chime are easy to miss, and a system notification only comes while the window is in the background.
   const [toast, setToast] = useState<{ id: string; name: string } | null>(null)
   const knownQuests = useRef<Set<string> | null>(null)
+  const toasted = useRef<Set<string>>(new Set()) // a quest that dropped out of the list for a moment (a read failed) and came back is no news
   const questKey = notices
     .filter((n) => n.kind === 'quest')
     .map((n) => n.id)
@@ -104,8 +105,9 @@ export default function NotificationBell() {
     const known = knownQuests.current
     knownQuests.current = now
     if (!known) return // what was already claimable at the start is no news
-    const fresh = notices.find((n) => n.kind === 'quest' && !known.has(n.id))
+    const fresh = notices.find((n) => n.kind === 'quest' && !known.has(n.id) && !toasted.current.has(n.id))
     if (!fresh) return
+    toasted.current.add(fresh.id)
     const q = QUESTS.find((x) => x.id === fresh.detail)
     const qt = q ? t.quests.items[q.id as keyof typeof t.quests.items] : undefined
     setToast({ id: fresh.id, name: fresh.detail === 'refer_friend' ? (de ? 'Freunde werben' : 'Invite a friend') : (qt?.name ?? (de ? q?.de?.name : undefined) ?? q?.name ?? '') })

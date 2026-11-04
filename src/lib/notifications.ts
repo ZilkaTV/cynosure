@@ -203,22 +203,44 @@ export function useNotifications() {
   )
   const gameKey = gameIds.join(',')
 
-  const load = useCallback(async () => {
+  // The timers and listeners below live as long as their effect, so they must read the newest roster, donor list and game list through this
+  // ref and not the ones of the render the effect started in. With the old copies no donation quest was ever announced (the donor list arrives
+  // after the roster) and a win that came in with a fresh roster was only noticed after a page reload.
+  const live = useRef({ member, coop: roster?.coopByGame, donors, isAdmin, gameKey })
+  useEffect(() => {
+    live.current = { member, coop: roster?.coopByGame, donors, isAdmin, gameKey }
+  })
+
+  const loadNotices = useCallback(async () => {
     if (!me) return
-    lastLoad.current = Date.now()
-    setNotices(await fetchNotices(me, gameKey ? gameKey.split(',') : [], isAdmin))
-    if (member && roster) {
-      const [claims, reacted, booster, trained, referral, rounds] = await Promise.all([fetchClaimsToday(me), fetchReactedToday(me), currentBoosterState(), cardTrainedThisMonth(me), fetchReferral(), fetchClaimRounds(me)])
-      const ctx = { reactedToday: reacted, donated: donationTotals(donors, me), openedBooster: !!booster?.openedToday, cardTrained: trained, rounds }
+    const { gameKey: keys, isAdmin: admin } = live.current
+    setNotices(await fetchNotices(me, keys ? keys.split(',') : [], admin))
+  }, [me])
+
+  const loadQuests = useCallback(async () => {
+    const { member: mem, coop, donors: doc } = live.current
+    if (!me || !mem || !coop) return
+    try {
+      // strict reads: a failed read of the claims must not look like "nothing claimed yet", or every quest would be announced again
+      const [claims, reacted, booster, trained, referral, rounds] = await Promise.all([fetchClaimsToday(me, true), fetchReactedToday(me), currentBoosterState(), cardTrainedThisMonth(me), fetchReferral(), fetchClaimRounds(me, true)])
+      const ctx = { reactedToday: reacted, donated: donationTotals(doc, me), openedBooster: !!booster?.openedToday, cardTrained: trained, rounds }
       // a win quest is ready again for every round (10 wins), so its key carries the round
-      const ready = QUESTS.filter((q) => q.check(member, roster.coopByGame, ctx) && !claims.has(q.id)).map((q) => ({ id: q.id, key: q.wins ? `${q.id}:round-${(rounds[q.id] ?? 0) + 1}` : `${q.id}:${periodKey(questPeriod(q))}` }))
+      const ready = QUESTS.filter((q) => q.check(mem, coop, ctx) && !claims.has(q.id)).map((q) => ({ id: q.id, key: q.wins ? `${q.id}:round-${(rounds[q.id] ?? 0) + 1}` : `${q.id}:${periodKey(questPeriod(q))}` }))
       // a friend who named me: the quest "Invite a friend" is ready (one booster per friend, the key changes with the number waiting)
       if ((referral?.pending ?? 0) > 0) ready.unshift({ id: 'refer_friend', key: `refer_friend:${referral!.total}:${referral!.pending}` })
       setClaimable(ready)
       publishQuestsReady(ready.length)
+    } catch {
+      /* the claims could not be read: the list stays as it was until the next look */
     }
+  }, [me])
+
+  const load = useCallback(async () => {
+    if (!me) return
+    lastLoad.current = Date.now()
+    await Promise.allSettled([loadNotices(), loadQuests()])
     setLoaded(true)
-  }, [me, gameKey, isAdmin, member, roster, donors])
+  }, [me, loadNotices, loadQuests])
 
   useEffect(() => {
     if (!me) return
@@ -247,8 +269,15 @@ export function useNotifications() {
       window.removeEventListener('focus', onVisible)
       window.removeEventListener(QUESTS_CHANGED, onQuests)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me, !!roster, gameKey])
+  }, [me, !!roster, load]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What decides the quests changed after the last look: a fresh roster brought a new game, or the donor list arrived late. A quest may just have
+  // become ready, so only the quests are looked at again (not waiting for the next 90 seconds).
+  const questSig = `${member ? `${member.cynGames.length}:${member.cynGames.reduce((a, g) => (g.start > a ? g.start : a), '')}` : ''}|${donors === undefined ? 'loading' : donors === null ? 'none' : (donors.updated_at ?? 'doc')}`
+  useEffect(() => {
+    if (!me || !roster || !member || Date.now() - lastLoad.current < 2000) return // the look that just started already has it
+    void loadQuests()
+  }, [questSig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const all: Notice[] = useMemo(
     () => [...claimable.map((c): Notice => ({ id: `quest:${c.key}`, kind: 'quest', at: null, detail: c.id, to: '/quests' })), ...notices],

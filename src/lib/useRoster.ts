@@ -23,6 +23,14 @@ export type Deltas = Record<string, Partial<Record<DeltaField, number>>>
 // (loading/data/deltas), so nothing about the public behavior changes.
 let inFlightRosterLoad: Promise<RosterResult> | null = null
 
+// Everybody who wants to know when a fresh roster was built (the shared one of the access check and the notification bell takes it over,
+// so they are as fresh as the page the visitor is on without a read of their own).
+const builtListeners = new Set<(roster: RosterResult) => void>()
+export function onRosterBuilt(listener: (roster: RosterResult) => void): () => void {
+  builtListeners.add(listener)
+  return () => builtListeners.delete(listener)
+}
+
 async function loadRosterDeduped(): Promise<RosterResult> {
   if (!inFlightRosterLoad) {
     inFlightRosterLoad = (async () => {
@@ -33,7 +41,9 @@ async function loadRosterDeduped(): Promise<RosterResult> {
         fetchAllChatMessageCounts().catch(() => ({})),
         fetchAllSupporters().catch(() => []),
       ])
-      return buildRoster(registered, speedruns, xpMap, chatCounts, supporters)
+      const roster = await buildRoster(registered, speedruns, xpMap, chatCounts, supporters)
+      builtListeners.forEach((l) => l(roster))
+      return roster
     })().finally(() => {
       inFlightRosterLoad = null
     })

@@ -197,22 +197,29 @@ export async function fetchXp(): Promise<Record<string, number>> {
 }
 
 /** The quests this member has already claimed in their current period (today / this week / this month). */
-export async function fetchClaimsToday(openfrontId: string): Promise<Set<string>> {
+export async function fetchClaimsToday(openfrontId: string, strict = false): Promise<Set<string>> {
   if (!supabase) return new Set()
   const keys = (['day', 'week', 'month'] as const).map((p) => periodKey(p))
   const { data, error } = await supabase.from('cyn_quest_claims').select('quest_id, claim_date').eq('openfront_id', openfrontId).in('claim_date', keys)
-  if (error) return new Set()
+  // strict (the notifications): a failed read must not look like "nothing claimed", or every quest would be announced again
+  if (error) {
+    if (strict) throw new Error('claims_unreadable')
+    return new Set()
+  }
   const current = new Map(QUESTS.filter((q) => !q.wins).map((q) => [q.id, periodKey(questPeriod(q))]))
   return new Set((data as { quest_id: string; claim_date: string }[]).filter((r) => current.get(r.quest_id) === r.claim_date).map((r) => r.quest_id))
 }
 
 /** Win quests: how many rounds the member has claimed so far, per quest id ("round-1", "round-2" ... are the claim keys). */
-export async function fetchClaimRounds(openfrontId: string): Promise<Record<string, number>> {
+export async function fetchClaimRounds(openfrontId: string, strict = false): Promise<Record<string, number>> {
   const ids = QUESTS.filter((q) => q.wins).map((q) => q.id)
   const out: Record<string, number> = {}
   if (!supabase) return out
   const { data, error } = await supabase.from('cyn_quest_claims').select('quest_id, claim_date').eq('openfront_id', openfrontId).in('quest_id', ids)
-  if (error) return out
+  if (error) {
+    if (strict) throw new Error('claims_unreadable')
+    return out
+  }
   for (const r of (data as { quest_id: string; claim_date: string }[]) ?? []) if (r.claim_date.startsWith('round-')) out[r.quest_id] = (out[r.quest_id] ?? 0) + 1
   return out
 }

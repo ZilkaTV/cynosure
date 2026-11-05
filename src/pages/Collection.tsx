@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import CardCanvas from '../components/CardCanvas'
 import { RegistrationGate } from '../components/StatsShell'
 import { SectionHeading, Spinner } from '../components/ui'
+import { cleanDisplayName } from '../lib/displayName'
 import { useLanguage } from '../i18n/LanguageContext'
 import {
   RARITIES,
@@ -434,7 +435,7 @@ export default function Collection() {
                 {requests.map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                     <span className="min-w-0 flex-1">
-                      <span className="font-semibold text-white">{r.name ?? r.openfront_id}</span>
+                      <span className="font-semibold text-white">{cleanDisplayName(r.name ?? r.openfront_id)}</span>
                       <span className="ml-2 font-mono text-[10px] text-slate-500">{r.openfront_id}</span>
                       <span className="ml-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     </span>

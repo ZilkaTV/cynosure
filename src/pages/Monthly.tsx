@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CLAN_TAG } from '../config'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
+import { cleanDisplayName } from '../lib/displayName'
 import { RegistrationGate, StatsShell, TagNotice } from '../components/StatsShell'
 import { DecayForecastWindow, PointsPlannerWindow } from '../components/PlannerWindows'
 import GameDetailModal from '../components/GameDetailModal'
@@ -174,7 +175,7 @@ function TitleCard({
       <Emoji char={emoji} className={`mx-auto h-6 w-6 ${leader ? '' : 'opacity-40 grayscale'}`} />
       <p className="mt-1 font-display text-sm font-bold text-gold-light">{title}</p>
       <p className="text-[11px] uppercase tracking-wide text-slate-500">{metric}</p>
-      <p className="mt-1 truncate text-sm font-medium text-white">{leader ? leader.name : '-'}</p>
+      <p className="mt-1 truncate text-sm font-medium text-white">{leader ? cleanDisplayName(leader.name) : '-'}</p>
       {leader && <p className="text-xs font-semibold text-accent-light">{format(leader.value)}</p>}
     </div>
   )
@@ -220,7 +221,7 @@ function LatestGamesSection({
                   className="cursor-pointer border-b border-base-700/50 last:border-0 hover:bg-base-800/50"
                 >
                   <td className="px-4 py-2.5 text-slate-400">{new Date(g.start).toLocaleDateString('en-GB')}</td>
-                  <td className="px-4 py-2.5 text-white">{memberNames.join(', ')}</td>
+                  <td className="px-4 py-2.5 text-white">{memberNames.map(cleanDisplayName).join(', ')}</td>
                   <td className="px-4 py-2.5 text-slate-400">{g.map}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-slate-400">{fmtDuration(g.durationSeconds)}</td>
                   <td

@@ -162,20 +162,20 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
   const openfront = p.id ? `https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}` : null
   const nameNode = memberId ? (
     <Link to={`/member/${memberId}`} className="hover:text-accent-light">
-      <RoleName wins={wins.byId.get(memberId)}>{p.n}</RoleName>
+      <RoleName wins={wins.byId.get(memberId)}>{cleanDisplayName(p.n)}</RoleName>
     </Link>
   ) : openfront ? (
     <a href={openfront} target="_blank" rel="noreferrer" className="hover:text-accent-light">
-      {p.n}
+      {cleanDisplayName(p.n)}
     </a>
   ) : (
-    p.n
+    cleanDisplayName(p.n)
   )
   const label = (
     <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
       {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
       {nameNode}
-      {own && <span className="ml-1 text-gold-light">({own.name})</span>}
+      {own && <span className="ml-1 text-gold-light">({cleanDisplayName(own.name)})</span>}
       {showReal && <span className="ml-1 text-gold-light">({cleanDisplayName(showReal)})</span>}
       {openfront && (
         <a href={openfront} target="_blank" rel="noreferrer" className="block font-mono text-[10px] font-normal text-slate-500 hover:text-accent-light">

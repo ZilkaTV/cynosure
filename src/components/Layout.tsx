@@ -13,7 +13,7 @@ import RoleFrame from './RoleFrame'
 import { RoleName, useWinsIndex } from './RoleName'
 import FitImage from './FitImage'
 import { avatarSrc, parseFit, profileImageSrc, useProfileExtras } from '../lib/profileExtras'
-import { initialOf } from '../lib/displayName'
+import { cleanDisplayName, initialOf } from '../lib/displayName'
 import { CHANGELOG } from '../data/changelog'
 import { EVENTS } from '../data/events'
 import ProfileSearch from './ProfileSearch'
@@ -293,7 +293,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
             </span>
           )}
           <span className="max-w-[8rem] truncate">
-            <RoleName wins={myWins}>{profile.in_game_name}</RoleName>
+            <RoleName wins={myWins}>{cleanDisplayName(profile.in_game_name)}</RoleName>
           </span>
           <span className="max-w-[10rem] truncate text-[10px] font-medium text-slate-400">{rolesText}</span>
           {label && <span className={`text-[10px] font-semibold ${label.cls}`}>{label.text}</span>}
@@ -307,7 +307,7 @@ function AccountMenu({ isInner }: { isInner: boolean }) {
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-base-600 bg-base-850 shadow-xl">
           <div className="border-b border-base-700 px-4 py-2.5 sm:hidden">
-            <p className="truncate text-sm font-semibold text-white">{profile.in_game_name}</p>
+            <p className="truncate text-sm font-semibold text-white">{cleanDisplayName(profile.in_game_name)}</p>
             {lvl && <p className="text-[11px] font-semibold text-gold-light">{t.questCard.lvlPrefix} {lvl.level} · {titleForLevel(lvl.level)}</p>}
             {rolesText && <p className="text-[11px] text-slate-400">{rolesText}</p>}
             {label && <p className={`text-[11px] font-semibold ${label.cls}`}>{label.text}</p>}

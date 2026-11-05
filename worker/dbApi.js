@@ -51,8 +51,9 @@ const insertOwn = (col) => async (row, c) => {
 }
 const insertAdmin = async (row, c) => (await ADMIN(c)) ? row : false
 
-// The seven reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
-const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}'])
+// The reactions of the site (src/lib/reactions.ts, REACTION_EMOJIS). The table has no check constraint, so this is the only lock.
+// Last three: angry, sad, salute.
+const REACTIONS = new Set(['\u{1F44D}', '❤️', '\u{1F525}', '\u{1F44F}', '\u{1F389}', '\u{1F4AA}', '\u{1F602}', '\u{1F620}', '\u{1F622}', '\u{1FAE1}'])
 const ID_LIKE = /^[A-Za-z0-9_-]{1,40}$/
 // the answers a report offers (src/lib/reports.ts)
 const REPORT_REASONS = new Set(['image', 'insult', 'spam', 'impersonation', 'other'])

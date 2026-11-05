@@ -10,7 +10,8 @@ import { supabase } from './supabase'
 
 // Keep in sync with the check constraint on cyn_kudos.emoji in schema.sql.
 // The heart is written with escapes so its U+FE0F variation selector can't get lost in an editor.
-export const REACTION_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💪', '😂'] as const
+// New ones go at the end (the order is the order of the picker): 😠 angry, 😢 sad, 🫡 salute.
+export const REACTION_EMOJIS = ['👍', '❤️', '🔥', '👏', '🎉', '💪', '😂', '😠', '😢', '🫡'] as const
 
 // What the one-click heart button on a game without reactions leaves (same code points as in REACTION_EMOJIS).
 export const DEFAULT_REACTION = '\u2764\uFE0F'

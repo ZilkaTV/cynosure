@@ -111,17 +111,20 @@ export function measuresOf(m: MemberStats, caps: number | null, social: number |
   }
 }
 
-type Pair = [keyof CardMeasures, boolean] // measure, higher is better
+// measure, higher is better, and (optional) "a missing value counts as the lowest place" once the member has another value of this stat
+type Pair = [keyof CardMeasures, boolean, boolean?]
 
 const FORMULA: Record<CardStat, Pair[]> = {
   COM: [
     ['social', true],
     ['xp', true],
   ],
-  // both duel ladders count: the place on the 1v1 ladder and the place on the 2v2 ladder, averaged (only the one played if there is just one)
+  // both duel ladders count: the place on the 1v1 ladder and the place on the 2v2 ladder, averaged. The Elo only exists for the top 100 of a ladder,
+  // so a member who is not on one of the two boards is below everybody who is: that ladder counts as the lowest place. Without this, somebody
+  // listed on one ladder only would beat a member who is higher on both (the 1v1 place of the second one pulled the average down).
   INT: [
-    ['elo1v1', true],
-    ['elo2v2', true],
+    ['elo1v1', true, true],
+    ['elo2v2', true, true],
   ],
   ECO: [
     ['goldPerMin', true],
@@ -165,12 +168,18 @@ export function computeCards(members: MemberStats[], capsByMember: Map<string, n
     const noData = {} as Record<CardStat, boolean>
     for (const stat of CARD_STATS) {
       const ps: number[] = []
-      for (const [key, higher] of FORMULA[stat]) {
+      let lowest = 0
+      for (const [key, higher, missingIsLowest] of FORMULA[stat]) {
         const v = x[key]
-        if (typeof v !== 'number') continue
+        if (typeof v !== 'number') {
+          if (missingIsLowest) lowest++
+          continue
+        }
         const p = percentile(v, pops[key])
         ps.push(higher ? p : 1 - p)
       }
+      // only for a member who has at least one value of this stat (with none at all the stat stays "no data")
+      if (ps.length > 0) for (let i = 0; i < lowest; i++) ps.push(0)
       // DEF without team games falls back to the overall win rate
       if (stat === 'DEF' && ps.length === 0 && typeof x.winRate === 'number') ps.push(percentile(x.winRate, pops.winRate))
       const mean = avg(ps)

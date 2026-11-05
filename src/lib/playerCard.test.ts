@@ -111,11 +111,25 @@ describe('computeCards', () => {
       member('IIII9999', { elo: 1000, elo2v2: 1000 }),
     ]
     const c = computeCards(duel, new Map(), false)
-    // strong in both ladders beats strong in one, which beats the middle of both, which beats the bottom of both
+    // strong in both ladders beats strong in one (the other ladder counts as the lowest place) and beats the middle of both; the bottom of both is last
     expect(c.get('EEEE5555')!.stats.INT).toBeGreaterThan(c.get('FFFF6666')!.stats.INT)
-    expect(c.get('FFFF6666')!.stats.INT).toBeGreaterThan(c.get('GGGG7777')!.stats.INT)
+    expect(c.get('EEEE5555')!.stats.INT).toBeGreaterThan(c.get('GGGG7777')!.stats.INT)
     expect(c.get('GGGG7777')!.stats.INT).toBeGreaterThan(c.get('IIII9999')!.stats.INT)
+    expect(c.get('FFFF6666')!.stats.INT).toBeGreaterThan(c.get('IIII9999')!.stats.INT)
     expect(computeCards([member('HHHH8888', { eloFfa: 3000 }), ...duel], new Map(), false).get('HHHH8888')!.noData.INT).toBe(true)
+  })
+  it('INT: whoever is higher in the 1v1 and in the 2v2 never has less than somebody listed on one ladder only', () => {
+    // the top-100 entries of the clan: Zilka is higher than Calos in the 2v2 and Calos has no 1v1 place at all
+    const clan = [
+      member('BANE0001', { elo: 2556, elo2v2: 2127 }),
+      member('ZILK0002', { elo: 2407, elo2v2: 2434 }),
+      member('SOOT0003', { elo: 2396, elo2v2: 2000 }),
+      member('CHUM0004', { elo: 2192, elo2v2: 2101 }),
+      member('CALO0005', { elo2v2: 2288 }),
+    ]
+    const c = computeCards(clan, new Map(), false)
+    expect(c.get('ZILK0002')!.stats.INT).toBeGreaterThan(c.get('CALO0005')!.stats.INT)
+    expect(c.get('CALO0005')!.noData.INT).toBe(false) // one ladder is still data
   })
   it('DEF counts the team win score (2 points when another member was in the game)', () => {
     const team = (ids: string[]) => ids.map((id) => ({ gameId: id, mode: 'Team', result: 'victory', type: 'Public' })) as unknown as MemberStats['cynGames']

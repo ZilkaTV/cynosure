@@ -13,7 +13,7 @@ import { useProfile } from '../lib/useProfile'
 
 const WHAT: Record<CardStat, { de: string; en: string; name: { de: string; en: string } }> = {
   COM: { name: { de: 'Kommunikation', en: 'Communication' }, de: 'Kommentare und Reaktionen auf der Seite und Quest-XP', en: 'comments and reactions on the site and quest XP' },
-  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Ranked-Elo in 1v1 und 2v2 (beide Ladder zählen)', en: 'ranked Elo in 1v1 and 2v2 (both ladders count)' },
+  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Ranked-Elo in 1v1 und 2v2 (beide Ladder zählen; wer in einer Top 100 fehlt, zählt dort als Letzter)', en: 'ranked Elo in 1v1 and 2v2 (both ladders count; not being in a top 100 counts as last place there)' },
   ECO: { name: { de: 'Wirtschaft', en: 'Economy' }, de: 'Gold pro Minute und gespendete Caps', en: 'gold per minute and donated caps' },
   SPE: { name: { de: 'Tempo', en: 'Speed' }, de: 'Speedrun-Zeit und Gebietsanteil nach 3 Minuten', en: 'speedrun time and tile share after 3 minutes' },
   DEF: { name: { de: 'Verteidigung', en: 'Defense' }, de: 'Team-Win-Score und erhaltene Angriffe pro Minute', en: 'team win score and attacks received per minute' },

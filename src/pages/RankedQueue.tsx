@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { RoleName, useWinsIndex } from '../components/RoleName'
+import { RoleName, useClanIds, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
@@ -149,6 +149,7 @@ type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Rec
 
 function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null; names?: Map<string, string> }) {
   const wins = useWinsIndex()
+  const clan = useClanIds()
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
@@ -159,6 +160,9 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
   const showReal = real && cleanDisplayName(real).toLowerCase() !== cleanDisplayName(p.n).toLowerCase() ? real : null
   // A registered member: the name opens their profile on this site (in the colours of their wins role); the id below goes to OpenFront like before.
   const memberId = p.id && names?.has(p.id) ? p.id : null
+  // The CYN badge needs the clan list on OpenFront: being registered here (p.m / memberId come from the site's own member table) stays after
+  // somebody leaves the clan. Until the clan list is known the registration is used, as before.
+  const inClan = clan && p.id ? clan.has(p.id) : !!(p.m || memberId)
   const openfront = p.id ? `https://openfront.io/#modal=profile&publicID=${encodeURIComponent(p.id)}` : null
   const nameNode = memberId ? (
     <Link to={`/member/${memberId}`} className="hover:text-accent-light">
@@ -193,7 +197,7 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
           {p.e != null ? ` · ${p.e}` : ''}
         </span>
       )}
-      {(p.m || memberId) && p.t !== 'CYN' && <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] font-bold text-accent-light">CYN</span>}
+      {inClan && p.t !== 'CYN' && <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] font-bold text-accent-light">CYN</span>}
       {p.d !== undefined && (
         <span title={p.mirrored ? "Elo is zero-sum in 1v1: the opponent’s change, mirrored" : undefined} className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
           {p.c ? 'Σ ' : p.mirrored ? '≈ ' : ''}

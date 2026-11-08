@@ -171,7 +171,7 @@ let clanIds: ReadonlySet<string> | null = null
 let clanAsked = false
 const clanListeners = new Set<() => void>()
 /** The ids of everybody who is in the clan on OpenFront right now (null until known, and when the list cannot be read or is too short to be believed). */
-function useClanIds(): ReadonlySet<string> | null {
+export function useClanIds(): ReadonlySet<string> | null {
   const [, tick] = useState(0)
   useEffect(() => {
     const on = () => tick((n) => n + 1)

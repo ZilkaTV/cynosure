@@ -27,6 +27,12 @@ export interface SnapshotPoint {
   xp: number
 }
 
+/** The FFA ladder became the "FFA Rating" (another scale, with decimals) with OpenFront v0.36.0 on 2026-11-09: snapshots up to that day hold the old queue's Elo and are left out. */
+const FFA_RATING_FROM = '2026-11-10'
+function ffaRating(date: string, value: number | null | undefined): number | null {
+  return value == null || date < FFA_RATING_FROM ? null : Math.round(value)
+}
+
 function sinceDate(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
@@ -41,7 +47,7 @@ export async function fetchMemberTrend(openfrontId: string, days = 30): Promise<
     .order('snapshot_date', { ascending: true })
   if (error) return []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows of an untyped table read
-  return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, eloFfa: r.elo_ffa ?? null, allWins: r.all_wins, xp: r.xp }))
+  return ((data ?? []) as Record<string, any>[]).map((r) => ({ date: r.snapshot_date, elo: r.elo, elo2v2: r.elo_2v2, eloFfa: ffaRating(r.snapshot_date, r.elo_ffa), allWins: r.all_wins, xp: r.xp }))
 }
 
 /** Every registered member's trend at once, keyed by openfront_id - one (paginated) query instead of N. */
@@ -63,7 +69,7 @@ export async function fetchAllMemberTrends(days = 30): Promise<Record<string, Sn
   const byMember: Record<string, SnapshotPoint[]> = {}
   for (const row of rows) {
     const arr = byMember[row.openfront_id] ?? (byMember[row.openfront_id] = [])
-    arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, eloFfa: row.elo_ffa ?? null, allWins: row.all_wins, xp: row.xp })
+    arr.push({ date: row.snapshot_date, elo: row.elo, elo2v2: row.elo_2v2, eloFfa: ffaRating(row.snapshot_date, row.elo_ffa), allWins: row.all_wins, xp: row.xp })
   }
   return byMember
 }

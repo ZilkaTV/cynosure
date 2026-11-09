@@ -31,7 +31,7 @@ export function CareerWindow({ m }: { m: MemberStats }) {
         <div className="grid grid-cols-3 gap-x-2">
           {stat(t.memberProfile.stat1v1Elo, m.elo ?? '-', 'text-gold-light', m.peakElo ? t.memberProfile.peakPrefix(m.peakElo) : undefined)}
           {stat(t.memberProfile.stat2v2Elo, m.elo2v2 ?? '-', 'text-gold-light', m.peakElo2v2 ? t.memberProfile.peakPrefix(m.peakElo2v2) : undefined)}
-          {stat('FFA Elo', m.eloFfa ?? '-', 'text-gold-light', m.peakEloFfa ? t.memberProfile.peakPrefix(m.peakEloFfa) : undefined)}
+          {stat('FFA Rating', m.eloFfa ?? '-', 'text-gold-light', m.peakEloFfa ? t.memberProfile.peakPrefix(m.peakEloFfa) : undefined)}
         </div>
       ),
     },
@@ -162,7 +162,7 @@ export function TrendsWindow({ trend }: { trend: SnapshotPoint[] }) {
     chart('wins', t.memberProfile.trendWinsLabel, (p) => p.allWins, '#8b5cf6'),
     chart('elo', t.memberProfile.trendEloLabel, (p) => p.elo, '#eab308'),
     chart('elo2v2', t.memberProfile.trendElo2v2Label, (p) => p.elo2v2, '#38bdf8'),
-    chart('eloFfa', 'FFA Elo', (p) => p.eloFfa, '#34d399'),
+    chart('eloFfa', 'FFA Rating', (p) => p.eloFfa, '#34d399'),
   ]
   return <ClanCarousel slides={slides} heading={t.memberProfile.trendsTitle} />
 }

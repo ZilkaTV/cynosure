@@ -7,7 +7,7 @@ import { cleanDisplayName } from '../lib/displayName'
 import { PRESENCE_MINUTES, setInQueue, useQueuePresence, type PresenceLadder } from '../lib/queuePresence'
 import { useProfile } from '../lib/useProfile'
 
-const LADDERS: PresenceLadder[] = ['1v1', '2v2', 'ffa']
+const LADDERS: PresenceLadder[] = ['1v1', '2v2'] // the ranked FFA queue is gone since OpenFront v0.36.0 (FFA Rating from public games)
 const LOOK: Record<PresenceLadder, string> = { '1v1': 'bg-violet-500/25 text-violet-200', '2v2': 'bg-teal-500/25 text-teal-200', ffa: 'bg-amber-500/25 text-amber-200' }
 
 /** "I am in the queue": a member says so, and everybody sees who of the clan is queueing right now (so nobody queues into a clan mate). */

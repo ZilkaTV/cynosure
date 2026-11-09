@@ -67,8 +67,11 @@ async function updateFfaMonth(env, board) {
   }
   for (const e of Object.values(doc.entries)) e.rank = null // only the latest scan's players have a rank
   for (const [id, e] of Object.entries(board)) {
-    const prev = doc.entries[id]
-    doc.entries[id] = { rank: e.rank, elo: e.elo, peak: Math.max(prev?.peak ?? e.elo, e.elo), first: prev?.first ?? e.elo, last: iso }
+    // Since OpenFront v0.36.0 (2026-11-09) the FFA ladder is the "FFA Rating" (another scale, decimals): the Elo of the old ranked FFA queue is
+    // not comparable, so a row written before the switch (no sys marker) starts again from the first rating seen now.
+    const prev = doc.entries[id]?.sys === 2 ? doc.entries[id] : null
+    const elo = Math.round(e.elo)
+    doc.entries[id] = { rank: e.rank, elo, peak: Math.max(prev?.peak ?? elo, elo), first: prev?.first ?? elo, last: iso, sys: 2 }
   }
   doc.updated_at = iso
   await env.HOT_DB.prepare(
@@ -83,5 +86,15 @@ export async function handleFfaMonth(request, env) {
   const month = new URL(request.url).searchParams.get('month') ?? ''
   if (!/^\d{4}-\d{2}$/.test(month)) return new Response(JSON.stringify({ error: 'bad_month' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
   const row = await env.HOT_DB.prepare('SELECT value FROM blobs WHERE key = ?').bind(`ffa-month:${month}`).first()
+  // Rows of November 2026 or later without the sys marker are Elo values of the old ranked FFA queue (another scale): left out.
+  if (row?.value && month >= '2026-11') {
+    try {
+      const doc = JSON.parse(row.value)
+      doc.entries = Object.fromEntries(Object.entries(doc.entries ?? {}).filter(([, e]) => e?.sys === 2))
+      return new Response(JSON.stringify(doc), { headers: { 'Content-Type': 'application/json' } })
+    } catch {
+      /* fall through to the stored text */
+    }
+  }
   return new Response(row?.value ?? JSON.stringify({ month, entries: {} }), { headers: { 'Content-Type': 'application/json' } })
 }

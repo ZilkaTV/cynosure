@@ -9,7 +9,7 @@ import { setItemRoomy } from './storage'
 // The choice lives in this browser only (localStorage).
 
 export type QueueLadder = '1v1' | '2v2' | 'ffa'
-const LADDERS: QueueLadder[] = ['1v1', '2v2', 'ffa']
+const LADDERS: QueueLadder[] = ['1v1', '2v2'] // no ranked FFA queue since OpenFront v0.36.0
 const MODE_KEY = 'cyn:queueAlert'
 const SOUND_KEY = 'cyn:queueAlertSound'
 const SEEN_KEY = 'cyn:queueSeen'
@@ -217,7 +217,7 @@ export function useQueueAlert(): number {
       const seen = read(SEEN_KEY) ?? new Date().toISOString()
       // Cancelled games (21 s, no winner) are not played games and do not alert.
       let q = db.from('cyn_ranked_matches').select('game_id', { count: 'exact', head: true }).gt('ended_at', seen).gt('duration_s', 45)
-      if (ladders.length < LADDERS.length) q = q.in('ladder', ladders)
+      q = q.in('ladder', ladders) // always filtered: old FFA rows of the gone queue must not alert
       const { count } = await q
       if (!alive || count == null) return
       setUnseen(count)

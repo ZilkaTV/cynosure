@@ -479,7 +479,7 @@ export default function Monthly({ variant }: { variant: Variant }) {
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colRank}</th>
                         <th className="px-3 py-3 text-left font-semibold">{t.monthly.colName}</th>
                         <th className="px-3 py-3 text-left font-semibold">{de ? 'Rang global' : 'Global rank'}</th>
-                        <SortTh label="FFA Elo" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
+                        <SortTh label="FFA Rating" sortKey="elo" active={sortKey === 'elo'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.home.colPeak} sortKey="peak" active={sortKey === 'peak'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label={t.monthly.colEloDelta} sortKey="delta" active={sortKey === 'delta'} dir={sortDir} onClick={onSortClick} />
                         <SortTh label="Ranked W/L" sortKey="ranked" active={sortKey === 'ranked'} dir={sortDir} onClick={onSortClick} />

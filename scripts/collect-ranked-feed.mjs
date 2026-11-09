@@ -51,7 +51,7 @@ async function getJson(url, tries = 3) {
 async function fetchGames(fromMs, toMs, depth = 0) {
   // Only ranked games, one ladder per request (the API filters by rankedType), instead of every public game.
   const all = []
-  for (const rankedType of ['1v1', '2v2', 'ffa']) all.push(...(await fetchLadder(rankedType, fromMs, toMs, depth)))
+  for (const rankedType of ['1v1', '2v2']) all.push(...(await fetchLadder(rankedType, fromMs, toMs, depth)))
   return all
 }
 

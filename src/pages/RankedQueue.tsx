@@ -319,7 +319,7 @@ export default function RankedQueue() {
         {loadedAt && <p className="text-center text-[11px] tabular-nums text-slate-500">↻ {new Date(loadedAt).toLocaleTimeString()}</p>}
 
         <div className="flex justify-center gap-2">
-          {(['all', '1v1', '2v2', 'ffa'] as Ladder[]).map((l) => (
+          {(['all', '1v1', '2v2'] as Ladder[]).map((l) => (
             <button
               key={l}
               type="button"
@@ -336,7 +336,7 @@ export default function RankedQueue() {
         <Card className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
           <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            {(['1v1', '2v2', 'ffa'] as const).map((l) => {
+            {(['1v1', '2v2'] as const).map((l) => {
               const on = alert.on(l)
               return (
                 <button
@@ -350,7 +350,7 @@ export default function RankedQueue() {
                   <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : l === '2v2' ? 'bg-teal-500' : 'bg-amber-500') : 'bg-base-700'}`}>
                     <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
                   </span>
-                  <span className="font-semibold">{l === 'ffa' ? 'FFA' : l}</span>
+                  <span className="font-semibold">{l}</span>
                   <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
                 </button>
               )

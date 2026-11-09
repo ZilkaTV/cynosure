@@ -489,8 +489,8 @@ export async function buildRoster(
       eloMonthDelta: eloMonthDelta(input.openfront_id, elo),
       elo2v2,
       peakElo2v2: r2?.peakElo ?? null,
-      eloFfa: rFfa?.elo ?? null,
-      peakEloFfa: rFfa?.peakElo ?? null,
+      eloFfa: rFfa ? Math.round(rFfa.elo) : null, // the FFA Rating has decimals (since OpenFront v0.36.0)
+      peakEloFfa: rFfa?.peakElo != null ? Math.round(rFfa.peakElo) : null,
       rankedFfaWins,
       clanWarsWins,
       eloInTop100_2v2: !!r2,

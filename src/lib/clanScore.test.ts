@@ -117,6 +117,29 @@ describe('buildClanScoreLedger', () => {
   })
 })
 
+describe('buildClanScoreLedger: OpenFront sessions and window', () => {
+  it('takes the team count of a session as given (a "Quads" game with 51 players has 13 teams)', () => {
+    const ledger = buildClanScoreLedger([{ gameId: 's', start: '2026-01-01T00:00:00Z', playerTeams: null, totalPlayers: 51, numTeams: 13, clanPlayerCount: 1, won: false }], new Date('2026-01-01T00:00:00Z'))
+    // avg team 51/13, ratio 1/(51/13), difficulty sqrt(12): loss = ratio / difficulty = 0.0736...
+    expect(ledger[0].score).toBeCloseTo(0.0736, 3)
+  })
+
+  it('leaves a game older than 90 days out of the totals and gives it no ratio', () => {
+    const now = new Date('2026-06-01T00:00:00Z')
+    const ledger = buildClanScoreLedger(
+      [
+        { gameId: 'old-loss', start: '2026-01-01T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: false },
+        { gameId: 'loss', start: '2026-05-31T00:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: false },
+        { gameId: 'win', start: '2026-05-31T12:00:00Z', playerTeams: '2', totalPlayers: 4, clanPlayerCount: 2, won: true },
+      ],
+      now,
+    )
+    expect(ledger[0].ratioAfter).toBeNull()
+    expect(ledger[1].cumWeightedLosses).toBeLessThan(1) // only the recent loss (decayed a little), not the old one
+    expect(ledger[2].ratioAfter).toBeGreaterThan(0.9) // 1 win vs 1 loss, both nearly undecayed
+  })
+})
+
 describe('forecastWinScoreLoss', () => {
   it('loses exactly half the score after one half-life (30 days)', () => {
     expect(forecastWinScoreLoss(1000, 30)).toBeCloseTo(500, 6)

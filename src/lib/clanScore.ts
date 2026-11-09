@@ -110,9 +110,11 @@ const MIN_CLAN_PLAYERS_PER_SESSION = 1
  * who used the same raw "CYN" tag long before this site existed).
  */
 const DECAY_HALF_LIFE_DAYS = 30
+/** The rolling window of OpenFront's clan leaderboard (its start and end are 90 days apart). */
+const WINDOW_DAYS = 90
 
 export function buildClanScoreLedger(
-  games: { gameId: string; start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean }[],
+  games: { gameId: string; start: string; playerTeams: string | null; totalPlayers: number; clanPlayerCount: number; won: boolean; numTeams?: number | null }[],
   now: Date = new Date(),
 ): ClanScoreLedgerEntry[] {
   const sorted = [...games].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
@@ -120,7 +122,7 @@ export function buildClanScoreLedger(
   let cumLosses = 0
   const ledger: ClanScoreLedgerEntry[] = []
   for (const g of sorted) {
-    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
+    const numTeams = g.numTeams ?? deriveNumTeams(g.playerTeams, g.totalPlayers)
     if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
     const score = clanSessionScore({
       totalPlayerCount: g.totalPlayers,
@@ -130,10 +132,14 @@ export function buildClanScoreLedger(
     })
     const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
     const decayedScore = score * Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
-    const ratioBefore = cumLosses > 0 ? cumWins / cumLosses : null
-    if (g.won) cumWins += decayedScore
-    else cumLosses += decayedScore
-    const ratioAfter = cumLosses > 0 ? cumWins / cumLosses : null
+    // OpenFront's leaderboard only looks at its last 90 days: an older game is not part of the totals, so it has no ratio either.
+    const inWindow = ageDays <= WINDOW_DAYS
+    const ratioBefore = inWindow && cumLosses > 0 ? cumWins / cumLosses : null
+    if (inWindow) {
+      if (g.won) cumWins += decayedScore
+      else cumLosses += decayedScore
+    }
+    const ratioAfter = inWindow && cumLosses > 0 ? cumWins / cumLosses : null
     ledger.push({
       gameId: g.gameId,
       playedAt: g.start,

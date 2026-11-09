@@ -22,7 +22,7 @@
 //
 // Runs on a schedule via .github/workflows/clan-score-ledger.yml.
 
-import { hotEnabled, hotGetAllMemberGames, hotGetDetails, hotPutBlob } from './lib/hotstore.mjs'
+import { hotEnabled, hotGetAllMemberGames, hotGetBlob, hotGetDetails, hotPutBlob } from './lib/hotstore.mjs'
 
 const CLAN_TAG = 'CYN'
 
@@ -62,6 +62,8 @@ const MIN_CLAN_PLAYERS_PER_SESSION = 1
 // how OpenFront's own "Clan stats" endpoint reports one session - "No
 // decay is used" there).
 const DECAY_HALF_LIFE_DAYS = 30
+// The rolling window of OpenFront's clan leaderboard (its start and end are 90 days apart).
+const WINDOW_DAYS = 90
 
 function buildClanScoreLedger(games, now) {
   const sorted = [...games].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
@@ -69,15 +71,19 @@ function buildClanScoreLedger(games, now) {
   let cumLosses = 0
   const ledger = []
   for (const g of sorted) {
-    const numTeams = deriveNumTeams(g.playerTeams, g.totalPlayers)
+    const numTeams = g.numTeams ?? deriveNumTeams(g.playerTeams, g.totalPlayers)
     if (numTeams == null || g.clanPlayerCount < MIN_CLAN_PLAYERS_PER_SESSION) continue
     const score = clanSessionScore({ totalPlayerCount: g.totalPlayers, numTeams, clanPlayerCount: g.clanPlayerCount, won: g.won })
     const ageDays = (now.getTime() - new Date(g.start).getTime()) / 86_400_000
     const decayedScore = score * Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS)
-    const ratioBefore = cumLosses > 0 ? cumWins / cumLosses : null
-    if (g.won) cumWins += decayedScore
-    else cumLosses += decayedScore
-    const ratioAfter = cumLosses > 0 ? cumWins / cumLosses : null
+    // OpenFront's leaderboard only looks at its last 90 days: an older game is not part of the totals, so it has no ratio either.
+    const inWindow = ageDays <= WINDOW_DAYS
+    const ratioBefore = inWindow && cumLosses > 0 ? cumWins / cumLosses : null
+    if (inWindow) {
+      if (g.won) cumWins += decayedScore
+      else cumLosses += decayedScore
+    }
+    const ratioAfter = inWindow && cumLosses > 0 ? cumWins / cumLosses : null
     ledger.push({
       gameId: g.gameId,
       playedAt: g.start,
@@ -98,6 +104,54 @@ function buildClanScoreLedger(games, now) {
 // ── end duplicated section ──────────────────────────────────────────────────
 
 
+
+// ── OpenFront's clan sessions (GET /public/clan/:tag/sessions, one day per request) ─────────────────────────────────────────────────────
+const SESSIONS_FROM = Date.parse('2026-07-01T00:00:00Z') // before the first [CYN] session on record
+const DAY_MS = 86_400_000
+
+async function fetchSessionsOfDay(dayStart) {
+  const start = new Date(dayStart).toISOString()
+  const end = new Date(dayStart + DAY_MS - 1).toISOString()
+  const out = []
+  for (let page = 1; ; page++) {
+    let json = null
+    for (let attempt = 1; attempt <= 3 && !json; attempt++) {
+      const res = await fetch(`https://api.openfront.io/public/clan/${CLAN_TAG}/sessions?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=50&page=${page}`)
+      if (res.ok) json = await res.json()
+      else if (attempt === 3) throw new Error(`clan sessions ${start}: HTTP ${res.status}`)
+      else await new Promise((r) => setTimeout(r, 1500 * attempt))
+    }
+    for (const s of json.results ?? []) {
+      if (s.clanTag !== CLAN_TAG || !s.gameId || !s.numTeams || !s.totalPlayerCount) continue
+      out.push({ gameId: s.gameId, start: s.gameStart, clanPlayerCount: s.clanPlayerCount, numTeams: s.numTeams, totalPlayers: s.totalPlayerCount, won: !!s.hasWon })
+    }
+    if (page * 50 >= (json.total ?? 0)) return out
+  }
+}
+
+// The sessions are kept in a document of their own: the first run reads every day since SESSIONS_FROM, every later run only the last
+// two days on top of what is stored (any failed day aborts the run, so the stored copy is never half-updated).
+async function loadClanSessions() {
+  let stored = []
+  try {
+    const doc = await hotGetBlob('clan-sessions')
+    const parsed = typeof doc === 'string' ? JSON.parse(doc) : doc
+    if (Array.isArray(parsed)) stored = parsed
+  } catch {
+    stored = []
+  }
+  const byId = new Map(stored.map((s) => [s.gameId, s]))
+  const newest = stored.reduce((m, s) => Math.max(m, Date.parse(s.start) || 0), 0)
+  const firstDay = newest ? Math.floor((newest - 2 * DAY_MS) / DAY_MS) * DAY_MS : SESSIONS_FROM
+  const days = []
+  for (let t = Math.max(firstDay, SESSIONS_FROM); t <= Date.now(); t += DAY_MS) days.push(t)
+  for (let i = 0; i < days.length; i += 5) {
+    for (const list of await Promise.all(days.slice(i, i + 5).map(fetchSessionsOfDay))) for (const s of list) byId.set(s.gameId, s)
+  }
+  const all = [...byId.values()]
+  await hotPutBlob('clan-sessions', JSON.stringify(all))
+  return all
+}
 
 async function main() {
   if (!hotEnabled()) {
@@ -166,7 +220,20 @@ async function main() {
     }
   }
 
-  const allGames = [...byGameId.values()]
+  // OpenFront's own clan sessions are the truth for every game they list (the exact clan player count, team count and result - the member
+  // lists undercount unregistered clanmates and also hold private lobbies, which OpenFront does not count at all). From SESSIONS_FROM on the
+  // ledger is built from them alone; the member-list games only fill the time before that.
+  const sessions = await loadClanSessions()
+  const allGames = sessions.map((s) => ({
+    gameId: s.gameId,
+    start: s.start,
+    playerTeams: null,
+    totalPlayers: s.totalPlayers,
+    numTeams: s.numTeams,
+    clanPlayerCount: s.clanPlayerCount,
+    won: s.won,
+  }))
+  for (const g of byGameId.values()) if (Date.parse(g.start) < SESSIONS_FROM) allGames.push(g)
   const ledger = buildClanScoreLedger(allGames, new Date())
 
   // The Worker serves /api/clan-ledger from this document in D1 (worker/clanLedger.js). It is written whole every run,

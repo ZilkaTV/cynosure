@@ -242,7 +242,17 @@ const RULES = {
   cyn_inner_circle: { read: PUBLIC },
   // members who boost the Discord server (scripts/discord-role-sync.mjs adds / removes the rows): permanent access. Discord does not say how many
   // boosts a member has, so an admin sets the number (Factor Wheel page).
-  cyn_boosters: { read: PUBLIC, update: ADMIN },
+  // An admin can also add a booster by hand (Factor Wheel page), e.g. when the role sync has not seen a new boost yet.
+  cyn_boosters: {
+    read: PUBLIC,
+    insert: async (row, c) => {
+      if (!c.user || !(await c.isAdmin())) return false
+      const id = typeof row.openfront_id === 'string' ? row.openfront_id.trim() : ''
+      if (!/^[A-Za-z0-9_-]{4,32}$/.test(id)) return false
+      return { openfront_id: id, boosts: Math.max(1, Math.min(10, Math.round(Number(row.boosts)) || 1)) }
+    },
+    update: ADMIN,
+  },
   cyn_game_nights: {
     read: SIGNED_IN,
     insert: async (row, c) => {

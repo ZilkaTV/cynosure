@@ -38,7 +38,7 @@ export async function fetchBoosters(): Promise<string[]> {
   return (data as { openfront_id: string }[]).map((r) => r.openfront_id)
 }
 
-/** Boosts per boosting member (3 boosts = 3): the Factor Wheel gives +3 per boost. A table without the count column counts every booster once. */
+/** Boosts per boosting member (3 boosts = 3): the Factor Wheel gives +10 base weight per boost. A table without the count column counts every booster once. */
 export async function fetchBoostCounts(): Promise<Map<string, number>> {
   const out = new Map<string, number>()
   if (!supabase) return out
@@ -55,6 +55,13 @@ export async function fetchBoostCounts(): Promise<Map<string, number>> {
 export async function setBoostCount(openfrontId: string, boosts: number): Promise<boolean> {
   if (!supabase) return false
   const { error } = await supabase.from('cyn_boosters').update({ boosts }).eq('openfront_id', openfrontId)
+  return !error
+}
+
+/** An admin adds a booster by hand (the role sync may not have seen a new boost yet); an existing row only gets the new count. */
+export async function addBooster(openfrontId: string, boosts: number): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.from('cyn_boosters').upsert({ openfront_id: openfrontId, boosts }, { onConflict: 'openfront_id' })
   return !error
 }
 

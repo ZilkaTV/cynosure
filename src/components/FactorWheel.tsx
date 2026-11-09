@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSharedRoster } from '../lib/access'
-import { fetchBoostCounts, setBoostCount } from '../lib/chat'
+import { addBooster, fetchBoostCounts, setBoostCount } from '../lib/chat'
 import { computeRaffleEntries, type RaffleEntry } from '../lib/raffle'
 import { useIsAdmin } from '../lib/useSession'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -197,6 +197,20 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
     if (await setBoostCount(id, next)) setBoosts(new Map(boosts).set(id, next))
     else setBoostError(true)
   }
+  const [boosterQuery, setBoosterQuery] = useState('')
+  async function addManually(id: string) {
+    if (!isAdmin || !boosts) return
+    setBoostError(false)
+    if (await addBooster(id, 1)) {
+      setBoosts(new Map(boosts).set(id, 1))
+      setBoosterQuery('')
+    } else setBoostError(true)
+  }
+  const boosterMatches = useMemo(() => {
+    const q = boosterQuery.trim().toLowerCase()
+    if (q.length < 2 || !roster || !boosts) return []
+    return roster.members.filter((m) => !boosts.has(m.publicId) && (m.name.toLowerCase().includes(q) || m.publicId.toLowerCase() === q)).slice(0, 6)
+  }, [boosterQuery, roster, boosts])
   const boosters = useMemo(
     () =>
       [...(boosts ?? new Map<string, number>())]
@@ -314,7 +328,7 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
               </div>
             </div>
           )}
-          {isAdmin && boosters.length > 0 && (
+          {isAdmin && (
             <div className="rounded-xl border border-base-700 bg-base-850/40 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{de ? 'Server-Boosts (nur Admins)' : 'Server boosts (admins only)'}</p>
               <p className="mt-1 text-xs text-slate-500">
@@ -338,6 +352,29 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                   </li>
                 ))}
               </ul>
+              <div className="mt-3 border-t border-base-700 pt-3">
+                <input
+                  type="text"
+                  value={boosterQuery}
+                  onChange={(e) => setBoosterQuery(e.target.value)}
+                  placeholder={de ? 'Booster hinzufügen: Name oder ID suchen' : 'Add a booster: search a name or ID'}
+                  className="w-full rounded-lg border border-base-700 bg-base-900 px-3 py-1.5 text-sm text-white placeholder:text-slate-500"
+                />
+                {boosterMatches.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {boosterMatches.map((m) => (
+                      <li key={m.publicId} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate text-slate-200">
+                          {cleanDisplayName(m.name)} <span className="text-xs text-slate-500">{m.publicId}</span>
+                        </span>
+                        <button type="button" className="btn-ghost !px-2.5 !py-0.5" onClick={() => void addManually(m.publicId)}>
+                          {de ? 'Hinzufügen' : 'Add'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               {boostError && <p className="mt-2 text-xs text-red-400">{de ? 'Speichern hat nicht geklappt.' : 'Saving failed.'}</p>}
             </div>
           )}

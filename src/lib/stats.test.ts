@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { isFfa, isTeam, is1v1, is2v2, ffaBucket, teamBucket, oneVoneBucket, winRate, monthKeyOf } from './stats'
-import type { PlayerGame } from './openfront'
+import { isFfa, isTeam, is1v1, is2v2, ffaBucket, teamBucket, oneVoneBucket, winRate, monthKeyOf, markUnspawned } from './stats'
+import type { PlayerGame, RosterGameDetail } from './openfront'
 
 function makeGame(overrides: Partial<PlayerGame> = {}): PlayerGame {
   return {
@@ -137,5 +137,32 @@ describe('monthKeyOf', () => {
     // Noon UTC on the 15th - won't roll into a neighboring month/year in any
     // real-world timezone offset, unlike a date near midnight or month-end.
     expect(monthKeyOf('2026-01-15T12:00:00.000Z')).toBe('2026-01')
+  })
+})
+
+describe('markUnspawned', () => {
+  const player = (username: string, hasStats: boolean) => ({ clientID: username, username, clanTag: 'CYN', hasStats, kills: 0, gold: 0, out: 0, inc: 0 })
+  const detail = (players: RosterGameDetail['players'], anyStats?: boolean): Map<string, RosterGameDetail> => new Map([['g1', { durationSeconds: 475, anyStats, players }]])
+  const defeat = (o: Partial<PlayerGame> = {}) => makeGame({ mode: 'Team', playerTeams: 'Quads', rankedType: 'unranked', result: 'defeat', username: 'Icey', clanTag: 'CYN', ...o })
+
+  it('a defeat of a member without stats, while others have stats, is no defeat (incomplete)', () => {
+    const out = markUnspawned([defeat()], detail([player('Icey', false), player('ZazZ', true)]))
+    expect(out[0].result).toBe('incomplete')
+  })
+  it('keeps the defeat of a member who has stats (played and lost)', () => {
+    expect(markUnspawned([defeat()], detail([player('Icey', true), player('ZazZ', true)]))[0].result).toBe('defeat')
+  })
+  it('keeps the defeat when nobody has stats (an old report) and when no report is loaded', () => {
+    expect(markUnspawned([defeat()], detail([player('Icey', false), player('ZazZ', false)]))[0].result).toBe('defeat')
+    expect(markUnspawned([defeat()], new Map())[0].result).toBe('defeat')
+  })
+  it('a solo member is judged by the report-wide flag', () => {
+    expect(markUnspawned([defeat()], detail([player('Icey', false)], true))[0].result).toBe('incomplete')
+    expect(markUnspawned([defeat()], detail([player('Icey', false)], false))[0].result).toBe('defeat')
+  })
+  it('never touches victories or ranked games', () => {
+    const d = detail([player('Icey', false), player('ZazZ', true)])
+    expect(markUnspawned([defeat({ result: 'victory' })], d)[0].result).toBe('victory')
+    expect(markUnspawned([defeat({ rankedType: '2v2' })], d)[0].result).toBe('defeat')
   })
 })

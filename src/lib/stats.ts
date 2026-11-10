@@ -10,6 +10,7 @@ import {
   fetchRecentPlayerGames,
   type PlayerGame,
   type RankedEntry,
+  type RosterGameDetail,
 } from './openfront'
 import { CLAN_TAG } from '../config'
 
@@ -105,6 +106,24 @@ export interface RosterResult {
 
 const isCyn = (g: PlayerGame) => g.clanTag === CLAN_TAG && g.type !== 'Singleplayer'
 const isVictory = (g: PlayerGame) => g.result === 'victory'
+
+/**
+ * A defeat in an unranked game in which the member never spawned (OpenFront's report holds no stats for them, while it does for the
+ * others) is no defeat: OpenFront still lists it as one, but nothing was played. Such a game becomes 'incomplete' for that member, which
+ * keeps it out of the win/loss counts. Ranked games stay as they are (a no-show there costs Elo). Only games whose report is loaded can be told.
+ */
+export function markUnspawned(games: PlayerGame[], details: Map<string, RosterGameDetail>): PlayerGame[] {
+  return games.map((g) => {
+    if (g.result !== 'defeat' || g.rankedType === '1v1' || g.rankedType === '2v2' || g.rankedType === 'ffa' || g.rankedType === 'clanwars') return g
+    const d = details.get(g.gameId)
+    if (!d) return g
+    const me = d.players.find((p) => p.username === g.username && p.clanTag === g.clanTag)
+    if (!me || me.hasStats) return g
+    // the report must hold stats for somebody (reports from before the stats were kept hold none for anybody)
+    const othersHaveStats = d.anyStats ?? d.players.some((p) => p !== me && p.hasStats)
+    return othersHaveStats ? { ...g, result: 'incomplete' as const } : g
+  })
+}
 const isDefeat = (g: PlayerGame) => g.result === 'defeat'
 export const isFfa = (g: PlayerGame) => g.mode === 'Free For All' && g.rankedType !== '1v1' && g.rankedType !== 'ffa'
 /** Ranked FFA (4-10 players matched by Elo) - its own ladder, not part of the public FFA numbers. */
@@ -425,7 +444,8 @@ export async function buildRoster(
     if (d) coopByGame[id] = d.players.filter((p) => p.clanTag === CLAN_TAG).length >= 2
   }
 
-  const allMembers: MemberStats[] = raw.map(({ input, games }) => {
+  const allMembers: MemberStats[] = raw.map(({ input, games: allGames }) => {
+    const games = markUnspawned(allGames, detailMap)
     const r: RankedEntry | undefined = ranked[input.openfront_id]
     const r2: RankedEntry | undefined = ranked2v2[input.openfront_id]
     const rFfa: RankedEntry | undefined = rankedFfa[input.openfront_id]

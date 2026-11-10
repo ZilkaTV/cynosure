@@ -788,6 +788,8 @@ export async function fetchGameDetailsBatch(gameIds: string[]): Promise<Map<stri
 /** What the roster needs of one game report: the length and, per player of the clan (or asked for by name), the few numbers behind kills/gold/troops. */
 export interface RosterGameDetail {
   durationSeconds: number
+  /** Whether anybody in the full report has stats (a player without any never spawned); missing in reports kept before it was added. */
+  anyStats?: boolean
   players: { clientID: string; username: string; clanTag: string | null; hasStats: boolean; kills: number; gold: number; out: number; inc: number }[]
 }
 
@@ -809,7 +811,7 @@ function slimRosterDetail(d: GameDetail, clanTag: string, names: Set<string>): R
       inc: Number(s?.attacks?.[1] ?? 0),
     })
   }
-  return { durationSeconds: d.durationSeconds, players }
+  return { durationSeconds: d.durationSeconds, anyStats: d.players.some((p) => !!p.stats), players }
 }
 
 // The full reports that older versions kept in localStorage (a few MB the page holds in memory all the time); nothing needs them kept any more.

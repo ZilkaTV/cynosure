@@ -26,6 +26,7 @@ import { handleUsersApi } from './usersApi.js'
 import { refreshRankedBlob, handleFfaMonth } from './ranked.js'
 import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
+import { handlePageReport, handlePageStats } from './sitePages.js'
 import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleClanDonors } from './clanDonors.js'
 import { handleBoosters } from './boosters.js'
@@ -81,6 +82,8 @@ export default {
     if (pathname.startsWith('/api/avatars/')) return withSecurityHeaders(await handleAvatar(request, env, ctx))
     if (pathname === '/api/card-social' || pathname.startsWith('/api/boosters/') || pathname.startsWith('/api/cards/') || pathname.startsWith('/api/referrals/')) return withSecurityHeaders(await handleBoosters(request, env))
     if (pathname === '/api/clan-donors' || pathname.startsWith('/api/clan-donors/')) return withSecurityHeaders(await handleClanDonors(request, env))
+    if (pathname === '/api/seen/pages') return withSecurityHeaders(await handlePageReport(request, env))
+    if (pathname === '/api/metrics/pages') return withSecurityHeaders(await handlePageStats(request, env))
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))

@@ -14,6 +14,8 @@ import {
   type DailyMetricsRow,
   getVisitors,
   type Visitors,
+  getPageStats,
+  type PageStats,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
@@ -36,7 +38,8 @@ function downloadCsv(rows: DailyMetricsRow[]) {
 }
 
 export default function Metrics() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const de = language === 'de'
   const isInnerCircle = useIsInnerCircle()
   // cyn_metrics_daily/cyn_site_visits are readable only `to authenticated` -
   // useIsInnerCircle() alone can't tell a real signed-in session apart from
@@ -50,6 +53,8 @@ export default function Metrics() {
   const [history, setHistory] = useState<DailyMetricsRow[] | null>(null)
   const [discordStatus, setDiscordStatus] = useState<Record<string, DiscordStatus> | null>(null)
   const [visitors, setVisitors] = useState<Visitors | null>(null)
+  const [pageStats, setPageStats] = useState<PageStats | null>(null)
+  const [pageRange, setPageRange] = useState<'today' | 'week'>('today')
 
   useEffect(() => {
     if (!isInnerCircle || !session) return
@@ -57,6 +62,19 @@ export default function Metrics() {
     getMetricsHistory(HISTORY_DAYS).then(setHistory)
     getDiscordStatus().then(setDiscordStatus)
     getVisitors().then(setVisitors)
+  }, [isInnerCircle, session])
+
+  // pages in use: refreshed every minute so "open right now" stays current
+  useEffect(() => {
+    if (!isInnerCircle || !session) return
+    let alive = true
+    const load = () => getPageStats().then((s) => alive && s && setPageStats(s))
+    load()
+    const timer = setInterval(load, 60_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
   }, [isInnerCircle, session])
 
   // Detection only, deliberately - no auto-DM. Research (today's daytime
@@ -137,6 +155,77 @@ export default function Metrics() {
     </div>
   )
 
+  const fmtDuration = (sec: number) => (sec < 60 ? `${Math.round(sec)}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${String(Math.round(sec % 60)).padStart(2, '0')}s` : `${Math.floor(sec / 3600)}h ${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`)
+  const pageRows = pageStats ? pageStats[pageRange] : null
+  const pagesWindow = (
+    <div className="panel overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-base-700 px-4 py-3">
+        <div>
+          <span className="font-display text-sm font-bold uppercase tracking-wide text-gold">{de ? 'Seiten' : 'Pages'}</span>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {de
+              ? 'Wie oft jede Seite geöffnet wurde und wie lange sie im Vordergrund war (nur eingeloggte Mitglieder, Berliner Tage, erfasst seit dem Update).'
+              : 'How often each page was opened and how long it stayed in the foreground (signed-in members only, Berlin days, recorded since the update).'}
+          </p>
+        </div>
+        <div className="flex gap-1">
+          {(['today', 'week'] as const).map((r) => (
+            <button key={r} type="button" onClick={() => setPageRange(r)} className={`rounded-md px-3 py-1 text-xs font-semibold ${pageRange === r ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:text-slate-200'}`}>
+              {r === 'today' ? (de ? 'Heute' : 'Today') : de ? '7 Tage' : '7 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="border-b border-base-700 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {de ? 'Gerade offen' : 'Open right now'} <span className="font-normal text-slate-500">({pageStats ? pageStats.open.length : '-'})</span>
+        </p>
+        {!pageStats ? (
+          <Spinner label={t.metrics.loading} />
+        ) : pageStats.open.length === 0 ? (
+          <p className="py-2 text-sm text-slate-500">{de ? 'Gerade hat niemand eine Seite offen.' : 'Nobody has a page open right now.'}</p>
+        ) : (
+          <ul className="mt-1 divide-y divide-base-700">
+            {pageStats.open.map((o) => (
+              <li key={o.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                <MemberNameLink publicId={o.id} name={o.name} className="text-white hover:text-accent-light" />
+                <span className="font-mono text-xs text-accent-light">{o.path}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="max-h-[28rem] overflow-auto">
+        {!pageRows ? null : pageRows.length === 0 ? (
+          <p className="px-4 py-4 text-center text-sm text-slate-500">{de ? 'Noch keine Daten.' : 'No data yet.'}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-4 py-2 text-left font-semibold">{de ? 'Seite' : 'Page'}</th>
+                <th className="px-3 py-2 text-right font-semibold">{de ? 'Aufrufe' : 'Views'}</th>
+                <th className="px-3 py-2 text-right font-semibold">{de ? 'Nutzer' : 'Users'}</th>
+                <th className="px-3 py-2 text-right font-semibold">{de ? 'Ø Dauer' : 'Avg time'}</th>
+                <th className="px-4 py-2 text-right font-semibold">{de ? 'Gesamt' : 'Total'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.map((p) => (
+                <tr key={p.path} className="border-b border-base-700/50 last:border-0">
+                  <td className="px-4 py-1.5 font-mono text-xs text-white">{p.path}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-200">{p.views}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{p.users}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{p.views > 0 ? fmtDuration(p.seconds / p.views) : '-'}</td>
+                  <td className="px-4 py-1.5 text-right tabular-nums text-slate-400">{fmtDuration(p.seconds)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+
   const quietWindow = (
     <div className="panel overflow-hidden">
       <div className="border-b border-base-700 px-4 py-3">
@@ -187,6 +276,8 @@ export default function Metrics() {
         />
       </div>
       <p className="mt-6 text-center text-xs text-slate-500">{t.metrics.approximationNotice}</p>
+
+      <div className="mt-8">{pagesWindow}</div>
 
       <div className="mt-8">
         <DonorBotCard />

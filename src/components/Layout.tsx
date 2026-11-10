@@ -23,6 +23,7 @@ import { clearLocalProfile } from '../lib/profiles'
 import { supabase } from '../lib/supabase'
 import { useIsAdmin } from '../lib/useSession'
 import { useIsInnerCircle, logSiteVisit } from '../lib/metrics'
+import { usePageTracker } from '../lib/pageTracker'
 import { useLanguage } from '../i18n/LanguageContext'
 import { useAccess, useSharedRoster, type Access } from '../lib/access'
 import { titleForLevel, xpProgress } from '../lib/levels'
@@ -488,6 +489,9 @@ export default function Layout({ children }: { children: ReactNode }) {
     if (!nav || !active) return
     nav.scrollTo({ left: Math.max(0, active.offsetLeft - nav.clientWidth / 2 + active.offsetWidth / 2), behavior: 'auto' })
   }, [pathname])
+
+  // which pages a signed-in member uses and for how long (admin Metrics page)
+  usePageTracker(pathname, !!profile)
 
   useEffect(() => {
     logSiteVisit(!!profile, profile?.openfront_id)

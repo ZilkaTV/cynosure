@@ -195,6 +195,28 @@ export async function getVisitors(): Promise<Visitors | null> {
   }
 }
 
+export interface PageUsage {
+  path: string
+  views: number
+  seconds: number
+  users: number
+}
+export interface PageStats {
+  today: PageUsage[]
+  week: PageUsage[]
+  open: { id: string; name: string; path: string; at: string }[]
+}
+
+/** Most used pages (today / last 7 days) and who has which page open right now. Inner circle only. */
+export async function getPageStats(): Promise<PageStats | null> {
+  try {
+    const res = await fetch('/api/metrics/pages', { credentials: 'same-origin' })
+    return res.ok ? ((await res.json()) as PageStats) : null
+  } catch {
+    return null
+  }
+}
+
 export interface DiscordStatus {
   inGuild: boolean
   hasCynRole: boolean

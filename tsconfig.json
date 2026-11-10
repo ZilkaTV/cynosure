@@ -227,6 +227,9 @@
     },
     {
       "path": "./src/vendor/openfront-core-0211f17"
+    },
+    {
+      "path": "./src/vendor/openfront-core-bc3e333"
     }
   ]
 }

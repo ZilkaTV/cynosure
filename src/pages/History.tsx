@@ -90,8 +90,11 @@ export default function History() {
     for (const m of data?.members ?? []) {
       for (const g of m.cynGames) {
         const existing = byGameId.get(g.gameId)
-        if (existing) existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
-        else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
+        if (existing) {
+          existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
+          // One row for the whole game: it won if any of the listed members won (a clanmate on another team does not turn a win into a defeat).
+          if (g.result === 'victory' && existing.g.result !== 'victory') existing.g = { ...existing.g, result: 'victory' }
+        } else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
       }
     }
     return [...byGameId.values()].sort((a, b) => new Date(b.g.start).getTime() - new Date(a.g.start).getTime())

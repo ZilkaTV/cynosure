@@ -162,6 +162,8 @@ export default function Home() {
       if (existing) {
         existing.memberNames.push(g.username)
         existing.memberIds.push(m.publicId)
+        // One row for the whole game: it won if any of the listed members won (a clanmate on another team does not turn a win into a defeat).
+        if (g.result === 'victory' && existing.g.result !== 'victory') existing.g = { ...existing.g, result: 'victory' }
       } else {
         byGameId.set(g.gameId, { g, memberNames: [g.username], memberIds: [m.publicId] })
       }

@@ -200,10 +200,14 @@ export interface PageUsage {
   views: number
   seconds: number
   users: number
+  /** Everybody who was on the page, most time first. */
+  people: { id: string; name: string; seconds: number }[]
 }
 export interface PageStats {
   today: PageUsage[]
   week: PageUsage[]
+  /** The period before: yesterday for "today", the 7 days before for "week" - for the trend arrows. */
+  prev: { today: Record<string, { views: number; seconds: number }>; week: Record<string, { views: number; seconds: number }> }
   open: { id: string; name: string; path: string; at: string }[]
 }
 

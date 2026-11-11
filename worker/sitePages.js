@@ -6,13 +6,13 @@
 //
 // Stored like the visitor list (worker/siteSeen.js): one small row per member and Europe/Berlin day in the hot database's
 // `blobs` table, key "pages:<day>:<openfront id>", value { pages: { path: { v, s } }, open: { p, at } }. Rows older than
-// 8 days are dropped. Only signed-in members are measured (no anonymous visitors).
+// 15 days are dropped (a week plus the week before it, for the trend arrows). Only signed-in members are measured (no anonymous visitors).
 import { readSession } from './session.js'
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' } })
 const dayKey = (d) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(d)
 const DAY_MS = 86_400_000
-const KEEP_DAYS = 8
+const KEEP_DAYS = 15
 const OPEN_FOR_MS = 4 * 60_000 // a heartbeat comes every 2 minutes: "open" = reported within the last 4
 const MAX_PATHS_PER_REPORT = 12
 const MAX_PATHS_PER_MEMBER_DAY = 60
@@ -76,48 +76,62 @@ export async function handlePageStats(request, env) {
   if (!inner) return json(403, { error: 'inner_circle_only' })
 
   const now = new Date()
-  const today = dayKey(now)
+  // days[0] = today, days[1] = yesterday, ... 14 days: this week (0-6) and the week before (7-13) for the trend arrows
   const days = []
-  for (let i = 0; i < 7; i++) days.push(dayKey(new Date(now.getTime() - i * DAY_MS)))
-  const from = days[days.length - 1]
-  const { results } = await env.HOT_DB.prepare('SELECT key, value FROM blobs WHERE key >= ? AND key < ?').bind(`pages:${from}:`, `pages:${today};`).all()
+  for (let i = 0; i < 14; i++) days.push(dayKey(new Date(now.getTime() - i * DAY_MS)))
+  const today = days[0]
+  const { results } = await env.HOT_DB.prepare('SELECT key, value FROM blobs WHERE key >= ? AND key < ?').bind(`pages:${days[13]}:`, `pages:${today};`).all()
 
-  const empty = () => ({})
-  const totals = { today: empty(), week: empty() }
+  // scope -> path -> { views, seconds, users: Map(id -> seconds) }
+  const scopes = { today: {}, week: {}, yesterday: {}, prevWeek: {} }
   const open = []
   for (const r of results ?? []) {
-    const m = /^pages:(\d{4}-\d{2}-\d{2}):(.+)$/.exec(r.key)
-    if (!m || !days.includes(m[1])) continue
+    const m = /^pages:(d{4}-d{2}-d{2}):(.+)$/.exec(r.key)
+    const age = m ? days.indexOf(m[1]) : -1
+    if (age < 0) continue
     let doc = null
     try {
       doc = JSON.parse(r.value)
     } catch {
       continue
     }
+    const inScopes = [age === 0 && 'today', age <= 6 && 'week', age === 1 && 'yesterday', age >= 7 && 'prevWeek'].filter(Boolean)
     for (const [path, a] of Object.entries(doc.pages ?? {})) {
-      for (const scope of m[1] === today ? ['today', 'week'] : ['week']) {
-        const t = totals[scope][path] ?? (totals[scope][path] = { views: 0, seconds: 0, users: 0 })
+      for (const scope of inScopes) {
+        const t = scopes[scope][path] ?? (scopes[scope][path] = { views: 0, seconds: 0, users: new Map() })
         t.views += a.v ?? 0
         t.seconds += a.s ?? 0
-        t.users += 1
+        t.users.set(m[2], (t.users.get(m[2]) ?? 0) + (a.s ?? 0))
       }
     }
-    if (m[1] === today && doc.open?.p && now.getTime() - Date.parse(doc.open.at) < OPEN_FOR_MS) open.push({ id: m[2], path: doc.open.p, at: doc.open.at })
+    if (age === 0 && doc.open?.p && now.getTime() - Date.parse(doc.open.at) < OPEN_FOR_MS) open.push({ id: m[2], path: doc.open.p, at: doc.open.at })
   }
 
+  const ids = new Set(open.map((o) => o.id))
+  for (const scope of ['today', 'week']) for (const t of Object.values(scopes[scope])) for (const id of t.users.keys()) ids.add(id)
   const names = new Map()
-  for (let i = 0; i < open.length; i += 80) {
-    const slice = open.slice(i, i + 80).map((o) => o.id)
+  const idList = [...ids]
+  for (let i = 0; i < idList.length; i += 80) {
+    const slice = idList.slice(i, i + 80)
     const rows = await env.DB.prepare(`SELECT openfront_id, in_game_name FROM cyn_members WHERE openfront_id IN (${slice.map(() => '?').join(',')})`).bind(...slice).all()
     for (const x of rows.results ?? []) names.set(x.openfront_id, x.in_game_name)
   }
   const toList = (obj) =>
     Object.entries(obj)
-      .map(([path, t]) => ({ path, ...t }))
+      .map(([path, t]) => ({
+        path,
+        views: t.views,
+        seconds: t.seconds,
+        users: t.users.size,
+        // who was on the page (most time first), with the time each of them spent there
+        people: [...t.users.entries()].sort((a, b) => b[1] - a[1]).map(([id, s]) => ({ id, name: names.get(id) ?? id, seconds: s })),
+      }))
       .sort((a, b) => b.views - a.views || b.seconds - a.seconds)
+  const toPrev = (obj) => Object.fromEntries(Object.entries(obj).map(([path, t]) => [path, { views: t.views, seconds: t.seconds }]))
   return json(200, {
-    today: toList(totals.today),
-    week: toList(totals.week),
+    today: toList(scopes.today),
+    week: toList(scopes.week),
+    prev: { today: toPrev(scopes.yesterday), week: toPrev(scopes.prevWeek) },
     open: open.map((o) => ({ ...o, name: names.get(o.id) ?? o.id })).sort((a, b) => String(b.at).localeCompare(String(a.at))),
   })
 }

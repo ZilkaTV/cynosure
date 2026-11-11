@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, SectionHeading, StatCard, Spinner, MemberNameLink } from '../components/ui'
 import DonorBotCard from '../components/DonorBotCard'
 import TrendChart from '../components/TrendChart'
@@ -16,11 +16,61 @@ import {
   type Visitors,
   getPageStats,
   type PageStats,
+  type PageUsage,
 } from '../lib/metrics'
 import { useSession } from '../lib/useSession'
 import { useRoster } from '../lib/useRoster'
 
 const QUIET_AFTER_DAYS = 14
+
+function fmtDuration(sec: number): string {
+  return sec < 60 ? `${Math.round(sec)}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${String(Math.round(sec % 60)).padStart(2, '0')}s` : `${Math.floor(sec / 3600)}h ${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`
+}
+
+/** Green arrow up when the value grew against the period before, red arrow down when it shrank (changes under 3 % count as equal). */
+function Trend({ now, prev, hint }: { now: number; prev: number | null; hint: string }) {
+  if (prev == null || prev <= 0) return <span className="ml-1 inline-block w-3" aria-hidden="true" />
+  const change = (now - prev) / prev
+  if (Math.abs(change) < 0.03) return <span className="ml-1 inline-block w-3 text-slate-600" title={hint}>–</span>
+  const up = change > 0
+  return (
+    <span className={`ml-1 inline-block w-3 text-xs font-bold ${up ? 'text-signal-green' : 'text-signal-red'}`} title={`${hint} (${up ? '+' : ''}${Math.round(change * 100)} %)`}>
+      {up ? '▲' : '▼'}
+    </span>
+  )
+}
+
+/** The user count of a page; hovering (or focusing) it lists everybody who was on the page. Drawn with fixed position so the table's scroll area does not clip it. */
+function UsersHover({ page, de }: { page: PageUsage; de: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const show = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setPos({ x: Math.max(248, Math.min(r.right, window.innerWidth - 8)), y: r.bottom + 6 })
+  }
+  const shown = page.people.slice(0, 25)
+  return (
+    <>
+      <span ref={ref} tabIndex={0} onMouseEnter={show} onMouseLeave={() => setPos(null)} onFocus={show} onBlur={() => setPos(null)} className="cursor-help underline decoration-dotted decoration-slate-600 underline-offset-2">
+        {page.users}
+      </span>
+      {pos && (
+        <div className="pointer-events-none fixed z-[200] w-60 rounded-lg border border-base-600 bg-base-900 p-2 text-left shadow-xl" style={{ left: pos.x, top: pos.y, transform: 'translateX(-100%)' }}>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{de ? 'Auf dieser Seite' : 'On this page'}</p>
+          <ul className="space-y-0.5">
+            {shown.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-white">{p.name}</span>
+                <span className="shrink-0 tabular-nums text-slate-400">{fmtDuration(p.seconds)}</span>
+              </li>
+            ))}
+          </ul>
+          {page.people.length > shown.length && <p className="mt-1 text-[11px] text-slate-500">+{page.people.length - shown.length}</p>}
+        </div>
+      )}
+    </>
+  )
+}
 
 const HISTORY_DAYS = 30
 
@@ -155,8 +205,30 @@ export default function Metrics() {
     </div>
   )
 
-  const fmtDuration = (sec: number) => (sec < 60 ? `${Math.round(sec)}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${String(Math.round(sec % 60)).padStart(2, '0')}s` : `${Math.floor(sec / 3600)}h ${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`)
   const pageRows = pageStats ? pageStats[pageRange] : null
+  // The period before: yesterday ("today") or the 7 days before ("7 days"). Today is only partly over, so yesterday's total is cut to the same share of the day.
+  const dayShare = (() => {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date())
+    const h = Number(parts.find((x) => x.type === 'hour')?.value ?? 12)
+    const m = Number(parts.find((x) => x.type === 'minute')?.value ?? 0)
+    return Math.max(0.1, (h * 60 + m) / 1440)
+  })()
+  const prevOf = (path: string) => pageStats?.prev[pageRange][path] ?? null
+  const prevAvg = (path: string) => {
+    const p = prevOf(path)
+    return p && p.views > 0 ? p.seconds / p.views : null
+  }
+  const prevTotal = (path: string) => {
+    const p = prevOf(path)
+    return p ? (pageRange === 'today' ? p.seconds * dayShare : p.seconds) : null
+  }
+  const prevHint = (v: number | null, prorated = false) =>
+    v == null
+      ? ''
+      : (de ? (pageRange === 'today' ? 'Gestern' : 'Die 7 Tage davor') : pageRange === 'today' ? 'Yesterday' : 'The 7 days before') +
+        (prorated ? (de ? ' (bis zur gleichen Uhrzeit, geschätzt)' : ' (up to the same time, estimated)') : '') +
+        ': ' +
+        fmtDuration(v)
   const pagesWindow = (
     <div className="panel overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-base-700 px-4 py-3">
@@ -214,9 +286,17 @@ export default function Metrics() {
                 <tr key={p.path} className="border-b border-base-700/50 last:border-0">
                   <td className="px-4 py-1.5 font-mono text-xs text-white">{p.path}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-slate-200">{p.views}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{p.users}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{p.views > 0 ? fmtDuration(p.seconds / p.views) : '-'}</td>
-                  <td className="px-4 py-1.5 text-right tabular-nums text-slate-400">{fmtDuration(p.seconds)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">
+                    <UsersHover page={p} de={de} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-slate-300">
+                    {p.views > 0 ? fmtDuration(p.seconds / p.views) : '-'}
+                    <Trend now={p.views > 0 ? p.seconds / p.views : 0} prev={prevAvg(p.path)} hint={prevHint(prevAvg(p.path))} />
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-1.5 text-right tabular-nums text-slate-400">
+                    {fmtDuration(p.seconds)}
+                    <Trend now={p.seconds} prev={prevTotal(p.path)} hint={prevHint(prevTotal(p.path), pageRange === 'today')} />
+                  </td>
                 </tr>
               ))}
             </tbody>

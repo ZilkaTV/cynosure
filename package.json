@@ -6,7 +6,7 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node --max-old-space-size=6144 ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "test": "vitest run",
     "deploy:dev": "npm run build && wrangler deploy --env dev",

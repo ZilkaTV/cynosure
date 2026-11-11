@@ -47,6 +47,8 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
   }, [roster, boosts, fromMs, toMs])
 
   const live = useMemo(() => (entries ?? []).filter((e) => !removed.has(e.id)), [entries, removed])
+  // the three with the highest weight (of everybody, also of those already drawn) get 50 EUR each when the event ends
+  const top3 = useMemo(() => new Set((entries ?? []).slice(0, 3).map((e) => e.id)), [entries])
   const total = live.reduce((s, e) => s + e.weight, 0)
 
   // draw the wheel
@@ -311,6 +313,11 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                           <Link to={`/member/${e.id}`} className="hover:text-accent-light">
                             <RoleName wins={wins.byId.get(e.id)}>{cleanDisplayName(e.name)}</RoleName>
                           </Link>
+                          {top3.has(e.id) && (
+                            <span className="ml-2 whitespace-nowrap rounded-md border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold-light" title={de ? 'Top 3 nach Gewicht: garantiert 50 € bei Eventende' : 'Top 3 by weight: guaranteed 50 € when the event ends'}>
+                              {de ? '50 € garantiert' : '50 € guaranteed'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-300" title={`+${fmt(e.gamesFactor)}`}>
                           {e.games} <span className="text-xs text-slate-500">+{fmt(e.gamesFactor)}</span>

@@ -34,6 +34,33 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+/** Time left until `target` (ms), ticking every second: "50d 12h 03m 10s". */
+function Countdown({ target, de }: { target: number; de: boolean }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const left = Math.max(0, target - now)
+  const d = Math.floor(left / 86_400_000)
+  const parts: [number, string][] = [
+    [d, de ? 'Tage' : 'days'],
+    [Math.floor(left / 3_600_000) % 24, de ? 'Std' : 'hrs'],
+    [Math.floor(left / 60_000) % 60, de ? 'Min' : 'min'],
+    [Math.floor(left / 1000) % 60, de ? 'Sek' : 'sec'],
+  ]
+  return (
+    <div className="flex gap-2" role="timer" aria-label={de ? 'Verbleibende Zeit' : 'Time left'}>
+      {parts.map(([n, label]) => (
+        <div key={label} className="min-w-[3.5rem] rounded-lg border border-gold/30 bg-gold/5 px-2 py-1.5 text-center">
+          <div className="font-display text-xl font-bold tabular-nums text-gold-light">{String(n).padStart(2, '0')}</div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const STATUS_STYLE: Record<ClanEvent['status'], string> = {
   live: 'bg-signal-green/15 text-signal-green border-signal-green/30',
   upcoming: 'bg-signal-blue/15 text-signal-blue border-signal-blue/30',
@@ -144,8 +171,10 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
           <span className={`badge border ${STATUS_STYLE[event.status]}`}>{t.events.status[event.status]}</span>
           <h3 className="mt-2 font-display text-2xl font-bold text-white">{event.name}</h3>
           <p className="mt-1 text-sm text-slate-500">
-            {fmtDate(event.start)} - {fmtDate(event.end)}
-            {event.endTime && ` ${event.endTime} ${de ? '(deutsche Zeit)' : '(German time)'}`}
+            <span className="font-semibold text-slate-400">{de ? 'Start' : 'Start'}:</span> {fmtDate(event.start)} {event.windowFrom ? '00:00' : ''}
+            <span className="mx-2 text-slate-600">·</span>
+            <span className="font-semibold text-slate-400">{de ? 'Ende' : 'End'}:</span> {fmtDate(event.end)}
+            {event.endTime && ` ${event.endTime}`} {de ? '(deutsche Zeit)' : '(German time)'}
           </p>
         </div>
         <button
@@ -163,6 +192,14 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
 
       {open && (
         <>
+      {event.windowFrom && event.windowTo && event.status !== 'ended' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            {event.status === 'upcoming' ? (de ? 'Startet in' : 'Starts in') : de ? 'Event endet in' : 'Event ends in'}
+          </span>
+          <Countdown target={Date.parse(event.status === 'upcoming' ? event.windowFrom : event.windowTo)} de={de} />
+        </div>
+      )}
       <div>
         <BlockLabel>{de ? 'Ziel' : 'Goal'}</BlockLabel>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
@@ -184,8 +221,8 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
           <span className="font-display text-lg font-bold text-gold-light">150 €</span>
           <span>
             {de
-              ? 'Zusätzlich 150 € im Preispool für die Top 3 mit dem höchsten Gewicht, sobald das Event endet.'
-              : 'On top, 150 € in the prize pool for the top 3 with the highest weight once the event ends.'}
+              ? 'Zusätzlich 150 € im Preispool: die Top 3 mit dem höchsten Gewicht bekommen bei Eventende garantiert je 50 €.'
+              : 'On top, 150 € in the prize pool: the top 3 with the highest weight are guaranteed 50 € each when the event ends.'}
           </span>
         </div>
         {event.skinImages && (

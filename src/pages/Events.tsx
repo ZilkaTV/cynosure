@@ -180,6 +180,14 @@ function RaffleCard({ event, t }: { event: ClanEvent; t: TranslationShape }) {
             ? 'Ein exklusiver Skin, den es nur 3x auf der Welt geben wird, dazu 1.000 Plutonium pro Gewinner.'
             : 'An exclusive skin that will exist only 3 times in the world, plus 1,000 Plutonium per winner.'}
         </div>
+        <div className="mt-2 flex items-start gap-3 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-slate-300">
+          <span className="font-display text-lg font-bold text-gold-light">150 €</span>
+          <span>
+            {de
+              ? 'Zusätzlich 150 € im Preispool für die Top 3 mit dem höchsten Gewicht, sobald das Event endet.'
+              : 'On top, 150 € in the prize pool for the top 3 with the highest weight once the event ends.'}
+          </span>
+        </div>
         {event.skinImages && (
           <div className="mt-3">
             <div className="grid gap-4 sm:grid-cols-2">

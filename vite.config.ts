@@ -1,12 +1,44 @@
-import { defineConfig } from 'vite'
+import fs from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// The site ships only the NEWEST engine versions in its production bundle. Every vendored OpenFront engine tree (src/vendor/openfront-core-*,
+// one per engine commit, ~70 by now and one more with every OpenFront release) is a dynamic import in replaySimCore.ts, so all of them were
+// compiled into the bundle - the build took 15+ minutes on Cloudflare and ran out of memory. In the browser only recent games ever need a replay
+// (older games have their Max Tiles in the shared cache, written by the scheduled job), so the browser keeps the newest KEEP_ENGINES trees; an
+// older tree is swapped for a stub that throws (the replay then fails like for any unknown engine). The trees themselves stay in the repo and the
+// scripts (Max Tiles backfill, speedrun checks) run through the dev server, where this plugin is off - they still have every engine.
+const KEEP_ENGINES = 12
+function trimOldEngines(): Plugin {
+  const source = fs.readFileSync(new URL('./src/lib/replaySimCore.ts', import.meta.url), 'utf8')
+  const block = /KNOWN_ENGINE_COMMITS = \[([\s\S]*?)\] as const/.exec(source)?.[1] ?? ''
+  const commits = [...block.matchAll(/'([0-9a-f]{40})'/g)].map((m) => m[1])
+  const keep = new Set(commits.slice(-KEEP_ENGINES).map((c) => c.slice(0, 7)))
+  // the first tree has no suffix: src/vendor/openfront-core
+  const first = commits[0]?.slice(0, 7)
+  const STUB = '\0old-engine-stub'
+  return {
+    name: 'trim-old-engines',
+    apply: 'build',
+    enforce: 'pre',
+    resolveId(id) {
+      const m = /vendor\/openfront-core(?:-([0-9a-f]{7}))?\/src\/core\/GameRunner$/.exec(id)
+      if (!m || commits.length === 0) return null
+      const sha = m[1] ?? first
+      return keep.has(sha) ? null : STUB
+    },
+    load(id) {
+      return id === STUB ? 'export const createGameRunner = () => { throw new Error("This OpenFront engine version is not part of the site bundle") }' : null
+    },
+  }
+}
 
 // In dev, the browser can't call api.openfront.io directly (CORS), so the Vite
 // dev server proxies /api/of/* → https://api.openfront.io/* server-side. In
 // production the same path is served by the Cloudflare Pages Function in
 // functions/api/of/.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), trimOldEngines()],
   // replaySim.worker.ts (a module worker - see replaySim.ts) now dynamically
   // imports whichever vendored engine tree matches a game's own commit (see
   // replaySimCore.ts), which needs the worker's own output bundle to support
@@ -15,6 +47,7 @@ export default defineConfig({
   // supports ES module workers, so this has no compatibility cost.
   worker: {
     format: 'es',
+    plugins: () => [trimOldEngines()],
   },
   build: {
     rollupOptions: {

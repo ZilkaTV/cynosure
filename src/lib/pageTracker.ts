@@ -3,10 +3,19 @@ import { useEffect, useRef } from 'react'
 // Page usage for the admin Metrics page: which pages a signed-in member opens and how long each stays in the foreground.
 // Reports are batched (at most one every 30 s, plus a heartbeat every 2 minutes while the tab is visible and a last one when it is
 // hidden or closed), so a member costs the database only a handful of small writes per visit. See worker/sitePages.js.
+// Only time with a visible tab AND recent input (mouse, keys, scroll, touch) counts: a page left open and idle stops counting after IDLE_MS.
 
 const HEARTBEAT_MS = 120_000
 const MIN_GAP_MS = 30_000
 const SETTLE_MS = 10_000
+const IDLE_MS = 120_000
+const RETURN_FLUSH_GAP_MS = 5_000
+
+/** Seconds of [lastTick, now] that count: up to the moment the member went idle (no input for IDLE_MS), capped at 5 minutes. */
+export function activeSeconds(lastTick: number, now: number, lastActivity: number, idleMs = IDLE_MS): number {
+  const end = Math.min(now, lastActivity + idleMs)
+  return Math.min(300, Math.max(0, (end - lastTick) / 1000))
+}
 
 /** "/member/AbCd1234" -> "/member/:id"; at most two segments, so the list stays short and holds no ids. */
 export function normalizePath(pathname: string): string {
@@ -21,6 +30,7 @@ export function usePageTracker(pathname: string, enabled: boolean) {
     path: '',
     lastTick: 0,
     lastSent: 0,
+    lastActivity: Date.now(),
     pending: new Map<string, { v: number; s: number }>(),
     settle: 0 as ReturnType<typeof setTimeout> | 0,
   })
@@ -49,25 +59,36 @@ export function usePageTracker(pathname: string, enabled: boolean) {
     const onVisibility = () => {
       const now = Date.now()
       if (document.visibilityState === 'hidden') flush(st, true)
-      else st.lastTick = now
+      else {
+        // back on the page: counts as input, and the "open right now" list learns about it at once
+        st.lastTick = now
+        st.lastActivity = now
+        if (now - st.lastSent > RETURN_FLUSH_GAP_MS) flush(st, false)
+      }
     }
+    const onActivity = () => {
+      st.lastActivity = Date.now()
+    }
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'wheel', 'scroll', 'touchstart'] as const
+    for (const ev of activityEvents) window.addEventListener(ev, onActivity, { passive: true, capture: true })
     const onHide = () => flush(st, true)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onHide)
     return () => {
       clearInterval(beat)
       document.removeEventListener('visibilitychange', onVisibility)
+      for (const ev of activityEvents) window.removeEventListener(ev, onActivity, { capture: true })
       window.removeEventListener('pagehide', onHide)
     }
   }, [enabled])
 }
 
-type St = { path: string; lastTick: number; lastSent: number; pending: Map<string, { v: number; s: number }>; settle: ReturnType<typeof setTimeout> | 0 }
+type St = { path: string; lastTick: number; lastSent: number; lastActivity: number; pending: Map<string, { v: number; s: number }>; settle: ReturnType<typeof setTimeout> | 0 }
 
 /** Adds the visible time since the last tick to the current page. */
 function accrue(st: St, now: number) {
   if (!st.path || !st.lastTick) return
-  const seconds = Math.min(300, Math.max(0, (now - st.lastTick) / 1000))
+  const seconds = activeSeconds(st.lastTick, now, st.lastActivity)
   const entry = st.pending.get(st.path) ?? { v: 0, s: 0 }
   entry.s += seconds
   st.pending.set(st.path, entry)

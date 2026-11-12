@@ -86,7 +86,7 @@ export async function handlePageStats(request, env) {
   const scopes = { today: {}, week: {}, yesterday: {}, prevWeek: {} }
   const open = []
   for (const r of results ?? []) {
-    const m = /^pages:(d{4}-d{2}-d{2}):(.+)$/.exec(r.key)
+    const m = /^pages:(\d{4}-\d{2}-\d{2}):(.+)$/.exec(r.key)
     const age = m ? days.indexOf(m[1]) : -1
     if (age < 0) continue
     let doc = null

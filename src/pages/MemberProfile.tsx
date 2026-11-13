@@ -47,7 +47,8 @@ export default function MemberProfile() {
   const [showLocked, setShowLocked] = useState(false)
   const [allGames, setAllGames] = useState(false)
   // own profile only: "Your last games" can be swiped to the ranked 1v1 and 2v2 breakdowns
-  const [pane, setPane] = useState<'games' | '1v1' | '2v2'>('games')
+  const [pane, setPane] = useState<'games' | 'rivals'>('games')
+  const [rivalLadder, setRivalLadder] = useState<'1v1' | '2v2'>('1v1')
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
@@ -145,7 +146,7 @@ export default function MemberProfile() {
   const gameActions = useGameActions(shownGames.map((g) => g.gameId))
   const oneGames = useMemo(() => (m?.cynGames ?? []).filter(is1v1), [m])
   const twoGames = useMemo(() => (m?.cynGames ?? []).filter(is2v2), [m])
-  const panes = ['games', '1v1', '2v2'] as const
+  const panes = ['games', 'rivals'] as const
   const swipe = useRef({ x: 0, y: 0 }).current // where the finger went down (a ref: a re-render between the touch start and end must not lose it)
   const eloByGame = useRankedElo(shownGames)
 
@@ -245,10 +246,10 @@ export default function MemberProfile() {
             <button type="button" aria-label={language === 'de' ? 'Zurück' : 'Previous'} disabled={pane === 'games'} onClick={() => setPane(panes[Math.max(0, panes.indexOf(pane) - 1)])} className="btn-ghost !px-2.5 !py-1 disabled:opacity-30">‹</button>
             {panes.map((p) => (
               <button key={p} type="button" role="tab" aria-selected={pane === p} onClick={() => setPane(p)} className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${pane === p ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}>
-                {p === 'games' ? (language === 'de' ? 'Letzte Spiele' : 'Last games') : p}
+                {p === 'games' ? (language === 'de' ? 'Letzte Spiele' : 'Last games') : 'Rivals'}
               </button>
             ))}
-            <button type="button" aria-label={language === 'de' ? 'Weiter' : 'Next'} disabled={pane === '2v2'} onClick={() => setPane(panes[Math.min(2, panes.indexOf(pane) + 1)])} className="btn-ghost !px-2.5 !py-1 disabled:opacity-30">›</button>
+            <button type="button" aria-label={language === 'de' ? 'Weiter' : 'Next'} disabled={pane === 'rivals'} onClick={() => setPane(panes[Math.min(1, panes.indexOf(pane) + 1)])} className="btn-ghost !px-2.5 !py-1 disabled:opacity-30">›</button>
           </div>
         )}
         <div
@@ -267,7 +268,16 @@ export default function MemberProfile() {
           }}
         >
         {isOwnProfile && pane !== 'games' ? (
-          <RankedStatsPanel key={pane} ladder={pane} memberId={m.publicId} games={pane === '1v1' ? oneGames : twoGames} de={language === 'de'} />
+          <div className="space-y-4">
+            <div className="flex justify-center gap-2" role="tablist">
+              {(['1v1', '2v2'] as const).map((l) => (
+                <button key={l} type="button" role="tab" aria-selected={rivalLadder === l} onClick={() => setRivalLadder(l)} className={`rounded-md px-4 py-1 text-xs font-bold tracking-wide ${rivalLadder === l ? (l === '1v1' ? 'bg-violet-500/30 text-violet-100' : 'bg-teal-500/30 text-teal-100') : 'bg-base-800 text-slate-400 hover:text-slate-200'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <RankedStatsPanel key={rivalLadder} ladder={rivalLadder} memberId={m.publicId} games={rivalLadder === '1v1' ? oneGames : twoGames} de={language === 'de'} />
+          </div>
         ) : (
         <>
         <div className="panel overflow-hidden">

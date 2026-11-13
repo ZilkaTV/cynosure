@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useProfile } from '../lib/useProfile'
 import { useRoster } from '../lib/useRoster'
 import { RegistrationGate } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
 import ProfileStatsOverview from '../components/ProfileStatsOverview'
+import RankedStatsPanel from '../components/RankedStatsPanel'
 import { CareerWindow, LifetimeWindow, MonthWindow, TrendsWindow } from '../components/ProfileWindows'
 import { fetchMemberTrend, type SnapshotPoint } from '../lib/trends'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
@@ -24,6 +25,8 @@ import {
   currentMonthKey,
   ffaBucket,
   isTeam,
+  is1v1,
+  is2v2,
   isIncompleteRanked,
   monthLabel,
   oneVoneBucket,
@@ -43,6 +46,8 @@ export default function MemberProfile() {
   const { t, language } = useLanguage()
   const [showLocked, setShowLocked] = useState(false)
   const [allGames, setAllGames] = useState(false)
+  // own profile only: "Your last games" can be swiped to the ranked 1v1 and 2v2 breakdowns
+  const [pane, setPane] = useState<'games' | '1v1' | '2v2'>('games')
   const { data, loading } = useRoster(!!profile)
   const [openGame, setOpenGame] = useState<string | null>(null)
   const { extras, reload: reloadExtras } = useProfileExtras(id)
@@ -138,6 +143,10 @@ export default function MemberProfile() {
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
     .slice(0, 20)
   const gameActions = useGameActions(shownGames.map((g) => g.gameId))
+  const oneGames = useMemo(() => (m?.cynGames ?? []).filter(is1v1), [m])
+  const twoGames = useMemo(() => (m?.cynGames ?? []).filter(is2v2), [m])
+  const panes = ['games', '1v1', '2v2'] as const
+  const swipe = useRef({ x: 0, y: 0 }).current // where the finger went down (a ref: a re-render between the touch start and end must not lose it)
   const eloByGame = useRankedElo(shownGames)
 
   if (!profile) return <RegistrationGate />
@@ -231,6 +240,36 @@ export default function MemberProfile() {
 
       <section>
         <SectionHeading center eyebrow={t.memberProfile.recentEyebrow} title={profile?.openfront_id === m.publicId ? t.memberProfile.yourLastGames : t.memberProfile.latestCynGames(CLAN_TAG)} />
+        {isOwnProfile && (
+          <div className="mb-4 flex items-center justify-center gap-2" role="tablist">
+            <button type="button" aria-label={language === 'de' ? 'Zurück' : 'Previous'} disabled={pane === 'games'} onClick={() => setPane(panes[Math.max(0, panes.indexOf(pane) - 1)])} className="btn-ghost !px-2.5 !py-1 disabled:opacity-30">‹</button>
+            {panes.map((p) => (
+              <button key={p} type="button" role="tab" aria-selected={pane === p} onClick={() => setPane(p)} className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${pane === p ? 'bg-accent text-white' : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}>
+                {p === 'games' ? (language === 'de' ? 'Letzte Spiele' : 'Last games') : p}
+              </button>
+            ))}
+            <button type="button" aria-label={language === 'de' ? 'Weiter' : 'Next'} disabled={pane === '2v2'} onClick={() => setPane(panes[Math.min(2, panes.indexOf(pane) + 1)])} className="btn-ghost !px-2.5 !py-1 disabled:opacity-30">›</button>
+          </div>
+        )}
+        <div
+          onTouchStart={(e) => {
+            swipe.x = e.touches[0].clientX
+            swipe.y = e.touches[0].clientY
+          }}
+          onTouchEnd={(e) => {
+            if (!isOwnProfile) return
+            const dx = e.changedTouches[0].clientX - swipe.x
+            const dy = e.changedTouches[0].clientY - swipe.y
+            // a clear sideways swipe (and not a scroll of the page or of the table): next / previous pane
+            if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+            const next = panes.indexOf(pane) + (dx < 0 ? 1 : -1)
+            if (next >= 0 && next < panes.length) setPane(panes[next])
+          }}
+        >
+        {isOwnProfile && pane !== 'games' ? (
+          <RankedStatsPanel key={pane} ladder={pane} memberId={m.publicId} games={pane === '1v1' ? oneGames : twoGames} de={language === 'de'} />
+        ) : (
+        <>
         <div className="panel overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-0 text-sm sm:min-w-[620px]">
@@ -302,6 +341,9 @@ export default function MemberProfile() {
           </div>
         )}
         <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.clickForReport}</p>
+        </>
+        )}
+        </div>
       </section>
 
       <ProfileWall profileId={m.publicId} />

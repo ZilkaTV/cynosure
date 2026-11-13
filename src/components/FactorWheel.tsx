@@ -310,11 +310,11 @@ export default function FactorWheel({ fromMs, toMs }: { fromMs: number; toMs: nu
                           {i + 1}
                         </td>
                         <td className="px-3 py-2 font-medium text-white">
-                          <Link to={`/member/${e.id}`} className="hover:text-accent-light">
+                          <Link to={`/member/${e.id}`} className="block max-w-[11rem] truncate hover:text-accent-light" title={cleanDisplayName(e.name)}>
                             <RoleName wins={wins.byId.get(e.id)}>{cleanDisplayName(e.name)}</RoleName>
                           </Link>
                           {top3.has(e.id) && (
-                            <span className="ml-2 whitespace-nowrap rounded-md border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold-light" title={de ? 'Top 3 nach Gewicht: garantiert 50 € bei Eventende' : 'Top 3 by weight: guaranteed 50 € when the event ends'}>
+                            <span className="mt-0.5 inline-block whitespace-nowrap rounded-md border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold-light" title={de ? 'Top 3 nach Gewicht: garantiert 50 € bei Eventende' : 'Top 3 by weight: guaranteed 50 € when the event ends'}>
                               {de ? '50 € garantiert' : '50 € guaranteed'}
                             </span>
                           )}

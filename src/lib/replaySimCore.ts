@@ -119,6 +119,7 @@ export const KNOWN_ENGINE_COMMITS = [
   '8b5d071eed95f07c701b32e4c64e95b03f8577c1',
   '295829ac34a4e7043af1759be238438783720a4e',
   'dd85bcfb8b20e599fae15298bf56db1e92947f61',
+  'b863d48df10f3b3a1460d57096d6447adf856315',
 ] as const
 export type EngineCommit = (typeof KNOWN_ENGINE_COMMITS)[number]
 
@@ -144,6 +145,7 @@ export const PACKAGE_LAYOUT_COMMITS = [
   '8b5d071eed95f07c701b32e4c64e95b03f8577c1',
   '295829ac34a4e7043af1759be238438783720a4e',
   'dd85bcfb8b20e599fae15298bf56db1e92947f61',
+  'b863d48df10f3b3a1460d57096d6447adf856315',
 ] as const
 const usesPackageLayout = (commit: string) => (PACKAGE_LAYOUT_COMMITS as readonly string[]).includes(commit)
 
@@ -291,6 +293,8 @@ async function loadCreateGameRunner(commit: EngineCommit) {
       return (await import('../vendor/openfront-core-295829a/src/core/GameRunner')).createGameRunner
     case 'dd85bcfb8b20e599fae15298bf56db1e92947f61':
       return (await import('../vendor/openfront-core-dd85bcf/src/core/GameRunner')).createGameRunner
+    case 'b863d48df10f3b3a1460d57096d6447adf856315':
+      return (await import('../vendor/openfront-core-b863d48/src/core/GameRunner')).createGameRunner
   }
 }
 

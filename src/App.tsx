@@ -30,6 +30,7 @@ const Archive = lazy(() => import('./pages/Archive'))
 const Reports = lazy(() => import('./pages/Reports'))
 const Survey = lazy(() => import('./pages/Survey'))
 const SurveyResults = lazy(() => import('./pages/SurveyResults'))
+const Poll = lazy(() => import('./pages/Poll'))
 
 function NotFound() {
   const { t } = useLanguage()
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/clan" element={<Clan />} />
             <Route path="/archive" element={<Archive />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/poll" element={<Poll />} />
             <Route path="/survey" element={<Survey />} />
             <Route path="/survey/results" element={<SurveyResults />} />
             <Route path="*" element={<NotFound />} />

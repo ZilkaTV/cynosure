@@ -474,7 +474,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       const away = hiddenAt ? Date.now() - hiddenAt : 0
       hiddenAt = null
       if (away < 10 * 60_000) return
-      if (['/register', '/planner', '/survey', '/events'].some((p) => window.location.pathname.startsWith(p))) return
+      if (['/register', '/planner', '/survey', '/poll', '/events'].some((p) => window.location.pathname.startsWith(p))) return
       const typing = [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type=text], input[type=search], textarea')].some((el) => el.value.trim().length > 0)
       if (!typing) window.location.reload()
     }

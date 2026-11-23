@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RoleName, useClanIds, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
-import GameDetailModal from '../components/GameDetailModal'
+import GameDetailModal, { replayUrl } from '../components/GameDetailModal'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
@@ -174,45 +174,48 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
     cleanDisplayName(p.n)
   )
   const label = (
-    <span className={p.w ? 'font-semibold text-white' : 'text-slate-300'}>
-      {p.t ? <span className="text-slate-500">[{p.t}] </span> : null}
+    <span className={`min-w-0 ${p.w ? 'font-semibold text-white' : 'text-slate-200'}`}>
+      {p.t ? <span className="font-normal text-slate-500">[{p.t}] </span> : null}
       {nameNode}
-      {own && <span className="ml-1 text-gold-light">({cleanDisplayName(own.name)})</span>}
-      {showReal && <span className="ml-1 text-gold-light">({cleanDisplayName(showReal)})</span>}
+      {own && <span className="ml-1 font-normal text-gold-light">({cleanDisplayName(own.name)})</span>}
+      {showReal && <span className="ml-1 font-normal text-gold-light">({cleanDisplayName(showReal)})</span>}
       {openfront && (
-        <a href={openfront} target="_blank" rel="noreferrer" className="block font-mono text-[10px] font-normal text-slate-500 hover:text-accent-light">
-          ({p.id})
+        <a href={openfront} target="_blank" rel="noreferrer" title={`OpenFront: ${p.id}`} aria-label="OpenFront profile" className="ml-1.5 text-[11px] font-normal text-slate-600 hover:text-accent-light">
+          ↗
         </a>
       )}
     </span>
   )
+  const chip = 'rounded px-1.5 py-0.5 text-[10px] font-bold leading-none'
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       {label}
-      {p.r != null && (
-        <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
-          #{p.r}
-          {p.e != null ? ` · ${p.e}` : ''}
-        </span>
-      )}
-      {inClan && p.t !== 'CYN' && <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[11px] font-bold text-accent-light">CYN</span>}
-      {p.d !== undefined && (
-        <span title={p.mirrored ? "Elo is zero-sum in 1v1: the opponent’s change, mirrored" : undefined} className={`rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
-          {p.c ? 'Σ ' : p.mirrored ? '≈ ' : ''}
-          {p.d > 0 ? '+' : ''}
-          {p.d} Elo{p.c ? ` (${p.c})` : ''}
-        </span>
-      )}
-      {ownBoard && p.r == null && (
-        <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-bold text-gold-light">
-          #{ownBoard.rank} · {ownBoard.elo}
-        </span>
-      )}
-      {p.r == null && p.b && !ownBoard && (
-        // Stored as "top 100" when the game was played; if the current board (loaded) no longer lists the player, say so.
-        <span className="rounded bg-base-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-400">{p.id && ladder && boards?.[ladder] && Object.keys(boards[ladder]).length > 0 ? 'ex Top 100' : 'Top 100'}</span>
-      )}
-    </span>
+      <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
+        {p.r != null && (
+          <span className={`${chip} bg-gold/15 text-gold-light`}>
+            #{p.r}
+            {p.e != null ? ` · ${p.e}` : ''}
+          </span>
+        )}
+        {inClan && p.t !== 'CYN' && <span className={`${chip} bg-accent/20 text-accent-light`}>CYN</span>}
+        {p.d !== undefined && (
+          <span title={p.mirrored ? "Elo is zero-sum in 1v1: the opponent’s change, mirrored" : undefined} className={`${chip} tabular-nums ${p.d > 0 ? 'bg-emerald-500/15 text-emerald-300' : p.d < 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-base-700 text-slate-400'}`}>
+            {p.c ? 'Σ ' : p.mirrored ? '≈ ' : ''}
+            {p.d > 0 ? '+' : ''}
+            {p.d} Elo{p.c ? ` (${p.c})` : ''}
+          </span>
+        )}
+        {ownBoard && p.r == null && (
+          <span className={`${chip} bg-gold/15 text-gold-light`}>
+            #{ownBoard.rank} · {ownBoard.elo}
+          </span>
+        )}
+        {p.r == null && p.b && !ownBoard && (
+          // Stored as "top 100" when the game was played; if the current board (loaded) no longer lists the player, say so.
+          <span className={`${chip} bg-base-700 font-medium text-slate-400`}>{p.id && ladder && boards?.[ladder] && Object.keys(boards[ladder]).length > 0 ? 'ex Top 100' : 'Top 100'}</span>
+        )}
+      </span>
+    </div>
   )
 }
 
@@ -312,63 +315,70 @@ export default function RankedQueue() {
 
   // one finished game of a ladder
   const matchRow = (m: FeedMatch) => {
-              const players = withMirroredElo(m)
-              const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
-              // Ranked FFA: everybody is a side of their own, the winner first.
-              if (m.ladder === 'ffa') sides.sort((a, b) => Number(players.some((p) => p.s === b && p.w)) - Number(players.some((p) => p.s === a && p.w)))
-              const abandoned = isAbandoned(m)
-              return (
-                <div
-                  key={m.game_id}
-                  role="button"
-                  tabIndex={0}
-                  title={t.queue.openGame}
-                  onClick={(e) => {
-                    // A click on the profile link of a player must keep opening the profile, not the report.
-                    if ((e.target as HTMLElement).closest('a')) return
-                    setOpenGame(m.game_id)
-                  }}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
-                  className={`panel flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : LADDER_LOOK[m.ladder].border}`}
-                >
-                  <div className="w-24 shrink-0">
-                    <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${abandoned ? 'bg-slate-600/40 text-slate-300' : LADDER_LOOK[m.ladder].tag}`}>{m.ladder === 'ffa' ? 'FFA' : m.ladder}</span>
-                    {abandoned && (
-                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
-                        {t.queue.abandoned}
-                      </div>
-                    )}
-                    <div className="mt-1 text-xs text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</div>
+    const players = withMirroredElo(m)
+    // the winner first, then the others
+    const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => Number(players.some((p) => p.s === b && p.w)) - Number(players.some((p) => p.s === a && p.w)) || a - b)
+    const abandoned = isAbandoned(m)
+    const [mapName, mapSize] = (m.map ?? '-').split(' · ')
+    return (
+      <div
+        key={m.game_id}
+        role="button"
+        tabIndex={0}
+        title={t.queue.openGame}
+        onClick={(e) => {
+          // A click on the profile link of a player must keep opening the profile, not the report.
+          if ((e.target as HTMLElement).closest('a')) return
+          setOpenGame(m.game_id)
+        }}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
+        className={`panel cursor-pointer space-y-2.5 border-l-4 p-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : LADDER_LOOK[m.ladder].border}`}
+      >
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {abandoned && (
+            <span className="rounded bg-slate-600/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-300" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
+              {t.queue.abandoned}
+            </span>
+          )}
+          <span className="font-medium text-slate-200">{mapName}</span>
+          {mapSize && (
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${mapSize === 'Compact' ? 'bg-amber-500/20 text-amber-300' : 'bg-base-700 text-slate-300'}`}>
+              {mapSize === 'Compact' ? t.queue.mapCompact : t.queue.mapNormal}
+            </span>
+          )}
+          <span className="tabular-nums text-slate-500">{fmtDuration(m.duration_s)}</span>
+          <span className="ml-auto text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</span>
+        </div>
+        <div className="space-y-1.5">
+          {sides.map((side, i) => {
+            const team = players.filter((p) => p.s === side)
+            const won = team.some((p) => p.w)
+            return (
+              <Fragment key={side}>
+                {i > 0 && (
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600" aria-hidden="true">
+                    <span className="h-px flex-1 bg-base-700/60" />
+                    vs
+                    <span className="h-px flex-1 bg-base-700/60" />
                   </div>
-                  <div className="w-32 shrink-0 text-xs text-slate-400">
-                    <div className="text-slate-200">{(m.map ?? '-').split(' · ')[0]}</div>
-                    {m.map?.includes(' · ') && (
-                      <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${m.map.endsWith('Compact') ? 'bg-amber-500/20 text-amber-300' : 'bg-base-700 text-slate-300'}`}>
-                        {m.map.endsWith('Compact') ? t.queue.mapCompact : t.queue.mapNormal}
-                      </span>
-                    )}
-                    <div>{fmtDuration(m.duration_s)}</div>
-                  </div>
-                  <div className="flex min-w-0 basis-full flex-col gap-2 sm:flex-1 sm:basis-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
-                    {sides.map((side, i) => {
-                      const team = players.filter((p) => p.s === side)
-                      const won = team.some((p) => p.w)
-                      return (
-                        <div key={side} className="flex w-full items-center gap-3 sm:w-auto">
-                          {i > 0 && <span className="w-5 shrink-0 text-center text-xs text-slate-600">{m.ladder === 'ffa' ? '·' : 'vs'}</span>}
-                          <div className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 sm:flex-none ${won && !abandoned ? 'border-gold/50 bg-gold/5' : 'border-base-700'}`}>
-                            {won && !abandoned && <span className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</span>}
-                            {team.map((p, j) => (
-                              <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <span className="ml-auto shrink-0 font-mono text-xs text-slate-500 sm:pl-4">{m.game_id}</span>
+                )}
+                <div className={`space-y-1 rounded-lg border px-3 py-2 ${won && !abandoned ? 'border-gold/40 bg-gold/5' : 'border-base-700/70 bg-base-900/30'}`}>
+                  {won && !abandoned && <p className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</p>}
+                  {team.map((p, j) => (
+                    <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
+                  ))}
                 </div>
-              )
+              </Fragment>
+            )
+          })}
+        </div>
+        <div className="flex justify-end">
+          <a href={replayUrl(m.game_id)} target="_blank" rel="noreferrer" title={m.game_id} className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-2.5 py-1 text-xs font-semibold text-accent-light transition-colors hover:border-accent hover:text-white">
+            <span aria-hidden="true">▶</span> {t.gameDetail.watchReplay}
+          </a>
+        </div>
+      </div>
+    )
   }
 
   return (

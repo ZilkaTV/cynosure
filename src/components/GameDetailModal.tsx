@@ -54,7 +54,7 @@ function describeWinner(winners: GamePlayerStat[]): string {
   return `${winners.length} Players`
 }
 
-function replayUrl(gameId: string): string {
+export function replayUrl(gameId: string): string {
   return `https://openfront-tools.frozenpenguin.media?id=${encodeURIComponent(gameId)}`
 }
 

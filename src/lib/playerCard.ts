@@ -20,12 +20,31 @@ export interface PlayerCardData {
   stats: Record<CardStat, number>
   /** true when a value had no data of the member at all (it then shows a neutral 50) */
   noData: Record<CardStat, boolean>
+  /** how each value came about: the points every measure brought (they add up to the value) */
+  parts?: Record<CardStat, CardPart[]>
   /** the values right now (they differ from `stats` once the card was updated and the member has played since) */
   live?: Record<CardStat, number>
   /** what changed with the last monthly update (+2, -1), only for a card that was updated before */
   delta?: Record<CardStat, number>
   /** the month (YYYY-MM) of the last update */
   updatedMonth?: string
+}
+
+/** One measure of a value: what it was, where the member stands, and the points it brought (of `max`). */
+export interface CardPart {
+  key: keyof CardMeasures
+  /** the raw number (Elo, gold per minute, ...), null = the member has none */
+  value: number | null
+  /** the member's place for this measure, 0 (last) .. 1 (best); null when it is not counted */
+  place: number | null
+  /** points this measure brought; null when it has no data and is not counted */
+  points: number | null
+  /** the most points this measure can bring: 99 divided by the number of measures that count */
+  max: number
+  /** a missing value that counted as the lowest place */
+  lowest?: boolean
+  /** the win rate that stands in for the team measures when there are no team games */
+  fallback?: boolean
 }
 
 /** The card as it was at the last monthly update. */
@@ -75,6 +94,8 @@ export interface CardMeasures {
   /** the ranked Elo of the 1v1 and of the 2v2 ladder (each is measured against its own ladder) */
   elo1v1: number | null
   elo2v2: number | null
+  /** the FFA Rating (since OpenFront v0.36.0, top 100 as well) */
+  eloFfa: number | null
   goldPerMin: number | null
   caps: number | null
   /** lower is better */
@@ -100,6 +121,7 @@ export function measuresOf(m: MemberStats, caps: number | null, social: number |
     winRate: finished.length >= 10 ? won(finished) / finished.length : null,
     elo1v1: typeof m.elo === 'number' ? m.elo : null,
     elo2v2: typeof m.elo2v2 === 'number' ? m.elo2v2 : null,
+    eloFfa: typeof m.eloFfa === 'number' ? m.eloFfa : null,
     goldPerMin: mean((d) => d.goldPerMin),
     caps,
     speedrunSeconds: m.speedrunSeconds,
@@ -119,12 +141,14 @@ const FORMULA: Record<CardStat, Pair[]> = {
     ['social', true],
     ['xp', true],
   ],
-  // both duel ladders count: the place on the 1v1 ladder and the place on the 2v2 ladder, averaged. The Elo only exists for the top 100 of a ladder,
-  // so a member who is not on one of the two boards is below everybody who is: that ladder counts as the lowest place. Without this, somebody
-  // listed on one ladder only would beat a member who is higher on both (the 1v1 place of the second one pulled the average down).
+  // the three ranked ladders count: the place on the 1v1 ladder, on the 2v2 ladder and on the FFA Rating, averaged (a third of the value each). The
+  // Elo only exists for the top 100 of a ladder, so a member who is not on one of the boards is below everybody who is: that ladder counts as the
+  // lowest place. Without this, somebody listed on one ladder only would beat a member who is higher on all of them (the missing place of the
+  // second one pulled the average down).
   INT: [
     ['elo1v1', true, true],
     ['elo2v2', true, true],
+    ['eloFfa', true, true],
   ],
   ECO: [
     ['goldPerMin', true],
@@ -166,30 +190,46 @@ export function computeCards(members: MemberStats[], capsByMember: Map<string, n
   for (const { m, x } of all) {
     const stats = {} as Record<CardStat, number>
     const noData = {} as Record<CardStat, boolean>
+    const parts = {} as Record<CardStat, CardPart[]>
     for (const stat of CARD_STATS) {
       const ps: number[] = []
-      let lowest = 0
+      const rows: CardPart[] = []
       for (const [key, higher, missingIsLowest] of FORMULA[stat]) {
         const v = x[key]
         if (typeof v !== 'number') {
-          if (missingIsLowest) lowest++
+          // a missing value counts as the lowest place only once the member has another value of this stat (see below)
+          rows.push({ key, value: null, place: missingIsLowest ? 0 : null, points: null, max: 0, lowest: !!missingIsLowest })
           continue
         }
         const p = percentile(v, pops[key])
-        ps.push(higher ? p : 1 - p)
+        const place = higher ? p : 1 - p
+        ps.push(place)
+        rows.push({ key, value: v, place, points: 0, max: 0 })
       }
       // only for a member who has at least one value of this stat (with none at all the stat stays "no data")
-      if (ps.length > 0) for (let i = 0; i < lowest; i++) ps.push(0)
+      const lowest = rows.filter((r) => r.value == null && r.lowest)
+      if (ps.length > 0) for (let i = 0; i < lowest.length; i++) ps.push(0)
       // DEF without team games falls back to the overall win rate
-      if (stat === 'DEF' && ps.length === 0 && typeof x.winRate === 'number') ps.push(percentile(x.winRate, pops.winRate))
+      if (stat === 'DEF' && ps.length === 0 && typeof x.winRate === 'number') {
+        const place = percentile(x.winRate, pops.winRate)
+        ps.push(place)
+        rows.push({ key: 'winRate', value: x.winRate, place, points: 0, max: 0, fallback: true })
+      }
       const mean = avg(ps)
       noData[stat] = mean == null
       stats[stat] = mean == null ? NEUTRAL : toValue(mean)
+      // the value is the mean of (46 + 53 x place) over the measures that count, so every measure brings that, divided by their number
+      const n = ps.length
+      parts[stat] = rows.map((r) => {
+        const counted = n > 0 && (r.value != null || (r.lowest && ps.length > 0))
+        if (!counted) return { ...r, place: null, points: null, max: 0, lowest: r.lowest && n > 0 ? r.lowest : undefined }
+        return { ...r, points: (FLOOR + SPAN * (r.place ?? 0)) / n, max: (FLOOR + SPAN) / n }
+      })
     }
     const overall = Math.round(CARD_STATS.reduce((s, k) => s + stats[k], 0) / CARD_STATS.length)
     const best = CARD_STATS.reduce((a, b) => (stats[b] > stats[a] ? b : a), CARD_STATS[0])
     // the name on the card is display-only: "Franquitooooooo" is shown as "Franquito" (like in the clan overview)
-    out.set(m.publicId, { publicId: m.publicId, name: cleanDisplayName(m.name), nationality: m.nationality, overall, tier: tierOf(overall), title: TITLES[best], stats, noData })
+    out.set(m.publicId, { publicId: m.publicId, name: cleanDisplayName(m.name), nationality: m.nationality, overall, tier: tierOf(overall), title: TITLES[best], stats, noData, parts })
   }
   return out
 }

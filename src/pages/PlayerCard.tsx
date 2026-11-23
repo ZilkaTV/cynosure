@@ -5,7 +5,7 @@ import { SectionHeading, Spinner } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 import { drawPlayerCard } from '../lib/drawPlayerCard'
 import { loadCardAssets, loadCardFonts } from '../lib/cardImages'
-import { CARD_STATS, TIER_FROM, type CardStat } from '../lib/playerCard'
+import { CARD_STATS, TIER_FROM, type CardMeasures, type CardPart, type CardStat } from '../lib/playerCard'
 import { berlinMonth, nextUpdateDate, updateCardSnapshot } from '../lib/cardSnapshots'
 import { EXTRAS_CHANGED, avatarSrc, fetchProfileExtras, profileImageSrc } from '../lib/profileExtras'
 import { useCardData } from '../lib/useCardData'
@@ -13,11 +13,59 @@ import { useProfile } from '../lib/useProfile'
 
 const WHAT: Record<CardStat, { de: string; en: string; name: { de: string; en: string } }> = {
   COM: { name: { de: 'Kommunikation', en: 'Communication' }, de: 'Kommentare und Reaktionen auf der Seite und Quest-XP', en: 'comments and reactions on the site and quest XP' },
-  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Ranked-Elo in 1v1 und 2v2 (beide Ladder zählen; wer in einer Top 100 fehlt, zählt dort als Letzter)', en: 'ranked Elo in 1v1 and 2v2 (both ladders count; not being in a top 100 counts as last place there)' },
+  INT: { name: { de: 'Intelligenz', en: 'Intelligence' }, de: 'Ranked-Elo in 1v1, 2v2 und das FFA Rating (alle drei zählen gleich; wer in einer Top 100 fehlt, zählt dort als Letzter)', en: 'ranked Elo in 1v1, 2v2 and the FFA Rating (all three count the same; not being in a top 100 counts as last place there)' },
   ECO: { name: { de: 'Wirtschaft', en: 'Economy' }, de: 'Gold pro Minute und gespendete Caps', en: 'gold per minute and donated caps' },
   SPE: { name: { de: 'Tempo', en: 'Speed' }, de: 'Speedrun-Zeit und Gebietsanteil nach 3 Minuten', en: 'speedrun time and tile share after 3 minutes' },
   DEF: { name: { de: 'Verteidigung', en: 'Defense' }, de: 'Team-Win-Score und erhaltene Angriffe pro Minute', en: 'team win score and attacks received per minute' },
   ATK: { name: { de: 'Angriff', en: 'Attack' }, de: 'Kills pro Spiel und Truppen im Angriff pro Minute', en: 'kills per game and troops sent per minute' },
+}
+
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
+const num = (v: number, digits = 0) => v.toLocaleString(undefined, { maximumFractionDigits: digits })
+/** What each measure is called and how its raw number is written. */
+const PART: Record<keyof CardMeasures, { de: string; en: string; fmt: (v: number) => string }> = {
+  social: { de: 'Kommentare und Reaktionen', en: 'Comments and reactions', fmt: (v) => num(v) },
+  xp: { de: 'Quest-XP', en: 'Quest XP', fmt: (v) => num(v) },
+  winRate: { de: 'Siegquote (Ersatz, keine Team-Spiele)', en: 'Win rate (stand-in, no team games)', fmt: (v) => `${num(v * 100, 1)} %` },
+  elo1v1: { de: '1v1 Elo', en: '1v1 Elo', fmt: (v) => num(v) },
+  elo2v2: { de: '2v2 Elo', en: '2v2 Elo', fmt: (v) => num(v) },
+  eloFfa: { de: 'FFA Rating', en: 'FFA Rating', fmt: (v) => num(v) },
+  goldPerMin: { de: 'Gold pro Minute', en: 'Gold per minute', fmt: (v) => num(v, 1) },
+  caps: { de: 'Gespendete Caps', en: 'Donated caps', fmt: (v) => num(v) },
+  speedrunSeconds: { de: 'Speedrun-Zeit', en: 'Speedrun time', fmt: mmss },
+  tiles3min: { de: 'Gebietsanteil nach 3 Minuten', en: 'Tile share after 3 minutes', fmt: (v) => `${num(v, 1)} %` },
+  teamScore: { de: 'Team-Win-Score', en: 'Team win score', fmt: (v) => num(v) },
+  troopsIn: { de: 'Erhaltene Angriffe pro Minute', en: 'Attacks received per minute', fmt: (v) => num(v, 1) },
+  kills: { de: 'Kills pro Spiel', en: 'Kills per game', fmt: (v) => num(v, 1) },
+  troopsOut: { de: 'Truppen im Angriff pro Minute', en: 'Troops sent per minute', fmt: (v) => num(v, 1) },
+}
+
+/** One measure of a value: its number, the place among the members and the points it brought. */
+function PartRow({ part, de }: { part: CardPart; de: boolean }) {
+  const label = PART[part.key][de ? 'de' : 'en']
+  const counted = part.points != null
+  let note = ''
+  if (part.value != null) note = de ? `besser als ${Math.round((part.place ?? 0) * 100)} % der Mitglieder` : `better than ${Math.round((part.place ?? 0) * 100)} % of the members`
+  else if (counted) note = de ? 'nicht in der Top 100, zählt als letzter Platz' : 'not in the top 100, counts as last place'
+  else note = de ? 'keine Daten, zählt nicht' : 'no data, does not count'
+  return (
+    <li className="flex items-baseline gap-2 text-xs">
+      <span className="min-w-0 flex-1">
+        <span className="text-slate-300">{label}</span>
+        {part.value != null && <span className="ml-1.5 font-semibold tabular-nums text-white">{PART[part.key].fmt(part.value)}</span>}
+        <span className="block text-[11px] text-slate-500">{note}</span>
+      </span>
+      <span className="shrink-0 tabular-nums text-slate-400">
+        {counted ? (
+          <>
+            <span className="font-semibold text-white">{num(part.points!, 1)}</span> / {num(part.max, 1)} {de ? 'Pkt' : 'pts'}
+          </>
+        ) : (
+          '–'
+        )}
+      </span>
+    </li>
+  )
 }
 
 /** "My card": a player card in our own design, built from the stats of the site, saved as a picture. */
@@ -150,26 +198,50 @@ export default function PlayerCard() {
             <h3 className="mb-3 font-display text-lg font-bold text-white">{de ? 'So kommen die Werte zustande' : 'Where the values come from'}</h3>
             <p className="mb-3 text-sm text-slate-400">
               {de
-                ? 'Jeder Wert (46 bis 99) zeigt, wo du unter allen Mitgliedern liegst. Er kommt aus den Daten der Seite, nichts wird von Hand eingetragen. Die Gesamtwertung ist der Durchschnitt der sechs Werte.'
-                : 'Every value (46 to 99) shows where you stand among all members. It comes from the data of the site, nothing is typed in. The overall rating is the average of the six values.'}
+                ? 'Jeder Wert (46 bis 99) zeigt, wo du unter allen Mitgliedern liegst. Er besteht aus zwei bis drei Messwerten, die gleich viel zählen (bei Intelligenz je ein Drittel, also bis zu 33 Punkte pro Ladder). Wer bei einem Messwert Letzter ist, bekommt dafür noch den Sockel von 46 geteilt durch die Anzahl, wer Erster ist, den vollen Anteil. Alles kommt aus den Daten der Seite, nichts wird von Hand eingetragen. Die Gesamtwertung ist der Durchschnitt der sechs Werte.'
+                : 'Every value (46 to 99) shows where you stand among all members. It is made of two or three measures that count the same (Intelligence: a third each, so up to 33 points per ladder). Being last in a measure still gives the base of 46 divided by their number, being first gives the full share. It all comes from the data of the site, nothing is typed in. The overall rating is the average of the six values.'}
             </p>
             <ul className="divide-y divide-base-700/60 text-sm">
-              {CARD_STATS.map((s) => (
-                <li key={s} className="flex items-center gap-3 py-2">
-                  <span className="w-10 shrink-0 font-display font-bold text-gold-light">{s}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-slate-200">{WHAT[s].name[de ? 'de' : 'en']}</span>
-                    <span className="block text-xs text-slate-500">
-                      {WHAT[s][de ? 'de' : 'en']}
-                      {card.noData[s] ? (de ? ' · noch keine Daten (zählt als 50)' : ' · no data yet (counts as 50)') : ''}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-display text-xl font-bold tabular-nums text-white">
-                    {card.stats[s]}
-                    {!!card.delta?.[s] && <span className={`ml-2 text-sm ${card.delta[s] > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{card.delta[s] > 0 ? `+${card.delta[s]}` : `\u2212${Math.abs(card.delta[s])}`}</span>}
-                  </span>
-                </li>
-              ))}
+              {CARD_STATS.map((s) => {
+                const parts = card.parts?.[s] ?? []
+                const max = parts.find((p) => p.points != null)?.max ?? 0
+                const liveValue = card.live?.[s]
+                return (
+                  <li key={s} className="py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="w-10 shrink-0 font-display font-bold text-gold-light">{s}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-slate-200">{WHAT[s].name[de ? 'de' : 'en']}</span>
+                        <span className="block text-xs text-slate-500">
+                          {WHAT[s][de ? 'de' : 'en']}
+                          {card.noData[s] ? (de ? ' · noch keine Daten (zählt als 50)' : ' · no data yet (counts as 50)') : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-display text-xl font-bold tabular-nums text-white">
+                        {card.stats[s]}
+                        {!!card.delta?.[s] && <span className={`ml-2 text-sm ${card.delta[s] > 0 ? 'text-signal-green' : 'text-signal-red'}`}>{card.delta[s] > 0 ? `+${card.delta[s]}` : `\u2212${Math.abs(card.delta[s])}`}</span>}
+                      </span>
+                    </div>
+                    {parts.length > 0 && !card.noData[s] && (
+                      <div className="ml-[3.25rem] mt-2 rounded-lg border border-base-700/70 bg-base-900/40 px-3 py-2">
+                        <p className="mb-1.5 text-[11px] text-slate-500">
+                          {de ? `Jeder Messwert bringt bis zu ${num(max, 1)} Punkte, zusammen ergeben sie den Wert.` : `Every measure brings up to ${num(max, 1)} points, together they make the value.`}
+                        </p>
+                        <ul className="space-y-1.5">
+                          {parts.map((p) => (
+                            <PartRow key={p.key} part={p} de={de} />
+                          ))}
+                        </ul>
+                        {liveValue != null && liveValue !== card.stats[s] && (
+                          <p className="mt-1.5 text-[11px] text-slate-500">
+                            {de ? `Diese Punkte sind die aktuellen Werte (jetzt ${liveValue}). Deine Karte zeigt ${card.stats[s]} vom letzten Training.` : `These points are the current values (now ${liveValue}). Your card shows ${card.stats[s]} from the last training.`}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </div>
           <div className="panel p-4 sm:p-5">

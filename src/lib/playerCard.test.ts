@@ -103,20 +103,39 @@ describe('computeCards', () => {
     expect(lone.noData.COM).toBe(false) // XP and social are known (0)
     expect(computeCards([member('DDDD4444'), ...members], caps, true, null).get('DDDD4444')!.noData.COM).toBe(false) // XP alone still counts
   })
-  it('INT counts the 1v1 and the 2v2 Elo, each against its own ladder (the FFA Elo and the win rate do not count)', () => {
-    const duel = [
-      member('EEEE5555', { elo: 1800, elo2v2: 2000, eloFfa: 1000 }),
-      member('FFFF6666', { elo: 1800, eloFfa: 3000 }),
-      member('GGGG7777', { elo: 1500, elo2v2: 1500, eloFfa: 1000 }),
-      member('IIII9999', { elo: 1000, elo2v2: 1000 }),
+  it('INT counts the 1v1 Elo, the 2v2 Elo and the FFA Rating, each against its own ladder (the win rate does not count)', () => {
+    const rank = [
+      member('EEEE5555', { elo: 2000, elo2v2: 2000, eloFfa: 2000 }),
+      member('FFFF6666', { elo: 1500, elo2v2: 1500, eloFfa: 1500 }),
+      member('GGGG7777', { elo: 1000, elo2v2: 1000, eloFfa: 1000 }),
     ]
-    const c = computeCards(duel, new Map(), false)
-    // strong in both ladders beats strong in one (the other ladder counts as the lowest place) and beats the middle of both; the bottom of both is last
+    const c = computeCards(rank, new Map(), false)
     expect(c.get('EEEE5555')!.stats.INT).toBeGreaterThan(c.get('FFFF6666')!.stats.INT)
-    expect(c.get('EEEE5555')!.stats.INT).toBeGreaterThan(c.get('GGGG7777')!.stats.INT)
-    expect(c.get('GGGG7777')!.stats.INT).toBeGreaterThan(c.get('IIII9999')!.stats.INT)
-    expect(c.get('FFFF6666')!.stats.INT).toBeGreaterThan(c.get('IIII9999')!.stats.INT)
-    expect(computeCards([member('HHHH8888', { eloFfa: 3000 }), ...duel], new Map(), false).get('HHHH8888')!.noData.INT).toBe(true)
+    expect(c.get('FFFF6666')!.stats.INT).toBeGreaterThan(c.get('GGGG7777')!.stats.INT)
+    // the FFA Rating alone moves the value: same duel Elo, higher FFA Rating
+    const same = computeCards([member('HHHH8888', { elo: 1500, elo2v2: 1500, eloFfa: 2500 }), member('IIII9999', { elo: 1500, elo2v2: 1500, eloFfa: 1000 }), ...rank], new Map(), false)
+    expect(same.get('HHHH8888')!.stats.INT).toBeGreaterThan(same.get('IIII9999')!.stats.INT)
+    // somebody on the FFA board only is still data, but below somebody who is high on all three
+    const lone = computeCards([member('JJJJ1010', { eloFfa: 3000 }), ...rank], new Map(), false)
+    expect(lone.get('JJJJ1010')!.noData.INT).toBe(false)
+    expect(lone.get('EEEE5555')!.stats.INT).toBeGreaterThan(lone.get('JJJJ1010')!.stats.INT)
+  })
+  it('INT shows a third of the value per ladder: up to 33 points each, and the points add up to the value', () => {
+    const c = computeCards(
+      [member('EEEE5555', { elo: 2000, elo2v2: 2000, eloFfa: 2000 }), member('FFFF6666', { elo: 1500, elo2v2: 1500 }), member('GGGG7777', { elo: 1000, elo2v2: 1000, eloFfa: 1000 })],
+      new Map(),
+      false,
+    )
+    const top = c.get('EEEE5555')!
+    const parts = top.parts!.INT
+    expect(parts.map((p) => p.key)).toEqual(['elo1v1', 'elo2v2', 'eloFfa'])
+    expect(parts.every((p) => p.max === 33)).toBe(true)
+    expect(parts.reduce((s, p) => s + (p.points ?? 0), 0)).toBeCloseTo(top.stats.INT, 0)
+    // a ladder the member is not on counts as the lowest place: 46 / 3 points
+    const missing = c.get('FFFF6666')!.parts!.INT.find((p) => p.key === 'eloFfa')!
+    expect(missing.value).toBeNull()
+    expect(missing.lowest).toBe(true)
+    expect(missing.points).toBeCloseTo(46 / 3, 5)
   })
   it('INT: whoever is higher in the 1v1 and in the 2v2 never has less than somebody listed on one ladder only', () => {
     // the top-100 entries of the clan: Zilka is higher than Calos in the 2v2 and Calos has no 1v1 place at all

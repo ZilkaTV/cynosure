@@ -8,6 +8,7 @@ import { Flag } from './Emoji'
 import { cleanDisplayName } from '../lib/displayName'
 import { isUnclaimedMember } from '../lib/stats'
 import { isCalm } from '../lib/calm'
+import StatusBadges from './StatusBadges'
 
 /** Ticking "1h 23m" / "23m 05s" countdown to a target timestamp, or null once it's passed. */
 export function useCountdown(targetMs: number | null): string | null {
@@ -185,17 +186,20 @@ export function MemberNameLink({ publicId, name, nationality, className = 'font-
   const { t } = useLanguage()
   const wins = useWinsIndex()
   return (
-    <Link to={`/member/${publicId}`} className={`inline-flex items-center gap-1.5 ${className}`}>
-      {nationality && <Flag code={nationality} />}
-      <RoleName wins={wins.byId.get(publicId)}>
-        <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
-      </RoleName>
-      {isUnclaimedMember(publicId) && (
-        <span className="rounded-full bg-base-700/70 px-1.5 text-[10px] font-normal text-slate-400" title={t.memberProfile.unregisteredNote}>
-          {t.memberProfile.unregisteredShort}
-        </span>
-      )}
-    </Link>
+    <span className="inline-flex max-w-full items-center gap-1.5">
+      <Link to={`/member/${publicId}`} className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}>
+        {nationality && <Flag code={nationality} />}
+        <RoleName wins={wins.byId.get(publicId)}>
+          <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
+        </RoleName>
+        {isUnclaimedMember(publicId) && (
+          <span className="rounded-full bg-base-700/70 px-1.5 text-[10px] font-normal text-slate-400" title={t.memberProfile.unregisteredNote}>
+            {t.memberProfile.unregisteredShort}
+          </span>
+        )}
+      </Link>
+      <StatusBadges id={publicId} />
+    </span>
   )
 }
 

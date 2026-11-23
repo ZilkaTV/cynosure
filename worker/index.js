@@ -28,6 +28,7 @@ import { handleQueueMe } from './queueMe.js'
 import { handleSeen, handleVisitors } from './siteSeen.js'
 import { handlePageReport, handlePageStats } from './sitePages.js'
 import { handlePoll } from './sitePoll.js'
+import { handleLive } from './liveStatus.js'
 import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleClanDonors } from './clanDonors.js'
 import { handleBoosters } from './boosters.js'
@@ -85,7 +86,8 @@ export default {
     if (pathname === '/api/clan-donors' || pathname.startsWith('/api/clan-donors/')) return withSecurityHeaders(await handleClanDonors(request, env))
     if (pathname === '/api/seen/pages') return withSecurityHeaders(await handlePageReport(request, env))
     if (pathname === '/api/metrics/pages') return withSecurityHeaders(await handlePageStats(request, env))
-    if (pathname === '/api/poll' || pathname.startsWith('/api/poll/')) return withSecurityHeaders(await handlePoll(request, env, pathname))
+    if (pathname === '/api/live') return withSecurityHeaders(await handleLive(request, env))
+    if (pathname === '/api/poll' ||pathname.startsWith('/api/poll/')) return withSecurityHeaders(await handlePoll(request, env, pathname))
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))

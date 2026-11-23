@@ -32,6 +32,7 @@ import { toggleFavoriteProfile, useSearchLists } from '../lib/searchLists'
 import RoleFrame from './RoleFrame'
 import { Flag } from './Emoji'
 import { RoleName, useWinsIndex } from './RoleName'
+import StatusBadges from './StatusBadges'
 import ProfileCards from './ProfileCards'
 
 const HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
@@ -352,6 +353,7 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
             <h1 className="mt-1 inline-flex flex-wrap items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               {m.nationality && <Flag code={m.nationality} className="h-5 w-7" />}
               <RoleName wins={roleWins}>{name}</RoleName>
+              <StatusBadges id={m.publicId} />
               <ChannelLinks yt={extras?.yt_channel} twitch={extras?.twitch_channel} />
               {isOwn && viewerIsAdmin && <span className="rounded-full bg-gold/20 px-2 py-0.5 align-middle text-xs font-bold uppercase tracking-wide text-gold-light">{t.accountMenu.adminBadge}</span>}
             </h1>

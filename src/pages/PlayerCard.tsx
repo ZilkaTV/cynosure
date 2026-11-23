@@ -165,7 +165,7 @@ export default function PlayerCard() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Link to={`/member/${card.publicId}`} className="text-sm text-slate-400 hover:text-white">
         ← {de ? 'Zum Profil' : 'To the profile'}
       </Link>
@@ -201,13 +201,13 @@ export default function PlayerCard() {
                 ? 'Jeder Wert (46 bis 99) zeigt, wo du unter allen Mitgliedern liegst. Er besteht aus zwei bis drei Messwerten, die gleich viel zählen (bei Intelligenz je ein Drittel, also bis zu 33 Punkte pro Ladder). Wer bei einem Messwert Letzter ist, bekommt dafür noch den Sockel von 46 geteilt durch die Anzahl, wer Erster ist, den vollen Anteil. Alles kommt aus den Daten der Seite, nichts wird von Hand eingetragen. Die Gesamtwertung ist der Durchschnitt der sechs Werte.'
                 : 'Every value (46 to 99) shows where you stand among all members. It is made of two or three measures that count the same (Intelligence: a third each, so up to 33 points per ladder). Being last in a measure still gives the base of 46 divided by their number, being first gives the full share. It all comes from the data of the site, nothing is typed in. The overall rating is the average of the six values.'}
             </p>
-            <ul className="divide-y divide-base-700/60 text-sm">
+            <ul className="grid gap-3 text-sm lg:grid-cols-2">
               {CARD_STATS.map((s) => {
                 const parts = card.parts?.[s] ?? []
                 const max = parts.find((p) => p.points != null)?.max ?? 0
                 const liveValue = card.live?.[s]
                 return (
-                  <li key={s} className="py-3">
+                  <li key={s} className="rounded-lg border border-base-700/60 bg-base-900/30 p-3">
                     <div className="flex items-center gap-3">
                       <span className="w-10 shrink-0 font-display font-bold text-gold-light">{s}</span>
                       <span className="min-w-0 flex-1">
@@ -223,7 +223,7 @@ export default function PlayerCard() {
                       </span>
                     </div>
                     {parts.length > 0 && !card.noData[s] && (
-                      <div className="ml-[3.25rem] mt-2 rounded-lg border border-base-700/70 bg-base-900/40 px-3 py-2">
+                      <div className="mt-2 rounded-lg border border-base-700/70 bg-base-900/40 px-3 py-2">
                         <p className="mb-1.5 text-[11px] text-slate-500">
                           {de ? `Jeder Messwert bringt bis zu ${num(max, 1)} Punkte, zusammen ergeben sie den Wert.` : `Every measure brings up to ${num(max, 1)} points, together they make the value.`}
                         </p>

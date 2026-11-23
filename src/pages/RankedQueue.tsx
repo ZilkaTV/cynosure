@@ -362,11 +362,14 @@ export default function RankedQueue() {
                     <span className="h-px flex-1 bg-base-700/60" />
                   </div>
                 )}
-                <div className={`space-y-1 rounded-lg border px-3 py-2 ${won && !abandoned ? 'border-gold/40 bg-gold/5' : 'border-base-700/70 bg-base-900/30'}`}>
-                  {won && !abandoned && <p className="text-[10px] font-bold uppercase tracking-wide text-gold-light">✓ {t.queue.winner}</p>}
-                  {team.map((p, j) => (
-                    <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
-                  ))}
+                {/* every side is as tall as a 2v2 team (label line + two players), so a 1v1 card is as big as a 2v2 card */}
+                <div className={`flex min-h-[5.25rem] flex-col rounded-lg border px-3 py-2 ${won && !abandoned ? 'border-gold/40 bg-gold/5' : 'border-base-700/70 bg-base-900/30'}`}>
+                  <p className="mb-1 h-3 text-[10px] font-bold uppercase leading-3 tracking-wide text-gold-light">{won && !abandoned ? `✓ ${t.queue.winner}` : ''}</p>
+                  <div className="flex flex-1 flex-col justify-center gap-1">
+                    {team.map((p, j) => (
+                      <PlayerChip key={j} p={p} mine={me} ladder={m.ladder} boards={boards} names={memberNames} />
+                    ))}
+                  </div>
                 </div>
               </Fragment>
             )

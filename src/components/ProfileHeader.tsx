@@ -6,7 +6,6 @@ import { useProfile } from '../lib/useProfile'
 import { useSharedRoster } from '../lib/access'
 import { titleForLevel, xpProgress } from '../lib/levels'
 import { cleanDisplayName, initialOf } from '../lib/displayName'
-import { splitAccountUsername } from '../lib/openfront'
 import type { MemberStats } from '../lib/stats'
 import {
   DEFAULT_FIT,
@@ -367,20 +366,15 @@ export default function ProfileHeader({ m, isOwn, viewerIsAdmin, extras, reloadE
                   {t.memberProfile.discordPrefix} {m.discord}
                 </span>
               )}
-              {m.accountUsername && (
-                <span>
-                  {t.memberProfile.accountUsernamePrefix}{' '}
-                  {(() => {
-                    const { base, discriminator } = splitAccountUsername(m.accountUsername)
-                    return (
-                      <>
-                        {base}
-                        {discriminator && <span className="text-slate-600">#{discriminator}</span>}
-                      </>
-                    )
-                  })()}
-                </span>
-              )}
+              <a
+                href={`https://openfront.io/#modal=profile&publicID=${encodeURIComponent(m.publicId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={m.accountUsername ? `OpenFront: ${m.accountUsername}` : undefined}
+                className="inline-flex items-center rounded-lg border border-base-600 bg-base-800/70 px-3 py-1 text-xs font-semibold text-accent-light transition-colors hover:border-accent hover:text-white"
+              >
+                {de ? 'OpenFront-Profil' : 'OpenFront profile'}
+              </a>
             </div>
           </div>
           <div className="flex w-full flex-col items-start gap-2 pt-1">

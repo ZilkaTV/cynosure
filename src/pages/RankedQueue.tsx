@@ -148,6 +148,7 @@ type Boards = { '1v1': Record<string, { rank: number; elo: number }>; '2v2': Rec
 function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: MyAccount | null; ladder?: '1v1' | '2v2' | 'ffa'; boards?: Boards | null; names?: Map<string, string> }) {
   const wins = useWinsIndex()
   const clan = useClanIds()
+  const { language } = useLanguage()
   // Only the visitor's own account is named - nobody else's other name is ever revealed here.
   const own = mine && p.k && p.k === mine.k && p.r == null ? mine : null
   // A player under another name has no rank stored with the game: take the current board position by public id.
@@ -179,11 +180,6 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
       {nameNode}
       {own && <span className="ml-1 font-normal text-gold-light">({cleanDisplayName(own.name)})</span>}
       {showReal && <span className="ml-1 font-normal text-gold-light">({cleanDisplayName(showReal)})</span>}
-      {openfront && (
-        <a href={openfront} target="_blank" rel="noreferrer" title={`OpenFront: ${p.id}`} aria-label="OpenFront profile" className="ml-1.5 text-[11px] font-normal text-slate-600 hover:text-accent-light">
-          ↗
-        </a>
-      )}
     </span>
   )
   const chip = 'rounded px-1.5 py-0.5 text-[10px] font-bold leading-none'
@@ -213,6 +209,11 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
         {p.r == null && p.b && !ownBoard && (
           // Stored as "top 100" when the game was played; if the current board (loaded) no longer lists the player, say so.
           <span className={`${chip} bg-base-700 font-medium text-slate-400`}>{p.id && ladder && boards?.[ladder] && Object.keys(boards[ladder]).length > 0 ? 'ex Top 100' : 'Top 100'}</span>
+        )}
+        {openfront && (inClan || p.r != null || p.b || !!ownBoard) && (
+          <a href={openfront} target="_blank" rel="noreferrer" title={`OpenFront: ${p.id}`} className={`${chip} border border-base-600 font-semibold text-accent-light transition-colors hover:border-accent hover:text-white`}>
+            {language === 'de' ? 'Profil ansehen' : 'Watch profile'}
+          </a>
         )}
       </span>
     </div>

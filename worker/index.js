@@ -29,6 +29,7 @@ import { handleSeen, handleVisitors } from './siteSeen.js'
 import { handlePageReport, handlePageStats } from './sitePages.js'
 import { handlePoll } from './sitePoll.js'
 import { handleLive } from './liveStatus.js'
+import { handleRankedActivity } from './rankedActivity.js'
 import { isDev, devGate, handleDevLogin, devAutoLogin } from './devSite.js'
 import { handleClanDonors } from './clanDonors.js'
 import { handleBoosters } from './boosters.js'
@@ -89,6 +90,7 @@ export default {
     if (pathname === '/api/seen') return withSecurityHeaders(await handleSeen(request, env))
     if (pathname === '/api/metrics/visitors') return withSecurityHeaders(await handleVisitors(request, env))
     if (pathname === '/api/queue/me') return withSecurityHeaders(await handleQueueMe(request, env))
+    if (pathname === '/api/ranked-activity') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleRankedActivity(request, env)))
     if (pathname === '/api/roster') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleRoster(request, env, ctx)))
     if (pathname === '/api/clan-ledger') return withSecurityHeaders(await edgeCached(request, ctx, 60, () => handleClanLedger(request, env, ctx)))
     if (pathname === '/api/member-games') return withSecurityHeaders(await edgeCached(request, ctx, 600, () => handleMemberGames(request, env)))

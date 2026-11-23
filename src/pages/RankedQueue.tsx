@@ -4,6 +4,7 @@ import { RoleName, useClanIds, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal, { replayUrl } from '../components/GameDetailModal'
+import RankedActivity from '../components/RankedActivity'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
@@ -471,6 +472,7 @@ export default function RankedQueue() {
             </button>
           </div>
         )}
+        <RankedActivity />
         <p className="text-center text-xs text-slate-500">{t.queue.eloNote}</p>
         <p className="text-center text-xs text-slate-500">{t.queue.privacyNote}</p>
         <GameDetailModal gameId={openGame} onClose={() => setOpenGame(null)} />

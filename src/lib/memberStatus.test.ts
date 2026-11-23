@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inactiveDays, sinceText } from './memberStatus'
+import { inactiveDays, isInactive, sinceText } from './memberStatus'
 
 const now = Date.parse('2026-11-23T12:00:00Z')
 const daysAgo = (d: number) => new Date(now - d * 86_400_000).toISOString()
@@ -22,5 +22,14 @@ describe('member status', () => {
     expect(sinceText(new Date(now - 42 * 60_000).toISOString(), now)).toBe('42 min')
     expect(sinceText(new Date(now - 65 * 60_000).toISOString(), now)).toBe('1 h 05 min')
     expect(sinceText(null, now)).toBe('')
+  })
+})
+
+describe('isInactive', () => {
+  it('counts a member who never played a game with the clan tag as inactive', () => {
+    expect(isInactive(null, now)).toBe(true)
+    expect(isInactive(undefined, now)).toBe(true)
+    expect(isInactive(daysAgo(30), now)).toBe(true)
+    expect(isInactive(daysAgo(3), now)).toBe(false)
   })
 })

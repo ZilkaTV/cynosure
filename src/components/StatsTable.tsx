@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { MemberStats } from '../lib/stats'
 import { useLanguage } from '../i18n/LanguageContext'
+import { isInactive } from '../lib/memberStatus'
 
 export interface Column {
   key: string
@@ -36,7 +37,8 @@ export function StatsTable({
   /** Extra controls next to the search box. */
   toolbar?: ReactNode
 }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const [activeOnly, setActiveOnly] = useState(false)
   const [sortKey, setSortKey] = useState(defaultSort)
   const [dir, setDir] = useState<'asc' | 'desc'>('desc')
   const [query, setQuery] = useState('')
@@ -57,11 +59,13 @@ export function StatsTable({
   const q = query.trim().toLowerCase()
   // Ranks stay those of the full sorted list, also while a search narrows the rows down.
   const rankOf = useMemo(() => new Map(sorted.map((m, i) => [m.publicId, i + 1])), [sorted])
+  // "Active only" leaves out members without a game with the clan tag for more than 10 days (and those who never played one)
+  const pool = useMemo(() => (activeOnly ? sorted.filter((m) => !isInactive(m.lastGame)) : sorted), [sorted, activeOnly])
   const matches = q
-    ? sorted.filter((m) => m.name.toLowerCase().includes(q) || m.publicId.toLowerCase().includes(q) || (m.accountUsername ?? '').toLowerCase().includes(q))
-    : sorted
-  const collapsed = limit != null && !expanded && !q && sorted.length > limit
-  const visible = collapsed ? sorted.slice(0, limit) : matches
+    ? pool.filter((m) => m.name.toLowerCase().includes(q) || m.publicId.toLowerCase().includes(q) || (m.accountUsername ?? '').toLowerCase().includes(q))
+    : pool
+  const collapsed = limit != null && !expanded && !q && pool.length > limit
+  const visible = collapsed ? pool.slice(0, limit) : matches
 
   function toggle(key: string) {
     if (key === sortKey) setDir((d) => (d === 'desc' ? 'asc' : 'desc'))
@@ -87,8 +91,12 @@ export function StatsTable({
             placeholder={t.common.searchPlayerOrId}
             className="w-full max-w-sm rounded-lg border border-base-600 bg-base-800 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
           />
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} className="h-4 w-4 accent-[#8b5cf6]" />
+            {language === 'de' ? 'Nur aktive' : 'Active only'}
+          </label>
           {toolbar}
-          {q && <span className="text-xs text-slate-500">{t.common.searchResults(matches.length, sorted.length)}</span>}
+          {q && <span className="text-xs text-slate-500">{t.common.searchResults(matches.length, pool.length)}</span>}
         </div>
       )}
       <div className="panel overflow-hidden">
@@ -143,7 +151,7 @@ export function StatsTable({
         </table>
       </div>
       </div>
-      {limit != null && !q && sorted.length > limit && (
+      {limit != null && !q && pool.length > limit && (
         <div className="flex justify-center">
           <button
             type="button"
@@ -151,7 +159,7 @@ export function StatsTable({
             aria-expanded={expanded}
             className="rounded-lg bg-base-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-base-700 hover:text-white"
           >
-            {expanded ? t.common.showTopOnly(limit) : t.common.showAll(sorted.length)}
+            {expanded ? t.common.showTopOnly(limit) : t.common.showAll(pool.length)}
           </button>
         </div>
       )}

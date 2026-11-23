@@ -189,11 +189,13 @@ export function MemberNameLink({ publicId, name, nationality, className = 'font-
     <span className="inline-flex max-w-full items-center gap-1.5">
       <Link to={`/member/${publicId}`} className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}>
         {nationality && <Flag code={nationality} />}
-        <RoleName wins={wins.byId.get(publicId)}>
-          <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
-        </RoleName>
+        <span className="min-w-0 truncate">
+          <RoleName wins={wins.byId.get(publicId)}>
+            <span title={cleanDisplayName(name) !== name ? name : undefined}>{cleanDisplayName(name)}</span>
+          </RoleName>
+        </span>
         {isUnclaimedMember(publicId) && (
-          <span className="rounded-full bg-base-700/70 px-1.5 text-[10px] font-normal text-slate-400" title={t.memberProfile.unregisteredNote}>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-base-700/70 px-1.5 text-[10px] font-normal text-slate-400" title={t.memberProfile.unregisteredNote}>
             {t.memberProfile.unregisteredShort}
           </span>
         )}

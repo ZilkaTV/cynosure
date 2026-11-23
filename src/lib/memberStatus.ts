@@ -30,6 +30,11 @@ export function inactiveDays(lastGame: string | null | undefined, now = Date.now
   return days > INACTIVE_DAYS ? days : null
 }
 
+/** True when a member counts as inactive: no game with the clan tag for more than INACTIVE_DAYS days, or none at all. */
+export function isInactive(lastGame: string | null | undefined, now = Date.now()): boolean {
+  return !lastGame || inactiveDays(lastGame, now) != null
+}
+
 /** "1 h 05 min" / "42 min" for a stream that started at `since`; empty when unknown. */
 export function sinceText(since: string | null | undefined, now = Date.now()): string {
   if (!since) return ''

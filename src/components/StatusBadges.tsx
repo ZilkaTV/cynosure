@@ -1,17 +1,18 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useSharedRoster } from '../lib/access'
 import { useLanguage } from '../i18n/LanguageContext'
-import { inactiveDays, lastGames, sinceText, useLiveStreams } from '../lib/memberStatus'
+import { inactiveDays, isInactive, lastGames, sinceText, useLiveStreams } from '../lib/memberStatus'
 import type { MemberStats } from '../lib/stats'
 
 let gamesFor: MemberStats[] | null = null
 let games = new Map<string, string | null>()
-function lastGameOf(members: MemberStats[], id: string): string | null {
+/** undefined = the member is not in the roster (nothing is known), null = in the roster but no game with the clan tag at all. */
+function lastGameOf(members: MemberStats[], id: string): string | null | undefined {
   if (gamesFor !== members) {
     gamesFor = members
     games = lastGames(members)
   }
-  return games.get(id) ?? null
+  return games.get(id)
 }
 
 /** A small badge with an info box on hover (drawn with fixed position, so a table's scroll area does not clip it). */
@@ -55,9 +56,10 @@ export default function StatusBadges({ id }: { id: string }) {
   const roster = useSharedRoster()
   const tw = live?.twitch[id]
   const yt = live?.youtube[id]
-  const last = roster ? lastGameOf(roster.members, id) : null
-  const idle = inactiveDays(last)
-  if (!tw && !yt && idle == null) return null
+  const last = roster ? lastGameOf(roster.members, id) : undefined
+  const idle = last === undefined ? false : isInactive(last)
+  const days = last ? inactiveDays(last) : null
+  if (!tw && !yt && !idle) return null
   const since = (s: string | null | undefined) => (sinceText(s) ? (de ? `seit ${sinceText(s)}` : `for ${sinceText(s)}`) : '')
   return (
     <span className="inline-flex shrink-0 items-center gap-1 align-middle">
@@ -97,18 +99,20 @@ export default function StatusBadges({ id }: { id: string }) {
           LIVE
         </Badge>
       )}
-      {idle != null && last && (
+      {idle && (
         <Badge
           className="bg-orange-500 text-white"
           tip={
             <>
               <p className="font-semibold text-orange-300">{de ? 'Inaktiv' : 'Inactive'}</p>
               <p className="mt-0.5 text-slate-200">
-                {de ? `Seit ${idle} Tagen kein Spiel mit dem CYN-Tag.` : `No game with the CYN tag for ${idle} days.`}
+                {days == null ? (de ? 'Noch kein Spiel mit dem CYN-Tag gefunden.' : 'No game with the CYN tag found yet.') : de ? `Seit ${days} Tagen kein Spiel mit dem CYN-Tag.` : `No game with the CYN tag for ${days} days.`}
               </p>
-              <p className="mt-0.5 text-slate-400">
-                {de ? 'Zuletzt' : 'Last game'}: {new Date(last).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </p>
+              {last && (
+                <p className="mt-0.5 text-slate-400">
+                  {de ? 'Zuletzt' : 'Last game'}: {new Date(last).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              )}
             </>
           }
         >

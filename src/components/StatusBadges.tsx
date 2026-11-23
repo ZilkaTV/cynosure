@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useSharedRoster } from '../lib/access'
 import { useLanguage } from '../i18n/LanguageContext'
-import { inactiveDays, lastGames, sinceText, useLiveStreams, INACTIVE_DAYS } from '../lib/memberStatus'
+import { inactiveDays, lastGames, sinceText, useLiveStreams } from '../lib/memberStatus'
 import type { MemberStats } from '../lib/stats'
 
 let gamesFor: MemberStats[] | null = null
@@ -109,7 +109,6 @@ export default function StatusBadges({ id }: { id: string }) {
               <p className="mt-0.5 text-slate-400">
                 {de ? 'Zuletzt' : 'Last game'}: {new Date(last).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </p>
-              <p className="mt-1 text-slate-500">{de ? `Als inaktiv gilt, wer länger als ${INACTIVE_DAYS} Tage nicht mit dem Tag gespielt hat.` : `Inactive means more than ${INACTIVE_DAYS} days without a game with the tag.`}</p>
             </>
           }
         >

@@ -4,7 +4,6 @@ import { RoleName, useClanIds, useWinsIndex } from '../components/RoleName'
 import { Card, SectionHeading, StatCard, Spinner, relativeTime } from '../components/ui'
 import { StatsShell } from '../components/StatsShell'
 import GameDetailModal from '../components/GameDetailModal'
-import QueuePresence from '../components/QueuePresence'
 import { useLanguage } from '../i18n/LanguageContext'
 import { supabase as db } from '../lib/supabase'
 import { useQueueAlertSettings, testQueueAlert } from '../lib/queueNotify'
@@ -46,7 +45,6 @@ interface FeedMatch {
   top_count: number
   players: FeedPlayer[]
 }
-type Ladder = 'all' | '1v1' | '2v2' | 'ffa'
 
 /** Colours per ladder: 1v1 violet, 2v2 teal, ranked FFA amber. */
 const LADDER_LOOK = {
@@ -220,7 +218,6 @@ function PlayerChip({ p, mine, ladder, boards, names }: { p: FeedPlayer; mine?: 
 
 export default function RankedQueue() {
   const { t } = useLanguage()
-  const [ladder, setLadder] = useState<Ladder>('all')
   const [matches, setMatches] = useState<FeedMatch[] | null>(null)
   const [error, setError] = useState(false)
   const [openGame, setOpenGame] = useState<string | null>(null)
@@ -293,7 +290,9 @@ export default function RankedQueue() {
   }, [])
 
   const relocated = useMemo(() => relocateSums(matches ?? []), [matches])
-  const shown = useMemo(() => relocated.filter((m) => ladder === 'all' || m.ladder === ladder), [relocated, ladder])
+  // the two duel ladders side by side (the ranked FFA queue is gone since OpenFront v0.36.0)
+  const columns = useMemo(() => ({ '1v1': relocated.filter((m) => m.ladder === '1v1'), '2v2': relocated.filter((m) => m.ladder === '2v2') }), [relocated])
+  const shown = useMemo(() => [...columns['1v1'], ...columns['2v2']], [columns])
 
   const activity = useMemo(() => {
     const now = Date.now()
@@ -311,94 +310,8 @@ export default function RankedQueue() {
 
   const level = activity.m30 >= BUSY_FROM ? 'high' : activity.m30 >= MEDIUM_FROM ? 'medium' : 'low'
 
-  return (
-    <StatsShell>
-      <section className="space-y-6">
-        <SectionHeading center eyebrow={t.queue.eyebrow} title={t.queue.title} />
-        <p className="mx-auto max-w-2xl text-center text-xs text-slate-400 sm:text-sm">{t.queue.intro}</p>
-        {loadedAt && <p className="text-center text-[11px] tabular-nums text-slate-500">↻ {new Date(loadedAt).toLocaleTimeString()}</p>}
-
-        <div className="flex justify-center gap-2">
-          {(['all', '1v1', '2v2'] as Ladder[]).map((l) => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => setLadder(l)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${ladder === l ? (l === 'all' ? 'bg-accent text-white' : LADDER_LOOK[l].tab) : 'bg-base-800 text-slate-400 hover:bg-base-700 hover:text-slate-200'}`}
-            >
-              {l === 'all' ? t.queue.all : l}
-            </button>
-          ))}
-        </div>
-
-        {/* the alert settings and "who of CYN is in the queue" next to each other */}
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
-          <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            {(['1v1', '2v2'] as const).map((l) => {
-              const on = alert.on(l)
-              return (
-                <button
-                  key={l}
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  onClick={() => alert.toggle(l, !on)}
-                  className="flex items-center gap-2 text-sm text-slate-200"
-                >
-                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : l === '2v2' ? 'bg-teal-500' : 'bg-amber-500') : 'bg-base-700'}`}>
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
-                  </span>
-                  <span className="font-semibold">{l}</span>
-                  <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
-                </button>
-              )
-            })}
-          </div>
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
-            <input type="checkbox" checked={alert.sound} onChange={(e) => alert.setSound(e.target.checked)} className="accent-[#8b5cf6]" />
-            {t.queue.alertSound}
-          </label>
-          <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
-            {t.queue.alertTest}
-          </button>
-          {alert.permission === 'denied' && alert.ladders.length > 0 && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
-          <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
-        </Card>
-
-        <QueuePresence />
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>
-            <div className="flex shrink-0 flex-col gap-1 rounded-lg bg-base-950 p-1.5" role="img" aria-label={t.queue.levels[level]}>
-              {(['low', 'medium', 'high'] as const).map((l) => (
-                <span
-                  key={l}
-                  className={`block h-3.5 w-3.5 rounded-full transition-all ${
-                  l === 'low' ? (level === l ? 'bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.7)]' : 'bg-red-950') : l === 'medium' ? (level === l ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]' : 'bg-amber-950') : level === l ? 'bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]' : 'bg-emerald-950'
-                }`}
-                />
-              ))}
-            </div>
-            <div className="hidden min-w-0 sm:block">
-              <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.queue.level}</p>
-              <p className="font-display text-2xl font-bold text-white">{t.queue.levels[level]}</p>
-            </div>
-          </div>
-          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
-          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
-        </div>
-        <p className="text-center text-xs text-slate-500">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
-
-        <div>
-          <h3 className="mb-3 font-display text-base font-bold text-white">{t.queue.recent}</h3>
-          {error && <p className="text-sm text-slate-400">{t.queue.loadError}</p>}
-          {!matches && !error && <Spinner />}
-          {matches && shown.length === 0 && <p className="text-sm text-slate-400">{t.queue.empty}</p>}
-          <div className="space-y-2">
-            {shown.slice(0, allQueue ? LIST_LIMIT : 10).map((m) => {
+  // one finished game of a ladder
+  const matchRow = (m: FeedMatch) => {
               const players = withMirroredElo(m)
               const sides = [...new Set(players.map((p) => p.s))].sort((a, b) => a - b)
               // Ranked FFA: everybody is a side of their own, the winner first.
@@ -456,14 +369,91 @@ export default function RankedQueue() {
                   <span className="ml-auto shrink-0 font-mono text-xs text-slate-500 sm:pl-4">{m.game_id}</span>
                 </div>
               )
+  }
+
+  return (
+    <StatsShell>
+      <section className="space-y-6">
+        <SectionHeading center eyebrow={t.queue.eyebrow} title={t.queue.title} />
+        <p className="mx-auto max-w-2xl text-center text-xs text-slate-400 sm:text-sm">{t.queue.intro}</p>
+        {loadedAt && <p className="text-center text-[11px] tabular-nums text-slate-500">↻ {new Date(loadedAt).toLocaleTimeString()}</p>}
+
+        <Card className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 !py-3">
+          <span className="text-sm font-medium text-slate-200">🔔 {t.queue.alertTitle}</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            {(['1v1', '2v2'] as const).map((l) => {
+              const on = alert.on(l)
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  onClick={() => alert.toggle(l, !on)}
+                  className="flex items-center gap-2 text-sm text-slate-200"
+                >
+                  <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${on ? (l === '1v1' ? 'bg-violet-500' : l === '2v2' ? 'bg-teal-500' : 'bg-amber-500') : 'bg-base-700'}`}>
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+                  </span>
+                  <span className="font-semibold">{l}</span>
+                  <span className={`w-7 text-left text-xs font-bold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{on ? t.queue.on : t.queue.off}</span>
+                </button>
+              )
             })}
           </div>
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
+            <input type="checkbox" checked={alert.sound} onChange={(e) => alert.setSound(e.target.checked)} className="accent-[#8b5cf6]" />
+            {t.queue.alertSound}
+          </label>
+          <button type="button" onClick={testQueueAlert} className="rounded-md bg-base-800 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-base-700">
+            {t.queue.alertTest}
+          </button>
+          {alert.permission === 'denied' && alert.ladders.length > 0 && <p className="w-full text-center text-xs text-amber-300">{t.queue.permissionDenied}</p>}
+          <p className="w-full text-center text-[11px] text-slate-500">{t.queue.alertHint}</p>
+        </Card>
+
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="panel flex items-center justify-center gap-3 px-3 py-4 sm:justify-start sm:px-5" title={t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}>
+            <div className="flex shrink-0 flex-col gap-1 rounded-lg bg-base-950 p-1.5" role="img" aria-label={t.queue.levels[level]}>
+              {(['low', 'medium', 'high'] as const).map((l) => (
+                <span
+                  key={l}
+                  className={`block h-3.5 w-3.5 rounded-full transition-all ${
+                  l === 'low' ? (level === l ? 'bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.7)]' : 'bg-red-950') : l === 'medium' ? (level === l ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.7)]' : 'bg-amber-950') : level === l ? 'bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]' : 'bg-emerald-950'
+                }`}
+                />
+              ))}
+            </div>
+            <div className="hidden min-w-0 sm:block">
+              <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">{t.queue.level}</p>
+              <p className="font-display text-2xl font-bold text-white">{t.queue.levels[level]}</p>
+            </div>
+          </div>
+          <StatCard label={t.queue.active5} value={String(activity.m5)} accent="purple" />
+          <StatCard label={t.queue.active15} value={String(activity.m15)} accent="purple" />
+        </div>
+        <p className="text-center text-xs text-slate-500">{t.queue.lampRule(MEDIUM_FROM, BUSY_FROM)}</p>
+
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {(['1v1', '2v2'] as const).map((l) => (
+            <div key={l} className="min-w-0">
+              <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-white">
+                <span className={`rounded px-2 py-0.5 text-sm font-bold ${LADDER_LOOK[l].tag}`}>{l}</span>
+                {t.queue.recent}
+              </h3>
+              {error && <p className="text-sm text-slate-400">{t.queue.loadError}</p>}
+              {!matches && !error && <Spinner />}
+              {matches && columns[l].length === 0 && <p className="text-sm text-slate-400">{t.queue.empty}</p>}
+              <div className="space-y-2">{columns[l].slice(0, allQueue ? LIST_LIMIT : 10).map(matchRow)}</div>
+            </div>
+          ))}
         </div>
 
-        {shown.length > 10 && (
+        {Math.max(columns['1v1'].length, columns['2v2'].length) > 10 && (
           <div className="flex justify-center">
             <button type="button" onClick={() => setAllQueue((v) => !v)} className="btn-ghost text-sm">
-              {allQueue ? t.common.showTopOnly(10) : t.common.showAll(Math.min(shown.length, LIST_LIMIT))}
+              {allQueue ? t.common.showTopOnly(10) : t.common.showAll(Math.min(Math.max(columns['1v1'].length, columns['2v2'].length), LIST_LIMIT))}
             </button>
           </div>
         )}

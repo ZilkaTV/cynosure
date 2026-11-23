@@ -334,20 +334,25 @@ export default function RankedQueue() {
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenGame(m.game_id))}
         className={`panel cursor-pointer space-y-2.5 border-l-4 p-3 text-sm transition-colors hover:bg-base-800/60 ${abandoned ? 'border-l-slate-600 opacity-60' : LADDER_LOOK[m.ladder].border}`}
       >
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          {abandoned && (
-            <span className="rounded bg-slate-600/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-300" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
-              {t.queue.abandoned}
-            </span>
-          )}
-          <span className="font-medium text-slate-200">{mapName}</span>
-          {mapSize && (
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${mapSize === 'Compact' ? 'bg-amber-500/20 text-amber-300' : 'bg-base-700 text-slate-300'}`}>
-              {mapSize === 'Compact' ? t.queue.mapCompact : t.queue.mapNormal}
-            </span>
-          )}
-          <span className="tabular-nums text-slate-500">{fmtDuration(m.duration_s)}</span>
-          <span className="ml-auto text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</span>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-2 text-xs">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            {abandoned && (
+              <span className="rounded bg-slate-600/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-300" title={m.ladder === '2v2' ? t.queue.abandoned2v2 : t.queue.abandoned1v1}>
+                {t.queue.abandoned}
+              </span>
+            )}
+            <span className="font-medium text-slate-200">{mapName}</span>
+            {mapSize && (
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${mapSize === 'Compact' ? 'bg-amber-500/20 text-amber-300' : 'bg-base-700 text-slate-300'}`}>
+                {mapSize === 'Compact' ? t.queue.mapCompact : t.queue.mapNormal}
+              </span>
+            )}
+            <span className="tabular-nums text-slate-500">{fmtDuration(m.duration_s)}</span>
+          </div>
+          <a href={replayUrl(m.game_id)} target="_blank" rel="noreferrer" title={m.game_id} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-base-600 px-2.5 py-1 text-xs font-semibold text-accent-light transition-colors hover:border-accent hover:text-white">
+            <span aria-hidden="true">▶</span> {t.gameDetail.watchReplay}
+          </a>
+          <span className="text-right text-slate-500">{relativeTime(Date.parse(m.ended_at), t)}</span>
         </div>
         <div className="space-y-1.5">
           {sides.map((side, i) => {
@@ -374,11 +379,6 @@ export default function RankedQueue() {
               </Fragment>
             )
           })}
-        </div>
-        <div className="flex justify-end">
-          <a href={replayUrl(m.game_id)} target="_blank" rel="noreferrer" title={m.game_id} className="inline-flex items-center gap-1.5 rounded-md border border-base-600 px-2.5 py-1 text-xs font-semibold text-accent-light transition-colors hover:border-accent hover:text-white">
-            <span aria-hidden="true">▶</span> {t.gameDetail.watchReplay}
-          </a>
         </div>
       </div>
     )

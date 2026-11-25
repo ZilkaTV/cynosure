@@ -7,22 +7,40 @@ import type { PlayerGame } from '../lib/openfront'
 
 const fmt1 = (v: number) => (Math.round(v * 10) / 10).toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-/** A table cell (same look as the Elo cell) with the rating change of one FFA game. */
-export function FfaRatingCell({ game }: { game: PlayerGame }) {
-  const { language } = useLanguage()
-  const de = language === 'de'
-  const c = ffaChange(game)
-  if (!c) return <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-600">-</td>
-  const lines = [
+/** The hover text of a rating change: before -> after, the two parts and the expected win chance. */
+function ffaTitle(c: NonNullable<ReturnType<typeof ffaChange>>, de: boolean): string {
+  return [
     `FFA Rating: ${Math.round(c.before)} → ${Math.round(c.after)}`,
     c.result != null && c.place != null ? `${de ? 'Ergebnis' : 'Result'} ${fmtFfaDelta(c.result)} · ${de ? 'Platzierung' : 'Placement'} ${fmtFfaDelta(c.place)}` : null,
     c.expected != null ? `${de ? 'Erwartete Siegchance' : 'Expected win'}: ${fmt1(c.expected * 100)} %` : null,
-  ].filter(Boolean)
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** A table cell (same look as the Elo cell) with the rating change of one FFA game. */
+export function FfaRatingCell({ game }: { game: PlayerGame }) {
+  const { language } = useLanguage()
+  const c = ffaChange(game)
+  if (!c) return <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-600">-</td>
   return (
-    <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${c.d >= 0 ? 'text-signal-green' : 'text-signal-red'}`} title={lines.join('\n')}>
+    <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${c.d >= 0 ? 'text-signal-green' : 'text-signal-red'}`} title={ffaTitle(c, language === 'de')}>
       {fmtFfaDelta(c.d)}
       {c.expected != null && <span className="ml-1.5 text-[11px] font-normal text-slate-500">{Math.round(c.expected * 100)} %</span>}
     </td>
+  )
+}
+
+/** The same change as a small badge behind a name (game report). */
+export function FfaRatingBadge({ game }: { game: PlayerGame }) {
+  const { language } = useLanguage()
+  const c = ffaChange(game)
+  if (!c) return null
+  return (
+    <span className={`ml-1.5 cursor-help text-[11px] font-semibold tabular-nums ${c.d >= 0 ? 'text-signal-green' : 'text-signal-red'}`} title={`FFA Rating
+${ffaTitle(c, language === 'de')}`}>
+      {fmtFfaDelta(c.d)}
+    </span>
   )
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerStat } from '../lib/openfront'
+import { fetchGameDetail, isUnscoredTeamGame, type GameDetail, type GamePlayerStat, type PlayerGame } from '../lib/openfront'
 import type { GameTileStats, ReplayProgress } from '../lib/replaySim'
 import { fetchClanScoreLedger, fetchTopClanLeaderboard, fmtScoreDelta, fmtRatioChange, otherClanScoresForGame, type ClanScoreRow } from '../lib/clanScore'
 import { CLAN_TAG } from '../config'
@@ -12,6 +12,7 @@ import type { TranslationShape } from '../i18n/translations'
 import GameComments from './GameComments'
 import { GameActionsBar, useGameActions } from './GameActionsBar'
 import { useSharedRoster } from '../lib/access'
+import { FfaRatingBadge } from './FfaRatingValue'
 import { RoleName, useWinsIndex } from './RoleName'
 import { Link } from 'react-router-dom'
 
@@ -134,6 +135,9 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
   // the like strip of the report: like (hold for the other reactions), how many liked / laughed ..., comment, save, share - the same as under the game in the lists
   const actions = useGameActions(gameId ? [gameId] : [])
   const roster = useSharedRoster()
+  // FFA rating of the members in this game (from the members' game lists; the report itself has no ratings)
+  const ffaByMember = new Map<string, PlayerGame>()
+  if (gameId) for (const m of roster?.members ?? []) { const g = m.cynGames.find((x) => x.gameId === gameId); if (g?.ffaRating) ffaByMember.set(m.publicId, g) }
   const playedBy = gameId ? (roster?.members ?? []).filter((m) => m.cynGames.some((g) => g.gameId === gameId)).map((m) => m.publicId) : []
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
@@ -483,12 +487,21 @@ export default function GameDetailModal({ gameId, onClose, focusComments }: { ga
                                         const name = <RoleName wins={winsIndex.byName.get(key)}>{r.p.username}</RoleName>
                                         const id = winsIndex.idByName.get(key)
                                         // the report is a window above the page: it closes when the profile opens
-                                        return id ? (
+                                        const nameEl = id ? (
                                           <Link to={`/member/${id}`} onClick={onClose} className="hover:underline">
                                             {name}
                                           </Link>
                                         ) : (
                                           name
+                                        )
+                                        const rated = id ? ffaByMember.get(id) : undefined
+                                        return rated ? (
+                                          <>
+                                            {nameEl}
+                                            <FfaRatingBadge game={rated} />
+                                          </>
+                                        ) : (
+                                          nameEl
                                         )
                                       })()
                                     ) : (

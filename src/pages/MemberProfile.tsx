@@ -20,6 +20,7 @@ import { useProfileExtras } from '../lib/profileExtras'
 import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
 import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
+import { FfaRatingCell } from '../components/FfaRatingValue'
 import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
 import {
   currentMonthKey,
@@ -287,7 +288,7 @@ export default function MemberProfile() {
                 <tr className="border-b border-base-700 text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.date}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
-                  <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
+                  <th className="px-4 py-3 text-right font-semibold">Win Score / Elo / FFA</th>
                   <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                   <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                   <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
@@ -317,6 +318,8 @@ export default function MemberProfile() {
                             '-'
                           )}
                         </td>
+                      ) : g.ffaRating ? (
+                        <FfaRatingCell game={g} />
                       ) : (
                         <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                           {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}

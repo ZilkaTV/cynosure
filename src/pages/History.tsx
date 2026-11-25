@@ -5,6 +5,7 @@ import { isFfa, isTeam, is1v1, is2v2, isIncompleteRanked } from '../lib/stats'
 import { RegistrationGate, StatsShell } from '../components/StatsShell'
 import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import GameDetailModal from '../components/GameDetailModal'
+import { FfaRatingCell, FfaRatingInfo } from '../components/FfaRatingValue'
 import { GameActionsBar, useGameActions, useOpenReport } from '../components/GameActionsBar'
 import { fetchReactionTotals } from '../lib/reactions'
 import { fetchClanScoreLedger, fmtScoreDelta, fmtRatioChange, type ClanScoreRow } from '../lib/clanScore'
@@ -94,6 +95,8 @@ export default function History() {
           existing.members.push({ publicId: m.publicId, name: m.name, username: g.username })
           // One row for the whole game: it won if any of the listed members won (a clanmate on another team does not turn a win into a defeat).
           if (g.result === 'victory' && existing.g.result !== 'victory') existing.g = { ...existing.g, result: 'victory' }
+          // the FFA rating of the first member who has one
+          if (!existing.g.ffaRating && g.ffaRating) existing.g = { ...existing.g, ffaRating: g.ffaRating }
         } else byGameId.set(g.gameId, { g, members: [{ publicId: m.publicId, name: m.name, username: g.username }] })
       }
     }
@@ -232,7 +235,7 @@ export default function History() {
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.player}</th>
                     <th className="px-4 py-3 text-left font-semibold">{t.common.table.mode}</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.players}</th>
-                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo</th>
+                    <th className="px-4 py-3 text-right font-semibold">Win Score / Elo / FFA</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">[{CLAN_TAG}] Ratio</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-left font-semibold">{t.common.table.map}</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-right font-semibold">{t.common.table.duration}</th>
@@ -282,6 +285,8 @@ export default function History() {
                               '-'
                             )}
                           </td>
+                        ) : g.ffaRating ? (
+                          <FfaRatingCell game={g} />
                         ) : (
                           <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${clanScore ? (clanScore.won ? 'text-signal-green' : 'text-signal-red') : 'text-slate-600'}`}>
                             {clanScore ? fmtScoreDelta(clanScore.score, clanScore.won) : '-'}
@@ -330,6 +335,8 @@ export default function History() {
           </div>
         )}
       </section>
+
+      {filter === 'ffa' && <FfaRatingInfo />}
 
       <GameDetailModal gameId={report.openGame} focusComments={report.focusComments} onClose={report.close} />
     </StatsShell>

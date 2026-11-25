@@ -54,6 +54,8 @@ export interface PlayerGame {
   totalPlayers: number | null
   username: string
   clanTag: string | null
+  /** the rating change of a rated FFA game (only in OpenFront's list when the game was rated) */
+  ffaRating?: { before: number; after: number; expected?: number; deltaResult?: number; deltaPlace?: number } | null
 }
 
 // ── Cache ─────────────────────────────────────────────────────────────────

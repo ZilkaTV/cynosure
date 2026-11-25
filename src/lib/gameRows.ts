@@ -159,3 +159,30 @@ export function winRateClass(pct: number): string {
   if (pct >= 31) return 'text-slate-400'
   return 'text-rose-400'
 }
+
+// ── FFA rating of a single game (from OpenFront's own game list) ──────────────────────────────────────────────────────────────────────────
+export interface FfaChange {
+  /** the whole change (after - before) */
+  d: number
+  result: number | null
+  place: number | null
+  expected: number | null
+  before: number
+  after: number
+}
+const finite = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+
+/** The rating change a rated FFA game gave, null for a game without one. */
+export function ffaChange(g: { ffaRating?: PlayerGame['ffaRating'] }): FfaChange | null {
+  const r = g.ffaRating
+  const before = finite(r?.before)
+  const after = finite(r?.after)
+  if (!r || before == null || after == null) return null
+  return { d: after - before, result: finite(r.deltaResult), place: finite(r.deltaPlace), expected: finite(r.expected), before, after }
+}
+
+/** "+11" / "−18" (rounded to whole points). */
+export function fmtFfaDelta(d: number): string {
+  const v = Math.round(d)
+  return `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v)}`
+}

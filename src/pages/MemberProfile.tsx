@@ -20,7 +20,7 @@ import { useProfileExtras } from '../lib/profileExtras'
 import { capsDonatedMap, useClanDonors } from '../lib/clanDonors'
 import { GameDate, SectionHeading, Spinner } from '../components/ui'
 import { GameActionsBar, useGameActions } from '../components/GameActionsBar'
-import { FfaRatingCell } from '../components/FfaRatingValue'
+import { FfaRatingCell, FfaRatingInfo } from '../components/FfaRatingValue'
 import { eloChangeFor, fmtEloChange, gameModeLabel, isRankedGame, useRankedElo } from '../lib/gameRows'
 import {
   currentMonthKey,
@@ -354,6 +354,11 @@ export default function MemberProfile() {
           </div>
         )}
         <p className="mt-2 text-center text-xs text-slate-500">{t.memberProfile.clickForReport}</p>
+        {recent.some((g) => g.ffaRating) && (
+          <div className="mt-3">
+            <FfaRatingInfo />
+          </div>
+        )}
         </>
         )}
         </div>

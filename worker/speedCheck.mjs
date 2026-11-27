@@ -3,6 +3,10 @@
 // record then shows it (a game of 21 minutes recorded as 230 s real time = about 5.5x speed). The in-game clock the speedrun board uses is
 // not changed by that, but a run played at another speed is not a run played under the same conditions, so it is refused.
 //
+// A PAUSE is allowed: it stops the game clock, so it does not change the in-game time, only the real time. The game log records every pause (a
+// toggle_pause intent), so the engine check counts them and a real time far above the game time is only refused when there was no pause that
+// explains it. Before the replay is known (the Worker's first look) the slow check is skipped altogether.
+//
 // Slow motion is only partly detectable: `duration` runs until the connection closes, a little after the win in every real run checked
 // (about 14 s) but possibly long after it, so only a real time far above the game time is refused (a half-speed run is caught, a
 // three-quarter-speed run is not).
@@ -14,8 +18,11 @@ const SLACK_SECONDS = 5
 const SLOW_FACTOR = 1.5
 const SLOW_SLACK_SECONDS = 90
 
-/** Null = fine, otherwise the reason. `winSeconds` = in-game clock at the win from the engine replay (more exact than the turn count). */
-export function checkGameSpeed(info, winSeconds = null) {
+/**
+ * Null = fine, otherwise the reason. `winSeconds` = in-game clock at the win from the engine replay (more exact than the turn count).
+ * `pauses` = how often the game was paused according to the replay (null = not known yet: only the fast-forward check runs).
+ */
+export function checkGameSpeed(info, winSeconds = null, pauses = null) {
   const wall = Number(info?.duration)
   const turns = Number(info?.num_turns ?? info?.numTurns)
   if (!(wall > 0)) return null
@@ -24,8 +31,8 @@ export function checkGameSpeed(info, winSeconds = null) {
   if (gameSeconds > wall * TOLERANCE + SLACK_SECONDS) {
     return `This game was played sped up: ${Math.round(gameSeconds)} s of game time passed in ${Math.round(wall)} s of real time (about ${(gameSeconds / wall).toFixed(1)}x speed). Runs must be played at normal speed.`
   }
-  if (wall > gameSeconds * SLOW_FACTOR + SLOW_SLACK_SECONDS) {
-    return `This game took ${Math.round(wall)} s of real time for ${Math.round(gameSeconds)} s of game time - it was played in slow motion or left open long after the win. Runs must be played at normal speed.`
+  if (pauses === 0 && wall > gameSeconds * SLOW_FACTOR + SLOW_SLACK_SECONDS) {
+    return `This game took ${Math.round(wall)} s of real time for ${Math.round(gameSeconds)} s of game time and the game was never paused - it was played in slow motion or left open long after the win. Runs must be played at normal speed (pausing is fine).`
   }
   return null
 }

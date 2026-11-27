@@ -63,8 +63,9 @@ async function handle(item) {
     if (item.tries >= 3) refuse(out?.error === 'no_commit' ? 'This game was played on an engine version we cannot replay yet.' : 'The replay could not be checked (no winner found in the game log).')
     return
   }
-  // The engine's exact win time against the real time of the record: a run played in fast-forward is refused.
-  const speedProblem = checkGameSpeed(info, out.winSeconds)
+  // The engine's exact win time against the real time of the record: a run played in fast-forward is refused, and so is one whose real time
+  // is far above the game time when the game was never paused (a pause stops the game clock and is allowed).
+  const speedProblem = checkGameSpeed(info, out.winSeconds, typeof out.pauses === 'number' ? out.pauses : null)
   if (speedProblem) return void refuse(speedProblem)
   const seconds = Math.floor(out.winSeconds)
   const tiles = out.tilePercentByClientId?.[winner.clientID] ?? null

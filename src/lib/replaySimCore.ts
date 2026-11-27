@@ -996,6 +996,8 @@ export interface SpeedrunReplayMetrics {
   winSeconds: number | null
   /** clientID -> land share (%) at `tilesAtTick`; null if the game was decided before that tick. */
   tilePercentByClientId: Record<string, number> | null
+  /** How often the game was paused up to the win (a pause stops the game clock; it explains a real time above the game time). */
+  pauses: number
 }
 
 /**
@@ -1015,12 +1017,17 @@ export async function computeSpeedrunMetrics(
     const loaded = await loadRunner(gameId)
     if (!loaded) return null
     const { runner, lastTick } = loaded
-    const game = runner.game as unknown as { elapsedGameSeconds?: () => number }
+    const game = runner.game as unknown as { elapsedGameSeconds?: () => number; isPaused?: () => boolean }
     const totalLandTiles = runner.game.map().numLandTiles()
     let tilePercentByClientId: Record<string, number> | null = null
     let tick = 0
+    let pauses = 0
+    let wasPaused = false
     while (runner.executeNextTick()) {
       tick++
+      const paused = game.isPaused?.() === true
+      if (paused && !wasPaused) pauses++
+      wasPaused = paused
       if (onProgress && tick % 100 === 0) onProgress(tick, lastTick)
       if (tick === tilesAtTick) {
         const denom = Math.max(1, totalLandTiles - runner.game.numTilesWithFallout())
@@ -1035,10 +1042,11 @@ export async function computeSpeedrunMetrics(
         return {
           winSeconds: game.elapsedGameSeconds ? game.elapsedGameSeconds() : Math.max(0, tick - 100) / 10,
           tilePercentByClientId,
+          pauses,
         }
       }
     }
-    return { winSeconds: null, tilePercentByClientId }
+    return { winSeconds: null, tilePercentByClientId, pauses }
   } catch (err) {
     console.error('Speedrun replay failed', err)
     return null
